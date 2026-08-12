@@ -22,9 +22,7 @@ export function Sidebar() {
             end={item.to === PATHS.HOME}
             className={({ isActive }) =>
               `rounded px-3 py-2 text-sm ${
-                isActive
-                  ? 'bg-primary text-primary-content'
-                  : 'text-content hover:bg-surface-muted'
+                isActive ? 'bg-primary text-primary-content' : 'text-content hover:bg-surface-muted'
               }`
             }
           >
