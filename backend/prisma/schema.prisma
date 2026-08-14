@@ -17,6 +17,7 @@ model USUARIO {
   id_usuario Int    @id @default(autoincrement())
   nombre     String
   apellido   String
+  dni  String @unique
 
   // Relaciones
   tiposMovimientoCreados    TIPOMOVIMIENTO[] @relation("TipoMovimientoCreador")
@@ -43,6 +44,12 @@ model USUARIO {
 
 model TIPOMOVIMIENTO {
   id_tipo_movimiento Int @id @default(autoincrement())
+  nombre             String @unique
+  indicador_entrada    Boolean // Indica si el movimiento es de entrada (true) o de salida (false)
+  estado             Boolean @default(true)
+  
+  hora_creacion DateTime @default(now())
+  hora_actualizacion DateTime? @default(now())
 
   FK_usuario_creador    Int
   FK_usuario_actualizador Int
@@ -110,6 +117,12 @@ model ARTICULO {
 
 model CATEGORIA {
   id_categoria Int @id @default(autoincrement())
+  nombre       String @unique
+  descripcion  String?
+  estado       Boolean @default(true)
+
+  hora_creacion DateTime @default(now())
+  hora_actualizacion DateTime? @default(now())
 
   FK_usuario_creador     Int
   FK_usuario_actualizador Int
@@ -122,6 +135,12 @@ model CATEGORIA {
 
 model MARCA {
   id_marca Int @id @default(autoincrement())
+  nombre   String @unique
+  descripcion  String?
+  estado   Boolean @default(true)
+
+  hora_creacion DateTime @default(now())
+  hora_actualizacion DateTime? @default(now())
 
   FK_usuario_creador     Int
   FK_usuario_actualizador Int
@@ -134,6 +153,12 @@ model MARCA {
 
 model UNIDADMEDIDA {
   id_unidad_medida Int @id @default(autoincrement())
+  nombre           String @unique
+  abreviatura      String @unique // Abreviatura de la unidad de medida (ejemplo: kg, m, l, etc.)
+  estado           Boolean @default(true)
+
+  hora_creacion DateTime @default(now())
+  hora_actualizacion DateTime? @default(now())
 
   FK_usuario_creador     Int
   FK_usuario_actualizador Int
@@ -146,6 +171,15 @@ model UNIDADMEDIDA {
 
 model DEPOSITO {
   id_deposito Int @id @default(autoincrement())
+  nombre      String @unique
+  es_obrador Boolean @default(false)
+  ubicacion   String?
+  descripcion String?
+  estado     Boolean @default(true)
+  //Agregar en su momento la vinculacion con proyecto, sera opcional, ya que puede haber depositos que no esten vinculados a ningun proyecto
+
+  hora_creacion DateTime @default(now())
+  hora_actualizacion DateTime? @default(now())
 
   FK_usuario_creador     Int
   FK_usuario_actualizador Int
