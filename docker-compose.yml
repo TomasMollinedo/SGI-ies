@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: ies_db_dev
+    restart: always
+    environment:
+      POSTGRES_USER: ies
+      POSTGRES_PASSWORD: ies123
+      POSTGRES_DB: ies_dev
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+ 
+volumes:
+  pgdata:
