@@ -14,7 +14,6 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('IES Constructora — API')
     .setDescription('API del backend de gestión para IES Constructora')
-    .setVersion('0.0.1')
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
