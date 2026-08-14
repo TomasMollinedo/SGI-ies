@@ -59,3 +59,8 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Claude Code local session state
 .claude/settings.local.json
+
+# AI Code Assistants Cache
+.agents/
+.claude/
+.windsurf/
