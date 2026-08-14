@@ -21,8 +21,8 @@ Detalle completo de dependencias (para qué sirve cada una y por qué se instal�
 
 ## Requisitos
 
-- Node.js ≥ 20
-- npm ≥ 10
+- Node.js `^20.19.0` o `>=22.12.0` (requerido por Vite 8; Node 21.x no es compatible)
+- npm ≥ 10 (viene incluido con las versiones de Node de arriba)
 
 ## Instalación y ejecución
 
