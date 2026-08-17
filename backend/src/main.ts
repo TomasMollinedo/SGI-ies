@@ -9,6 +9,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService<EnvConfig, true>);
 
+  app.setGlobalPrefix('api');
   app.enableCors({ origin: configService.get('CORS_ORIGIN', { infer: true }) });
 
   const swaggerConfig = new DocumentBuilder()

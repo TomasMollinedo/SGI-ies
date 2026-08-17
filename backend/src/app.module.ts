@@ -6,12 +6,14 @@ import { validateEnv } from './config/env.schema';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { MarcaModule } from './modules/almacen/marca/marca.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     PrismaModule,
     HealthModule,
+    MarcaModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
