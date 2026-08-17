@@ -16,8 +16,17 @@ export const marcaResponseSchema = z.object({
 
 export class MarcaResponseDto extends createZodDto(marcaResponseSchema) {}
 
+// El listado no expone quién ni cuándo se creó/modificó cada marca —
+// para eso está el detalle (GET /marcas/:id).
+export const marcaListItemSchema = marcaResponseSchema.omit({
+  hora_creacion: true,
+  hora_actualizacion: true,
+  FK_usuario_creador: true,
+  FK_usuario_actualizador: true,
+});
+
 export const marcaListResponseSchema = z.object({
-  data: z.array(marcaResponseSchema),
+  data: z.array(marcaListItemSchema),
   meta: z.object({
     total: z.number(),
     page: z.number(),

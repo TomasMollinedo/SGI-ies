@@ -44,6 +44,14 @@ export class MarcaService {
     const [data, total] = await Promise.all([
       this.prisma.mARCA.findMany({
         where,
+        // Sin los datos de auditoría (quién ni cuándo): el listado no los
+        // expone, eso lo da el detalle (findOne).
+        select: {
+          id_marca: true,
+          nombre: true,
+          descripcion: true,
+          estado: true,
+        },
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { nombre: 'asc' },
@@ -116,6 +124,30 @@ export class MarcaService {
       where: { id_marca: id },
       data: {
         estado: false,
+        FK_usuario_actualizador: USUARIO_HARDCODEADO_ID,
+        hora_actualizacion: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Alta lógica (reactivar): solo si está de baja. Vuelve a validar el
+   * nombre entre activas porque, mientras estuvo de baja, otra marca
+   * pudo haber tomado ese mismo nombre.
+   */
+  async activar(id: number) {
+    const marca = await this.findOne(id);
+
+    if (marca.estado) {
+      throw new ConflictException('La marca ya está activa');
+    }
+
+    await this.validarNombreUnicoEntreActivas(marca.nombre, id);
+
+    return this.prisma.mARCA.update({
+      where: { id_marca: id },
+      data: {
+        estado: true,
         FK_usuario_actualizador: USUARIO_HARDCODEADO_ID,
         hora_actualizacion: new Date(),
       },

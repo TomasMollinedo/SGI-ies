@@ -137,4 +137,21 @@ export class MarcaController {
   baja(@Param('id', ParseIntPipe) id: number) {
     return this.marcaService.baja(id);
   }
+
+  @Patch(':id/alta')
+  @ApiOperation({ summary: 'Reactivar una marca dada de baja (alta lógica)' })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_marca de la marca a reactivar',
+  })
+  @ApiOkResponse({ description: 'Marca reactivada', type: MarcaResponseDto })
+  @ApiNotFoundResponse({ description: 'No existe una marca con ese id' })
+  @ApiConflictResponse({
+    description:
+      'La marca ya está activa, o ya existe otra marca activa con el mismo nombre',
+  })
+  alta(@Param('id', ParseIntPipe) id: number) {
+    return this.marcaService.activar(id);
+  }
 }
