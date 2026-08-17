@@ -70,18 +70,25 @@ async function main() {
     `Seed de TIPOMOVIMIENTO: ${tiposMovimiento.length} registros procesados.`,
   );
 
+  // CATEGORIA y MARCA ya no tienen `nombre` unique a nivel de base (es único
+  // solo entre registros activos, se valida en cada service), así que no se
+  // puede hacer upsert por nombre: buscamos primero y creamos/actualizamos a
+  // mano.
   for (const categoria of categorias) {
-    await prisma.cATEGORIA.upsert({
+    const existente = await prisma.cATEGORIA.findFirst({
       where: { nombre: categoria.nombre },
-      update: categoria,
-      create: { ...categoria, ...auditoria },
     });
+    if (existente) {
+      await prisma.cATEGORIA.update({
+        where: { id_categoria: existente.id_categoria },
+        data: categoria,
+      });
+    } else {
+      await prisma.cATEGORIA.create({ data: { ...categoria, ...auditoria } });
+    }
   }
   console.log(`Seed de CATEGORIA: ${categorias.length} registros procesados.`);
 
-  // MARCA ya no tiene `nombre` unique a nivel de base (es único solo entre
-  // marcas activas, se valida en MarcaService), así que no se puede hacer
-  // upsert por nombre: buscamos primero y creamos/actualizamos a mano.
   for (const marca of marcas) {
     const existente = await prisma.mARCA.findFirst({
       where: { nombre: marca.nombre },

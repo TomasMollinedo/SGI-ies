@@ -7,6 +7,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { MarcaModule } from './modules/almacen/marca/marca.module';
+import { CategoriaModule } from './modules/almacen/categoria/categoria.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { MarcaModule } from './modules/almacen/marca/marca.module';
     PrismaModule,
     HealthModule,
     MarcaModule,
+    CategoriaModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
