@@ -1,14 +1,28 @@
 import 'dotenv/config';
-import { PrismaClient } from '../generated/prisma/client';
+import * as bcrypt from 'bcrypt';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../generated/prisma/client';
+import { RolNombre } from '../src/common/enums/rol.enum';
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
-const usuarios = [
-  { dni: '30111222', nombre: 'Ana', apellido: 'Gomez' },
-  { dni: '28444555', nombre: 'Luis', apellido: 'Perez' },
-  { dni: '35666777', nombre: 'Maria', apellido: 'Fernandez' },
+// Password de desarrollo, solo para los usuarios de prueba de este seed.
+// NUNCA usar este valor en un ambiente real.
+const DEV_PASSWORD = 'Password123!';
+
+const usuariosDePrueba: { email: string; rol: RolNombre }[] = [
+  { email: 'almacen@axontech.test', rol: RolNombre.RESPONSABLE_ALMACEN },
+  { email: 'compras@axontech.test', rol: RolNombre.RESPONSABLE_COMPRAS },
+  { email: 'proyectos@axontech.test', rol: RolNombre.RESPONSABLE_PROYECTOS },
+  { email: 'tesoreria@axontech.test', rol: RolNombre.RESPONSABLE_TESORERIA },
+  {
+    email: 'comercializacion@axontech.test',
+    rol: RolNombre.RESPONSABLE_COMERCIALIZACION,
+  },
+  { email: 'gerente@axontech.test', rol: RolNombre.GERENTE_GENERAL },
+  { email: 'admin@axontech.test', rol: RolNombre.ADMINISTRADOR },
 ];
 
 const tiposMovimiento = [
@@ -42,23 +56,33 @@ const depositos = [
 ];
 
 async function main() {
-  for (const usuario of usuarios) {
+  const roles = await Promise.all(
+    Object.values(RolNombre).map((nombre) =>
+      prisma.rOL.upsert({
+        where: { nombre },
+        update: {},
+        create: { nombre },
+      }),
+    ),
+  );
+  const idPorRol = new Map(roles.map((rol) => [rol.nombre, rol.id_rol]));
+
+  const passwordHash = await bcrypt.hash(DEV_PASSWORD, 10);
+
+  for (const { email, rol } of usuariosDePrueba) {
     await prisma.uSUARIO.upsert({
-      where: { dni: usuario.dni },
-      update: usuario,
-      create: usuario,
+      where: { email },
+      update: {},
+      create: {
+        nombre: rol,
+        apellido: 'Prueba',
+        email,
+        password: passwordHash,
+        FK_rol: idPorRol.get(rol)!,
+      },
     });
   }
-  console.log(`Seed de USUARIO: ${usuarios.length} registros procesados.`);
-
-  const admin = await prisma.uSUARIO.findUniqueOrThrow({
-    where: { dni: usuarios[0].dni },
-  });
-  const auditoria = {
-    FK_usuario_creador: admin.id_usuario,
-    FK_usuario_actualizador: admin.id_usuario,
-  };
-
+  
   for (const tipoMovimiento of tiposMovimiento) {
     await prisma.tIPOMOVIMIENTO.upsert({
       where: { nombre: tipoMovimiento.nombre },
@@ -116,10 +140,8 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
+  .catch((error) => {
+    console.error(error);
     process.exitCode = 1;
   })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .finally(() => prisma.$disconnect());
