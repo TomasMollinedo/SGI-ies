@@ -132,7 +132,9 @@ model ARTICULO {
 
 model CATEGORIA {
   id_categoria Int @id @default(autoincrement())
-  nombre       String @unique
+  // Único solo entre categorías activas (se valida a nivel service, no acá):
+  // una categoría dada de baja libera su nombre para una categoría nueva.
+  nombre       String
   descripcion  String?
   estado       Boolean @default(true)
 

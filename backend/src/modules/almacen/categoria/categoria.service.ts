@@ -8,18 +8,18 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { USUARIO_HARDCODEADO_ID } from '../../../common/constants/auditoria.constant';
 import { validarNombreUnicoEntreActivos } from '../../../common/validaciones/nombre-unico-entre-activos';
 import { validarSinArticulosActivosAsociados } from '../../../common/validaciones/sin-articulos-activos-asociados';
-import { CreateMarcaDto } from './dto/create-marca.dto';
-import { UpdateMarcaDto } from './dto/update-marca.dto';
-import { QueryMarcaDto } from './dto/query-marca.dto';
+import { CreateCategoriaDto } from './dto/create-categoria.dto';
+import { UpdateCategoriaDto } from './dto/update-categoria.dto';
+import { QueryCategoriaDto } from './dto/query-categoria.dto';
 
 @Injectable()
-export class MarcaService {
+export class CategoriaService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateMarcaDto) {
+  async create(dto: CreateCategoriaDto) {
     await this.validarNombreUnico(dto.nombre);
 
-    return this.prisma.mARCA.create({
+    return this.prisma.cATEGORIA.create({
       data: {
         ...dto,
         FK_usuario_creador: USUARIO_HARDCODEADO_ID,
@@ -28,21 +28,21 @@ export class MarcaService {
     });
   }
 
-  async findAll(query: QueryMarcaDto) {
+  async findAll(query: QueryCategoriaDto) {
     const { nombre, estado, page, limit } = query;
 
-    const where: Prisma.MARCAWhereInput = {
+    const where: Prisma.CATEGORIAWhereInput = {
       ...(estado !== undefined && { estado }),
       ...(nombre && { nombre: { contains: nombre, mode: 'insensitive' } }),
     };
 
     const [data, total] = await Promise.all([
-      this.prisma.mARCA.findMany({
+      this.prisma.cATEGORIA.findMany({
         where,
         // Sin los datos de auditoría (quién ni cuándo): el listado no los
         // expone, eso lo da el detalle (findOne).
         select: {
-          id_marca: true,
+          id_categoria: true,
           nombre: true,
           descripcion: true,
           estado: true,
@@ -51,41 +51,41 @@ export class MarcaService {
         take: limit,
         orderBy: { nombre: 'asc' },
       }),
-      this.prisma.mARCA.count({ where }),
+      this.prisma.cATEGORIA.count({ where }),
     ]);
 
     return { data, meta: { total, page, limit } };
   }
 
   /**
-   * Detalle de una marca: a diferencia del listado, incluye nombre y
+   * Detalle de una categoría: a diferencia del listado, incluye nombre y
    * apellido de quién la creó y de quién la modificó por última vez.
    */
   async findOne(id: number) {
-    const marca = await this.prisma.mARCA.findUnique({
-      where: { id_marca: id },
+    const categoria = await this.prisma.cATEGORIA.findUnique({
+      where: { id_categoria: id },
       include: {
         usuarioCreador: { select: { nombre: true, apellido: true } },
         usuarioActualizador: { select: { nombre: true, apellido: true } },
       },
     });
 
-    if (!marca) {
-      throw new NotFoundException(`No existe una marca con id ${id}`);
+    if (!categoria) {
+      throw new NotFoundException(`No existe una categoría con id ${id}`);
     }
 
-    return marca;
+    return categoria;
   }
 
-  async update(id: number, dto: UpdateMarcaDto) {
+  async update(id: number, dto: UpdateCategoriaDto) {
     await this.findOne(id);
 
     if (dto.nombre) {
       await this.validarNombreUnico(dto.nombre, id);
     }
 
-    return this.prisma.mARCA.update({
-      where: { id_marca: id },
+    return this.prisma.cATEGORIA.update({
+      where: { id_categoria: id },
       data: {
         ...dto,
         FK_usuario_actualizador: USUARIO_HARDCODEADO_ID,
@@ -95,22 +95,22 @@ export class MarcaService {
   }
 
   /**
-   * Baja lógica: no se permite si la marca ya está inactiva, ni si tiene
+   * Baja lógica: no se permite si la categoría ya está inactiva, ni si tiene
    * artículos activos asociados.
    */
   async baja(id: number) {
-    const marca = await this.findOne(id);
+    const categoria = await this.findOne(id);
 
-    if (!marca.estado) {
-      throw new ConflictException('La marca ya está dada de baja');
+    if (!categoria.estado) {
+      throw new ConflictException('La categoría ya está dada de baja');
     }
 
-    await validarSinArticulosActivosAsociados(this.prisma, 'la marca', {
-      FK_Marca: id,
+    await validarSinArticulosActivosAsociados(this.prisma, 'la categoría', {
+      FK_Categoria: id,
     });
 
-    return this.prisma.mARCA.update({
-      where: { id_marca: id },
+    return this.prisma.cATEGORIA.update({
+      where: { id_categoria: id },
       data: {
         estado: false,
         FK_usuario_actualizador: USUARIO_HARDCODEADO_ID,
@@ -121,20 +121,20 @@ export class MarcaService {
 
   /**
    * Alta lógica (reactivar): solo si está de baja. Vuelve a validar el
-   * nombre entre activas porque, mientras estuvo de baja, otra marca
+   * nombre entre activas porque, mientras estuvo de baja, otra categoría
    * pudo haber tomado ese mismo nombre.
    */
   async activar(id: number) {
-    const marca = await this.findOne(id);
+    const categoria = await this.findOne(id);
 
-    if (marca.estado) {
-      throw new ConflictException('La marca ya está activa');
+    if (categoria.estado) {
+      throw new ConflictException('La categoría ya está activa');
     }
 
-    await this.validarNombreUnico(marca.nombre, id);
+    await this.validarNombreUnico(categoria.nombre, id);
 
-    return this.prisma.mARCA.update({
-      where: { id_marca: id },
+    return this.prisma.cATEGORIA.update({
+      where: { id_categoria: id },
       data: {
         estado: true,
         FK_usuario_actualizador: USUARIO_HARDCODEADO_ID,
@@ -145,20 +145,20 @@ export class MarcaService {
 
   private async validarNombreUnico(nombre: string, idExcluido?: number) {
     await validarNombreUnicoEntreActivos({
-      entidad: 'una marca',
+      entidad: 'una categoría',
       nombre,
       existeOtroActivo: () =>
-        this.prisma.mARCA
+        this.prisma.cATEGORIA
           .findFirst({
             where: {
               nombre: { equals: nombre, mode: 'insensitive' },
               estado: true,
               ...(idExcluido !== undefined && {
-                id_marca: { not: idExcluido },
+                id_categoria: { not: idExcluido },
               }),
             },
           })
-          .then((marca) => marca !== null),
+          .then((categoria) => categoria !== null),
     });
   }
 }
