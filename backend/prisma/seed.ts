@@ -12,17 +12,42 @@ const prisma = new PrismaClient({
 // NUNCA usar este valor en un ambiente real.
 const DEV_PASSWORD = 'Password123!';
 
-const usuariosDePrueba: { email: string; rol: RolNombre }[] = [
-  { email: 'almacen@axontech.test', rol: RolNombre.RESPONSABLE_ALMACEN },
-  { email: 'compras@axontech.test', rol: RolNombre.RESPONSABLE_COMPRAS },
-  { email: 'proyectos@axontech.test', rol: RolNombre.RESPONSABLE_PROYECTOS },
-  { email: 'tesoreria@axontech.test', rol: RolNombre.RESPONSABLE_TESORERIA },
+const usuariosDePrueba: { email: string; rol: RolNombre; dni: string }[] = [
+  {
+    email: 'almacen@axontech.test',
+    rol: RolNombre.RESPONSABLE_ALMACEN,
+    dni: '10000001',
+  },
+  {
+    email: 'compras@axontech.test',
+    rol: RolNombre.RESPONSABLE_COMPRAS,
+    dni: '10000002',
+  },
+  {
+    email: 'proyectos@axontech.test',
+    rol: RolNombre.RESPONSABLE_PROYECTOS,
+    dni: '10000003',
+  },
+  {
+    email: 'tesoreria@axontech.test',
+    rol: RolNombre.RESPONSABLE_TESORERIA,
+    dni: '10000004',
+  },
   {
     email: 'comercializacion@axontech.test',
     rol: RolNombre.RESPONSABLE_COMERCIALIZACION,
+    dni: '10000005',
   },
-  { email: 'gerente@axontech.test', rol: RolNombre.GERENTE_GENERAL },
-  { email: 'admin@axontech.test', rol: RolNombre.ADMINISTRADOR },
+  {
+    email: 'gerente@axontech.test',
+    rol: RolNombre.GERENTE_GENERAL,
+    dni: '10000006',
+  },
+  {
+    email: 'admin@axontech.test',
+    rol: RolNombre.ADMINISTRADOR,
+    dni: '10000007',
+  },
 ];
 
 const tiposMovimiento = [
@@ -31,7 +56,10 @@ const tiposMovimiento = [
 ];
 
 const categorias = [
-  { nombre: 'Insumos de oficina', descripcion: 'Articulos de libreria y oficina' },
+  {
+    nombre: 'Insumos de oficina',
+    descripcion: 'Articulos de libreria y oficina',
+  },
   { nombre: 'Herramientas', descripcion: 'Herramientas manuales y electricas' },
 ];
 
@@ -69,8 +97,9 @@ async function main() {
 
   const passwordHash = await bcrypt.hash(DEV_PASSWORD, 10);
 
-  for (const { email, rol } of usuariosDePrueba) {
-    await prisma.uSUARIO.upsert({
+  let idUsuarioAdmin: number | undefined;
+  for (const { email, rol, dni } of usuariosDePrueba) {
+    const usuario = await prisma.uSUARIO.upsert({
       where: { email },
       update: {},
       create: {
@@ -78,11 +107,21 @@ async function main() {
         apellido: 'Prueba',
         email,
         password: passwordHash,
+        dni,
         FK_rol: idPorRol.get(rol)!,
       },
     });
+    if (rol === RolNombre.ADMINISTRADOR) {
+      idUsuarioAdmin = usuario.id_usuario;
+    }
   }
-  
+
+  // Catálogos base: se atribuyen al usuario admin de prueba como creador/actualizador.
+  const auditoria = {
+    FK_usuario_creador: idUsuarioAdmin!,
+    FK_usuario_actualizador: idUsuarioAdmin!,
+  };
+
   for (const tipoMovimiento of tiposMovimiento) {
     await prisma.tIPOMOVIMIENTO.upsert({
       where: { nombre: tipoMovimiento.nombre },
@@ -111,7 +150,10 @@ async function main() {
       where: { nombre: marca.nombre },
     });
     if (existente) {
-      await prisma.mARCA.update({ where: { id_marca: existente.id_marca }, data: marca });
+      await prisma.mARCA.update({
+        where: { id_marca: existente.id_marca },
+        data: marca,
+      });
     } else {
       await prisma.mARCA.create({ data: { ...marca, ...auditoria } });
     }
