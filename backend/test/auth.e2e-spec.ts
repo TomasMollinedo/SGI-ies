@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 
@@ -10,6 +11,10 @@ interface LoginResponseBody {
 
 interface MeResponseBody {
   email: string;
+}
+
+interface RefreshResponseBody {
+  accessToken: string;
 }
 
 /**
@@ -29,6 +34,7 @@ describe('Auth (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.use(cookieParser());
     await app.init();
   });
 
@@ -46,6 +52,7 @@ describe('Auth (e2e)', () => {
       expect(response.status).toBe(200);
       expect(body.accessToken).toEqual(expect.any(String));
       expect(body.usuario.email).toBe(credencialesValidas.email);
+      expect(response.headers['set-cookie']?.[0]).toMatch(/^refreshToken=/);
     });
 
     it('devuelve 401 con credenciales inválidas', async () => {
@@ -77,6 +84,52 @@ describe('Auth (e2e)', () => {
       const body = response.body as MeResponseBody;
       expect(response.status).toBe(200);
       expect(body.email).toBe(credencialesValidas.email);
+    });
+  });
+
+  describe('POST /api/auth/refresh y POST /api/auth/logout', () => {
+    it('refresh devuelve un accessToken nuevo usando la cookie del login, y logout revoca la sesión', async () => {
+      const login = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send(credencialesValidas);
+      const { accessToken: accessTokenLogin } = login.body as LoginResponseBody;
+      const cookieLogin = login.headers['set-cookie'][0];
+
+      const refresh = await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('Cookie', cookieLogin);
+      const refreshBody = refresh.body as RefreshResponseBody;
+
+      expect(refresh.status).toBe(200);
+      expect(refreshBody.accessToken).toEqual(expect.any(String));
+      const cookieRefresh = refresh.headers['set-cookie'][0];
+      expect(cookieRefresh).toMatch(/^refreshToken=/);
+
+      const logout = await request(app.getHttpServer())
+        .post('/api/auth/logout')
+        .set('Authorization', `Bearer ${accessTokenLogin}`);
+      expect(logout.status).toBe(200);
+
+      const refreshTrasLogout = await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('Cookie', cookieRefresh);
+      expect(refreshTrasLogout.status).toBe(401);
+    });
+
+    it('refresh devuelve 401 sin cookie', async () => {
+      const response = await request(app.getHttpServer()).post(
+        '/api/auth/refresh',
+      );
+
+      expect(response.status).toBe(401);
+    });
+
+    it('logout devuelve 401 sin access token', async () => {
+      const response = await request(app.getHttpServer()).post(
+        '/api/auth/logout',
+      );
+
+      expect(response.status).toBe(401);
     });
   });
 });

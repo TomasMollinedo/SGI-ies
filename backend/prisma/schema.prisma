@@ -23,6 +23,8 @@ model USUARIO {
   FK_rol Int
   rol    ROL @relation(fields: [FK_rol], references: [id_rol])
 
+  refreshTokenHash String? // hash bcrypt del refresh token vigente; null si no hay sesión activa
+
   // Relaciones
   tiposMovimientoCreados    TIPOMOVIMIENTO[] @relation("TipoMovimientoCreador")
   tiposMovimientoActualizados TIPOMOVIMIENTO[] @relation("TipoMovimientoActualizador")
