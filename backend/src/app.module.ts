@@ -5,6 +5,7 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import { validateEnv } from './config/env.schema';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { MarcaModule } from './modules/almacen/marca/marca.module';
 import { CategoriaModule } from './modules/almacen/categoria/categoria.module';
@@ -16,6 +17,7 @@ import { CategoriaModule } from './modules/almacen/categoria/categoria.module';
     HealthModule,
     MarcaModule,
     CategoriaModule,
+    AuthModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },

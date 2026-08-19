@@ -50,11 +50,13 @@ Prisma se inyecta siempre a través de un `PrismaService` (extiende `PrismaClien
 
 Al modelar un `enum` en `schema.prisma` (estados operativos, estados de confirmación, etc.), pensar el conjunto completo de valores con el equipo antes de migrar — sacar o reordenar un valor de un enum de Postgres después de aplicada la migración genera fricción.
 
+
 ### Reutilización de código entre módulos
 No extraer lógica a una zona común "por las dudas". Si una validación, helper o lógica de negocio se repite igual en 2 o más submódulos (ej. `almacen/marca` y `almacen/articulo`, o entre distintos dominios como `almacen` y `ventas`), ahí sí se extrae a `src/common/`. La primera vez que se escribe algo, vive dentro de su propio módulo — aunque se sepa que probablemente se vaya a reutilizar después.
 
-### Auditoría (provisorio, hasta que exista autenticación)
-Todavía no existe el módulo de autenticación (login/JWT), así que no hay forma real de saber quién hace cada request. Mientras tanto, los campos de auditoría (`FK_usuario_creador`, `FK_usuario_actualizador`) en altas y ediciones se completan con un `id_usuario` fijo tomado del seed, dejando un comentario `// TODO(auth): ...` en el service que lo usa. Cuando se implemente autenticación, esos hardcodeos se reemplazan por el `usuario_id` real extraído del JWT — hasta entonces, los endpoints de escritura quedan sin protección (cualquiera puede pegarles sin autenticarse).
+### Nomenclatura de modelos en `schema.prisma`
+Los nombres de `model` van siempre en MAYÚSCULA (`USUARIO`, `ROL`, `ARTICULO`, `MOVIMIENTO`, etc.), sin excepción — es la convención que ya traía el schema y se mantiene para todo modelo nuevo. Esto afecta el nombre de la tabla en Postgres y el accessor que expone el cliente de Prisma generado (ej. `prisma.uSUARIO.findUnique(...)`, `prisma.rOL.findMany(...)` — Prisma solo baja a minúscula la primera letra del nombre del modelo). Los campos, relaciones y enums dentro del modelo siguen en `camelCase`/español normal (`id_usuario`, `usuarioCreador`, `RolNombre`).
+
 
 ## Guards y permisos
 `JwtAuthGuard` se registra global (`APP_GUARD`), no ruta por ruta — así ningún endpoint nuevo queda desprotegido por olvido. Los pocos endpoints públicos (login) se marcan con un decorador `@Public()` que el guard respeta. `RolesGuard` también va global, leyendo el decorador `@Roles(...)` en cada ruta que lo necesite; una ruta sin `@Roles(...)` queda accesible para cualquier usuario autenticado.
@@ -81,7 +83,7 @@ Todo endpoint de listado que pueda crecer sin límite soporta `?page=1&limit=10`
 ## Convenciones de código
 - Seguir el ESLint/Prettier ya configurado.
 - Nomenclatura: variables y funciones en `camelCase`, clases en `PascalCase`, archivos en `kebab-case`, constantes en `UPPER_SNAKE_CASE`.
-- Entidades y conceptos de dominio, en español, calzando con la HU: `Articulo`, `Movimiento`, `Rol`, `AlmacenModule`. Lo genérico y técnico, en inglés: `service`, `controller`, `guard`.
+- Entidades y conceptos de dominio, en español, calzando con la HU: `Articulo`, `Movimiento`, `Rol`, `AlmacenModule` (nombres de clases TypeScript en `PascalCase` — no confundir con el nombre del `model` en `schema.prisma`, que va en mayúscula, ver sección de Nomenclatura de modelos). Lo genérico y técnico, en inglés: `service`, `controller`, `guard`.
 - Mensajes de error: en español, descriptivos.
 - Errores: tirar las excepciones propias de Nest (`NotFoundException`, `BadRequestException`, `ConflictException`, etc.) desde el service. El `HttpExceptionFilter` central las atrapa y formatea — nunca try/catch suelto en un controller.
 - Comentarios en formato JSDoc en los métodos públicos de los services y en cualquier decisión no obvia. No hace falta en cada función trivial — el nombre y los tipos ya documentan eso.
