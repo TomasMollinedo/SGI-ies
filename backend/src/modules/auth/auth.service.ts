@@ -18,7 +18,7 @@ export class AuthService {
    * para no revelar cuál de los dos casos ocurrió.
    */
   async login(dto: LoginDto) {
-    const usuario = await this.prisma.usuario.findUnique({
+    const usuario = await this.prisma.uSUARIO.findUnique({
       where: { email: dto.email },
       include: { rol: true },
     });
@@ -55,7 +55,7 @@ export class AuthService {
    * incluido en el JWT (usado por GET /auth/me).
    */
   async perfil(userId: number) {
-    const usuario = await this.prisma.usuario.findUniqueOrThrow({
+    const usuario = await this.prisma.uSUARIO.findUniqueOrThrow({
       where: { id_usuario: userId },
       include: { rol: true },
     });

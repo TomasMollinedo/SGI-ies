@@ -11,7 +11,7 @@ const bcrypt = require('bcrypt') as { compare: jest.Mock };
 
 describe('AuthService', () => {
   let service: AuthService;
-  let prisma: { usuario: { findUnique: jest.Mock } };
+  let prisma: { uSUARIO: { findUnique: jest.Mock } };
   let jwtService: { sign: jest.Mock };
 
   const usuarioMock = {
@@ -25,7 +25,7 @@ describe('AuthService', () => {
   };
 
   beforeEach(async () => {
-    prisma = { usuario: { findUnique: jest.fn() } };
+    prisma = { uSUARIO: { findUnique: jest.fn() } };
     jwtService = { sign: jest.fn().mockReturnValue('token-firmado') };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -42,7 +42,7 @@ describe('AuthService', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('devuelve un accessToken cuando las credenciales son válidas', async () => {
-    prisma.usuario.findUnique.mockResolvedValue(usuarioMock);
+    prisma.uSUARIO.findUnique.mockResolvedValue(usuarioMock);
     bcrypt.compare.mockResolvedValue(true);
 
     const resultado = await service.login({
@@ -66,7 +66,7 @@ describe('AuthService', () => {
   });
 
   it('lanza UnauthorizedException si el email no existe', async () => {
-    prisma.usuario.findUnique.mockResolvedValue(null);
+    prisma.uSUARIO.findUnique.mockResolvedValue(null);
 
     await expect(
       service.login({ email: 'no-existe@axontech.test', password: '123456' }),
@@ -74,7 +74,7 @@ describe('AuthService', () => {
   });
 
   it('lanza UnauthorizedException si la contraseña es incorrecta', async () => {
-    prisma.usuario.findUnique.mockResolvedValue(usuarioMock);
+    prisma.uSUARIO.findUnique.mockResolvedValue(usuarioMock);
     bcrypt.compare.mockResolvedValue(false);
 
     await expect(

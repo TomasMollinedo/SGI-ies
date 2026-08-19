@@ -28,7 +28,7 @@ const usuariosDePrueba: { email: string; rol: RolNombre }[] = [
 async function main() {
   const roles = await Promise.all(
     Object.values(RolNombre).map((nombre) =>
-      prisma.rol.upsert({
+      prisma.rOL.upsert({
         where: { nombre },
         update: {},
         create: { nombre },
@@ -40,7 +40,7 @@ async function main() {
   const passwordHash = await bcrypt.hash(DEV_PASSWORD, 10);
 
   for (const { email, rol } of usuariosDePrueba) {
-    await prisma.usuario.upsert({
+    await prisma.uSUARIO.upsert({
       where: { email },
       update: {},
       create: {

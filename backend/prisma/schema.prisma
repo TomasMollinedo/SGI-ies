@@ -13,7 +13,7 @@ datasource db {
   provider = "postgresql"
 }
 
-model Usuario {
+model USUARIO {
   id_usuario Int    @id @default(autoincrement())
   nombre     String
   apellido   String
@@ -21,7 +21,7 @@ model Usuario {
   password   String // hash de bcrypt, nunca texto plano
 
   FK_rol Int
-  rol    Rol @relation(fields: [FK_rol], references: [id_rol])
+  rol    ROL @relation(fields: [FK_rol], references: [id_rol])
 
   // Relaciones
   tiposMovimientoCreados    TIPOMOVIMIENTO[] @relation("TipoMovimientoCreador")
@@ -46,11 +46,11 @@ model Usuario {
   depositosActualizados     DEPOSITO[] @relation("DepositoActualizador")
 }
 
-model Rol {
+model ROL {
   id_rol Int    @id @default(autoincrement())
   nombre String @unique
 
-  usuarios Usuario[]
+  usuarios USUARIO[]
 }
 
 model TIPOMOVIMIENTO {
@@ -59,8 +59,8 @@ model TIPOMOVIMIENTO {
   FK_usuario_creador    Int
   FK_usuario_actualizador Int
 
-  usuarioCreador    Usuario @relation("TipoMovimientoCreador", fields: [FK_usuario_creador], references: [id_usuario])
-  usuarioActualizador Usuario @relation("TipoMovimientoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+  usuarioCreador    USUARIO @relation("TipoMovimientoCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("TipoMovimientoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
   movimientos MOVIMIENTO[]
 }
@@ -73,8 +73,8 @@ model MOVIMIENTO {
   FK_usuario_actualizador Int
 
   tipoMovimiento    TIPOMOVIMIENTO @relation(fields: [FK_TipoMovimiento], references: [id_tipo_movimiento])
-  usuarioCreador    Usuario        @relation("MovimientoCreador", fields: [FK_usuario_creador], references: [id_usuario])
-  usuarioActualizador Usuario      @relation("MovimientoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+  usuarioCreador    USUARIO        @relation("MovimientoCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO      @relation("MovimientoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
   stockMovimientos STOCKMOVIMIENTO[]
 }
@@ -114,8 +114,8 @@ model ARTICULO {
   marca           MARCA        @relation(fields: [FK_Marca], references: [id_marca])
   unidadMedida    UNIDADMEDIDA @relation(fields: [FK_UnidadMedida], references: [id_unidad_medida])
 
-  usuarioCreador      Usuario @relation("ArticuloCreador", fields: [FK_usuario_creador], references: [id_usuario])
-  usuarioActualizador Usuario @relation("ArticuloActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+  usuarioCreador      USUARIO @relation("ArticuloCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("ArticuloActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
   stocks STOCK[]
 }
@@ -126,8 +126,8 @@ model CATEGORIA {
   FK_usuario_creador     Int
   FK_usuario_actualizador Int
 
-  usuarioCreador      Usuario @relation("CategoriaCreador", fields: [FK_usuario_creador], references: [id_usuario])
-  usuarioActualizador Usuario @relation("CategoriaActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+  usuarioCreador      USUARIO @relation("CategoriaCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("CategoriaActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
   articulos ARTICULO[]
 }
@@ -138,8 +138,8 @@ model MARCA {
   FK_usuario_creador     Int
   FK_usuario_actualizador Int
 
-  usuarioCreador      Usuario @relation("MarcaCreador", fields: [FK_usuario_creador], references: [id_usuario])
-  usuarioActualizador Usuario @relation("MarcaActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+  usuarioCreador      USUARIO @relation("MarcaCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("MarcaActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
   articulos ARTICULO[]
 }
@@ -150,8 +150,8 @@ model UNIDADMEDIDA {
   FK_usuario_creador     Int
   FK_usuario_actualizador Int
 
-  usuarioCreador      Usuario @relation("UnidadMedidaCreador", fields: [FK_usuario_creador], references: [id_usuario])
-  usuarioActualizador Usuario @relation("UnidadMedidaActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+  usuarioCreador      USUARIO @relation("UnidadMedidaCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("UnidadMedidaActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
   articulos ARTICULO[]
 }
@@ -162,8 +162,8 @@ model DEPOSITO {
   FK_usuario_creador     Int
   FK_usuario_actualizador Int
 
-  usuarioCreador      Usuario @relation("DepositoCreador", fields: [FK_usuario_creador], references: [id_usuario])
-  usuarioActualizador Usuario @relation("DepositoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+  usuarioCreador      USUARIO @relation("DepositoCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("DepositoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
   stocks STOCK[]
 }
