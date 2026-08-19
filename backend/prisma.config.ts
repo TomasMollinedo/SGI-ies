@@ -3,11 +3,11 @@
 import "dotenv/config";
 import { defineConfig, env } from "prisma/config";
 
-// migrations.seed se agrega cuando exista prisma/seed.ts (con el seed de Rol, en el módulo de Autenticación)
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
+    seed: "tsx prisma/seed.ts",
   },
   datasource: {
     url: env("DATABASE_URL"),
