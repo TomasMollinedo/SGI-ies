@@ -25,6 +25,36 @@ const usuariosDePrueba: { email: string; rol: RolNombre }[] = [
   { email: 'admin@axontech.test', rol: RolNombre.ADMINISTRADOR },
 ];
 
+const tiposMovimiento = [
+  { nombre: 'Entrada por compra', indicador_entrada: true },
+  { nombre: 'Salida por consumo', indicador_entrada: false },
+];
+
+const categorias = [
+  { nombre: 'Insumos de oficina', descripcion: 'Articulos de libreria y oficina' },
+  { nombre: 'Herramientas', descripcion: 'Herramientas manuales y electricas' },
+];
+
+const marcas = [
+  { nombre: 'Genérica', descripcion: null },
+  { nombre: 'Stanley', descripcion: null },
+];
+
+const unidadesMedida = [
+  { nombre: 'Unidad', abreviatura: 'un' },
+  { nombre: 'Kilogramo', abreviatura: 'kg' },
+  { nombre: 'Litro', abreviatura: 'l' },
+];
+
+const depositos = [
+  {
+    nombre: 'Deposito Central',
+    es_obrador: false,
+    ubicacion: 'Sede central',
+    descripcion: null,
+  },
+];
+
 async function main() {
   const roles = await Promise.all(
     Object.values(RolNombre).map((nombre) =>
@@ -52,6 +82,55 @@ async function main() {
       },
     });
   }
+  
+  for (const tipoMovimiento of tiposMovimiento) {
+    await prisma.tIPOMOVIMIENTO.upsert({
+      where: { nombre: tipoMovimiento.nombre },
+      update: tipoMovimiento,
+      create: { ...tipoMovimiento, ...auditoria },
+    });
+  }
+  console.log(
+    `Seed de TIPOMOVIMIENTO: ${tiposMovimiento.length} registros procesados.`,
+  );
+
+  for (const categoria of categorias) {
+    await prisma.cATEGORIA.upsert({
+      where: { nombre: categoria.nombre },
+      update: categoria,
+      create: { ...categoria, ...auditoria },
+    });
+  }
+  console.log(`Seed de CATEGORIA: ${categorias.length} registros procesados.`);
+
+  for (const marca of marcas) {
+    await prisma.mARCA.upsert({
+      where: { nombre: marca.nombre },
+      update: marca,
+      create: { ...marca, ...auditoria },
+    });
+  }
+  console.log(`Seed de MARCA: ${marcas.length} registros procesados.`);
+
+  for (const unidadMedida of unidadesMedida) {
+    await prisma.uNIDADMEDIDA.upsert({
+      where: { nombre: unidadMedida.nombre },
+      update: unidadMedida,
+      create: { ...unidadMedida, ...auditoria },
+    });
+  }
+  console.log(
+    `Seed de UNIDADMEDIDA: ${unidadesMedida.length} registros procesados.`,
+  );
+
+  for (const deposito of depositos) {
+    await prisma.dEPOSITO.upsert({
+      where: { nombre: deposito.nombre },
+      update: deposito,
+      create: { ...deposito, ...auditoria },
+    });
+  }
+  console.log(`Seed de DEPOSITO: ${depositos.length} registros procesados.`);
 }
 
 main()
