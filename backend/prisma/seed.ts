@@ -103,12 +103,18 @@ async function main() {
   }
   console.log(`Seed de CATEGORIA: ${categorias.length} registros procesados.`);
 
+  // MARCA ya no tiene `nombre` unique a nivel de base (es único solo entre
+  // marcas activas, se valida en MarcaService), así que no se puede hacer
+  // upsert por nombre: buscamos primero y creamos/actualizamos a mano.
   for (const marca of marcas) {
-    await prisma.mARCA.upsert({
+    const existente = await prisma.mARCA.findFirst({
       where: { nombre: marca.nombre },
-      update: marca,
-      create: { ...marca, ...auditoria },
     });
+    if (existente) {
+      await prisma.mARCA.update({ where: { id_marca: existente.id_marca }, data: marca });
+    } else {
+      await prisma.mARCA.create({ data: { ...marca, ...auditoria } });
+    }
   }
   console.log(`Seed de MARCA: ${marcas.length} registros procesados.`);
 

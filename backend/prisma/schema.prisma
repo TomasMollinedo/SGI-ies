@@ -112,6 +112,7 @@ model STOCK {
 
 model ARTICULO {
   id_articulo Int @id @default(autoincrement())
+  activo     Boolean @default(true)
 
   FK_Categoria       Int
   FK_Marca           Int
@@ -149,7 +150,9 @@ model CATEGORIA {
 
 model MARCA {
   id_marca Int @id @default(autoincrement())
-  nombre   String @unique
+  // Único solo entre marcas activas (se valida a nivel service, no acá):
+  // una marca dada de baja libera su nombre para una marca nueva.
+  nombre   String
   descripcion  String?
   estado   Boolean @default(true)
 

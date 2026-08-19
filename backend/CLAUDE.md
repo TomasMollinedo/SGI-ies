@@ -31,6 +31,8 @@ Todo dato sensible (`DATABASE_URL`, `JWT_SECRET`, etc.) sale de `process.env` v�
 ## Arquitectura
 Un dominio de negocio = un Nest Module en `src/modules/<dominio>/`. Autenticación va primero, porque los demás dependen de él. Los módulos de negocio concretos (Almacén, y los que se vayan sumando — es probable que aparezca Usuarios además de Autenticación) pueden cambiar a medida que avanza el backlog. Para saber cuáles existen hoy, mirá `src/modules/` directamente en vez de asumir una lista fija acá.
 
+Un dominio grande (ej. Almacén) puede agrupar varios submódulos propios, cada uno con su propia carpeta: `src/modules/almacen/marca/`, `src/modules/almacen/articulo/`, `src/modules/almacen/deposito/`, etc. Cada submódulo se registra directo en `AppModule` (no hace falta un módulo "paraguas" tipo `AlmacenModule` mientras no aporte nada propio).
+
 Estructura dentro de cada módulo:
 ```
 <dominio>/
@@ -42,12 +44,19 @@ Estructura dentro de cada módulo:
     └── update-<entidad>.dto.ts
 ```
 
+Todas las rutas cuelgan de un prefijo global `/api` (`app.setGlobalPrefix('api')` en `main.ts`) — un controller se registra con su path relativo nomás (ej. `@Controller('marcas')`), nunca hardcodeando `api/` a mano. Ejemplo: `GET http://localhost:3000/api/health`.
+
 Prisma se inyecta siempre a través de un `PrismaService` (extiende `PrismaClient`, con `$connect()` en `onModuleInit` y `$disconnect()` en `onModuleDestroy`) expuesto por un `PrismaModule`. Nunca instanciar `new PrismaClient()` suelto en un archivo.
 
 Al modelar un `enum` en `schema.prisma` (estados operativos, estados de confirmación, etc.), pensar el conjunto completo de valores con el equipo antes de migrar — sacar o reordenar un valor de un enum de Postgres después de aplicada la migración genera fricción.
 
+
+### Reutilización de código entre módulos
+No extraer lógica a una zona común "por las dudas". Si una validación, helper o lógica de negocio se repite igual en 2 o más submódulos (ej. `almacen/marca` y `almacen/articulo`, o entre distintos dominios como `almacen` y `ventas`), ahí sí se extrae a `src/common/`. La primera vez que se escribe algo, vive dentro de su propio módulo — aunque se sepa que probablemente se vaya a reutilizar después.
+
 ### Nomenclatura de modelos en `schema.prisma`
 Los nombres de `model` van siempre en MAYÚSCULA (`USUARIO`, `ROL`, `ARTICULO`, `MOVIMIENTO`, etc.), sin excepción — es la convención que ya traía el schema y se mantiene para todo modelo nuevo. Esto afecta el nombre de la tabla en Postgres y el accessor que expone el cliente de Prisma generado (ej. `prisma.uSUARIO.findUnique(...)`, `prisma.rOL.findMany(...)` — Prisma solo baja a minúscula la primera letra del nombre del modelo). Los campos, relaciones y enums dentro del modelo siguen en `camelCase`/español normal (`id_usuario`, `usuarioCreador`, `RolNombre`).
+
 
 ## Guards y permisos
 `JwtAuthGuard` se registra global (`APP_GUARD`), no ruta por ruta — así ningún endpoint nuevo queda desprotegido por olvido. Los pocos endpoints públicos (login) se marcan con un decorador `@Public()` que el guard respeta. `RolesGuard` también va global, leyendo el decorador `@Roles(...)` en cada ruta que lo necesite; una ruta sin `@Roles(...)` queda accesible para cualquier usuario autenticado.
@@ -56,12 +65,13 @@ Los nombres de `model` van siempre en MAYÚSCULA (`USUARIO`, `ROL`, `ARTICULO`, 
 Todo DTO se define como schema Zod + `createZodDto()` de nestjs-zod, en el mismo archivo `*.dto.ts`. Nunca decoradores de class-validator.
 
 ## Swagger: es el contrato, no un detalle opcional
-Como no hay nada compartido con el frontend, Swagger ES la única fuente de verdad sobre la forma de la API. Todo endpoint nuevo necesita, sin excepción:
+Como no hay nada compartido con el frontend, Swagger ES la única fuente de verdad sobre la forma de la API. El ideal es que el equipo de frontend resuelva casi todo mirando Swagger, y solo le pregunte a backend lo que no le haya quedado claro — no al revés. Por eso la documentación tiene que alcanzar para eso, no ser un trámite. Todo endpoint nuevo necesita, sin excepción:
 - `@ApiTags(...)` a nivel controller
 - `@ApiOperation({ summary: '...' })` por endpoint
 - `@ApiBearerAuth()` en los endpoints protegidos, para poder probarlos autenticados desde la UI de Swagger
-- `@ApiParam(...)` para parámetros de ruta (ej. `:id`) — el body no hace falta documentarlo aparte, sale solo del DTO Zod
-- `@ApiResponse(...)` por cada código de estado real que el endpoint puede devolver (400, 401, 403, 404 si aplican, no solo 200/201) — tiene que coincidir con las excepciones que tira el service (ver Convenciones de código)
+- `@ApiParam(...)` para parámetros de ruta (ej. `:id`) — el body no hace falta documentarlo aparte, sale solo del DTO Zod (`createZodDto` ya expone la metadata que `@nestjs/swagger` necesita)
+- `@ApiQuery(...)` para cada query param de filtros/paginación — a diferencia del body, un DTO Zod usado con `@Query()` NO se documenta solo (no hay plugin de Nest CLI activado en este proyecto), así que cada parámetro se declara a mano: nombre, si es obligatorio, tipo y una descripción corta
+- `@ApiResponse(...)` (o su variante corta `@ApiOkResponse`/`@ApiCreatedResponse`/etc.) por cada código de estado real que el endpoint puede devolver (400, 401, 403, 404 si aplican, no solo 200/201) — tiene que coincidir con las excepciones que tira el service (ver Convenciones de código). Las respuestas 2xx siempre llevan `type: <DTO>` apuntando a un DTO Zod con el shape real devuelto — una `description` sin `type` no le sirve al frontend para saber qué campos vienen en la respuesta
 
 ## Paginación
 Todo endpoint de listado que pueda crecer sin límite soporta `?page=1&limit=10` y devuelve `{ data: [...], meta: { total, page, limit } }`. No hace falta en catálogos chicos y fijos por diseño (ej. tipos de movimiento, roles).
