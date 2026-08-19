@@ -46,6 +46,9 @@ Prisma se inyecta siempre a través de un `PrismaService` (extiende `PrismaClien
 
 Al modelar un `enum` en `schema.prisma` (estados operativos, estados de confirmación, etc.), pensar el conjunto completo de valores con el equipo antes de migrar — sacar o reordenar un valor de un enum de Postgres después de aplicada la migración genera fricción.
 
+### Nomenclatura de modelos en `schema.prisma`
+Los nombres de `model` van siempre en MAYÚSCULA (`USUARIO`, `ROL`, `ARTICULO`, `MOVIMIENTO`, etc.), sin excepción — es la convención que ya traía el schema y se mantiene para todo modelo nuevo. Esto afecta el nombre de la tabla en Postgres y el accessor que expone el cliente de Prisma generado (ej. `prisma.uSUARIO.findUnique(...)`, `prisma.rOL.findMany(...)` — Prisma solo baja a minúscula la primera letra del nombre del modelo). Los campos, relaciones y enums dentro del modelo siguen en `camelCase`/español normal (`id_usuario`, `usuarioCreador`, `RolNombre`).
+
 ## Guards y permisos
 `JwtAuthGuard` se registra global (`APP_GUARD`), no ruta por ruta — así ningún endpoint nuevo queda desprotegido por olvido. Los pocos endpoints públicos (login) se marcan con un decorador `@Public()` que el guard respeta. `RolesGuard` también va global, leyendo el decorador `@Roles(...)` en cada ruta que lo necesite; una ruta sin `@Roles(...)` queda accesible para cualquier usuario autenticado.
 
@@ -70,7 +73,7 @@ Todo endpoint de listado que pueda crecer sin límite soporta `?page=1&limit=10`
 ## Convenciones de código
 - Seguir el ESLint/Prettier ya configurado.
 - Nomenclatura: variables y funciones en `camelCase`, clases en `PascalCase`, archivos en `kebab-case`, constantes en `UPPER_SNAKE_CASE`.
-- Entidades y conceptos de dominio, en español, calzando con la HU: `Articulo`, `Movimiento`, `Rol`, `AlmacenModule`. Lo genérico y técnico, en inglés: `service`, `controller`, `guard`.
+- Entidades y conceptos de dominio, en español, calzando con la HU: `Articulo`, `Movimiento`, `Rol`, `AlmacenModule` (nombres de clases TypeScript en `PascalCase` — no confundir con el nombre del `model` en `schema.prisma`, que va en mayúscula, ver sección de Nomenclatura de modelos). Lo genérico y técnico, en inglés: `service`, `controller`, `guard`.
 - Mensajes de error: en español, descriptivos.
 - Errores: tirar las excepciones propias de Nest (`NotFoundException`, `BadRequestException`, `ConflictException`, etc.) desde el service. El `HttpExceptionFilter` central las atrapa y formatea — nunca try/catch suelto en un controller.
 - Comentarios en formato JSDoc en los métodos públicos de los services y en cualquier decisión no obvia. No hace falta en cada función trivial — el nombre y los tipos ya documentan eso.

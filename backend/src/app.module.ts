@@ -5,6 +5,7 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import { validateEnv } from './config/env.schema';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 @Module({
@@ -12,6 +13,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     PrismaModule,
     HealthModule,
+    AuthModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
