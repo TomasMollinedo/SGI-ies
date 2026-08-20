@@ -1,14 +1,53 @@
 import 'dotenv/config';
-import { PrismaClient } from '../generated/prisma/client';
+import * as bcrypt from 'bcrypt';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../generated/prisma/client';
+import { RolNombre } from '../src/common/enums/rol.enum';
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
-const usuarios = [
-  { dni: '30111222', nombre: 'Ana', apellido: 'Gomez' },
-  { dni: '28444555', nombre: 'Luis', apellido: 'Perez' },
-  { dni: '35666777', nombre: 'Maria', apellido: 'Fernandez' },
+// Password de desarrollo, solo para los usuarios de prueba de este seed.
+// NUNCA usar este valor en un ambiente real.
+const DEV_PASSWORD = 'Password123!';
+
+const usuariosDePrueba: { email: string; rol: RolNombre; dni: string }[] = [
+  {
+    email: 'almacen@axontech.test',
+    rol: RolNombre.RESPONSABLE_ALMACEN,
+    dni: '10000001',
+  },
+  {
+    email: 'compras@axontech.test',
+    rol: RolNombre.RESPONSABLE_COMPRAS,
+    dni: '10000002',
+  },
+  {
+    email: 'proyectos@axontech.test',
+    rol: RolNombre.RESPONSABLE_PROYECTOS,
+    dni: '10000003',
+  },
+  {
+    email: 'tesoreria@axontech.test',
+    rol: RolNombre.RESPONSABLE_TESORERIA,
+    dni: '10000004',
+  },
+  {
+    email: 'comercializacion@axontech.test',
+    rol: RolNombre.RESPONSABLE_COMERCIALIZACION,
+    dni: '10000005',
+  },
+  {
+    email: 'gerente@axontech.test',
+    rol: RolNombre.GERENTE_GENERAL,
+    dni: '10000006',
+  },
+  {
+    email: 'admin@axontech.test',
+    rol: RolNombre.ADMINISTRADOR,
+    dni: '10000007',
+  },
 ];
 
 const tiposMovimiento = [
@@ -17,7 +56,10 @@ const tiposMovimiento = [
 ];
 
 const categorias = [
-  { nombre: 'Insumos de oficina', descripcion: 'Articulos de libreria y oficina' },
+  {
+    nombre: 'Insumos de oficina',
+    descripcion: 'Articulos de libreria y oficina',
+  },
   { nombre: 'Herramientas', descripcion: 'Herramientas manuales y electricas' },
 ];
 
@@ -42,21 +84,42 @@ const depositos = [
 ];
 
 async function main() {
-  for (const usuario of usuarios) {
-    await prisma.uSUARIO.upsert({
-      where: { dni: usuario.dni },
-      update: usuario,
-      create: usuario,
-    });
-  }
-  console.log(`Seed de USUARIO: ${usuarios.length} registros procesados.`);
+  const roles = await Promise.all(
+    Object.values(RolNombre).map((nombre) =>
+      prisma.rOL.upsert({
+        where: { nombre },
+        update: {},
+        create: { nombre },
+      }),
+    ),
+  );
+  const idPorRol = new Map(roles.map((rol) => [rol.nombre, rol.id_rol]));
 
-  const admin = await prisma.uSUARIO.findUniqueOrThrow({
-    where: { dni: usuarios[0].dni },
-  });
+  const passwordHash = await bcrypt.hash(DEV_PASSWORD, 10);
+
+  let idUsuarioAdmin: number | undefined;
+  for (const { email, rol, dni } of usuariosDePrueba) {
+    const usuario = await prisma.uSUARIO.upsert({
+      where: { email },
+      update: {},
+      create: {
+        nombre: rol,
+        apellido: 'Prueba',
+        email,
+        password: passwordHash,
+        dni,
+        FK_rol: idPorRol.get(rol)!,
+      },
+    });
+    if (rol === RolNombre.ADMINISTRADOR) {
+      idUsuarioAdmin = usuario.id_usuario;
+    }
+  }
+
+  // Catálogos base: se atribuyen al usuario admin de prueba como creador/actualizador.
   const auditoria = {
-    FK_usuario_creador: admin.id_usuario,
-    FK_usuario_actualizador: admin.id_usuario,
+    FK_usuario_creador: idUsuarioAdmin!,
+    FK_usuario_actualizador: idUsuarioAdmin!,
   };
 
   for (const tipoMovimiento of tiposMovimiento) {
@@ -94,7 +157,10 @@ async function main() {
       where: { nombre: marca.nombre },
     });
     if (existente) {
-      await prisma.mARCA.update({ where: { id_marca: existente.id_marca }, data: marca });
+      await prisma.mARCA.update({
+        where: { id_marca: existente.id_marca },
+        data: marca,
+      });
     } else {
       await prisma.mARCA.create({ data: { ...marca, ...auditoria } });
     }
@@ -123,10 +189,8 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
+  .catch((error) => {
+    console.error(error);
     process.exitCode = 1;
   })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .finally(() => prisma.$disconnect());
