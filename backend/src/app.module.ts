@@ -9,6 +9,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { MarcaModule } from './modules/almacen/marca/marca.module';
 import { CategoriaModule } from './modules/almacen/categoria/categoria.module';
+import { UnidadMedidaModule } from './modules/almacen/unidad-medida/unidad-medida.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { CategoriaModule } from './modules/almacen/categoria/categoria.module';
     HealthModule,
     MarcaModule,
     CategoriaModule,
+    UnidadMedidaModule,
     AuthModule,
   ],
   providers: [
