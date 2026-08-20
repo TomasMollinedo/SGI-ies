@@ -58,8 +58,29 @@ No extraer lógica a una zona común "por las dudas". Si una validación, helper
 Los nombres de `model` van siempre en MAYÚSCULA (`USUARIO`, `ROL`, `ARTICULO`, `MOVIMIENTO`, etc.), sin excepción — es la convención que ya traía el schema y se mantiene para todo modelo nuevo. Esto afecta el nombre de la tabla en Postgres y el accessor que expone el cliente de Prisma generado (ej. `prisma.uSUARIO.findUnique(...)`, `prisma.rOL.findMany(...)` — Prisma solo baja a minúscula la primera letra del nombre del modelo). Los campos, relaciones y enums dentro del modelo siguen en `camelCase`/español normal (`id_usuario`, `usuarioCreador`, `RolNombre`).
 
 
-## Guards y permisos
-`JwtAuthGuard` se registra global (`APP_GUARD`), no ruta por ruta — así ningún endpoint nuevo queda desprotegido por olvido. Los pocos endpoints públicos (login) se marcan con un decorador `@Public()` que el guard respeta. `RolesGuard` también va global, leyendo el decorador `@Roles(...)` en cada ruta que lo necesite; una ruta sin `@Roles(...)` queda accesible para cualquier usuario autenticado.
+## Autenticación y autorización
+El login (`AuthModule`) usa un esquema de doble token:
+- **`accessToken`**: JWT de vida corta (`JWT_EXPIRES_IN`, default `15m`), viaja en el body de `POST /auth/login` y en cada request protegido como header `Authorization: Bearer <accessToken>`. El frontend lo guarda en memoria, nunca en `localStorage`.
+- **`refreshToken`**: JWT de vida larga (`JWT_REFRESH_EXPIRES_IN`, default `7d`), firmado con un secreto distinto (`JWT_REFRESH_SECRET` ≠ `JWT_SECRET`), viaja únicamente como cookie `httpOnly` seteada por el backend — nunca en el body ni accesible desde JS. Se rota en cada `POST /auth/refresh` y se revoca server-side comparando contra un hash bcrypt guardado en `USUARIO.refreshTokenHash` (sesión única por usuario, sin blacklist de tokens ni tabla de sesiones por dispositivo — ver `AuthService`).
+
+`JwtAuthGuard` y `RolesGuard` se registran una sola vez, como `APP_GUARD` globales dentro de `AuthModule` — no hay que volver a registrarlos en otros módulos. De esto se desprende:
+- **Todo endpoint nuevo queda protegido por defecto** (requiere `Authorization: Bearer <accessToken>` válido), salvo que se marque explícitamente `@Public()` (hoy solo `login` y `refresh`).
+- **Todo módulo de negocio tiene un rol "dueño" del recurso**, declarado con `@Roles(RolNombre.<ROL>)` a nivel `Controller` (no endpoint por endpoint, salvo que un mismo controller vaya a mezclar endpoints con distinto rol requerido — no pasó todavía). Ejemplo ya implementado: `MarcaController`, `CategoriaController` y `UnidadMedidaController` son los tres `@Roles(RolNombre.RESPONSABLE_ALMACEN)`, porque son submódulos de Almacén. Al sumar un módulo de negocio nuevo, preguntar (si no surge obvio de la HU) qué rol de `RolNombre` es el dueño y aplicar el mismo patrón.
+- `GERENTE_GENERAL` tiene acceso transversal a todo (el propio `RolesGuard` lo bypassea) — nunca hace falta agregarlo a la lista de roles de un endpoint.
+- Un controller **sin** `@Roles(...)` queda accesible para cualquier usuario autenticado, sea cual sea su rol — reservarlo para recursos que de verdad no son específicos de un rol (ej. `GET /auth/me`).
+- Para leer el usuario autenticado dentro de un controller, usar `@CurrentUser() user: AuthenticatedUser` (expone `id`, `email`, `rol`) — nunca decodificar el JWT a mano.
+- Todo endpoint protegido documenta en Swagger `@ApiBearerAuth()` + `@ApiUnauthorizedResponse` (401) y, si además tiene `@Roles(...)`, también `@ApiForbiddenResponse` (403) — ver sección Swagger.
+
+### Auditoría (`FK_usuario_creador` / `FK_usuario_actualizador`)
+Los campos de auditoría de cada entidad se completan siempre con el `id` del usuario autenticado (`@CurrentUser().id`), pasado como parámetro explícito del service — **nunca** se leen del DTO/body. El DTO Zod de un módulo de negocio no debe incluir `FK_usuario_creador`, `FK_usuario_actualizador` ni timestamps de auditoría: son responsabilidad exclusiva del servidor, porque si viajaran en el body cualquier cliente podría falsificar quién hizo un cambio. Patrón esperado en el service:
+```ts
+async create(dto: CreateXDto, usuarioId: number) {
+  return this.prisma.eNTIDAD.create({
+    data: { ...dto, FK_usuario_creador: usuarioId, FK_usuario_actualizador: usuarioId },
+  });
+}
+```
+y en el controller, extraer `usuarioId` de `@CurrentUser()` y pasarlo al service — nunca de un valor fijo ni de algo que mande el cliente.
 
 ## Validación
 Todo DTO se define como schema Zod + `createZodDto()` de nestjs-zod, en el mismo archivo `*.dto.ts`. Nunca decoradores de class-validator.
@@ -95,5 +116,6 @@ Implementá lo que pide la historia de usuario. No generalices de más ni sumes 
 ## Qué NO hacer sin que se te pida explícitamente
 - No hacer `commit`, `push`, ni abrir o mergear PRs. Dejá los cambios sin commitear.
 - No correr migraciones (`prisma migrate dev/deploy/reset`) ni `db seed`. Está bien proponer el cambio al schema; la persona corre el comando y revisa la migración generada.
+- No editar ni borrar migraciones ya mergeadas a `main` salvo que el equipo lo haya acordado explícitamente (ver sección Migraciones de Prisma).
 - No agregar dependencias nuevas al `package.json` sin avisar primero.
 - Antes de tocar más de un módulo o el schema de la base, proponé el plan y esperá confirmación.
