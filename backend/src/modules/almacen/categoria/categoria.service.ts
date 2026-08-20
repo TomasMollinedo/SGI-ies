@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { USUARIO_HARDCODEADO_ID } from '../../../common/constants/auditoria.constant';
 import { validarNombreUnicoEntreActivos } from '../../../common/validaciones/nombre-unico-entre-activos';
 import { validarSinArticulosActivosAsociados } from '../../../common/validaciones/sin-articulos-activos-asociados';
 import { CreateCategoriaDto } from './dto/create-categoria.dto';
@@ -16,14 +15,14 @@ import { QueryCategoriaDto } from './dto/query-categoria.dto';
 export class CategoriaService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateCategoriaDto) {
+  async create(dto: CreateCategoriaDto, usuarioId: number) {
     await this.validarNombreUnico(dto.nombre);
 
     return this.prisma.cATEGORIA.create({
       data: {
         ...dto,
-        FK_usuario_creador: USUARIO_HARDCODEADO_ID,
-        FK_usuario_actualizador: USUARIO_HARDCODEADO_ID,
+        FK_usuario_creador: usuarioId,
+        FK_usuario_actualizador: usuarioId,
       },
     });
   }
@@ -77,7 +76,7 @@ export class CategoriaService {
     return categoria;
   }
 
-  async update(id: number, dto: UpdateCategoriaDto) {
+  async update(id: number, dto: UpdateCategoriaDto, usuarioId: number) {
     await this.findOne(id);
 
     if (dto.nombre) {
@@ -88,7 +87,7 @@ export class CategoriaService {
       where: { id_categoria: id },
       data: {
         ...dto,
-        FK_usuario_actualizador: USUARIO_HARDCODEADO_ID,
+        FK_usuario_actualizador: usuarioId,
         hora_actualizacion: new Date(),
       },
     });
@@ -98,7 +97,7 @@ export class CategoriaService {
    * Baja lógica: no se permite si la categoría ya está inactiva, ni si tiene
    * artículos activos asociados.
    */
-  async baja(id: number) {
+  async baja(id: number, usuarioId: number) {
     const categoria = await this.findOne(id);
 
     if (!categoria.estado) {
@@ -113,7 +112,7 @@ export class CategoriaService {
       where: { id_categoria: id },
       data: {
         estado: false,
-        FK_usuario_actualizador: USUARIO_HARDCODEADO_ID,
+        FK_usuario_actualizador: usuarioId,
         hora_actualizacion: new Date(),
       },
     });
@@ -124,7 +123,7 @@ export class CategoriaService {
    * nombre entre activas porque, mientras estuvo de baja, otra categoría
    * pudo haber tomado ese mismo nombre.
    */
-  async activar(id: number) {
+  async activar(id: number, usuarioId: number) {
     const categoria = await this.findOne(id);
 
     if (categoria.estado) {
@@ -137,7 +136,7 @@ export class CategoriaService {
       where: { id_categoria: id },
       data: {
         estado: true,
-        FK_usuario_actualizador: USUARIO_HARDCODEADO_ID,
+        FK_usuario_actualizador: usuarioId,
         hora_actualizacion: new Date(),
       },
     });

@@ -10,14 +10,17 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { CategoriaService } from './categoria.service';
 import { CreateCategoriaDto } from './dto/create-categoria.dto';
@@ -28,8 +31,18 @@ import {
   CategoriaListResponseDto,
   CategoriaResponseDto,
 } from './dto/categoria-response.dto';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RolNombre } from '../../../common/enums/rol.enum';
+import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 
 @ApiTags('Categorías')
+@ApiBearerAuth()
+@Roles(RolNombre.RESPONSABLE_ALMACEN)
+@ApiUnauthorizedResponse({ description: 'No autenticado' })
+@ApiForbiddenResponse({
+  description: 'El usuario autenticado no tiene el rol Responsable de Almacén',
+})
 @Controller('categorias')
 export class CategoriaController {
   constructor(private readonly categoriaService: CategoriaService) {}
@@ -44,8 +57,11 @@ export class CategoriaController {
   @ApiConflictResponse({
     description: 'Ya existe una categoría activa con ese nombre',
   })
-  create(@Body() dto: CreateCategoriaDto) {
-    return this.categoriaService.create(dto);
+  create(
+    @Body() dto: CreateCategoriaDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.categoriaService.create(dto, user.id);
   }
 
   @Get()
@@ -128,8 +144,9 @@ export class CategoriaController {
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateCategoriaDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.categoriaService.update(id, dto);
+    return this.categoriaService.update(id, dto, user.id);
   }
 
   @Patch(':id/baja')
@@ -148,8 +165,11 @@ export class CategoriaController {
     description:
       'La categoría ya está dada de baja, o tiene artículos activos asociados',
   })
-  baja(@Param('id', ParseIntPipe) id: number) {
-    return this.categoriaService.baja(id);
+  baja(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.categoriaService.baja(id, user.id);
   }
 
   @Patch(':id/alta')
@@ -170,7 +190,10 @@ export class CategoriaController {
     description:
       'La categoría ya está activa, o ya existe otra categoría activa con el mismo nombre',
   })
-  alta(@Param('id', ParseIntPipe) id: number) {
-    return this.categoriaService.activar(id);
+  alta(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.categoriaService.activar(id, user.id);
   }
 }

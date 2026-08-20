@@ -50,10 +50,11 @@ const usuarioResumenSchema = z.object({
  * nombre y apellido de quién creó y de quién modificó por última vez la
  * unidad. El listado general no trae esto (ver UnidadMedidaListResponseDto).
  */
-export const unidadMedidaDetalleResponseSchema = unidadMedidaResponseSchema.extend({
-  usuarioCreador: usuarioResumenSchema,
-  usuarioActualizador: usuarioResumenSchema,
-});
+export const unidadMedidaDetalleResponseSchema =
+  unidadMedidaResponseSchema.extend({
+    usuarioCreador: usuarioResumenSchema,
+    usuarioActualizador: usuarioResumenSchema,
+  });
 
 export class UnidadMedidaDetalleResponseDto extends createZodDto(
   unidadMedidaDetalleResponseSchema,

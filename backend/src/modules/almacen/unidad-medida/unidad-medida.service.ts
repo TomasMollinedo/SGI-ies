@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { USUARIO_HARDCODEADO_ID } from '../../../common/constants/auditoria.constant';
 import { validarSinArticulosActivosAsociados } from '../../../common/validaciones/sin-articulos-activos-asociados';
 import { CreateUnidadMedidaDto } from './dto/create-unidad-medida.dto';
 import { UpdateUnidadMedidaDto } from './dto/update-unidad-medida.dto';
@@ -15,14 +14,14 @@ import { QueryUnidadMedidaDto } from './dto/query-unidad-medida.dto';
 export class UnidadMedidaService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateUnidadMedidaDto) {
+  async create(dto: CreateUnidadMedidaDto, usuarioId: number) {
     await this.validarUnicidad(dto.nombre, dto.abreviatura);
 
     return this.prisma.uNIDADMEDIDA.create({
       data: {
         ...dto,
-        FK_usuario_creador: USUARIO_HARDCODEADO_ID,
-        FK_usuario_actualizador: USUARIO_HARDCODEADO_ID,
+        FK_usuario_creador: usuarioId,
+        FK_usuario_actualizador: usuarioId,
       },
     });
   }
@@ -70,13 +69,15 @@ export class UnidadMedidaService {
     });
 
     if (!unidadMedida) {
-      throw new NotFoundException(`No existe una unidad de medida con id ${id}`);
+      throw new NotFoundException(
+        `No existe una unidad de medida con id ${id}`,
+      );
     }
 
     return unidadMedida;
   }
 
-  async update(id: number, dto: UpdateUnidadMedidaDto) {
+  async update(id: number, dto: UpdateUnidadMedidaDto, usuarioId: number) {
     const unidadMedida = await this.findOne(id);
 
     if (dto.nombre || dto.abreviatura) {
@@ -91,7 +92,7 @@ export class UnidadMedidaService {
       where: { id_unidad_medida: id },
       data: {
         ...dto,
-        FK_usuario_actualizador: USUARIO_HARDCODEADO_ID,
+        FK_usuario_actualizador: usuarioId,
         hora_actualizacion: new Date(),
       },
     });
@@ -101,22 +102,26 @@ export class UnidadMedidaService {
    * Baja lógica: no se permite si la unidad ya está inactiva, ni si tiene
    * artículos activos asociados.
    */
-  async baja(id: number) {
+  async baja(id: number, usuarioId: number) {
     const unidadMedida = await this.findOne(id);
 
     if (!unidadMedida.estado) {
       throw new ConflictException('La unidad de medida ya está dada de baja');
     }
 
-    await validarSinArticulosActivosAsociados(this.prisma, 'la unidad de medida', {
-      FK_UnidadMedida: id,
-    });
+    await validarSinArticulosActivosAsociados(
+      this.prisma,
+      'la unidad de medida',
+      {
+        FK_UnidadMedida: id,
+      },
+    );
 
     return this.prisma.uNIDADMEDIDA.update({
       where: { id_unidad_medida: id },
       data: {
         estado: false,
-        FK_usuario_actualizador: USUARIO_HARDCODEADO_ID,
+        FK_usuario_actualizador: usuarioId,
         hora_actualizacion: new Date(),
       },
     });
@@ -127,20 +132,24 @@ export class UnidadMedidaService {
    * y abreviatura entre activas porque, mientras estuvo de baja, otra
    * unidad pudo haber tomado ese mismo nombre o abreviatura.
    */
-  async activar(id: number) {
+  async activar(id: number, usuarioId: number) {
     const unidadMedida = await this.findOne(id);
 
     if (unidadMedida.estado) {
       throw new ConflictException('La unidad de medida ya está activa');
     }
 
-    await this.validarUnicidad(unidadMedida.nombre, unidadMedida.abreviatura, id);
+    await this.validarUnicidad(
+      unidadMedida.nombre,
+      unidadMedida.abreviatura,
+      id,
+    );
 
     return this.prisma.uNIDADMEDIDA.update({
       where: { id_unidad_medida: id },
       data: {
         estado: true,
-        FK_usuario_actualizador: USUARIO_HARDCODEADO_ID,
+        FK_usuario_actualizador: usuarioId,
         hora_actualizacion: new Date(),
       },
     });

@@ -10,14 +10,17 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { UnidadMedidaService } from './unidad-medida.service';
 import { CreateUnidadMedidaDto } from './dto/create-unidad-medida.dto';
@@ -28,8 +31,18 @@ import {
   UnidadMedidaListResponseDto,
   UnidadMedidaResponseDto,
 } from './dto/unidad-medida-response.dto';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RolNombre } from '../../../common/enums/rol.enum';
+import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 
 @ApiTags('Unidades de Medida')
+@ApiBearerAuth()
+@Roles(RolNombre.RESPONSABLE_ALMACEN)
+@ApiUnauthorizedResponse({ description: 'No autenticado' })
+@ApiForbiddenResponse({
+  description: 'El usuario autenticado no tiene el rol Responsable de Almacén',
+})
 @Controller('unidades-medida')
 export class UnidadMedidaController {
   constructor(private readonly unidadMedidaService: UnidadMedidaService) {}
@@ -42,26 +55,34 @@ export class UnidadMedidaController {
   })
   @ApiBadRequestResponse({ description: 'Datos inválidos' })
   @ApiConflictResponse({
-    description: 'Ya existe una unidad de medida activa con ese nombre o esa abreviatura',
+    description:
+      'Ya existe una unidad de medida activa con ese nombre o esa abreviatura',
   })
-  create(@Body() dto: CreateUnidadMedidaDto) {
-    return this.unidadMedidaService.create(dto);
+  create(
+    @Body() dto: CreateUnidadMedidaDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.unidadMedidaService.create(dto, user.id);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar unidades de medida, con filtros por nombre y/o estado' })
+  @ApiOperation({
+    summary: 'Listar unidades de medida, con filtros por nombre y/o estado',
+  })
   @ApiQuery({
     name: 'nombre',
     required: false,
     type: String,
-    description: 'Filtra por coincidencia parcial de nombre (sin distinguir mayúsculas/minúsculas)',
+    description:
+      'Filtra por coincidencia parcial de nombre (sin distinguir mayúsculas/minúsculas)',
     example: 'kilo',
   })
   @ApiQuery({
     name: 'estado',
     required: false,
     enum: ['true', 'false'],
-    description: 'Filtra por unidades activas (true) o dadas de baja (false). Sin este parámetro, trae ambas.',
+    description:
+      'Filtra por unidades activas (true) o dadas de baja (false). Sin este parámetro, trae ambas.',
   })
   @ApiQuery({
     name: 'page',
@@ -81,57 +102,108 @@ export class UnidadMedidaController {
     description: 'Listado paginado de unidades de medida',
     type: UnidadMedidaListResponseDto,
   })
-  @ApiBadRequestResponse({ description: 'Parámetros de filtro/paginación inválidos' })
+  @ApiBadRequestResponse({
+    description: 'Parámetros de filtro/paginación inválidos',
+  })
   findAll(@Query() query: QueryUnidadMedidaDto) {
     return this.unidadMedidaService.findAll(query);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una unidad de medida por id' })
-  @ApiParam({ name: 'id', type: Number, description: 'id_unidad_medida de la unidad a buscar' })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_unidad_medida de la unidad a buscar',
+  })
   @ApiOkResponse({
-    description: 'Unidad de medida encontrada, con nombre y apellido de quién la creó y de quién la modificó por última vez',
+    description:
+      'Unidad de medida encontrada, con nombre y apellido de quién la creó y de quién la modificó por última vez',
     type: UnidadMedidaDetalleResponseDto,
   })
-  @ApiNotFoundResponse({ description: 'No existe una unidad de medida con ese id' })
+  @ApiNotFoundResponse({
+    description: 'No existe una unidad de medida con ese id',
+  })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.unidadMedidaService.findOne(id);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Editar una unidad de medida' })
-  @ApiParam({ name: 'id', type: Number, description: 'id_unidad_medida de la unidad a editar' })
-  @ApiOkResponse({ description: 'Unidad de medida actualizada', type: UnidadMedidaResponseDto })
-  @ApiBadRequestResponse({ description: 'Datos inválidos' })
-  @ApiNotFoundResponse({ description: 'No existe una unidad de medida con ese id' })
-  @ApiConflictResponse({
-    description: 'Ya existe una unidad de medida activa con ese nombre o esa abreviatura',
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_unidad_medida de la unidad a editar',
   })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateUnidadMedidaDto) {
-    return this.unidadMedidaService.update(id, dto);
+  @ApiOkResponse({
+    description: 'Unidad de medida actualizada',
+    type: UnidadMedidaResponseDto,
+  })
+  @ApiBadRequestResponse({ description: 'Datos inválidos' })
+  @ApiNotFoundResponse({
+    description: 'No existe una unidad de medida con ese id',
+  })
+  @ApiConflictResponse({
+    description:
+      'Ya existe una unidad de medida activa con ese nombre o esa abreviatura',
+  })
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateUnidadMedidaDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.unidadMedidaService.update(id, dto, user.id);
   }
 
   @Patch(':id/baja')
   @ApiOperation({ summary: 'Dar de baja una unidad de medida (baja lógica)' })
-  @ApiParam({ name: 'id', type: Number, description: 'id_unidad_medida de la unidad a dar de baja' })
-  @ApiOkResponse({ description: 'Unidad de medida dada de baja', type: UnidadMedidaResponseDto })
-  @ApiNotFoundResponse({ description: 'No existe una unidad de medida con ese id' })
-  @ApiConflictResponse({
-    description: 'La unidad de medida ya está dada de baja, o tiene artículos activos asociados',
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_unidad_medida de la unidad a dar de baja',
   })
-  baja(@Param('id', ParseIntPipe) id: number) {
-    return this.unidadMedidaService.baja(id);
+  @ApiOkResponse({
+    description: 'Unidad de medida dada de baja',
+    type: UnidadMedidaResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'No existe una unidad de medida con ese id',
+  })
+  @ApiConflictResponse({
+    description:
+      'La unidad de medida ya está dada de baja, o tiene artículos activos asociados',
+  })
+  baja(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.unidadMedidaService.baja(id, user.id);
   }
 
   @Patch(':id/alta')
-  @ApiOperation({ summary: 'Reactivar una unidad de medida dada de baja (alta lógica)' })
-  @ApiParam({ name: 'id', type: Number, description: 'id_unidad_medida de la unidad a reactivar' })
-  @ApiOkResponse({ description: 'Unidad de medida reactivada', type: UnidadMedidaResponseDto })
-  @ApiNotFoundResponse({ description: 'No existe una unidad de medida con ese id' })
-  @ApiConflictResponse({
-    description: 'La unidad de medida ya está activa, o ya existe otra unidad activa con el mismo nombre o abreviatura',
+  @ApiOperation({
+    summary: 'Reactivar una unidad de medida dada de baja (alta lógica)',
   })
-  alta(@Param('id', ParseIntPipe) id: number) {
-    return this.unidadMedidaService.activar(id);
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_unidad_medida de la unidad a reactivar',
+  })
+  @ApiOkResponse({
+    description: 'Unidad de medida reactivada',
+    type: UnidadMedidaResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'No existe una unidad de medida con ese id',
+  })
+  @ApiConflictResponse({
+    description:
+      'La unidad de medida ya está activa, o ya existe otra unidad activa con el mismo nombre o abreviatura',
+  })
+  alta(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.unidadMedidaService.activar(id, user.id);
   }
 }

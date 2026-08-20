@@ -10,14 +10,17 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { MarcaService } from './marca.service';
 import { CreateMarcaDto } from './dto/create-marca.dto';
@@ -28,8 +31,18 @@ import {
   MarcaListResponseDto,
   MarcaResponseDto,
 } from './dto/marca-response.dto';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RolNombre } from '../../../common/enums/rol.enum';
+import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 
 @ApiTags('Marcas')
+@ApiBearerAuth()
+@Roles(RolNombre.RESPONSABLE_ALMACEN)
+@ApiUnauthorizedResponse({ description: 'No autenticado' })
+@ApiForbiddenResponse({
+  description: 'El usuario autenticado no tiene el rol Responsable de Almacén',
+})
 @Controller('marcas')
 export class MarcaController {
   constructor(private readonly marcaService: MarcaService) {}
@@ -41,8 +54,8 @@ export class MarcaController {
   @ApiConflictResponse({
     description: 'Ya existe una marca activa con ese nombre',
   })
-  create(@Body() dto: CreateMarcaDto) {
-    return this.marcaService.create(dto);
+  create(@Body() dto: CreateMarcaDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.marcaService.create(dto, user.id);
   }
 
   @Get()
@@ -117,8 +130,12 @@ export class MarcaController {
   @ApiConflictResponse({
     description: 'Ya existe una marca activa con ese nombre',
   })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateMarcaDto) {
-    return this.marcaService.update(id, dto);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateMarcaDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.marcaService.update(id, dto, user.id);
   }
 
   @Patch(':id/baja')
@@ -134,8 +151,11 @@ export class MarcaController {
     description:
       'La marca ya está dada de baja, o tiene artículos activos asociados',
   })
-  baja(@Param('id', ParseIntPipe) id: number) {
-    return this.marcaService.baja(id);
+  baja(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.marcaService.baja(id, user.id);
   }
 
   @Patch(':id/alta')
@@ -151,7 +171,10 @@ export class MarcaController {
     description:
       'La marca ya está activa, o ya existe otra marca activa con el mismo nombre',
   })
-  alta(@Param('id', ParseIntPipe) id: number) {
-    return this.marcaService.activar(id);
+  alta(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.marcaService.activar(id, user.id);
   }
 }

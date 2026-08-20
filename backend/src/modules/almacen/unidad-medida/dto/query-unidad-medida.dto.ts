@@ -15,4 +15,6 @@ export const queryUnidadMedidaSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(10),
 });
 
-export class QueryUnidadMedidaDto extends createZodDto(queryUnidadMedidaSchema) {}
+export class QueryUnidadMedidaDto extends createZodDto(
+  queryUnidadMedidaSchema,
+) {}
