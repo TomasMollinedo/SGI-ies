@@ -28,7 +28,7 @@ import type { EnvConfig } from '../../config/env.schema';
 const REFRESH_TOKEN_COOKIE = 'refreshToken';
 
 @ApiTags('Auth')
-@Controller('api/auth')
+@Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
