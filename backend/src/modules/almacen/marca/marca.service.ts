@@ -144,7 +144,7 @@ export class MarcaService {
 
   private async validarNombreUnico(nombre: string, idExcluido?: number) {
     await validarNombreUnicoEntreActivos({
-      entidad: 'una marca',
+      entidadActiva: 'una marca activa',
       nombre,
       existeOtroActivo: () =>
         this.prisma.mARCA

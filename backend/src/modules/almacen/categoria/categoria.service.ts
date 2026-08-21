@@ -144,7 +144,7 @@ export class CategoriaService {
 
   private async validarNombreUnico(nombre: string, idExcluido?: number) {
     await validarNombreUnicoEntreActivos({
-      entidad: 'una categoría',
+      entidadActiva: 'una categoría activa',
       nombre,
       existeOtroActivo: () =>
         this.prisma.cATEGORIA

@@ -178,12 +178,20 @@ async function main() {
     `Seed de UNIDADMEDIDA: ${unidadesMedida.length} registros procesados.`,
   );
 
+  // DEPOSITO tampoco tiene `nombre` unique a nivel de base (mismo criterio
+  // que CATEGORIA y MARCA): buscamos primero y creamos/actualizamos a mano.
   for (const deposito of depositos) {
-    await prisma.dEPOSITO.upsert({
+    const existente = await prisma.dEPOSITO.findFirst({
       where: { nombre: deposito.nombre },
-      update: deposito,
-      create: { ...deposito, ...auditoria },
     });
+    if (existente) {
+      await prisma.dEPOSITO.update({
+        where: { id_deposito: existente.id_deposito },
+        data: deposito,
+      });
+    } else {
+      await prisma.dEPOSITO.create({ data: { ...deposito, ...auditoria } });
+    }
   }
   console.log(`Seed de DEPOSITO: ${depositos.length} registros procesados.`);
 }
