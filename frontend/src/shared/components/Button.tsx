@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { Spinner } from '@/shared/components/Spinner'
 import { cn } from '@/shared/utils/cn'
 
 export type ButtonVariant = 'primary' | 'success' | 'error' | 'warning'
@@ -140,27 +141,4 @@ const CLASES_GAP: Record<ButtonSize, string> = {
 const CLASES_ICONO: Record<ButtonSize, string> = {
   sm: 'size-4 [&>svg]:size-full',
   md: 'size-5 [&>svg]:size-full',
-}
-
-/**
- * Con `prefers-reduced-motion` el spinner no se frena (es la única señal de que
- * el botón está trabajando), pero gira mucho más lento.
- */
-function Spinner({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      className={cn('shrink-0 animate-spin motion-reduce:[animation-duration:2s]', className)}
-    >
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-30" />
-      <path
-        d="M12 2a10 10 0 0 1 10 10"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
 }

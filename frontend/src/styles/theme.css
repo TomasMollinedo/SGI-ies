@@ -13,6 +13,13 @@
   --color-warning: #b5852c;
   --color-success: #3e7a5b;
   --color-info: #386280;
+  --color-reactivar: #aa4ebf;
+
+  /* fondos suaves de las acciones de tabla (ver RowActions) */
+  --color-fondo-ver: #bfd9ff;
+  --color-fondo-editar: #fef3c7;
+  --color-fondo-eliminar: #fee2e2;
+  --color-fondo-reactivar: #eacff7;
 
   /* ---------- COLORES SEMÁNTICOS (usados por los componentes) ---------- */
 
