@@ -31,6 +31,8 @@ Todo dato sensible (`DATABASE_URL`, `JWT_SECRET`, etc.) sale de `process.env` v�
 ## Arquitectura
 Un dominio de negocio = un Nest Module en `src/modules/<dominio>/`. Autenticación va primero, porque los demás dependen de él. Los módulos de negocio concretos (Almacén, y los que se vayan sumando — es probable que aparezca Usuarios además de Autenticación) pueden cambiar a medida que avanza el backlog. Para saber cuáles existen hoy, mirá `src/modules/` directamente en vez de asumir una lista fija acá.
 
+Un dominio grande (ej. Almacén) puede agrupar varios submódulos propios, cada uno con su propia carpeta: `src/modules/almacen/marca/`, `src/modules/almacen/articulo/`, `src/modules/almacen/deposito/`, etc. Cada submódulo se registra directo en `AppModule` (no hace falta un módulo "paraguas" tipo `AlmacenModule` mientras no aporte nada propio).
+
 Estructura dentro de cada módulo:
 ```
 <dominio>/
@@ -42,23 +44,55 @@ Estructura dentro de cada módulo:
     └── update-<entidad>.dto.ts
 ```
 
+Todas las rutas cuelgan de un prefijo global `/api` (`app.setGlobalPrefix('api')` en `main.ts`) — un controller se registra con su path relativo nomás (ej. `@Controller('marcas')`), nunca hardcodeando `api/` a mano. Ejemplo: `GET http://localhost:3000/api/health`.
+
 Prisma se inyecta siempre a través de un `PrismaService` (extiende `PrismaClient`, con `$connect()` en `onModuleInit` y `$disconnect()` en `onModuleDestroy`) expuesto por un `PrismaModule`. Nunca instanciar `new PrismaClient()` suelto en un archivo.
 
 Al modelar un `enum` en `schema.prisma` (estados operativos, estados de confirmación, etc.), pensar el conjunto completo de valores con el equipo antes de migrar — sacar o reordenar un valor de un enum de Postgres después de aplicada la migración genera fricción.
 
-## Guards y permisos
-`JwtAuthGuard` se registra global (`APP_GUARD`), no ruta por ruta — así ningún endpoint nuevo queda desprotegido por olvido. Los pocos endpoints públicos (login) se marcan con un decorador `@Public()` que el guard respeta. `RolesGuard` también va global, leyendo el decorador `@Roles(...)` en cada ruta que lo necesite; una ruta sin `@Roles(...)` queda accesible para cualquier usuario autenticado.
+
+### Reutilización de código entre módulos
+No extraer lógica a una zona común "por las dudas". Si una validación, helper o lógica de negocio se repite igual en 2 o más submódulos (ej. `almacen/marca` y `almacen/articulo`, o entre distintos dominios como `almacen` y `ventas`), ahí sí se extrae a `src/common/`. La primera vez que se escribe algo, vive dentro de su propio módulo — aunque se sepa que probablemente se vaya a reutilizar después.
+
+### Nomenclatura de modelos en `schema.prisma`
+Los nombres de `model` van siempre en MAYÚSCULA (`USUARIO`, `ROL`, `ARTICULO`, `MOVIMIENTO`, etc.), sin excepción — es la convención que ya traía el schema y se mantiene para todo modelo nuevo. Esto afecta el nombre de la tabla en Postgres y el accessor que expone el cliente de Prisma generado (ej. `prisma.uSUARIO.findUnique(...)`, `prisma.rOL.findMany(...)` — Prisma solo baja a minúscula la primera letra del nombre del modelo). Los campos, relaciones y enums dentro del modelo siguen en `camelCase`/español normal (`id_usuario`, `usuarioCreador`, `RolNombre`).
+
+
+## Autenticación y autorización
+El login (`AuthModule`) usa un esquema de doble token:
+- **`accessToken`**: JWT de vida corta (`JWT_EXPIRES_IN`, default `15m`), viaja en el body de `POST /auth/login` y en cada request protegido como header `Authorization: Bearer <accessToken>`. El frontend lo guarda en memoria, nunca en `localStorage`.
+- **`refreshToken`**: JWT de vida larga (`JWT_REFRESH_EXPIRES_IN`, default `7d`), firmado con un secreto distinto (`JWT_REFRESH_SECRET` ≠ `JWT_SECRET`), viaja únicamente como cookie `httpOnly` seteada por el backend — nunca en el body ni accesible desde JS. Se rota en cada `POST /auth/refresh` y se revoca server-side comparando contra un hash bcrypt guardado en `USUARIO.refreshTokenHash` (sesión única por usuario, sin blacklist de tokens ni tabla de sesiones por dispositivo — ver `AuthService`).
+
+`JwtAuthGuard` y `RolesGuard` se registran una sola vez, como `APP_GUARD` globales dentro de `AuthModule` — no hay que volver a registrarlos en otros módulos. De esto se desprende:
+- **Todo endpoint nuevo queda protegido por defecto** (requiere `Authorization: Bearer <accessToken>` válido), salvo que se marque explícitamente `@Public()` (hoy solo `login` y `refresh`).
+- **Todo módulo de negocio tiene un rol "dueño" del recurso**, declarado con `@Roles(RolNombre.<ROL>)` a nivel `Controller` (no endpoint por endpoint, salvo que un mismo controller vaya a mezclar endpoints con distinto rol requerido — no pasó todavía). Ejemplo ya implementado: `MarcaController`, `CategoriaController` y `UnidadMedidaController` son los tres `@Roles(RolNombre.RESPONSABLE_ALMACEN)`, porque son submódulos de Almacén. Al sumar un módulo de negocio nuevo, preguntar (si no surge obvio de la HU) qué rol de `RolNombre` es el dueño y aplicar el mismo patrón.
+- `GERENTE_GENERAL` tiene acceso transversal a todo (el propio `RolesGuard` lo bypassea) — nunca hace falta agregarlo a la lista de roles de un endpoint.
+- Un controller **sin** `@Roles(...)` queda accesible para cualquier usuario autenticado, sea cual sea su rol — reservarlo para recursos que de verdad no son específicos de un rol (ej. `GET /auth/me`).
+- Para leer el usuario autenticado dentro de un controller, usar `@CurrentUser() user: AuthenticatedUser` (expone `id`, `email`, `rol`) — nunca decodificar el JWT a mano.
+- Todo endpoint protegido documenta en Swagger `@ApiBearerAuth()` + `@ApiUnauthorizedResponse` (401) y, si además tiene `@Roles(...)`, también `@ApiForbiddenResponse` (403) — ver sección Swagger.
+
+### Auditoría (`FK_usuario_creador` / `FK_usuario_actualizador`)
+Los campos de auditoría de cada entidad se completan siempre con el `id` del usuario autenticado (`@CurrentUser().id`), pasado como parámetro explícito del service — **nunca** se leen del DTO/body. El DTO Zod de un módulo de negocio no debe incluir `FK_usuario_creador`, `FK_usuario_actualizador` ni timestamps de auditoría: son responsabilidad exclusiva del servidor, porque si viajaran en el body cualquier cliente podría falsificar quién hizo un cambio. Patrón esperado en el service:
+```ts
+async create(dto: CreateXDto, usuarioId: number) {
+  return this.prisma.eNTIDAD.create({
+    data: { ...dto, FK_usuario_creador: usuarioId, FK_usuario_actualizador: usuarioId },
+  });
+}
+```
+y en el controller, extraer `usuarioId` de `@CurrentUser()` y pasarlo al service — nunca de un valor fijo ni de algo que mande el cliente.
 
 ## Validación
 Todo DTO se define como schema Zod + `createZodDto()` de nestjs-zod, en el mismo archivo `*.dto.ts`. Nunca decoradores de class-validator.
 
 ## Swagger: es el contrato, no un detalle opcional
-Como no hay nada compartido con el frontend, Swagger ES la única fuente de verdad sobre la forma de la API. Todo endpoint nuevo necesita, sin excepción:
+Como no hay nada compartido con el frontend, Swagger ES la única fuente de verdad sobre la forma de la API. El ideal es que el equipo de frontend resuelva casi todo mirando Swagger, y solo le pregunte a backend lo que no le haya quedado claro — no al revés. Por eso la documentación tiene que alcanzar para eso, no ser un trámite. Todo endpoint nuevo necesita, sin excepción:
 - `@ApiTags(...)` a nivel controller
 - `@ApiOperation({ summary: '...' })` por endpoint
 - `@ApiBearerAuth()` en los endpoints protegidos, para poder probarlos autenticados desde la UI de Swagger
-- `@ApiParam(...)` para parámetros de ruta (ej. `:id`) — el body no hace falta documentarlo aparte, sale solo del DTO Zod
-- `@ApiResponse(...)` por cada código de estado real que el endpoint puede devolver (400, 401, 403, 404 si aplican, no solo 200/201) — tiene que coincidir con las excepciones que tira el service (ver Convenciones de código)
+- `@ApiParam(...)` para parámetros de ruta (ej. `:id`) — el body no hace falta documentarlo aparte, sale solo del DTO Zod (`createZodDto` ya expone la metadata que `@nestjs/swagger` necesita)
+- `@ApiQuery(...)` para cada query param de filtros/paginación — a diferencia del body, un DTO Zod usado con `@Query()` NO se documenta solo (no hay plugin de Nest CLI activado en este proyecto), así que cada parámetro se declara a mano: nombre, si es obligatorio, tipo y una descripción corta
+- `@ApiResponse(...)` (o su variante corta `@ApiOkResponse`/`@ApiCreatedResponse`/etc.) por cada código de estado real que el endpoint puede devolver (400, 401, 403, 404 si aplican, no solo 200/201) — tiene que coincidir con las excepciones que tira el service (ver Convenciones de código). Las respuestas 2xx siempre llevan `type: <DTO>` apuntando a un DTO Zod con el shape real devuelto — una `description` sin `type` no le sirve al frontend para saber qué campos vienen en la respuesta
 
 ## Paginación
 Todo endpoint de listado que pueda crecer sin límite soporta `?page=1&limit=10` y devuelve `{ data: [...], meta: { total, page, limit } }`. No hace falta en catálogos chicos y fijos por diseño (ej. tipos de movimiento, roles).
@@ -70,7 +104,7 @@ Todo endpoint de listado que pueda crecer sin límite soporta `?page=1&limit=10`
 ## Convenciones de código
 - Seguir el ESLint/Prettier ya configurado.
 - Nomenclatura: variables y funciones en `camelCase`, clases en `PascalCase`, archivos en `kebab-case`, constantes en `UPPER_SNAKE_CASE`.
-- Entidades y conceptos de dominio, en español, calzando con la HU: `Articulo`, `Movimiento`, `Rol`, `AlmacenModule`. Lo genérico y técnico, en inglés: `service`, `controller`, `guard`.
+- Entidades y conceptos de dominio, en español, calzando con la HU: `Articulo`, `Movimiento`, `Rol`, `AlmacenModule` (nombres de clases TypeScript en `PascalCase` — no confundir con el nombre del `model` en `schema.prisma`, que va en mayúscula, ver sección de Nomenclatura de modelos). Lo genérico y técnico, en inglés: `service`, `controller`, `guard`.
 - Mensajes de error: en español, descriptivos.
 - Errores: tirar las excepciones propias de Nest (`NotFoundException`, `BadRequestException`, `ConflictException`, etc.) desde el service. El `HttpExceptionFilter` central las atrapa y formatea — nunca try/catch suelto en un controller.
 - Comentarios en formato JSDoc en los métodos públicos de los services y en cualquier decisión no obvia. No hace falta en cada función trivial — el nombre y los tipos ya documentan eso.
@@ -82,5 +116,6 @@ Implementá lo que pide la historia de usuario. No generalices de más ni sumes 
 ## Qué NO hacer sin que se te pida explícitamente
 - No hacer `commit`, `push`, ni abrir o mergear PRs. Dejá los cambios sin commitear.
 - No correr migraciones (`prisma migrate dev/deploy/reset`) ni `db seed`. Está bien proponer el cambio al schema; la persona corre el comando y revisa la migración generada.
+- No editar ni borrar migraciones ya mergeadas a `main` salvo que el equipo lo haya acordado explícitamente (ver sección Migraciones de Prisma).
 - No agregar dependencias nuevas al `package.json` sin avisar primero.
 - Antes de tocar más de un módulo o el schema de la base, proponé el plan y esperá confirmación.

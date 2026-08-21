@@ -17,6 +17,13 @@ model USUARIO {
   id_usuario Int    @id @default(autoincrement())
   nombre     String
   apellido   String
+  email      String @unique
+  password   String // hash de bcrypt, nunca texto plano
+
+  FK_rol Int
+  rol    ROL @relation(fields: [FK_rol], references: [id_rol])
+
+  refreshTokenHash String? // hash bcrypt del refresh token vigente; null si no hay sesión activa
   dni  String @unique
 
   // Relaciones
@@ -40,6 +47,13 @@ model USUARIO {
 
   depositosCreados          DEPOSITO[] @relation("DepositoCreador")
   depositosActualizados     DEPOSITO[] @relation("DepositoActualizador")
+}
+
+model ROL {
+  id_rol Int    @id @default(autoincrement())
+  nombre String @unique
+
+  usuarios USUARIO[]
 }
 
 model TIPOMOVIMIENTO {
@@ -98,6 +112,7 @@ model STOCK {
 
 model ARTICULO {
   id_articulo Int @id @default(autoincrement())
+  activo     Boolean @default(true)
 
   FK_Categoria       Int
   FK_Marca           Int
@@ -117,7 +132,9 @@ model ARTICULO {
 
 model CATEGORIA {
   id_categoria Int @id @default(autoincrement())
-  nombre       String @unique
+  // Único solo entre categorías activas (se valida a nivel service, no acá):
+  // una categoría dada de baja libera su nombre para una categoría nueva.
+  nombre       String
   descripcion  String?
   estado       Boolean @default(true)
 
@@ -135,7 +152,9 @@ model CATEGORIA {
 
 model MARCA {
   id_marca Int @id @default(autoincrement())
-  nombre   String @unique
+  // Único solo entre marcas activas (se valida a nivel service, no acá):
+  // una marca dada de baja libera su nombre para una marca nueva.
+  nombre   String
   descripcion  String?
   estado   Boolean @default(true)
 
