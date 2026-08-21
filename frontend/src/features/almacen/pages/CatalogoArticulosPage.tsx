@@ -12,7 +12,9 @@ const TABS = [
 export function CatalogoArticulosPage() {
   return (
     <section className="space-y-4">
-      <PageTabs tabs={TABS} />
+      <div className="bg-fondotabla -mx-6 -mt-4 px-6 pt-4">
+        <PageTabs tabs={TABS} />
+      </div>
       <Outlet />
     </section>
   )

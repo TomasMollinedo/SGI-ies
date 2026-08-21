@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, LogOut } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router'
+import logo from '@/assets/logo.svg'
 import { PATHS } from '@/app/router/paths'
 import { useAuthUser } from '@/features/auth/hooks/useAuthUser'
 import { useLogout } from '@/features/auth/hooks/useLogout'
@@ -36,7 +37,7 @@ const ITEMS: NavItem[] = [
 
 const navLinkClase = ({ isActive }: { isActive: boolean }) =>
   `rounded px-3 py-2 text-sm ${
-    isActive ? 'bg-primary text-primary-content' : 'text-content hover:bg-surface-muted'
+    isActive ? 'bg-secondary text-content' : 'text-light hover:bg-light/10'
   }`
 
 export function Sidebar() {
@@ -46,8 +47,12 @@ export function Sidebar() {
   )
 
   return (
-    <aside className="bg-surface border-subtle flex w-64 shrink-0 flex-col border-r">
-      <nav className="flex flex-col gap-1 p-4">
+    <aside className="bg-dark border-subtle flex w-64 shrink-0 flex-col border-r">
+      <div className="border-subtle flex h-24 items-center justify-start gap-2 border-b  pl-0">
+        <img src={logo} alt="IES" className="h-40 w-40 bg-center mt-4" />
+      </div>
+      <nav className="flex flex-col gap-1 px-2 py-6">
+
         {ITEMS.map((item) =>
           item.children ? (
             <div key={item.to}>
@@ -56,8 +61,8 @@ export function Sidebar() {
                 onClick={() => setGrupoAbierto((actual) => (actual === item.to ? null : item.to))}
                 className={`flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm ${
                   location.pathname.startsWith(item.to)
-                    ? 'bg-primary text-primary-content'
-                    : 'text-content hover:bg-surface-muted'
+                    ? 'bg-primary text-fondotabla'
+                    : 'text-light hover:bg-light/10'
                 }`}
               >
                 {item.label}
@@ -74,7 +79,7 @@ export function Sidebar() {
               ) : null}
             </div>
           ) : (
-            <NavLink
+            <NavLink 
               key={item.to}
               to={item.to}
               end={item.to === PATHS.HOME}
@@ -122,7 +127,7 @@ function UserMenu() {
           type="button"
           onClick={() => cerrarSesion()}
           disabled={cerrandoSesion}
-          className="text-danger hover:bg-surface-muted mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-sm"
+          className="text-light hover:bg-light/10 mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-sm"
         >
           <LogOut size={16} />
           {cerrandoSesion ? 'Saliendo...' : 'Salir'}
@@ -131,17 +136,17 @@ function UserMenu() {
       <button
         type="button"
         onClick={() => setAbierto((valor) => !valor)}
-        className="hover:bg-surface-muted flex w-full items-center gap-3 rounded px-2 py-2 text-left"
+        className="hover:bg-light/10 flex w-full items-center gap-3 rounded px-2 py-2 text-left"
       >
         <span className="bg-primary text-primary-content flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
           {usuario.nombre.charAt(0)}
           {usuario.apellido.charAt(0)}
         </span>
         <span className="min-w-0">
-          <span className="text-content block truncate text-sm font-medium">
+          <span className="text-light block truncate text-sm font-medium">
             {usuario.nombre} {usuario.apellido}
           </span>
-          <span className="text-content-muted block truncate text-xs">{usuario.rol}</span>
+          <span className="text-light/60 block truncate text-xs">{usuario.rol}</span>
         </span>
       </button>
     </div>
