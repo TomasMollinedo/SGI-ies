@@ -8,6 +8,7 @@ export const depositoResponseSchema = z.object({
   ubicacion: z.string().nullable(),
   descripcion: z.string().nullable(),
   estado: z.boolean(),
+  FK_Proyecto: z.number().nullable(),
   // Prisma devuelve Date, pero sobre HTTP viaja como string ISO 8601 —
   // el DTO de respuesta documenta lo que realmente recibe el frontend.
   hora_creacion: z.iso.datetime(),

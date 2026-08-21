@@ -7,6 +7,8 @@ export const createDepositoSchema = z.object({
   es_obrador: z.boolean(),
   ubicacion: z.string().trim().max(255).optional(),
   descripcion: z.string().trim().max(255).optional(),
+  // Opcional: un depósito central puede no estar vinculado a ningún proyecto.
+  FK_Proyecto: z.number().int().positive().optional(),
 });
 
 export class CreateDepositoDto extends createZodDto(createDepositoSchema) {}

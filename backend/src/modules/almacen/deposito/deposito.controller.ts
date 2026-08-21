@@ -54,6 +54,9 @@ export class DepositoController {
     type: DepositoResponseDto,
   })
   @ApiBadRequestResponse({ description: 'Datos inválidos' })
+  @ApiNotFoundResponse({
+    description: 'No existe un proyecto con el id indicado en FK_Proyecto',
+  })
   @ApiConflictResponse({
     description: 'Ya existe un depósito/obrador activo con ese nombre',
   })
@@ -140,7 +143,8 @@ export class DepositoController {
   })
   @ApiBadRequestResponse({ description: 'Datos inválidos' })
   @ApiNotFoundResponse({
-    description: 'No existe un depósito/obrador con ese id',
+    description:
+      'No existe un depósito/obrador con ese id, o no existe un proyecto con el id indicado en FK_Proyecto',
   })
   @ApiConflictResponse({
     description: 'Ya existe un depósito/obrador activo con ese nombre',
@@ -169,7 +173,7 @@ export class DepositoController {
   })
   @ApiConflictResponse({
     description:
-      'El depósito/obrador ya está dado de baja, o tiene fichas de stock asociadas',
+      'El depósito/obrador ya está dado de baja, o tiene fichas de stock con cantidad mayor a 0',
   })
   baja(
     @Param('id', ParseIntPipe) id: number,

@@ -1,0 +1,18 @@
+-- DropIndex
+DROP INDEX "DEPOSITO_nombre_key";
+
+-- AlterTable
+ALTER TABLE "DEPOSITO" ADD COLUMN     "FK_Proyecto" INTEGER;
+
+-- AlterTable
+ALTER TABLE "STOCK" ADD COLUMN     "cantidad" INTEGER NOT NULL DEFAULT 0;
+
+-- CreateTable
+CREATE TABLE "PROYECTO" (
+    "id_proyecto" SERIAL NOT NULL,
+
+    CONSTRAINT "PROYECTO_pkey" PRIMARY KEY ("id_proyecto")
+);
+
+-- AddForeignKey
+ALTER TABLE "DEPOSITO" ADD CONSTRAINT "DEPOSITO_FK_Proyecto_fkey" FOREIGN KEY ("FK_Proyecto") REFERENCES "PROYECTO"("id_proyecto") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -100,6 +100,10 @@ model STOCKMOVIMIENTO {
 
 model STOCK {
   id_stock Int @id @default(autoincrement())
+  // Cantidad actual de ese artículo en ese depósito/obrador. La va a mantener
+  // al día el futuro módulo de Movimientos (entradas/salidas); por ahora
+  // arranca en 0.
+  cantidad Int @default(0)
 
   FK_deposito Int
   FK_articulo Int
@@ -197,7 +201,10 @@ model DEPOSITO {
   ubicacion   String?
   descripcion String?
   estado     Boolean @default(true)
-  //Agregar en su momento la vinculacion con proyecto, sera opcional, ya que puede haber depositos que no esten vinculados a ningun proyecto
+
+  // Opcional: un depósito central puede no estar vinculado a ningún proyecto.
+  FK_Proyecto Int?
+  proyecto    PROYECTO? @relation(fields: [FK_Proyecto], references: [id_proyecto])
 
   hora_creacion DateTime @default(now())
   hora_actualizacion DateTime? @default(now())
@@ -209,4 +216,13 @@ model DEPOSITO {
   usuarioActualizador USUARIO @relation("DepositoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
   stocks STOCK[]
+}
+
+// Stub provisorio hasta que exista el módulo de Proyectos: solo el id, para
+// poder vincular (opcionalmente) un depósito/obrador a un proyecto. Cuando
+// se implemente el módulo real, este model se completa con sus campos.
+model PROYECTO {
+  id_proyecto Int @id @default(autoincrement())
+
+  depositos DEPOSITO[]
 }

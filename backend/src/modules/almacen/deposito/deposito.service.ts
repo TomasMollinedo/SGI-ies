@@ -17,6 +17,10 @@ export class DepositoService {
   async create(dto: CreateDepositoDto, usuarioId: number) {
     await this.validarNombreUnico(dto.nombre);
 
+    if (dto.FK_Proyecto !== undefined) {
+      await this.validarProyectoExiste(dto.FK_Proyecto);
+    }
+
     return this.prisma.dEPOSITO.create({
       data: {
         ...dto,
@@ -46,6 +50,7 @@ export class DepositoService {
           ubicacion: true,
           descripcion: true,
           estado: true,
+          FK_Proyecto: true,
         },
         skip: (page - 1) * limit,
         take: limit,
@@ -84,6 +89,12 @@ export class DepositoService {
       await this.validarNombreUnico(dto.nombre, id);
     }
 
+    // dto.FK_Proyecto: undefined = no tocar el proyecto asignado, null =
+    // quitarlo, number = cambiarlo (y hay que validar que exista).
+    if (typeof dto.FK_Proyecto === 'number') {
+      await this.validarProyectoExiste(dto.FK_Proyecto);
+    }
+
     return this.prisma.dEPOSITO.update({
       where: { id_deposito: id },
       data: {
@@ -96,11 +107,7 @@ export class DepositoService {
 
   /**
    * Baja lógica: no se permite si el depósito/obrador ya está inactivo, ni
-   * si tiene fichas de stock asociadas. El modelo STOCK todavía no registra
-   * una cantidad (eso lo define el futuro módulo de Movimientos), así que
-   * por ahora se bloquea con que exista al menos una ficha para ese depósito
-   * — TODO: cuando STOCK tenga cantidad, ajustar para bloquear solo si
-   * cantidad > 0.
+   * si tiene fichas de stock con cantidad > 0.
    */
   async baja(id: number, usuarioId: number) {
     const deposito = await this.findOne(id);
@@ -109,13 +116,13 @@ export class DepositoService {
       throw new ConflictException('El depósito/obrador ya está dado de baja');
     }
 
-    const fichasDeStock = await this.prisma.sTOCK.count({
-      where: { FK_deposito: id },
+    const fichasConStock = await this.prisma.sTOCK.count({
+      where: { FK_deposito: id, cantidad: { gt: 0 } },
     });
 
-    if (fichasDeStock > 0) {
+    if (fichasConStock > 0) {
       throw new ConflictException(
-        'No se puede dar de baja el depósito/obrador: tiene fichas de stock asociadas',
+        'No se puede dar de baja el depósito/obrador: tiene fichas de stock con cantidad mayor a 0',
       );
     }
 
@@ -170,5 +177,15 @@ export class DepositoService {
           })
           .then((deposito) => deposito !== null),
     });
+  }
+
+  private async validarProyectoExiste(idProyecto: number) {
+    const proyecto = await this.prisma.pROYECTO.findUnique({
+      where: { id_proyecto: idProyecto },
+    });
+
+    if (!proyecto) {
+      throw new NotFoundException(`No existe un proyecto con id ${idProyecto}`);
+    }
   }
 }
