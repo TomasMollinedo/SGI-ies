@@ -4,7 +4,6 @@ import { DepositoObradoresPage } from '@/features/almacen/pages/DepositoObradore
 import { MovimientosPage } from '@/features/almacen/pages/MovimientosPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { MainLayout } from '@/layouts/MainLayout'
-import { HomePage } from '@/pages/HomePage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { PATHS } from './paths'
@@ -20,7 +19,10 @@ export const router = createBrowserRouter([
         element: <MainLayout />,
         errorElement: <NotFoundPage />,
         children: [
-          { index: true, element: <HomePage />, handle: { title: 'Inicio' } },
+          {
+            index: true,
+            element: <Navigate to={PATHS.ALMACEN.CATALOGO.ARTICULOS} replace />,
+          },
 
           {
             path: PATHS.ALMACEN.ROOT,
