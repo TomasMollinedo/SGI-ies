@@ -10,6 +10,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { MarcaModule } from './modules/almacen/marca/marca.module';
 import { CategoriaModule } from './modules/almacen/categoria/categoria.module';
 import { UnidadMedidaModule } from './modules/almacen/unidad-medida/unidad-medida.module';
+import { DepositoModule } from './modules/almacen/deposito/deposito.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { UnidadMedidaModule } from './modules/almacen/unidad-medida/unidad-medid
     MarcaModule,
     CategoriaModule,
     UnidadMedidaModule,
+    DepositoModule,
     AuthModule,
   ],
   providers: [

@@ -190,7 +190,9 @@ model UNIDADMEDIDA {
 
 model DEPOSITO {
   id_deposito Int @id @default(autoincrement())
-  nombre      String @unique
+  // Único solo entre depósitos/obradores activos (se valida a nivel service,
+  // no acá): uno dado de baja libera su nombre para uno nuevo.
+  nombre      String
   es_obrador Boolean @default(false)
   ubicacion   String?
   descripcion String?
