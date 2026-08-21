@@ -12,7 +12,7 @@ export interface DataTableColumn<T> {
 
 export function DataTable<T>({ data, columns, obtenerId }: DataTableProps<T>) {
   return (
-    <table className="bg-fondotabla w-full border-collapse text-sm">
+    <table className="bg-fondotabla w-full border-collapse text-sm shadow-md">
       <thead>
         <tr className="bg-secondary text-left">
           {columns.map((column) => (
