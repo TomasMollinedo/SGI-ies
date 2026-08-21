@@ -15,8 +15,8 @@ export function Header() {
   const titulo = (match?.handle as RouteHandle | undefined)?.title
 
   return (
-    <header className="bg-surface border-subtle flex h-14 shrink-0 items-center border-b px-6">
-      <span className="text-content font-semibold">{titulo}</span>
+    <header className="bg-fondotabla border-subtle flex h-24 shrink-0 items-center border-b px-6 ">
+      <span className="text-subtitulo font-bold">{titulo}</span>
     </header>
   )
 }
