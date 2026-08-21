@@ -1,44 +1,124 @@
-import { createBrowserRouter } from 'react-router'
+import { createBrowserRouter, Navigate } from 'react-router'
+import { CatalogoArticulosPage } from '@/features/almacen/pages/CatalogoArticulosPage'
+import { DepositoObradoresPage } from '@/features/almacen/pages/DepositoObradoresPage'
+import { MovimientosPage } from '@/features/almacen/pages/MovimientosPage'
+import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { MainLayout } from '@/layouts/MainLayout'
-import { HomePage } from '@/pages/HomePage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { PATHS } from './paths'
+import { ProtectedRoute } from './ProtectedRoute'
 
 export const router = createBrowserRouter([
+  { path: PATHS.LOGIN, element: <LoginPage /> },
   {
-    path: PATHS.HOME,
-    element: <MainLayout />,
-    errorElement: <NotFoundPage />,
+    element: <ProtectedRoute />,
     children: [
-      { index: true, element: <HomePage /> },
+      {
+        path: PATHS.HOME,
+        element: <MainLayout />,
+        errorElement: <NotFoundPage />,
+        children: [
+          {
+            index: true,
+            element: <Navigate to={PATHS.ALMACEN.CATALOGO.ARTICULOS} replace />,
+          },
 
-      {
-        path: PATHS.ALMACEN.ROOT,
-        element: <PlaceholderPage titulo="Almacén" />,
-      },
-      {
-        path: PATHS.COMPRAS.ROOT,
-        element: <PlaceholderPage titulo="Compras y Proveedores" />,
-      },
-      {
-        path: PATHS.TESORERIA.ROOT,
-        element: <PlaceholderPage titulo="Tesorería" />,
-      },
-      {
-        path: PATHS.PROYECTOS.ROOT,
-        element: <PlaceholderPage titulo="Proyectos" />,
-      },
-      {
-        path: PATHS.COMERCIAL.ROOT,
-        element: <PlaceholderPage titulo="Comercial" />,
-      },
-      {
-        path: PATHS.SISTEMA.ROOT,
-        element: <PlaceholderPage titulo="Administración del Sistema" />,
-      },
+          {
+            path: PATHS.ALMACEN.ROOT,
+            children: [
+              { index: true, element: <Navigate to={PATHS.ALMACEN.CATALOGO.ARTICULOS} replace /> },
+              {
+                path: PATHS.ALMACEN.CATALOGO.ROOT,
+                element: <CatalogoArticulosPage />,
+                handle: { title: 'Catálogo de Artículos' },
+                children: [
+                  {
+                    index: true,
+                    element: <Navigate to={PATHS.ALMACEN.CATALOGO.ARTICULOS} replace />,
+                  },
+                  {
+                    path: PATHS.ALMACEN.CATALOGO.ARTICULOS,
+                    element: <PlaceholderPage titulo="Artículos" />,
+                  },
+                  {
+                    path: PATHS.ALMACEN.CATALOGO.MARCAS,
+                    element: <PlaceholderPage titulo="Marcas" />,
+                  },
+                  {
+                    path: PATHS.ALMACEN.CATALOGO.CATEGORIAS,
+                    element: <PlaceholderPage titulo="Categorías" />,
+                  },
+                  {
+                    path: PATHS.ALMACEN.CATALOGO.UNIDADES_MEDIDA,
+                    element: <PlaceholderPage titulo="Unidades de Medida" />,
+                  },
+                ],
+              },
+              {
+                path: PATHS.ALMACEN.DEPOSITO.ROOT,
+                element: <DepositoObradoresPage />,
+                handle: { title: 'Depósito/Obradores' },
+                children: [
+                  {
+                    index: true,
+                    element: <Navigate to={PATHS.ALMACEN.DEPOSITO.OBRADORES} replace />,
+                  },
+                  {
+                    path: PATHS.ALMACEN.DEPOSITO.OBRADORES,
+                    element: <PlaceholderPage titulo="Depósito de Obradores" />,
+                  },
+                  {
+                    path: PATHS.ALMACEN.DEPOSITO.STOCK,
+                    element: <PlaceholderPage titulo="Stock por Depósito" />,
+                  },
+                ],
+              },
+              {
+                path: PATHS.ALMACEN.MOVIMIENTOS.ROOT,
+                element: <MovimientosPage />,
+                handle: { title: 'Movimientos' },
+                children: [
+                  { index: true, element: <PlaceholderPage titulo="Movimientos" /> },
+                  {
+                    path: PATHS.ALMACEN.MOVIMIENTOS.TIPOS,
+                    element: <PlaceholderPage titulo="Tipos de Movimiento" />,
+                  },
+                ],
+              },
+            ],
+          },
+          /*
+          {
+            path: PATHS.COMPRAS.ROOT,
+            element: <PlaceholderPage titulo="Compras y Proveedores" />,
+            handle: { title: 'Compras y Proveedores' },
+          },
+          {
+            path: PATHS.TESORERIA.ROOT,
+            element: <PlaceholderPage titulo="Tesorería" />,
+            handle: { title: 'Tesorería' },
+          },
+          {
+            path: PATHS.PROYECTOS.ROOT,
+            element: <PlaceholderPage titulo="Proyectos" />,
+            handle: { title: 'Proyectos' },
+          },
+          {
+            path: PATHS.COMERCIAL.ROOT,
+            element: <PlaceholderPage titulo="Comercial" />,
+            handle: { title: 'Comercial' },
+          },
+          {
+            path: PATHS.SISTEMA.ROOT,
+            element: <PlaceholderPage titulo="Administración del Sistema" />,
+            handle: { title: 'Administración del Sistema' },
+          },
+          */
 
-      { path: '*', element: <NotFoundPage /> },
+          { path: '*', element: <NotFoundPage /> },
+        ],
+      },
     ],
   },
 ])
