@@ -69,7 +69,8 @@ export class DepositoController {
 
   @Get()
   @ApiOperation({
-    summary: 'Listar depósitos/obradores, con filtros por nombre y/o estado',
+    summary:
+      'Listar depósitos/obradores, con filtros por nombre, estado, tipo (obrador) y/o proyecto asignado',
   })
   @ApiQuery({
     name: 'nombre',
@@ -85,6 +86,20 @@ export class DepositoController {
     enum: ['true', 'false'],
     description:
       'Filtra por depósitos/obradores activos (true) o dados de baja (false). Sin este parámetro, trae ambos.',
+  })
+  @ApiQuery({
+    name: 'es_obrador',
+    required: false,
+    enum: ['true', 'false'],
+    description:
+      'Filtra por obradores (true) o depósitos centrales (false). Sin este parámetro, trae ambos.',
+  })
+  @ApiQuery({
+    name: 'FK_Proyecto',
+    required: false,
+    type: Number,
+    description: 'Filtra por el id del proyecto asignado',
+    example: 1,
   })
   @ApiQuery({
     name: 'page',

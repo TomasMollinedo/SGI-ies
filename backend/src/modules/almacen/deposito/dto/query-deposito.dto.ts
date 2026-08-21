@@ -7,6 +7,11 @@ export const queryDepositoSchema = z.object({
     .enum(['true', 'false'])
     .transform((valor) => valor === 'true')
     .optional(),
+  es_obrador: z
+    .enum(['true', 'false'])
+    .transform((valor) => valor === 'true')
+    .optional(),
+  FK_Proyecto: z.coerce.number().int().positive().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
 });

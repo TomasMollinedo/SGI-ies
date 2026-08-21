@@ -31,11 +31,13 @@ export class DepositoService {
   }
 
   async findAll(query: QueryDepositoDto) {
-    const { nombre, estado, page, limit } = query;
+    const { nombre, estado, es_obrador, FK_Proyecto, page, limit } = query;
 
     const where: Prisma.DEPOSITOWhereInput = {
       ...(estado !== undefined && { estado }),
       ...(nombre && { nombre: { contains: nombre, mode: 'insensitive' } }),
+      ...(es_obrador !== undefined && { es_obrador }),
+      ...(FK_Proyecto !== undefined && { FK_Proyecto }),
     };
 
     const [data, total] = await Promise.all([
