@@ -6,3 +6,16 @@ body,
 #root {
   height: 100%;
 }
+
+/* Cuando el navegador (Chrome/Edge) te autocompleta un campo con datos guardados, le pinta el fondo de un color propio (ese celeste feo) y no te deja cambiarlo con las herramientas normales de CSS (background-color). Es como si el navegador dijera "esto lo pinto yo, no te metas".
+
+Entonces, en vez de pelear con esa regla, hacemos un truco: le ponemos una sombra gigante hacia adentro (box-shadow inset) del color que sí queremos (nuestro gris surface-muted). Como la sombra es grande, tapa completamente el celeste del navegador por encima 
+Las otras dos líneas son detalles menores:
+*/
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  box-shadow: 0 0 0px 1000px var(--color-surface-muted) inset;
+  -webkit-text-fill-color: var(--color-content);
+  transition: background-color 9999s ease-in-out 0s;
+}
