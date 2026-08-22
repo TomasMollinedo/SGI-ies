@@ -30,3 +30,8 @@ export type ColorToken =
   | 'content-muted'
   | 'primary-content'
   | 'subtle'
+  | 'field'
+  // versiones suaves, para fondos de pastillas y botones
+  | 'success-soft'
+  | 'neutral-soft'
+  | 'secondary-soft'

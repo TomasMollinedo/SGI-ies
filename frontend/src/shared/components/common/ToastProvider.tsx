@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Toast } from '@/shared/components/Toast'
+import { Toast } from '@/shared/components/common/Toast'
 import {
   ToastContext,
   type ToastApi,
   type ToastItem,
   type ToastTipo,
-} from '@/shared/components/toastContext'
+} from '@/shared/components/common/toastContext'
 
 /**
  * Cuánto dura la animación de salida antes de desmontar el toast.

@@ -1,4 +1,4 @@
-import { DataTable, type DataTableColumn } from '@/shared/components/DataTable'
+import { DataTable, type DataTableColumn } from '@/shared/components/common/DataTable'
 
 interface Articulo {
   codigo: string

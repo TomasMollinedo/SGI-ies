@@ -1,5 +1,5 @@
 import { Eye, Pencil, RotateCcw, Trash2 } from 'lucide-react'
-import { IconButton } from '@/shared/components/IconButton'
+import { IconButton } from '@/shared/components/ui/IconButton'
 import { cn } from '@/shared/utils/cn'
 
 export type RowAction = 'view' | 'edit' | 'delete' | 'reactivate'

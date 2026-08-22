@@ -1,5 +1,5 @@
 import { useContext } from 'react'
-import { ToastContext, type ToastApi } from '@/shared/components/toastContext'
+import { ToastContext, type ToastApi } from '@/shared/components/common/toastContext'
 
 /**
  * Devuelve la API para disparar notificaciones desde cualquier componente:

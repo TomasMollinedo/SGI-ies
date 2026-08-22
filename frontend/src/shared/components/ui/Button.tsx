@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { Spinner } from '@/shared/components/Spinner'
+import { Spinner } from '@/shared/components/ui/Spinner'
 import { cn } from '@/shared/utils/cn'
 
 export type ButtonVariant = 'primary' | 'success' | 'error' | 'warning'

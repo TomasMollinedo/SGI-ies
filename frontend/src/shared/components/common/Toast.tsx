@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { CircleCheck, CircleX, Info, TriangleAlert, X, type LucideIcon } from 'lucide-react'
-import { IconButton } from '@/shared/components/IconButton'
-import type { ToastTipo } from '@/shared/components/toastContext'
+import { IconButton } from '@/shared/components/ui/IconButton'
+import type { ToastTipo } from '@/shared/components/common/toastContext'
 import { cn } from '@/shared/utils/cn'
 
 interface ToastProps {

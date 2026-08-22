@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react'
-import { Spinner } from '@/shared/components/Spinner'
+import { Spinner } from '@/shared/components/ui/Spinner'
 import type { ColorToken } from '@/shared/types/theme.types'
 import { cn } from '@/shared/utils/cn'
 
