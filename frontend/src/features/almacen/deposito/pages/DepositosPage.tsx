@@ -3,7 +3,7 @@ import { DataTable } from '@/shared/components/common/DataTable'
 import { Pagination } from '@/shared/components/common/Pagination'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
-import { Spinner } from '@/shared/components/estados-pantalla/Spinner'
+import { Spinner } from '@/shared/components/ui/Spinner'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 import { FiltrosDepositosBar } from '../components/FiltrosDepositosBar'
 import { COLUMNAS_DEPOSITOS, LIMITE_PAGINA } from '../config/deposito.config'
@@ -42,7 +42,7 @@ export function DepositosPage() {
 
       {isLoading && (
         <div className="flex justify-center py-12">
-          <Spinner size={32} />
+          <Spinner className="text-primary size-8" />
         </div>
       )}
 

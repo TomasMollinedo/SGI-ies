@@ -12,8 +12,7 @@ export const LIMITE_PAGINA = 10
 export const COLUMNAS_DEPOSITOS: DataTableColumn<Deposito>[] = [
   { key: 'nombre', label: 'Nombre', render: (item) => item.nombre },
   { key: 'tipo', label: 'Tipo', render: (item) => (item.es_obrador ? 'Obrador' : 'Depósito') },
-  { key: 'ubicacion', label: 'Ubicación', render: (item) => item.ubicacion },
-  { key: 'descripcion', label: 'Descripción', render: (item) => item.descripcion },
+  { key: 'ubicacion', label: 'Ubicación', render: (item) => item.ubicacion ?? '' },
   {
     key: 'estado',
     label: 'Estado',
