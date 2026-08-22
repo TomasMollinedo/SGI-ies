@@ -11,6 +11,13 @@
   --color-warning: #b5852c;
   --color-success: #3e7a5b;
   --color-info: #386280;
+  --color-reactivar: #aa4ebf;
+
+  /* fondos suaves de las acciones de tabla (ver RowActions) */
+  --color-fondo-ver: #bfd9ff;
+  --color-fondo-editar: #fef3c7;
+  --color-fondo-eliminar: #fee2e2;
+  --color-fondo-reactivar: #eacff7;
 
   /* ---------- COLORES SEMÁNTICOS (usados por los componentes) ---------- */
 
@@ -26,6 +33,13 @@
   --color-primary-content: var(--color-light);
   /* color de bordes finos */
   --color-subtle: color-mix(in srgb, var(--color-neutral) 35%, var(--color-light) 65%);
+  /* fondo de los campos de formulario (input, select, textarea) */
+  --color-field: var(--color-fondotabla);
+  /* fondos suaves de las pastillas de estado (ver Badge) */
+  --color-success-soft: color-mix(in srgb, var(--color-success) 12%, var(--color-fondotabla));
+  --color-neutral-soft: color-mix(in srgb, var(--color-neutral) 12%, var(--color-fondotabla));
+  /* versión suave del secundario, para los botones de paginación no activos */
+  --color-secondary-soft: color-mix(in srgb, var(--color-secondary) 30%, var(--color-fondotabla));
 
   /* ---------- TIPOGRAFÍA ---------- */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -47,6 +61,35 @@
   --text-titulo-modal--font-weight: var(--font-weight-semibold);
   --text-titulo-principal: 3.125rem; /* 50px */
   --text-titulo-principal--font-weight: var(--font-weight-medium);
+
+  /* ---------- ANIMACIONES ---------- */
+
+  /* entrada y salida de los toasts. Si cambiás la duración de `toast-out`,
+     actualizá también DURACION_SALIDA en ToastProvider.tsx */
+  --animate-toast-in: toast-in 200ms ease-out;
+  --animate-toast-out: toast-out 150ms ease-in forwards;
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.75rem) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes toast-out {
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(0.75rem) scale(0.97);
+    }
+  }
 }
 
 body {
