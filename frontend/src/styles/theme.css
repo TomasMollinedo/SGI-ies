@@ -37,6 +37,9 @@
   --color-subtle: color-mix(in srgb, var(--color-neutral) 35%, var(--color-light) 65%);
   /* fondo de los campos de formulario (input, select, textarea) */
   --color-field: var(--color-fondotabla);
+  /* fondos suaves de las pastillas de estado (ver Badge) */
+  --color-success-soft: color-mix(in srgb, var(--color-success) 12%, var(--color-fondotabla));
+  --color-neutral-soft: color-mix(in srgb, var(--color-neutral) 12%, var(--color-fondotabla));
 
   /* ---------- TIPOGRAFÍA ---------- */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -58,6 +61,35 @@
   --text-titulo-modal--font-weight: var(--font-weight-semibold);
   --text-titulo-principal: 3.125rem; /* 50px */
   --text-titulo-principal--font-weight: var(--font-weight-medium);
+
+  /* ---------- ANIMACIONES ---------- */
+
+  /* entrada y salida de los toasts. Si cambiás la duración de `toast-out`,
+     actualizá también DURACION_SALIDA en ToastProvider.tsx */
+  --animate-toast-in: toast-in 200ms ease-out;
+  --animate-toast-out: toast-out 150ms ease-in forwards;
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.75rem) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes toast-out {
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(0.75rem) scale(0.97);
+    }
+  }
 }
 
 body {
