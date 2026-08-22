@@ -1,8 +1,9 @@
-import { useEffect, useId, useRef } from 'react'
-import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import { useId } from 'react'
+import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { IconButton } from '@/shared/components/ui/IconButton'
+import { useDialogBehavior } from '@/shared/hooks/useDialogBehavior'
 import { cn } from '@/shared/utils/cn'
 
 export type ModalSize = 'sm' | 'md' | 'lg'
@@ -41,8 +42,8 @@ interface ModalProps {
  *   (por ejemplo, seleccionando texto) no lo cierra.
  * - `closeOnEscape`: default `true`.
  *
- * Mientras está abierto bloquea el scroll de la página, atrapa el foco adentro
- * y, al cerrarse, lo devuelve al elemento que lo abrió.
+ * El bloqueo de scroll, el focus trap y la restauración del foco los aporta
+ * `useDialogBehavior`.
  */
 export function Modal({
   open,
@@ -55,93 +56,15 @@ export function Modal({
   closeOnOverlayClick = true,
   closeOnEscape = true,
 }: ModalProps) {
-  const tarjetaRef = useRef<HTMLDivElement>(null)
-  const elementoPrevioRef = useRef<HTMLElement | null>(null)
   const idTitulo = useId()
-
-  useEffect(() => {
-    if (!open || !closeOnEscape) return
-
-    function manejarEscape(evento: KeyboardEvent) {
-      if (evento.key === 'Escape') onClose()
-    }
-
-    document.addEventListener('keydown', manejarEscape)
-    return () => document.removeEventListener('keydown', manejarEscape)
-  }, [open, closeOnEscape, onClose])
-
-  // Bloquea el scroll de la página y restaura el valor que hubiera antes, para
-  // no pisar un overflow puesto por otro componente.
-  useEffect(() => {
-    if (!open) return
-
-    const overflowPrevio = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    return () => {
-      document.body.style.overflow = overflowPrevio
-    }
-  }, [open])
-
-  // Al abrir mueve el foco adentro; al cerrar lo devuelve a donde estaba.
-  useEffect(() => {
-    if (!open) return
-
-    elementoPrevioRef.current = document.activeElement as HTMLElement | null
-
-    const enfocables = obtenerEnfocables(tarjetaRef.current)
-    const primerObjetivo = enfocables[0] ?? tarjetaRef.current
-    primerObjetivo?.focus()
-
-    return () => elementoPrevioRef.current?.focus()
-  }, [open])
-
-  // Focus trap: el Tab no se sale de la tarjeta.
-  useEffect(() => {
-    if (!open) return
-
-    function manejarTab(evento: KeyboardEvent) {
-      if (evento.key !== 'Tab') return
-
-      const tarjeta = tarjetaRef.current
-      if (!tarjeta) return
-
-      const enfocables = obtenerEnfocables(tarjeta)
-      if (enfocables.length === 0) {
-        evento.preventDefault()
-        return
-      }
-
-      const primero = enfocables[0]
-      const ultimo = enfocables[enfocables.length - 1]
-      const activo = document.activeElement
-      const fueraDelModal = !tarjeta.contains(activo)
-
-      if (evento.shiftKey && (activo === primero || fueraDelModal)) {
-        evento.preventDefault()
-        ultimo.focus()
-        return
-      }
-
-      if (!evento.shiftKey && (activo === ultimo || fueraDelModal)) {
-        evento.preventDefault()
-        primero.focus()
-      }
-    }
-
-    document.addEventListener('keydown', manejarTab)
-    return () => document.removeEventListener('keydown', manejarTab)
-  }, [open])
+  const { tarjetaRef, manejarMouseDownOverlay } = useDialogBehavior({
+    open,
+    onClose,
+    closeOnEscape,
+    closeOnOverlayClick,
+  })
 
   if (!open) return null
-
-  function manejarMouseDownOverlay(evento: ReactMouseEvent<HTMLDivElement>) {
-    if (!closeOnOverlayClick) return
-
-    // Solo cierra si el gesto EMPEZÓ en el overlay. Si arrancó adentro de la
-    // tarjeta y terminó afuera, el target es la tarjeta y no cierra.
-    if (evento.target === evento.currentTarget) onClose()
-  }
 
   return createPortal(
     <div
@@ -203,23 +126,4 @@ const CLASES_TAMANIO: Record<ModalSize, string> = {
   sm: 'max-w-md',
   md: 'max-w-2xl',
   lg: 'max-w-4xl',
-}
-
-const SELECTOR_ENFOCABLES = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(', ')
-
-/** Elementos que pueden recibir el foco dentro de la tarjeta, en orden de tab. */
-function obtenerEnfocables(contenedor: HTMLElement | null): HTMLElement[] {
-  if (!contenedor) return []
-
-  return Array.from(contenedor.querySelectorAll<HTMLElement>(SELECTOR_ENFOCABLES)).filter(
-    // `offsetParent` en null descarta lo que está oculto con `display: none`.
-    (elemento) => elemento.offsetParent !== null
-  )
 }
