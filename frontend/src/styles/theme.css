@@ -35,6 +35,8 @@
   --color-primary-content: var(--color-light);
   /* color de bordes finos */
   --color-subtle: color-mix(in srgb, var(--color-neutral) 35%, var(--color-light) 65%);
+  /* fondo de los campos de formulario (input, select, textarea) */
+  --color-field: var(--color-fondotabla);
 
   /* ---------- TIPOGRAFÍA ---------- */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
