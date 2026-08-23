@@ -13,13 +13,13 @@ interface FiltrosDepositosBarProps {
 }
 
 const OPCIONES_ESTADO: SelectOption[] = [
-  { value: '', label: 'Todos' },
+  { value: '', label: 'Todos los estados' },
   { value: 'true', label: 'Activos' },
   { value: 'false', label: 'Dados de baja' },
 ]
 
 const OPCIONES_ES_OBRADOR: SelectOption[] = [
-  { value: '', label: 'Todos' },
+  { value: '', label: 'Todos los tipos' },
   { value: 'false', label: 'Depósito' },
   { value: 'true', label: 'Obrador' },
 ]
@@ -48,14 +48,25 @@ export function FiltrosDepositosBar({
         options={OPCIONES_ESTADO}
         value={estado}
         onChange={(evento) => onEstadoChange(evento.target.value)}
-        className="w-40"
+        className="w-50"
       />
       <Select
         size="sm"
         options={OPCIONES_ES_OBRADOR}
         value={esObrador}
         onChange={(evento) => onEsObradorChange(evento.target.value)}
-        className="w-40"
+        className="w-50"
+      />
+      {/* Filtro de proyecto asignado (FK_Proyecto): pertenece al módulo de
+          Proyectos, que todavía no existe. Queda visible pero deshabilitado
+          hasta que haya un catálogo de proyectos contra el cual buscar. */}
+      <Input
+        size="sm"
+        placeholder="Buscar por proyecto"
+        iconLeft={<Search />}
+        disabled
+        title="Disponible cuando exista el módulo de Proyectos"
+        className="w-64"
       />
     </div>
   )
