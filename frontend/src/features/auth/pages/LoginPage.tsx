@@ -2,34 +2,10 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate } from 'react-router'
 import { PATHS } from '@/app/router/paths'
-import type { ApiErrorResponse, ValidationIssue } from '@/shared/types/api.types'
+import { formatearMensajeError } from '@/shared/utils/apiError'
 import { useAuthUser } from '../hooks/useAuthUser'
 import { useLogin } from '../hooks/useLogin'
 import { User, Lock } from 'lucide-react'
-
-
-function esArrayDeValidationIssues(message: unknown): message is ValidationIssue[] {
-  return (
-    Array.isArray(message) &&
-    message.length > 0 &&
-    typeof message[0] === 'object' &&
-    message[0] !== null &&
-    'campo' in message[0]
-  )
-}
-
-function formatearMensajeError(message: ApiErrorResponse['message']): string {
-  if (typeof message === 'string') {
-    return message
-  }
-  if (esArrayDeValidationIssues(message)) {
-    return message.map((issue) => `${issue.campo}: ${issue.error}`).join(', ')
-  }
-  if (Array.isArray(message)) {
-    return message.join(', ')
-  }
-  return 'Ocurrió un error inesperado.'
-}
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
@@ -64,7 +40,10 @@ export function LoginPage() {
               Email
             </label>
             <div className="group border-subtle focus-within:border-primary bg-surface-muted flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 transition-colors">
-              <User size={18} className="text-content-muted group-focus-within:text-primary shrink-0" />
+              <User
+                size={18}
+                className="text-content-muted group-focus-within:text-primary shrink-0"
+              />
               <input
                 id="email"
                 name="email"
@@ -84,7 +63,10 @@ export function LoginPage() {
               Contraseña
             </label>
             <div className="group border-subtle focus-within:border-primary bg-surface-muted flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 transition-colors">
-              <Lock size={18} className="text-content-muted group-focus-within:text-primary shrink-0" />
+              <Lock
+                size={18}
+                className="text-content-muted group-focus-within:text-primary shrink-0"
+              />
               <input
                 id="password"
                 name="password"
