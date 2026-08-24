@@ -9,6 +9,8 @@ import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { PATHS } from './paths'
 import { ProtectedRoute } from './ProtectedRoute'
+import { CategoriasPage } from '@/features/almacen/categorias/pages/CategoriasPage'
+
 
 export const router = createBrowserRouter([
   { path: PATHS.LOGIN, element: <LoginPage /> },
@@ -48,7 +50,7 @@ export const router = createBrowserRouter([
                   },
                   {
                     path: PATHS.ALMACEN.CATALOGO.CATEGORIAS,
-                    element: <PlaceholderPage titulo="Categorías" />,
+                    element: <CategoriasPage />,
                   },
                   {
                     path: PATHS.ALMACEN.CATALOGO.UNIDADES_MEDIDA,
