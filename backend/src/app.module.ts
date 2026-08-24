@@ -11,6 +11,7 @@ import { MarcaModule } from './modules/almacen/marca/marca.module';
 import { CategoriaModule } from './modules/almacen/categoria/categoria.module';
 import { UnidadMedidaModule } from './modules/almacen/unidad-medida/unidad-medida.module';
 import { DepositoModule } from './modules/almacen/deposito/deposito.module';
+import { StockModule } from './modules/almacen/stock/stock.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { DepositoModule } from './modules/almacen/deposito/deposito.module';
     UnidadMedidaModule,
     DepositoModule,
     AuthModule,
+    StockModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
