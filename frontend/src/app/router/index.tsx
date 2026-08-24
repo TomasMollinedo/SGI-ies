@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import { CatalogoArticulosPage } from '@/features/almacen/pages/CatalogoArticulosPage'
 import { DepositoObradoresPage } from '@/features/almacen/pages/DepositoObradoresPage'
+import { MarcasPage } from '@/features/almacen/pages/MarcasPage'
 import { MovimientosPage } from '@/features/almacen/pages/MovimientosPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { MainLayout } from '@/layouts/MainLayout'
@@ -43,7 +44,7 @@ export const router = createBrowserRouter([
                   },
                   {
                     path: PATHS.ALMACEN.CATALOGO.MARCAS,
-                    element: <PlaceholderPage titulo="Marcas" />,
+                    element: <MarcasPage />,
                   },
                   {
                     path: PATHS.ALMACEN.CATALOGO.CATEGORIAS,

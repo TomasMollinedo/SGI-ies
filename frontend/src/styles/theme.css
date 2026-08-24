@@ -1,4 +1,11 @@
-@theme {
+/*
+ * `static` es obligatorio: por defecto Tailwind v4 solo emite las variables del
+ * theme que encuentra escritas en el código. Los componentes que reciben un
+ * token por prop (`IconButton`, y por él `RowActions`) las arman en runtime
+ * — `var(--color-${bgColor})` —, así que el scanner nunca las ve y las
+ * borraba del CSS: los botones de acción quedaban sin su fondo tintado.
+ */
+@theme static {
   /* ---------- COLORES BASE (paleta) ---------- */
   --color-primary: #98473e;
   --color-secondary: #d4b088;
