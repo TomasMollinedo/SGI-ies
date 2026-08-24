@@ -10,8 +10,12 @@ export const CLASES_CONTROL_BASE = [
   'placeholder:text-content-muted',
   'focus:ring-2 focus:outline-none',
   'disabled:bg-surface-muted disabled:text-content-muted disabled:cursor-not-allowed',
-  'read-only:bg-surface-muted read-only:text-content-muted',
 ].join(' ')
+
+// Solo para `Input`: un `<select>` matchea `:read-only` en CSS aunque nunca
+// tenga el atributo (no es un widget de texto editable), así que esta clase
+// no puede ir en la base compartida con `Select` o lo pintaría siempre gris.
+export const CLASES_INPUT_READONLY = 'read-only:bg-surface-muted read-only:text-content-muted'
 
 export const CLASES_CONTROL_BORDE = {
   normal: 'border-subtle focus:border-primary focus:ring-primary/35',

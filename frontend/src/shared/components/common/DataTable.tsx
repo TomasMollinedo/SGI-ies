@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 interface DataTableProps<T> {
   data: T[]
   columns: DataTableColumn<T>[]
@@ -7,7 +9,7 @@ interface DataTableProps<T> {
 export interface DataTableColumn<T> {
   key: string
   label: string
-  render: (item: T) => string
+  render: (item: T) => ReactNode
 }
 
 export function DataTable<T>({ data, columns, obtenerId }: DataTableProps<T>) {
