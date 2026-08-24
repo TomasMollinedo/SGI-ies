@@ -43,7 +43,7 @@ export function DepositosPage() {
 
 function DepositosPageContenido() {
   const [nombre, setNombre] = useState('')
-  const [estado, setEstado] = useState('')
+  const [estado, setEstado] = useState('true')
   const [esObrador, setEsObrador] = useState('')
   const [page, setPage] = useState(1)
 

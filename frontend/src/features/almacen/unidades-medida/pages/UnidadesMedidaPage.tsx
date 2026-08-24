@@ -43,7 +43,7 @@ export function UnidadesMedidaPage() {
 
 function UnidadesMedidaPageContenido() {
   const [nombre, setNombre] = useState('')
-  const [estado, setEstado] = useState('')
+  const [estado, setEstado] = useState('true')
   const [page, setPage] = useState(1)
 
   const [formulario, setFormulario] = useState<EstadoFormulario>(null)
