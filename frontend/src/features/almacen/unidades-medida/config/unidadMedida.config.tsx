@@ -13,7 +13,7 @@ export const COLUMNAS_UNIDADES_MEDIDA: DataTableColumn<UnidadMedida>[] = [
     label: 'Estado',
     render: (item) => (
       <Badge variant={item.estado ? 'active' : 'inactive'}>
-        {item.estado ? 'Activo' : 'Dado de baja'}
+        {item.estado ? 'Activo' : 'Inactivo'}
       </Badge>
     ),
   },

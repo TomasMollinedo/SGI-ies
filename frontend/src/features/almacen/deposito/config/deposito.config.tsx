@@ -21,7 +21,7 @@ export const COLUMNAS_DEPOSITOS: DataTableColumn<Deposito>[] = [
     label: 'Estado',
     render: (item) => (
       <Badge variant={item.estado ? 'active' : 'inactive'}>
-        {item.estado ? 'Activo' : 'Dado de baja'}
+        {item.estado ? 'Activo' : 'Inactivo'}
       </Badge>
     ),
   },
