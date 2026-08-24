@@ -143,6 +143,7 @@ model STOCK {
 
 model ARTICULO {
   id_articulo Int    @id @default(autoincrement())
+  codigo      String  @unique
   // Único solo entre artículos activos (se valida a nivel service, no acá):
   // un artículo dado de baja libera su nombre para uno nuevo.
   nombre      String
