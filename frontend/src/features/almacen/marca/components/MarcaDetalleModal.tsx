@@ -9,7 +9,7 @@ import { Badge } from '@/shared/components/ui/Badge'
 import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/hooks/useToast'
 import { formatearMensajeError } from '@/shared/utils/apiError'
-import { useMarcaDetalle } from '../hooks/useMarcaDetalle'
+import { useMarcaDetalle } from '../hooks/useMarcas'
 import type { UsuarioResumen } from '../types/marca.types'
 
 interface MarcaDetalleModalProps {
