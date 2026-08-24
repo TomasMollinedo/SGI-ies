@@ -9,7 +9,6 @@ import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
 import { Button } from '@/shared/components/ui/Button'
 import { Spinner } from '@/shared/components/ui/Spinner'
-import { ToastProvider } from '@/shared/components/common/ToastProvider'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 import { useToast } from '@/shared/hooks/useToast'
 import { formatearMensajeError } from '@/shared/utils/apiError'
@@ -30,18 +29,7 @@ import type { Deposito } from '../types/deposito.types'
 type EstadoFormulario = { modo: 'crear' } | { modo: 'editar'; deposito: Deposito } | null
 type EstadoConfirmacion = { tipo: 'baja' | 'reactivar'; deposito: Deposito } | null
 
-// `ToastProvider` todavía no está cableado en `main.tsx` (nadie lo usaba hasta
-// esta pantalla); mientras tanto se monta acá para no bloquear el ABM. Sacar
-// este wrapper cuando se agregue a nivel de app.
 export function DepositosPage() {
-  return (
-    <ToastProvider>
-      <DepositosPageContenido />
-    </ToastProvider>
-  )
-}
-
-function DepositosPageContenido() {
   const [nombre, setNombre] = useState('')
   const [estado, setEstado] = useState('')
   const [esObrador, setEsObrador] = useState('')
