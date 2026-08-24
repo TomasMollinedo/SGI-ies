@@ -47,6 +47,9 @@ model USUARIO {
 
   depositosCreados          DEPOSITO[] @relation("DepositoCreador")
   depositosActualizados     DEPOSITO[] @relation("DepositoActualizador")
+
+  stocksCreados             STOCK[] @relation("StockCreador")
+  stocksActualizados        STOCK[] @relation("StockActualizador")
 }
 
 model ROL {
@@ -75,13 +78,20 @@ model TIPOMOVIMIENTO {
 }
 
 model MOVIMIENTO {
-  id_movimiento Int @id @default(autoincrement())
+  id_movimiento Int     @id @default(autoincrement())
+  observaciones String?
+  referencia   String? // Referencia externa (ejemplo: número de factura, remito, etc.)
+
+  hora_creacion DateTime @default(now())
+  hora_actualizacion DateTime? @default(now())
 
   FK_TipoMovimiento  Int
+  FK_Deposito        Int
   FK_usuario_creador Int
   FK_usuario_actualizador Int
 
   tipoMovimiento    TIPOMOVIMIENTO @relation(fields: [FK_TipoMovimiento], references: [id_tipo_movimiento])
+  deposito              DEPOSITO  @relation("MovimientoDeposito", fields: [FK_Deposito], references: [id_deposito])
   usuarioCreador    USUARIO        @relation("MovimientoCreador", fields: [FK_usuario_creador], references: [id_usuario])
   usuarioActualizador USUARIO      @relation("MovimientoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
@@ -90,6 +100,10 @@ model MOVIMIENTO {
 
 model STOCKMOVIMIENTO {
   id_stock_movimiento Int @id @default(autoincrement())
+  // Cantidad de la línea. El signo del efecto sobre el stock lo define
+  // TIPOMOVIMIENTO.indicador_entrada del movimiento de cabecera, no este campo.
+  cantidad    Int
+  observacion String?
 
   FK_Movimiento Int
   FK_Stock      Int
@@ -100,32 +114,52 @@ model STOCKMOVIMIENTO {
 
 model STOCK {
   id_stock Int @id @default(autoincrement())
-  // Cantidad actual de ese artículo en ese depósito/obrador. La va a mantener
-  // al día el futuro módulo de Movimientos (entradas/salidas); por ahora
-  // arranca en 0.
-  cantidad Int @default(0)
+  // Cantidad actual de ese artículo en ese depósito/obrador. La mantiene al
+  // día el módulo de Movimientos (entradas/salidas); arranca en 0 al crear
+  // la ficha y no es editable directamente.
+  cantidad      Int     @default(0)
+  umbral_minimo Int     @default(0)
+  observaciones String?
+  // Único solo entre fichas activas (se valida a nivel service, no acá): no
+  // puede haber otra ficha activa para la misma combinación artículo-depósito.
+  estado        Boolean @default(true)
+
+  hora_creacion DateTime @default(now())
+  hora_actualizacion DateTime? @default(now())
 
   FK_deposito Int
   FK_articulo Int
+  FK_usuario_creador Int
+  FK_usuario_actualizador Int
 
   deposito DEPOSITO @relation(fields: [FK_deposito], references: [id_deposito])
   articulo ARTICULO @relation(fields: [FK_articulo], references: [id_articulo])
+
+  usuarioCreador      USUARIO @relation("StockCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("StockActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
   stockMovimientos STOCKMOVIMIENTO[]
 }
 
 model ARTICULO {
-  id_articulo Int @id @default(autoincrement())
+  id_articulo Int    @id @default(autoincrement())
+  // Único solo entre artículos activos (se valida a nivel service, no acá):
+  // un artículo dado de baja libera su nombre para uno nuevo.
+  nombre      String
+  descripcion String?
   activo     Boolean @default(true)
 
+  hora_creacion DateTime @default(now())
+  hora_actualizacion DateTime? @default(now())
+
   FK_Categoria       Int
-  FK_Marca           Int
+  FK_Marca           Int?
   FK_UnidadMedida    Int
   FK_usuario_creador Int
   FK_usuario_actualizador Int
 
   categoria       CATEGORIA    @relation(fields: [FK_Categoria], references: [id_categoria])
-  marca           MARCA        @relation(fields: [FK_Marca], references: [id_marca])
+  marca           MARCA?       @relation(fields: [FK_Marca], references: [id_marca])
   unidadMedida    UNIDADMEDIDA @relation(fields: [FK_UnidadMedida], references: [id_unidad_medida])
 
   usuarioCreador      USUARIO @relation("ArticuloCreador", fields: [FK_usuario_creador], references: [id_usuario])
@@ -216,6 +250,8 @@ model DEPOSITO {
   usuarioActualizador USUARIO @relation("DepositoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
   stocks STOCK[]
+
+  movimientos               MOVIMIENTO[] @relation("MovimientoDeposito")
 }
 
 // Stub provisorio hasta que exista el módulo de Proyectos: solo el id, para
