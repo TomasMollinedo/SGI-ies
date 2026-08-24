@@ -12,15 +12,32 @@ export interface UsuarioResumen {
   apellido: string
 }
 
-/** Respuesta de GET /marcas/:id: la marca más su trazabilidad. */
-export interface MarcaDetalle extends Marca {
+/** Shape de crear/editar/dar de baja/reactivar: Marca + campos de auditoría. */
+export interface MarcaAuditada extends Marca {
   hora_creacion: string
   hora_actualizacion: string | null
   FK_usuario_creador: number
   FK_usuario_actualizador: number
+}
+
+/** Respuesta de GET /marcas/:id: MarcaAuditada + quién la creó/modificó. */
+export interface MarcaDetalle extends MarcaAuditada {
   usuarioCreador: UsuarioResumen
   usuarioActualizador: UsuarioResumen | null
 }
+
+/** Body de POST /marcas. La descripción se omite si el usuario no cargó ninguna. */
+export interface CrearMarcaPayload {
+  nombre: string
+  descripcion?: string
+}
+
+/**
+ * Body de PATCH /marcas/:id. Todos los campos son opcionales, pero la
+ * descripción se manda siempre — incluso vacía — porque es la única forma de
+ * borrar la que ya estaba.
+ */
+export type EditarMarcaPayload = Partial<CrearMarcaPayload>
 
 /**
  * Valor del filtro de estado tal como lo maneja el `<Select>`: string vacío

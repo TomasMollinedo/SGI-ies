@@ -11,12 +11,17 @@ import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
 import { Button } from '@/shared/components/ui/Button'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 import { useToast } from '@/shared/hooks/useToast'
+import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { FiltrosMarcasBar } from '../components/FiltrosMarcasBar'
 import { MarcaDetalleModal } from '../components/MarcaDetalleModal'
+import { MarcaForm } from '../components/MarcaForm'
 import { COLUMNAS_MARCAS, DEBOUNCE_BUSQUEDA, LIMITE_PAGINA } from '../config/marca.config'
-import { useMarcas } from '../hooks/useMarcas'
+import { useCrearMarca, useEditarMarca, useMarcas } from '../hooks/useMarcas'
+import type { MarcaFormOutput } from '../types/marca.schema'
 import type { FiltroEstado, Marca } from '../types/marca.types'
+
+type EstadoFormulario = { modo: 'crear' } | { modo: 'editar'; marca: Marca } | null
 
 export function MarcasPage() {
   const toast = useToast()
@@ -26,6 +31,8 @@ export function MarcasPage() {
   const [estado, setEstado] = useState<FiltroEstado>('')
   const [page, setPage] = useState(1)
   const [detalleId, setDetalleId] = useState<number | null>(null)
+  const [formulario, setFormulario] = useState<EstadoFormulario>(null)
+  const [errorFormulario, setErrorFormulario] = useState<ApiErrorResponse | null>(null)
 
   const nombreDebounced = useDebounce(nombre.trim(), DEBOUNCE_BUSQUEDA)
 
@@ -59,8 +66,82 @@ export function MarcasPage() {
 
   const cerrarDetalle = useCallback(() => setDetalleId(null), [])
 
-  // TODO: conectar con el alta, la edición, la baja (PATCH /marcas/:id/baja) y
-  // la reactivación (PATCH /marcas/:id/alta) cuando estén sus HU.
+  const crear = useCrearMarca()
+  const editar = useEditarMarca()
+
+  function abrirFormulario(estadoInicial: EstadoFormulario) {
+    setErrorFormulario(null)
+    setFormulario(estadoInicial)
+  }
+
+  function cerrarFormulario() {
+    setFormulario(null)
+    setErrorFormulario(null)
+  }
+
+  /**
+   * Los errores que el usuario no puede corregir desde el formulario se
+   * resuelven acá (avisar y cerrar); los que sí — 400, 409 y los de servidor —
+   * bajan al `MarcaForm`, que los pinta sin perder lo cargado.
+   */
+  function manejarErrorFormulario(error: ApiErrorResponse) {
+    switch (error.statusCode) {
+      case 401:
+        navigate(PATHS.LOGIN, { replace: true })
+        return
+      case 403:
+        toast.error('No tenés permisos para realizar esta acción')
+        cerrarFormulario()
+        return
+      case 404:
+        toast.error('La marca ya no existe')
+        cerrarFormulario()
+        refetch()
+        return
+      default:
+        setErrorFormulario(error)
+    }
+  }
+
+  function manejarSubmitFormulario(payload: MarcaFormOutput) {
+    const descripcion = payload.descripcion?.trim() ?? ''
+
+    if (formulario?.modo === 'crear') {
+      crear.mutate(
+        // En el alta la descripción vacía se omite: el backend la deja en null.
+        { nombre: payload.nombre, ...(descripcion ? { descripcion } : {}) },
+        {
+          onSuccess: () => {
+            toast.success('Marca creada correctamente')
+            cerrarFormulario()
+            // La marca nueva puede caer en cualquier página del orden alfabético;
+            // se vuelve a la primera, con los filtros que estaban puestos.
+            setPage(1)
+          },
+          onError: manejarErrorFormulario,
+        }
+      )
+      return
+    }
+
+    if (formulario?.modo === 'editar') {
+      editar.mutate(
+        // Acá la descripción viaja siempre, incluso vacía: es la única forma de
+        // borrar la que tenía.
+        { id: formulario.marca.id_marca, payload: { nombre: payload.nombre, descripcion } },
+        {
+          onSuccess: () => {
+            toast.success('Marca actualizada correctamente')
+            cerrarFormulario()
+          },
+          onError: manejarErrorFormulario,
+        }
+      )
+    }
+  }
+
+  // TODO: conectar la baja (PATCH /marcas/:id/baja) y la reactivación
+  // (PATCH /marcas/:id/alta) cuando estén sus HU.
   const avisarPendiente = (accion: string) => toast.info(`${accion}: pendiente de implementación.`)
 
   const columnas: DataTableColumn<Marca>[] = [
@@ -72,7 +153,7 @@ export function MarcasPage() {
         <RowActions
           isActive={item.estado}
           onView={() => setDetalleId(item.id_marca)}
-          onEdit={() => avisarPendiente('Editar marca')}
+          onEdit={() => abrirFormulario({ modo: 'editar', marca: item })}
           onDelete={() => avisarPendiente('Dar de baja la marca')}
           onReactivate={() => avisarPendiente('Reactivar la marca')}
         />
@@ -103,7 +184,7 @@ export function MarcasPage() {
           estado={estado}
           onEstadoChange={setEstado}
         />
-        <Button icon={<Plus />} onClick={() => avisarPendiente('Nueva marca')}>
+        <Button icon={<Plus />} onClick={() => abrirFormulario({ modo: 'crear' })}>
           Nueva Marca
         </Button>
       </div>
@@ -150,6 +231,15 @@ export function MarcasPage() {
           )}
         </>
       )}
+
+      <MarcaForm
+        open={formulario !== null}
+        onClose={cerrarFormulario}
+        marca={formulario?.modo === 'editar' ? formulario.marca : undefined}
+        onSubmit={manejarSubmitFormulario}
+        loading={crear.isPending || editar.isPending}
+        error={errorFormulario}
+      />
 
       <MarcaDetalleModal idMarca={detalleId} onClose={cerrarDetalle} />
     </div>

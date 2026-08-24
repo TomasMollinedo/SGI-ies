@@ -1,7 +1,20 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ApiErrorResponse, PaginatedResponse } from '@/shared/types/api.types'
-import { MARCAS_QUERY_KEYS, listarMarcas, obtenerMarca } from '../services/marcas.service'
-import type { Marca, MarcaDetalle, MarcasQuery } from '../types/marca.types'
+import {
+  MARCAS_QUERY_KEYS,
+  crearMarca,
+  editarMarca,
+  listarMarcas,
+  obtenerMarca,
+} from '../services/marcas.service'
+import type {
+  CrearMarcaPayload,
+  EditarMarcaPayload,
+  Marca,
+  MarcaAuditada,
+  MarcaDetalle,
+  MarcasQuery,
+} from '../types/marca.types'
 
 /**
  * Listado paginado de marcas. Cada combinación de filtros es su propia entrada
@@ -32,5 +45,30 @@ export function useMarcaDetalle(id: number | null) {
   })
 }
 
-// TODO: useCrearMarca / useEditarMarca / useDarDeBajaMarca / useReactivarMarca
-// cuando estén sus HU, siguiendo el patrón de useDepositos.
+/** Las mutaciones invalidan el listado; no muestran toasts — eso lo decide quien las use. */
+
+export function useCrearMarca() {
+  const queryClient = useQueryClient()
+
+  return useMutation<MarcaAuditada, ApiErrorResponse, CrearMarcaPayload>({
+    mutationFn: crearMarca,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['marcas', 'lista'] })
+    },
+  })
+}
+
+export function useEditarMarca() {
+  const queryClient = useQueryClient()
+
+  return useMutation<MarcaAuditada, ApiErrorResponse, { id: number; payload: EditarMarcaPayload }>({
+    mutationFn: ({ id, payload }) => editarMarca(id, payload),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['marcas', 'lista'] })
+      queryClient.invalidateQueries({ queryKey: MARCAS_QUERY_KEYS.DETALLE(variables.id) })
+    },
+  })
+}
+
+// TODO: useDarDeBajaMarca / useReactivarMarca cuando estén sus HU, siguiendo el
+// patrón de useDepositos.

@@ -1,6 +1,11 @@
 import type { ApiErrorResponse, ValidationIssue } from '@/shared/types/api.types'
 
-function esArrayDeValidationIssues(message: unknown): message is ValidationIssue[] {
+/**
+ * Distingue el 400 de validación del backend (array de `{ campo, error }`) de
+ * un mensaje suelto. Lo usan los formularios para mapear cada issue a su campo
+ * en vez de mostrar todo junto en un banner.
+ */
+export function esArrayDeValidationIssues(message: unknown): message is ValidationIssue[] {
   return (
     Array.isArray(message) &&
     message.length > 0 &&

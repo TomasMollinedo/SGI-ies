@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 
 interface OpcionesDialogo {
@@ -25,6 +25,9 @@ interface OpcionesDialogo {
  *
  * El foco inicial va al primer elemento enfocable de la tarjeta, en orden de
  * DOM. Para que caiga en un botón concreto, ese botón tiene que ser el primero.
+ *
+ * Con diálogos anidados (un `ConfirmDialog` abierto sobre un `Modal`) solo
+ * responde el de arriba: ver `pilaDialogos`.
  */
 export function useDialogBehavior({
   open,
@@ -34,17 +37,31 @@ export function useDialogBehavior({
 }: OpcionesDialogo) {
   const tarjetaRef = useRef<HTMLDivElement>(null)
   const elementoPrevioRef = useRef<HTMLElement | null>(null)
+  const idDialogo = useId()
+
+  // Se apila al abrir y se desapila al cerrar, así el Escape y el focus trap
+  // saben cuál es el diálogo de arriba en cada momento.
+  useEffect(() => {
+    if (!open) return
+
+    pilaDialogos.push(idDialogo)
+
+    return () => {
+      const indice = pilaDialogos.lastIndexOf(idDialogo)
+      if (indice !== -1) pilaDialogos.splice(indice, 1)
+    }
+  }, [open, idDialogo])
 
   useEffect(() => {
     if (!open || !closeOnEscape) return
 
     function manejarEscape(evento: KeyboardEvent) {
-      if (evento.key === 'Escape') onClose()
+      if (evento.key === 'Escape' && esElDialogoDeArriba(idDialogo)) onClose()
     }
 
     document.addEventListener('keydown', manejarEscape)
     return () => document.removeEventListener('keydown', manejarEscape)
-  }, [open, closeOnEscape, onClose])
+  }, [open, closeOnEscape, onClose, idDialogo])
 
   // Bloquea el scroll de la página y restaura el valor que hubiera antes, para
   // no pisar un overflow puesto por otro componente.
@@ -79,6 +96,10 @@ export function useDialogBehavior({
     function manejarTab(evento: KeyboardEvent) {
       if (evento.key !== 'Tab') return
 
+      // Sin esto, el trap del diálogo de abajo le robaría el foco al de arriba:
+      // ve el foco "fuera de su tarjeta" y lo trae de vuelta.
+      if (!esElDialogoDeArriba(idDialogo)) return
+
       const tarjeta = tarjetaRef.current
       if (!tarjeta) return
 
@@ -107,7 +128,7 @@ export function useDialogBehavior({
 
     document.addEventListener('keydown', manejarTab)
     return () => document.removeEventListener('keydown', manejarTab)
-  }, [open])
+  }, [open, idDialogo])
 
   function manejarMouseDownOverlay(evento: ReactMouseEvent<HTMLDivElement>) {
     if (!closeOnOverlayClick) return
@@ -118,6 +139,18 @@ export function useDialogBehavior({
   }
 
   return { tarjetaRef, manejarMouseDownOverlay }
+}
+
+/**
+ * Ids de los diálogos abiertos, del más viejo al más nuevo. Solo el último
+ * atiende el Escape y atrapa el Tab: si respondieran todos, un `ConfirmDialog`
+ * abierto sobre un `Modal` cerraría los dos de un solo Escape, y el trap del
+ * modal de abajo le sacaría el foco al de arriba en cuanto tabulara.
+ */
+const pilaDialogos: string[] = []
+
+function esElDialogoDeArriba(idDialogo: string): boolean {
+  return pilaDialogos[pilaDialogos.length - 1] === idDialogo
 }
 
 const SELECTOR_ENFOCABLES = [
