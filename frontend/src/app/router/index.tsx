@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router'
+import { DepositosPage } from '@/features/almacen/deposito/pages/DepositosPage'
 import { CatalogoArticulosPage } from '@/features/almacen/pages/CatalogoArticulosPage'
 import { DepositoObradoresPage } from '@/features/almacen/pages/DepositoObradoresPage'
 import { MarcasPage } from '@/features/almacen/pages/MarcasPage'
@@ -67,7 +68,7 @@ export const router = createBrowserRouter([
                   },
                   {
                     path: PATHS.ALMACEN.DEPOSITO.OBRADORES,
-                    element: <PlaceholderPage titulo="Depósito de Obradores" />,
+                    element: <DepositosPage />,
                   },
                   {
                     path: PATHS.ALMACEN.DEPOSITO.STOCK,

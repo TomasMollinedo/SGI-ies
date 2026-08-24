@@ -10,6 +10,7 @@ import {
   CLASES_CONTROL_BASE,
   CLASES_CONTROL_BORDE,
   CLASES_CONTROL_TAMANIO,
+  CLASES_INPUT_READONLY,
   type FieldSize,
 } from '@/shared/components/ui/fieldStyles'
 import { cn } from '@/shared/utils/cn'
@@ -84,6 +85,7 @@ export function Input({
 
   const clasesControl = cn(
     CLASES_CONTROL_BASE,
+    CLASES_INPUT_READONLY,
     CLASES_CONTROL_BORDE[tieneError ? 'error' : 'normal'],
     tamanio.texto
   )
