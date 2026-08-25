@@ -54,5 +54,14 @@ export async function editarMarca(id: number, payload: EditarMarcaPayload): Prom
   return data
 }
 
-// TODO: dar de baja (PATCH /marcas/:id/baja) y reactivar (PATCH /marcas/:id/alta)
-// cuando se implemente la HU correspondiente.
+/** PATCH /marcas/:id/baja — baja lógica. Sin body; devuelve la marca ya actualizada. */
+export async function darDeBajaMarca(id: number): Promise<MarcaAuditada> {
+  const { data } = await httpClient.patch<MarcaAuditada>(`/marcas/${id}/baja`)
+  return data
+}
+
+/** PATCH /marcas/:id/alta — alta lógica. Sin body; devuelve la marca ya actualizada. */
+export async function reactivarMarca(id: number): Promise<MarcaAuditada> {
+  const { data } = await httpClient.patch<MarcaAuditada>(`/marcas/${id}/alta`)
+  return data
+}

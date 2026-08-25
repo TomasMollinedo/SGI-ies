@@ -3,9 +3,11 @@ import type { ApiErrorResponse, PaginatedResponse } from '@/shared/types/api.typ
 import {
   MARCAS_QUERY_KEYS,
   crearMarca,
+  darDeBajaMarca,
   editarMarca,
   listarMarcas,
   obtenerMarca,
+  reactivarMarca,
 } from '../services/marcas.service'
 import type {
   CrearMarcaPayload,
@@ -70,5 +72,32 @@ export function useEditarMarca() {
   })
 }
 
-// TODO: useDarDeBajaMarca / useReactivarMarca cuando estén sus HU, siguiendo el
-// patrón de useDepositos.
+/**
+ * Baja y reactivación comparten forma: reciben el id, no llevan body y al
+ * terminar invalidan el listado — que se vuelve a pedir con la página y los
+ * filtros que estaban puestos, porque son parte de la query key.
+ */
+
+export function useDarDeBajaMarca() {
+  const queryClient = useQueryClient()
+
+  return useMutation<MarcaAuditada, ApiErrorResponse, number>({
+    mutationFn: darDeBajaMarca,
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['marcas', 'lista'] })
+      queryClient.invalidateQueries({ queryKey: MARCAS_QUERY_KEYS.DETALLE(id) })
+    },
+  })
+}
+
+export function useReactivarMarca() {
+  const queryClient = useQueryClient()
+
+  return useMutation<MarcaAuditada, ApiErrorResponse, number>({
+    mutationFn: reactivarMarca,
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['marcas', 'lista'] })
+      queryClient.invalidateQueries({ queryKey: MARCAS_QUERY_KEYS.DETALLE(id) })
+    },
+  })
+}
