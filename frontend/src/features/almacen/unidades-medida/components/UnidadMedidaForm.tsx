@@ -64,6 +64,14 @@ export function UnidadMedidaForm({
     >
       <form id={ID_FORM} onSubmit={handleSubmit(onSubmit)}>
         <div className="grid grid-cols-1 gap-4">
+          {esEdicion && (
+            <Input
+              label="Código"
+              value={unidadMedida.id_unidad_medida}
+              readOnly
+              helperText="Generado por el sistema"
+            />
+          )}
           <Input
             label="Nombre"
             required

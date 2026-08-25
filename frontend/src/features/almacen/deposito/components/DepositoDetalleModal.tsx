@@ -51,6 +51,7 @@ export function DepositoDetalleModal({ id, onClose, onEditar }: DepositoDetalleM
 
       {!isLoading && !isError && deposito && (
         <div className="flex flex-col">
+          <DetailRow label="Código" value={deposito.id_deposito} />
           <DetailRow label="Nombre" value={deposito.nombre} />
           <DetailRow label="Tipo" value={deposito.es_obrador ? 'Obrador' : 'Depósito'} />
           <DetailRow label="Ubicación" value={deposito.ubicacion ?? '—'} />

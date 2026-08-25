@@ -6,6 +6,7 @@ import type { UnidadMedida } from '../types/unidadMedida.types'
 export const LIMITE_PAGINA = 10
 
 export const COLUMNAS_UNIDADES_MEDIDA: DataTableColumn<UnidadMedida>[] = [
+  { key: 'codigo', label: 'Código', render: (item) => item.id_unidad_medida },
   { key: 'nombre', label: 'Nombre', render: (item) => item.nombre },
   { key: 'abreviatura', label: 'Abreviatura', render: (item) => item.abreviatura },
   {

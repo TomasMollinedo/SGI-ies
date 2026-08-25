@@ -70,6 +70,17 @@ export function DepositoForm({
     >
       <form id={ID_FORM} onSubmit={handleSubmit(onSubmit)}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {esEdicion && (
+            <div className="sm:col-span-2">
+              <Input
+                label="Código"
+                value={deposito.id_deposito}
+                readOnly
+                helperText="Generado por el sistema"
+              />
+            </div>
+          )}
+
           <div className="sm:col-span-2">
             <Input
               label="Nombre del centro"
