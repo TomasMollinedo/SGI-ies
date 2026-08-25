@@ -3,6 +3,7 @@ import { DepositosPage } from '@/features/almacen/deposito/pages/DepositosPage'
 import { CatalogoArticulosPage } from '@/features/almacen/pages/CatalogoArticulosPage'
 import { DepositoObradoresPage } from '@/features/almacen/pages/DepositoObradoresPage'
 import { MovimientosPage } from '@/features/almacen/pages/MovimientosPage'
+import { UnidadesMedidaPage } from '@/features/almacen/unidades-medida/pages/UnidadesMedidaPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { MainLayout } from '@/layouts/MainLayout'
 import { NotFoundPage } from '@/pages/NotFoundPage'
@@ -54,7 +55,7 @@ export const router = createBrowserRouter([
                   },
                   {
                     path: PATHS.ALMACEN.CATALOGO.UNIDADES_MEDIDA,
-                    element: <PlaceholderPage titulo="Unidades de Medida" />,
+                    element: <UnidadesMedidaPage />,
                   },
                 ],
               },

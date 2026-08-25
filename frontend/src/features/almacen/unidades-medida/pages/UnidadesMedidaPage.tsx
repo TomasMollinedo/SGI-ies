@@ -9,30 +9,41 @@ import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
 import { Button } from '@/shared/components/ui/Button'
 import { Spinner } from '@/shared/components/ui/Spinner'
+import { ToastProvider } from '@/shared/components/common/ToastProvider'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 import { useToast } from '@/shared/hooks/useToast'
 import { formatearMensajeError } from '@/shared/utils/apiError'
-import { DepositoDetalleModal } from '../components/DepositoDetalleModal'
-import { DepositoForm } from '../components/DepositoForm'
-import { FiltrosDepositosBar } from '../components/FiltrosDepositosBar'
-import { COLUMNAS_DEPOSITOS, LIMITE_PAGINA } from '../config/deposito.config'
+import { UnidadMedidaDetalleModal } from '../components/UnidadMedidaDetalleModal'
+import { UnidadMedidaForm } from '../components/UnidadMedidaForm'
+import { FiltrosUnidadesMedidaBar } from '../components/FiltrosUnidadesMedidaBar'
+import { COLUMNAS_UNIDADES_MEDIDA, LIMITE_PAGINA } from '../config/unidadMedida.config'
 import {
-  useCrearDeposito,
-  useDarDeBajaDeposito,
-  useDepositos,
-  useEditarDeposito,
-  useReactivarDeposito,
-} from '../hooks/useDepositos'
-import type { DepositoFormOutput } from '../types/deposito.schema'
-import type { Deposito } from '../types/deposito.types'
+  useCrearUnidadMedida,
+  useDarDeBajaUnidadMedida,
+  useEditarUnidadMedida,
+  useReactivarUnidadMedida,
+  useUnidadesMedida,
+} from '../hooks/useUnidadesMedida'
+import type { UnidadMedidaFormOutput } from '../types/unidadMedida.schema'
+import type { UnidadMedida } from '../types/unidadMedida.types'
 
-type EstadoFormulario = { modo: 'crear' } | { modo: 'editar'; deposito: Deposito } | null
-type EstadoConfirmacion = { tipo: 'baja' | 'reactivar'; deposito: Deposito } | null
+type EstadoFormulario = { modo: 'crear' } | { modo: 'editar'; unidadMedida: UnidadMedida } | null
+type EstadoConfirmacion = { tipo: 'baja' | 'reactivar'; unidadMedida: UnidadMedida } | null
 
-export function DepositosPage() {
+// `ToastProvider` todavía no está cableado en `main.tsx` (nadie lo usaba hasta
+// esta pantalla); mientras tanto se monta acá para no bloquear el ABM. Sacar
+// este wrapper cuando se agregue a nivel de app.
+export function UnidadesMedidaPage() {
+  return (
+    <ToastProvider>
+      <UnidadesMedidaPageContenido />
+    </ToastProvider>
+  )
+}
+
+function UnidadesMedidaPageContenido() {
   const [nombre, setNombre] = useState('')
   const [estado, setEstado] = useState('true')
-  const [esObrador, setEsObrador] = useState('')
   const [page, setPage] = useState(1)
 
   const [formulario, setFormulario] = useState<EstadoFormulario>(null)
@@ -44,35 +55,30 @@ export function DepositosPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [nombreDebounced, estado, esObrador])
+  }, [nombreDebounced, estado])
 
-  const { data, isLoading, isError, refetch } = useDepositos({
+  const { data, isLoading, isError, refetch } = useUnidadesMedida({
     nombre: nombreDebounced || undefined,
     estado: estado === '' ? undefined : estado === 'true',
-    esObrador: esObrador === '' ? undefined : esObrador === 'true',
     page,
     limit: LIMITE_PAGINA,
   })
 
-  const crear = useCrearDeposito()
-  const editar = useEditarDeposito()
-  const baja = useDarDeBajaDeposito()
-  const reactivar = useReactivarDeposito()
+  const crear = useCrearUnidadMedida()
+  const editar = useEditarUnidadMedida()
+  const baja = useDarDeBajaUnidadMedida()
+  const reactivar = useReactivarUnidadMedida()
 
-  function manejarSubmitFormulario(payload: DepositoFormOutput) {
+  function manejarSubmitFormulario(payload: UnidadMedidaFormOutput) {
     const datos = {
       nombre: payload.nombre,
-      es_obrador: payload.es_obrador,
-      ubicacion: payload.ubicacion || undefined,
-      descripcion: payload.descripcion || undefined,
+      abreviatura: payload.abreviatura,
     }
-
-    const tipoTexto = datos.es_obrador ? 'Obrador' : 'Depósito'
 
     if (formulario?.modo === 'crear') {
       crear.mutate(datos, {
         onSuccess: () => {
-          toast.success(`${tipoTexto} creado correctamente.`)
+          toast.success('Unidad de medida creada correctamente.')
           setFormulario(null)
         },
         onError: (error) => toast.error(formatearMensajeError(error.message)),
@@ -82,10 +88,10 @@ export function DepositosPage() {
 
     if (formulario?.modo === 'editar') {
       editar.mutate(
-        { id: formulario.deposito.id_deposito, payload: datos },
+        { id: formulario.unidadMedida.id_unidad_medida, payload: datos },
         {
           onSuccess: () => {
-            toast.success(`${tipoTexto} editado correctamente.`)
+            toast.success('Unidad de medida editada correctamente.')
             setFormulario(null)
           },
           onError: (error) => toast.error(formatearMensajeError(error.message)),
@@ -96,15 +102,14 @@ export function DepositosPage() {
 
   function manejarConfirmar() {
     if (!confirmacion) return
-    const { tipo, deposito } = confirmacion
+    const { tipo, unidadMedida } = confirmacion
     const mutacion = tipo === 'baja' ? baja : reactivar
-    const tipoTexto = deposito.es_obrador ? 'Obrador' : 'Depósito'
     const mensajeExito =
       tipo === 'baja'
-        ? `${tipoTexto} dado de baja correctamente.`
-        : `${tipoTexto} reactivado correctamente.`
+        ? 'Unidad de medida dada de baja correctamente.'
+        : 'Unidad de medida reactivada correctamente.'
 
-    mutacion.mutate(deposito.id_deposito, {
+    mutacion.mutate(unidadMedida.id_unidad_medida, {
       onSuccess: () => {
         toast.success(mensajeExito)
         setConfirmacion(null)
@@ -113,18 +118,18 @@ export function DepositosPage() {
     })
   }
 
-  const columnas: DataTableColumn<Deposito>[] = [
-    ...COLUMNAS_DEPOSITOS,
+  const columnas: DataTableColumn<UnidadMedida>[] = [
+    ...COLUMNAS_UNIDADES_MEDIDA,
     {
       key: 'acciones',
       label: 'Acciones',
       render: (item) => (
         <RowActions
           isActive={item.estado}
-          onView={() => setDetalleId(item.id_deposito)}
-          onEdit={() => setFormulario({ modo: 'editar', deposito: item })}
-          onDelete={() => setConfirmacion({ tipo: 'baja', deposito: item })}
-          onReactivate={() => setConfirmacion({ tipo: 'reactivar', deposito: item })}
+          onView={() => setDetalleId(item.id_unidad_medida)}
+          onEdit={() => setFormulario({ modo: 'editar', unidadMedida: item })}
+          onDelete={() => setConfirmacion({ tipo: 'baja', unidadMedida: item })}
+          onReactivate={() => setConfirmacion({ tipo: 'reactivar', unidadMedida: item })}
         />
       ),
     },
@@ -133,16 +138,14 @@ export function DepositosPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <FiltrosDepositosBar
+        <FiltrosUnidadesMedidaBar
           nombre={nombre}
           onNombreChange={setNombre}
           estado={estado}
           onEstadoChange={setEstado}
-          esObrador={esObrador}
-          onEsObradorChange={setEsObrador}
         />
         <Button icon={<Plus />} onClick={() => setFormulario({ modo: 'crear' })}>
-          Nuevo centro
+          Nueva unidad de medida
         </Button>
       </div>
 
@@ -156,7 +159,7 @@ export function DepositosPage() {
 
       {!isLoading && !isError && data && data.data.length === 0 && (
         <EmptyState
-          titulo="No se encontraron depósitos ni obradores"
+          titulo="No se encontraron unidades de medida"
           descripcion="Probá ajustar los filtros de búsqueda."
         />
       )}
@@ -166,7 +169,7 @@ export function DepositosPage() {
           <DataTable
             data={data.data}
             columns={columnas}
-            obtenerId={(item) => String(item.id_deposito)}
+            obtenerId={(item) => String(item.id_unidad_medida)}
           />
           <Pagination
             currentPage={data.meta.page}
@@ -178,20 +181,20 @@ export function DepositosPage() {
         </>
       )}
 
-      <DepositoForm
+      <UnidadMedidaForm
         open={formulario !== null}
         onClose={() => setFormulario(null)}
-        deposito={formulario?.modo === 'editar' ? formulario.deposito : undefined}
+        unidadMedida={formulario?.modo === 'editar' ? formulario.unidadMedida : undefined}
         onSubmit={manejarSubmitFormulario}
         loading={crear.isPending || editar.isPending}
       />
 
-      <DepositoDetalleModal
+      <UnidadMedidaDetalleModal
         id={detalleId}
         onClose={() => setDetalleId(null)}
-        onEditar={(deposito) => {
+        onEditar={(unidadMedida) => {
           setDetalleId(null)
-          setFormulario({ modo: 'editar', deposito })
+          setFormulario({ modo: 'editar', unidadMedida })
         }}
       />
 
@@ -205,10 +208,10 @@ export function DepositosPage() {
         }
         title={
           confirmacion
-            ? `¿${confirmacion.tipo === 'reactivar' ? 'Reactivar' : 'Dar de baja'} "${confirmacion.deposito.nombre}"?`
+            ? `¿${confirmacion.tipo === 'reactivar' ? 'Reactivar' : 'Dar de baja'} "${confirmacion.unidadMedida.nombre}"?`
             : ''
         }
-        details={confirmacion ? detallesConfirmacion(confirmacion.deposito) : undefined}
+        details={confirmacion ? detallesConfirmacion(confirmacion.unidadMedida) : undefined}
         note={
           confirmacion?.tipo === 'baja'
             ? 'La baja es lógica: la ficha se desactiva sin eliminar su historial'
@@ -220,11 +223,6 @@ export function DepositosPage() {
   )
 }
 
-function detallesConfirmacion(deposito: Deposito) {
-  return [
-    { label: 'Tipo', value: deposito.es_obrador ? 'Obrador' : 'Depósito' },
-    { label: 'Ubicación', value: deposito.ubicacion ?? '—' },
-    ...(deposito.FK_Proyecto ? [{ label: 'Proyecto', value: String(deposito.FK_Proyecto) }] : []),
-    { label: 'Descripción', value: deposito.descripcion ?? '—' },
-  ]
+function detallesConfirmacion(unidadMedida: UnidadMedida) {
+  return [{ label: 'Abreviatura', value: unidadMedida.abreviatura }]
 }

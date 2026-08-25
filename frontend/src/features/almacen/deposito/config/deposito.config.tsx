@@ -6,6 +6,7 @@ import type { Deposito } from '../types/deposito.types'
 export const LIMITE_PAGINA = 10
 
 export const COLUMNAS_DEPOSITOS: DataTableColumn<Deposito>[] = [
+  { key: 'codigo', label: 'Código', render: (item) => item.id_deposito },
   { key: 'nombre', label: 'Nombre', render: (item) => item.nombre },
   { key: 'tipo', label: 'Tipo', render: (item) => (item.es_obrador ? 'Obrador' : 'Depósito') },
   { key: 'ubicacion', label: 'Ubicación', render: (item) => item.ubicacion ?? '' },
@@ -21,7 +22,7 @@ export const COLUMNAS_DEPOSITOS: DataTableColumn<Deposito>[] = [
     label: 'Estado',
     render: (item) => (
       <Badge variant={item.estado ? 'active' : 'inactive'}>
-        {item.estado ? 'Activo' : 'Dado de baja'}
+        {item.estado ? 'Activo' : 'Inactivo'}
       </Badge>
     ),
   },
