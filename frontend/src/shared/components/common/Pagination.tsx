@@ -8,6 +8,7 @@ interface PaginationProps {
   totalItems: number
   pageSize: number
   onPageChange: (page: number) => void
+  disabled?: boolean
   className?: string
 }
 
@@ -22,6 +23,8 @@ interface PaginationProps {
  *   renderiza nada.
  * - `pageSize`: resultados por página. Se usa para calcular el "Mostrando X a Y".
  * - `onPageChange`: se llama con el número de página elegido.
+ * - `disabled`: bloquea todos los controles. Se usa mientras hay un fetch en
+ *   curso, para que no se encolen cambios de página contra datos viejos.
  * - `className`: clases extra para el contenedor.
  *
  * Cuando hay muchas páginas no se listan todas: se muestra la primera, la
@@ -34,6 +37,7 @@ export function Pagination({
   totalItems,
   pageSize,
   onPageChange,
+  disabled = false,
   className,
 }: PaginationProps) {
   if (totalItems === 0) return null
@@ -58,7 +62,7 @@ export function Pagination({
           size="sm"
           bgColor="secondary-soft"
           iconColor="content"
-          disabled={currentPage <= 1}
+          disabled={disabled || currentPage <= 1}
           onClick={() => onPageChange(currentPage - 1)}
         />
 
@@ -69,6 +73,7 @@ export function Pagination({
               type="button"
               aria-label={`Página ${pagina}`}
               aria-current={pagina === currentPage ? 'page' : undefined}
+              disabled={disabled}
               onClick={() => onPageChange(pagina)}
               className={cn(
                 CLASES_NUMERO_BASE,
@@ -95,7 +100,7 @@ export function Pagination({
           size="sm"
           bgColor="secondary-soft"
           iconColor="content"
-          disabled={currentPage >= totalPages}
+          disabled={disabled || currentPage >= totalPages}
           onClick={() => onPageChange(currentPage + 1)}
         />
       </nav>
@@ -148,9 +153,10 @@ const CLASES_NUMERO_BASE = [
   'inline-flex h-10 min-w-10 items-center justify-center rounded-md px-2',
   'text-content cursor-pointer text-xs font-medium transition-colors',
   'focus-visible:outline-content focus-visible:outline-2 focus-visible:outline-offset-2',
+  'disabled:cursor-not-allowed disabled:opacity-50',
 ].join(' ')
 
 const CLASES_NUMERO_ACTUAL = 'bg-secondary font-semibold'
 
 const CLASES_NUMERO_RESTO =
-  'bg-secondary-soft hover:bg-[color-mix(in_srgb,var(--color-secondary-soft)_85%,var(--color-dark))]'
+  'bg-secondary-soft enabled:hover:bg-[color-mix(in_srgb,var(--color-secondary-soft)_85%,var(--color-dark))]'

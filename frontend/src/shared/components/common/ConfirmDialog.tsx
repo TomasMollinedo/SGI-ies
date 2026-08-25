@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, X } from 'lucide-react'
@@ -24,8 +24,11 @@ interface ConfirmDialogProps {
   note?: string
   variant?: ConfirmDialogVariant
   confirmLabel?: string
+  confirmIcon?: ReactNode
   cancelLabel?: string
   loading?: boolean
+  error?: string | null
+  hideConfirm?: boolean
 }
 
 /**
@@ -46,7 +49,14 @@ interface ConfirmDialogProps {
  * - `variant`: solo define el color del eyebrow. `'baja'` (error, default) o
  *   `'reactivar'`.
  * - `confirmLabel` / `cancelLabel`: default "Confirmar" y "Cancelar".
+ * - `confirmIcon`: ícono del botón de confirmar. Default: un tilde.
  * - `loading`: deshabilita los dos botones y muestra el spinner en Confirmar.
+ * - `error`: si la operación falló, el mensaje se muestra adentro del diálogo
+ *   —que queda abierto— en vez de cerrarlo. El botón de confirmar hace las
+ *   veces de "reintentar".
+ * - `hideConfirm`: saca el botón de confirmar y deja solo el de cancelar. Para
+ *   errores que reintentar no arregla (ej. una baja bloqueada por reglas de
+ *   negocio): ahí lo único que queda es cerrar.
  *
  * Al abrir, el foco va al botón de **Cancelar**: es la acción segura, y así un
  * Enter accidental no dispara la operación sensible. Eso funciona porque
@@ -64,10 +74,14 @@ export function ConfirmDialog({
   note,
   variant = 'baja',
   confirmLabel = 'Confirmar',
+  confirmIcon,
   cancelLabel = 'Cancelar',
   loading = false,
+  error = null,
+  hideConfirm = false,
 }: ConfirmDialogProps) {
   const idTitulo = useId()
+  const accionesRef = useRef<HTMLDivElement>(null)
   const { tarjetaRef, manejarMouseDownOverlay } = useDialogBehavior({
     open,
     onClose: onCancel,
@@ -75,6 +89,14 @@ export function ConfirmDialog({
     closeOnEscape: !loading,
     closeOnOverlayClick: !loading,
   })
+
+  // Al fallar, el foco estaba en Confirmar, que puede haber desaparecido: se lo
+  // devuelve a Cancelar, el primer botón de la fila de acciones.
+  useEffect(() => {
+    if (!error) return
+
+    accionesRef.current?.querySelector('button')?.focus()
+  }, [error])
 
   if (!open) return null
 
@@ -124,13 +146,29 @@ export function ConfirmDialog({
 
         {note && <p className="text-content-muted text-xs">{note}</p>}
 
-        <div className="flex items-center justify-end gap-3 pt-2">
+        {error && (
+          <p
+            role="alert"
+            className="border-error/30 bg-error/10 text-error rounded-md border px-4 py-3 text-xs"
+          >
+            {error}
+          </p>
+        )}
+
+        <div ref={accionesRef} className="flex items-center justify-end gap-3 pt-2">
           <Button variant="error" icon={<X />} disabled={loading} onClick={onCancel}>
             {cancelLabel}
           </Button>
-          <Button variant="success" icon={<Check />} loading={loading} onClick={onConfirm}>
-            {confirmLabel}
-          </Button>
+          {!hideConfirm && (
+            <Button
+              variant="success"
+              icon={confirmIcon ?? <Check />}
+              loading={loading}
+              onClick={onConfirm}
+            >
+              {confirmLabel}
+            </Button>
+          )}
         </div>
       </div>
     </div>,
