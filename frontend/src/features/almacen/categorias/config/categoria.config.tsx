@@ -6,6 +6,7 @@ import type { Categoria } from '../types/categoria.types'
 export const LIMITE_PAGINA = 10
 
 export const COLUMNAS_CATEGORIAS: DataTableColumn<Categoria>[] = [
+  { key: 'id_categoria', label: 'Código', render: (item) => item.id_categoria },
   { key: 'nombre', label: 'Nombre', render: (item) => item.nombre },
   { key: 'descripcion', label: 'Descripción', render: (item) => item.descripcion ?? '' },
   {
