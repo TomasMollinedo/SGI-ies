@@ -16,9 +16,7 @@ export const articuloResponseSchema = z.object({
   FK_usuario_actualizador: z.number(),
 });
 
-export class ArticuloResponseDto extends createZodDto(
-  articuloResponseSchema,
-) {}
+export class ArticuloResponseDto extends createZodDto(articuloResponseSchema) {}
 
 const categoriaResumenSchema = z.object({
   id_categoria: z.number(),

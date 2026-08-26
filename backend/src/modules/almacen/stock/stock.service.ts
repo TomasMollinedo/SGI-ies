@@ -197,7 +197,10 @@ export class StockService {
       _sum: { cantidad: true },
     });
 
-    return { FK_articulo: idArticulo, stock_total: resultado._sum.cantidad ?? 0 };
+    return {
+      FK_articulo: idArticulo,
+      stock_total: resultado._sum.cantidad ?? 0,
+    };
   }
 
   private async validarArticuloExiste(idArticulo: number) {
@@ -208,9 +211,9 @@ export class StockService {
     if (!articulo) {
       throw new NotFoundException(`No existe un artículo con id ${idArticulo}`);
     }
-    if (!articulo.estado){
+    if (!articulo.estado) {
       throw new ConflictException(
-        "no se puede crear una ficha de stock para un articulo dado de baja"
+        'no se puede crear una ficha de stock para un articulo dado de baja',
       );
     }
   }
