@@ -10,8 +10,6 @@ export const queryStockSchema = z.object({
   FK_Categoria: z.coerce.number().int().positive().optional(),
   // Coincidencia parcial contra ARTICULO.nombre.
   nombreArticulo: z.string().trim().min(1).optional(),
-  // TODO: filtro por código de artículo bloqueado hasta que ARTICULO tenga
-  // ese campo (ver T16 - CRUD de Artículos de Catálogo).
   estado: z
     .enum(['true', 'false'])
     .transform((valor) => valor === 'true')
