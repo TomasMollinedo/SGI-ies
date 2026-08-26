@@ -190,7 +190,9 @@ export class ArticuloService {
     });
 
     if (existe) {
-      throw new ConflictException(`Ya existe un artículo con el código "${codigo}"`);
+      throw new ConflictException(
+        `Ya existe un artículo con el código "${codigo}"`,
+      );
     }
   }
 
@@ -219,7 +221,9 @@ export class ArticuloService {
     });
 
     if (!categoria) {
-      throw new NotFoundException(`No existe una categoría con id ${idCategoria}`);
+      throw new NotFoundException(
+        `No existe una categoría con id ${idCategoria}`,
+      );
     }
     if (!categoria.estado) {
       throw new ConflictException('La categoría indicada está dada de baja');
@@ -237,7 +241,9 @@ export class ArticuloService {
       );
     }
     if (!unidadMedida.estado) {
-      throw new ConflictException('La unidad de medida indicada está dada de baja');
+      throw new ConflictException(
+        'La unidad de medida indicada está dada de baja',
+      );
     }
   }
 

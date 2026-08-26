@@ -53,7 +53,10 @@ export class StockController {
     summary:
       'Crear una ficha de stock (vincula un artículo a un depósito/obrador; stock actual arranca en 0)',
   })
-  @ApiCreatedResponse({ description: 'Ficha de stock creada', type: StockResponseDto })
+  @ApiCreatedResponse({
+    description: 'Ficha de stock creada',
+    type: StockResponseDto,
+  })
   @ApiBadRequestResponse({ description: 'Datos inválidos' })
   @ApiNotFoundResponse({
     description: 'No existe el artículo o el depósito/obrador indicado',
@@ -82,7 +85,8 @@ export class StockController {
     name: 'es_obrador',
     required: false,
     enum: ['true', 'false'],
-    description: 'Filtra fichas en obradores (true) o depósitos centrales (false)',
+    description:
+      'Filtra fichas en obradores (true) o depósitos centrales (false)',
   })
   @ApiQuery({
     name: 'FK_Categoria',
@@ -95,7 +99,8 @@ export class StockController {
     name: 'nombreArticulo',
     required: false,
     type: String,
-    description: 'Coincidencia parcial contra el nombre del artículo (sin distinguir mayúsculas/minúsculas)',
+    description:
+      'Coincidencia parcial contra el nombre del artículo (sin distinguir mayúsculas/minúsculas)',
     example: 'cemento',
   })
   @ApiQuery({
@@ -106,8 +111,13 @@ export class StockController {
   })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
-  @ApiOkResponse({ description: 'Listado paginado de fichas de stock', type: StockListResponseDto })
-  @ApiBadRequestResponse({ description: 'Parámetros de filtro/paginación inválidos' })
+  @ApiOkResponse({
+    description: 'Listado paginado de fichas de stock',
+    type: StockListResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Parámetros de filtro/paginación inválidos',
+  })
   findAll(@Query() query: QueryStockDto) {
     return this.stockService.findAll(query);
   }
@@ -117,8 +127,15 @@ export class StockController {
     summary:
       'Stock consolidado de un artículo: suma su stock en todos los depósitos/obradores activos',
   })
-  @ApiParam({ name: 'idArticulo', type: Number, description: 'id_articulo a consolidar' })
-  @ApiOkResponse({ description: 'Stock total consolidado', type: StockConsolidadoResponseDto })
+  @ApiParam({
+    name: 'idArticulo',
+    type: Number,
+    description: 'id_articulo a consolidar',
+  })
+  @ApiOkResponse({
+    description: 'Stock total consolidado',
+    type: StockConsolidadoResponseDto,
+  })
   @ApiNotFoundResponse({ description: 'No existe un artículo con ese id' })
   consolidado(@Param('idArticulo', ParseIntPipe) idArticulo: number) {
     return this.stockService.consolidadoPorArticulo(idArticulo);
@@ -126,19 +143,40 @@ export class StockController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una ficha de stock por id' })
-  @ApiParam({ name: 'id', type: Number, description: 'id_stock de la ficha a buscar' })
-  @ApiOkResponse({ description: 'Ficha de stock encontrada', type: StockDetalleResponseDto })
-  @ApiNotFoundResponse({ description: 'No existe una ficha de stock con ese id' })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_stock de la ficha a buscar',
+  })
+  @ApiOkResponse({
+    description: 'Ficha de stock encontrada',
+    type: StockDetalleResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'No existe una ficha de stock con ese id',
+  })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.stockService.findOne(id);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Editar el umbral mínimo y/o las observaciones de una ficha de stock' })
-  @ApiParam({ name: 'id', type: Number, description: 'id_stock de la ficha a editar' })
-  @ApiOkResponse({ description: 'Ficha de stock actualizada', type: StockResponseDto })
+  @ApiOperation({
+    summary:
+      'Editar el umbral mínimo y/o las observaciones de una ficha de stock',
+  })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_stock de la ficha a editar',
+  })
+  @ApiOkResponse({
+    description: 'Ficha de stock actualizada',
+    type: StockResponseDto,
+  })
   @ApiBadRequestResponse({ description: 'Datos inválidos' })
-  @ApiNotFoundResponse({ description: 'No existe una ficha de stock con ese id' })
+  @ApiNotFoundResponse({
+    description: 'No existe una ficha de stock con ese id',
+  })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateStockDto,
@@ -149,26 +187,53 @@ export class StockController {
 
   @Patch(':id/baja')
   @ApiOperation({ summary: 'Dar de baja una ficha de stock (baja lógica)' })
-  @ApiParam({ name: 'id', type: Number, description: 'id_stock de la ficha a dar de baja' })
-  @ApiOkResponse({ description: 'Ficha de stock dada de baja', type: StockResponseDto })
-  @ApiNotFoundResponse({ description: 'No existe una ficha de stock con ese id' })
-  @ApiConflictResponse({
-    description: 'La ficha ya está dada de baja, o tiene stock actual mayor a 0',
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_stock de la ficha a dar de baja',
   })
-  baja(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+  @ApiOkResponse({
+    description: 'Ficha de stock dada de baja',
+    type: StockResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'No existe una ficha de stock con ese id',
+  })
+  @ApiConflictResponse({
+    description:
+      'La ficha ya está dada de baja, o tiene stock actual mayor a 0',
+  })
+  baja(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.stockService.baja(id, user.id);
   }
 
   @Patch(':id/alta')
-  @ApiOperation({ summary: 'Reactivar una ficha de stock dada de baja (alta lógica)' })
-  @ApiParam({ name: 'id', type: Number, description: 'id_stock de la ficha a reactivar' })
-  @ApiOkResponse({ description: 'Ficha de stock reactivada', type: StockResponseDto })
-  @ApiNotFoundResponse({ description: 'No existe una ficha de stock con ese id' })
+  @ApiOperation({
+    summary: 'Reactivar una ficha de stock dada de baja (alta lógica)',
+  })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_stock de la ficha a reactivar',
+  })
+  @ApiOkResponse({
+    description: 'Ficha de stock reactivada',
+    type: StockResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'No existe una ficha de stock con ese id',
+  })
   @ApiConflictResponse({
     description:
       'La ficha ya está activa, o ya existe otra ficha activa para esa combinación artículo–depósito',
   })
-  alta(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+  alta(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.stockService.activar(id, user.id);
   }
 }
