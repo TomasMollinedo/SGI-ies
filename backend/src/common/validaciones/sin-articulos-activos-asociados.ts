@@ -13,7 +13,7 @@ export async function validarSinArticulosActivosAsociados(
   where: Prisma.ARTICULOWhereInput,
 ) {
   const articulosActivos = await prisma.aRTICULO.count({
-    where: { ...where, activo: true },
+    where: { ...where, estado: true },
   });
 
   if (articulosActivos > 0) {

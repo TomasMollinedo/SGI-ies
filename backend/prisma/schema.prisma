@@ -143,11 +143,12 @@ model STOCK {
 
 model ARTICULO {
   id_articulo Int    @id @default(autoincrement())
+  codigo      String  @unique
   // Único solo entre artículos activos (se valida a nivel service, no acá):
   // un artículo dado de baja libera su nombre para uno nuevo.
   nombre      String
   descripcion String?
-  activo     Boolean @default(true)
+  estado     Boolean @default(true)
 
   hora_creacion DateTime @default(now())
   hora_actualizacion DateTime? @default(now())
@@ -210,8 +211,8 @@ model MARCA {
 
 model UNIDADMEDIDA {
   id_unidad_medida Int @id @default(autoincrement())
-  nombre           String @unique
-  abreviatura      String @unique // Abreviatura de la unidad de medida (ejemplo: kg, m, l, etc.)
+  nombre           String 
+  abreviatura      String  // Abreviatura de la unidad de medida (ejemplo: kg, m, l, etc.)
   estado           Boolean @default(true)
 
   hora_creacion DateTime @default(now())

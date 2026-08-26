@@ -208,6 +208,11 @@ export class StockService {
     if (!articulo) {
       throw new NotFoundException(`No existe un artículo con id ${idArticulo}`);
     }
+    if (!articulo.estado){
+      throw new ConflictException(
+        "no se puede crear una ficha de stock para un articulo dado de baja"
+      );
+    }
   }
 
   private async validarDepositoActivo(idDeposito: number) {

@@ -168,11 +168,19 @@ async function main() {
   console.log(`Seed de MARCA: ${marcas.length} registros procesados.`);
 
   for (const unidadMedida of unidadesMedida) {
-    await prisma.uNIDADMEDIDA.upsert({
+    const existente = await prisma.uNIDADMEDIDA.findFirst({
       where: { nombre: unidadMedida.nombre },
-      update: unidadMedida,
-      create: { ...unidadMedida, ...auditoria },
     });
+    if (existente) {
+      await prisma.uNIDADMEDIDA.update({
+        where: { id_unidad_medida: existente.id_unidad_medida },
+        data: unidadMedida,
+      });
+    } else {
+      await prisma.uNIDADMEDIDA.create({
+        data: { ...unidadMedida, ...auditoria },
+      });
+    }
   }
   console.log(
     `Seed de UNIDADMEDIDA: ${unidadesMedida.length} registros procesados.`,
