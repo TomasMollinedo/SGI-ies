@@ -11,6 +11,7 @@ import { RowActions } from '@/shared/components/common/RowActions'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
 import { Button } from '@/shared/components/ui/Button'
+import { Spinner } from '@/shared/components/ui/Spinner'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 import { useToast } from '@/shared/hooks/useToast'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
@@ -39,7 +40,9 @@ export function MarcasPage() {
   const navigate = useNavigate()
 
   const [nombre, setNombre] = useState('')
-  const [estado, setEstado] = useState<FiltroEstado>('')
+  // El listado abre mostrando solo las activas, que son con las que se trabaja
+  // todos los días. Las dadas de baja siguen a un cambio de filtro.
+  const [estado, setEstado] = useState<FiltroEstado>('true')
   const [page, setPage] = useState(1)
   const [detalleId, setDetalleId] = useState<number | null>(null)
   const [formulario, setFormulario] = useState<EstadoFormulario>(null)
@@ -55,7 +58,7 @@ export function MarcasPage() {
     setPage(1)
   }, [nombreDebounced, estado])
 
-  const { data, isFetching, error, refetch } = useMarcas({
+  const { data, isLoading, isFetching, error, refetch } = useMarcas({
     nombre: nombreDebounced || undefined,
     estado: estado === '' ? undefined : estado === 'true',
     page,
@@ -63,7 +66,6 @@ export function MarcasPage() {
   })
 
   const statusCode = error?.statusCode
-  const hayFiltrosAplicados = nombreDebounced !== '' || estado !== ''
 
   // El interceptor del httpClient ya intenta renovar la sesión; si igual llega
   // un 401 es que no hay sesión recuperable.
@@ -299,7 +301,13 @@ export function MarcasPage() {
         </Button>
       </div>
 
-      {error && statusCode !== 401 ? (
+      {isLoading && (
+        <div className="flex justify-center py-12">
+          <Spinner className="text-primary size-8" />
+        </div>
+      )}
+
+      {error && statusCode !== 401 && (
         <ErrorState
           mensaje={
             statusCode === 400
@@ -308,24 +316,22 @@ export function MarcasPage() {
           }
           onReintentar={() => refetch()}
         />
-      ) : (
+      )}
+
+      {!isLoading && !error && marcas.length === 0 && (
+        <EmptyState
+          titulo="No se encontraron marcas"
+          descripcion="Probá ajustar los filtros de búsqueda."
+        />
+      )}
+
+      {!isLoading && !error && marcas.length > 0 && (
         <>
           <DataTable
             data={marcas}
             columns={columnas}
             obtenerId={(item) => String(item.id_marca)}
-            loading={isFetching}
-            skeletonRows={LIMITE_PAGINA}
             ariaLabel="Marcas"
-            emptyState={
-              <EmptyState
-                titulo={
-                  hayFiltrosAplicados
-                    ? 'No se encontraron marcas con esos criterios'
-                    : 'Todavía no hay marcas cargadas'
-                }
-              />
-            }
           />
 
           {meta && (
