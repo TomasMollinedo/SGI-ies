@@ -62,6 +62,7 @@ model ROL {
 model TIPOMOVIMIENTO {
   id_tipo_movimiento Int @id @default(autoincrement())
   nombre             String @unique
+  descripcion        String?
   indicador_entrada    Boolean // Indica si el movimiento es de entrada (true) o de salida (false)
   estado             Boolean @default(true)
   

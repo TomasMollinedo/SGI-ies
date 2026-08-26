@@ -13,6 +13,7 @@ import { UnidadMedidaModule } from './modules/almacen/unidad-medida/unidad-medid
 import { DepositoModule } from './modules/almacen/deposito/deposito.module';
 import { StockModule } from './modules/almacen/stock/stock.module';
 import { ArticuloModule } from './modules/almacen/articulo/articulo.module';
+import { TipoMovimientoModule } from './modules/almacen/tipo-movimiento/tipo-movimiento.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ArticuloModule } from './modules/almacen/articulo/articulo.module';
     AuthModule,
     StockModule,
     ArticuloModule,
+    TipoMovimientoModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
