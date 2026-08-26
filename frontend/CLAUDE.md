@@ -45,7 +45,7 @@ Seguí las convenciones y tecnologías ya definidas en:
 - `docs/convenciones.md`
 - `docs/tecnologias.md`
 
-No agregues dependencias ni cambies decisiones existentes salvo que la HU realmente lo necesite.
+No cambies decisiones existentes salvo que la HU realmente lo necesite.
 
 ## Validación
 
@@ -58,3 +58,9 @@ npm run format:check
 ```
 
 Corregí cualquier problema producido por tus cambios.
+
+## Qué NO hacer sin que se te pida explícitamente
+
+- No hacer `commit`, `push`, ni abrir o mergear PRs. Dejá los cambios sin commitear.
+- No agregar ni cambiar dependencias en `package.json` sin avisar primero, aunque la HU lo necesite.
+- Antes de tocar `src/shared/`, proponé el plan y esperá confirmación.
