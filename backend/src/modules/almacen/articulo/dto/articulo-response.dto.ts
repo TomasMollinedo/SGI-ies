@@ -3,7 +3,6 @@ import { createZodDto } from 'nestjs-zod';
 
 export const articuloResponseSchema = z.object({
   id_articulo: z.number(),
-  codigo: z.string(),
   nombre: z.string(),
   descripcion: z.string().nullable(),
   estado: z.boolean(),
