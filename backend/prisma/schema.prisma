@@ -80,6 +80,9 @@ model TIPOMOVIMIENTO {
 
 model MOVIMIENTO {
   id_movimiento Int     @id @default(autoincrement())
+  // Fecha "de negocio" del movimiento, la carga el usuario. Distinta de
+  // hora_creacion, que es el timestamp técnico de cuándo se creó la fila.
+  fecha_movimiento DateTime
   observaciones String?
   referencia   String? // Referencia externa (ejemplo: número de factura, remito, etc.)
 
@@ -104,6 +107,10 @@ model STOCKMOVIMIENTO {
   // Cantidad de la línea. El signo del efecto sobre el stock lo define
   // TIPOMOVIMIENTO.indicador_entrada del movimiento de cabecera, no este campo.
   cantidad    Int
+  // Foto del stock antes y después de aplicar esta línea: es el log de
+  // auditoría que pide HU-07 (quién y cuándo salen del MOVIMIENTO de cabecera).
+  stock_anterior Int
+  stock_nuevo    Int
   observacion String?
 
   FK_Movimiento Int
@@ -144,7 +151,6 @@ model STOCK {
 
 model ARTICULO {
   id_articulo Int    @id @default(autoincrement())
-  codigo      String  @unique
   // Único solo entre artículos activos (se valida a nivel service, no acá):
   // un artículo dado de baja libera su nombre para uno nuevo.
   nombre      String

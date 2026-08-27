@@ -71,14 +71,14 @@ export class ArticuloController {
   @Get()
   @ApiOperation({
     summary:
-      'Listar artículos (por defecto solo los activos), con filtros por categoría, marca, estado y búsqueda por código o nombre',
+      'Listar artículos (por defecto solo los activos), con filtros por categoría, marca, estado y búsqueda por código (id) o nombre',
   })
   @ApiQuery({
     name: 'busqueda',
     required: false,
     type: String,
     description:
-      'Coincidencia parcial contra el código o el nombre del artículo',
+      'Coincidencia parcial contra el nombre, o exacta contra el código (id) del artículo si se busca un número',
     example: 'cemento',
   })
   @ApiQuery({

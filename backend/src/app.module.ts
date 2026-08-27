@@ -14,6 +14,7 @@ import { DepositoModule } from './modules/almacen/deposito/deposito.module';
 import { StockModule } from './modules/almacen/stock/stock.module';
 import { ArticuloModule } from './modules/almacen/articulo/articulo.module';
 import { TipoMovimientoModule } from './modules/almacen/tipo-movimiento/tipo-movimiento.module';
+import { MovimientoModule } from './modules/almacen/movimiento/movimiento.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { TipoMovimientoModule } from './modules/almacen/tipo-movimiento/tipo-mov
     StockModule,
     ArticuloModule,
     TipoMovimientoModule,
+    MovimientoModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },

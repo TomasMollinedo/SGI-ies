@@ -85,7 +85,7 @@ export class TipoMovimientoController {
     required: false,
     enum: ['true', 'false'],
     description:
-      'Filtra por tipos activos (true) o dados de baja (false). Sin este parámetro, trae solo los activos.',
+      'Filtra por tipos activos (true) o dados de baja (false). Sin este parámetro, trae ambos.',
   })
   @ApiQuery({
     name: 'indicador_entrada',
