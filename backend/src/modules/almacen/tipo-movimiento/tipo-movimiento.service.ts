@@ -32,14 +32,14 @@ export class TipoMovimientoService {
   }
 
   /**
-   * Listado paginado. Sin el filtro `estado`, muestra solo los activos
-   * (HU-08, criterio 9) — a diferencia de otros catálogos de Almacén.
+   * Listado paginado. Sin el filtro `estado`, trae tanto los activos como
+   * los dados de baja, igual que el resto de los catálogos de Almacén.
    */
   async findAll(query: QueryTipoMovimientoDto) {
     const { nombre, estado, indicador_entrada, page, limit } = query;
 
     const where: Prisma.TIPOMOVIMIENTOWhereInput = {
-      estado: estado !== undefined ? estado : true,
+      ...(estado !== undefined && { estado }),
       ...(indicador_entrada !== undefined && { indicador_entrada }),
       ...(nombre && { nombre: { contains: nombre, mode: 'insensitive' } }),
     };
