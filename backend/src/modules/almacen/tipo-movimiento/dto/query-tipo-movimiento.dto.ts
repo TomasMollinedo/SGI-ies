@@ -3,8 +3,8 @@ import { createZodDto } from 'nestjs-zod';
 
 /**
  * Filtros de listado: por nombre (búsqueda parcial), por estado y por
- * indicador de entrada/salida. A diferencia de otros catálogos de Almacén,
- * sin filtro de estado el listado trae solo los activos (HU-08, criterio 9).
+ * indicador de entrada/salida. Sin filtro de estado, el listado trae tanto
+ * los activos como los dados de baja.
  */
 export const queryTipoMovimientoSchema = z.object({
   nombre: z.string().trim().min(1).optional(),

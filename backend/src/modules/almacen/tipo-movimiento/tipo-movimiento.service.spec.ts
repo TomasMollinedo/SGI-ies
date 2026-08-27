@@ -173,14 +173,14 @@ describe('TipoMovimientoService', () => {
   });
 
   describe('findAll', () => {
-    it('sin filtro de estado, lista solo los activos', async () => {
+    it('sin filtro de estado, lista activos e inactivos', async () => {
       const findMany = jest.fn().mockResolvedValue([]);
       const count = jest.fn().mockResolvedValue(0);
       Object.assign(prisma.tIPOMOVIMIENTO, { findMany, count });
 
       await service.findAll({ page: 1, limit: 10 });
 
-      expect(primerArgumento(findMany).where).toEqual({ estado: true });
+      expect(primerArgumento(findMany).where).toEqual({});
     });
   });
 });
