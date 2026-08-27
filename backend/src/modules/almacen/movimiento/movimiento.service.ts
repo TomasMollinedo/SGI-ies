@@ -2,12 +2,16 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, STOCK } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateMovimientoDto } from './dto/create-movimiento.dto';
 import { QueryMovimientoDto } from './dto/query-movimiento.dto';
+import { AlertaService } from '../../alerta/alerta.service';
+import { RolNombre } from '../../../common/enums/rol.enum';
+import { TipoAlertaNombre } from '../../../common/enums/tipo-alerta.enum';
 
 const TIPO_MOVIMIENTO_RESUMEN_SELECT = {
   id_tipo_movimiento: true,
@@ -29,17 +33,36 @@ const USUARIO_RESUMEN_SELECT = {
 /** Ficha de stock con el nombre de su artículo, como se lee al validar el detalle. */
 type FichaConArticulo = STOCK & { articulo: { nombre: string } };
 
+/**
+ * Efecto de una línea sobre su ficha, tal como quedó aplicado dentro de la
+ * transacción. Se acumula para poder evaluar los cruces de umbral después, sin
+ * volver a leer la base.
+ */
+interface ResultadoLinea {
+  ficha: FichaConArticulo;
+  stockAnterior: number;
+  stockNuevo: number;
+}
+
 @Injectable()
 export class MovimientoService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(MovimientoService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly alertaService: AlertaService,
+  ) {}
 
   /**
    * Registra un movimiento completo: cabecera, líneas de detalle y la
    * actualización del stock de cada ficha afectada.
    *
-   * Todo va dentro de una única transacción: si una línea falla (por ejemplo,
-   * la tercera de cinco no tiene stock suficiente), se revierte todo,
-   * incluidas las líneas que ya se habían aplicado.
+   * Todo lo que hace a la integridad de los datos va dentro de una única
+   * transacción: si una línea falla (por ejemplo, la tercera de cinco no tiene
+   * stock suficiente), se revierte todo, incluidas las líneas que ya se habían
+   * aplicado. Las alertas de reposición, en cambio, se generan después de que
+   * la transacción confirmó: son un efecto secundario, no parte del registro
+   * del movimiento (ver `generarAlertasDeReposicion`).
    */
   async create(dto: CreateMovimientoDto, usuarioId: number) {
     const tipoMovimiento = await this.buscarTipoMovimientoActivo(
@@ -56,67 +79,85 @@ export class MovimientoService {
       fichaPorId,
     );
 
-    const idMovimiento = await this.prisma.$transaction(async (tx) => {
-      const movimiento = await tx.mOVIMIENTO.create({
-        data: {
-          fecha_movimiento: fechaMovimiento,
-          referencia: dto.referencia,
-          observaciones: dto.observaciones,
-          FK_TipoMovimiento: dto.FK_TipoMovimiento,
-          FK_Deposito: dto.FK_Deposito,
-          FK_usuario_creador: usuarioId,
-          FK_usuario_actualizador: usuarioId,
-        },
-      });
-
-      for (const linea of dto.detalle) {
-        const ficha = fichaPorId.get(linea.FK_Stock)!;
-        const delta = tipoMovimiento.indicador_entrada
-          ? linea.cantidad
-          : -linea.cantidad;
-
-        // updateMany y no update: `update` solo acepta el identificador único
-        // en el where, y acá hace falta combinarlo con la condición "alcanza
-        // el stock". Que esa condición viaje en el mismo WHERE hace que la
-        // base la evalúe atómicamente junto con la escritura — leer primero y
-        // escribir después dejaría una ventana para que dos salidas
-        // concurrentes sobre la misma ficha la dejen en negativo.
-        const resultado = await tx.sTOCK.updateMany({
-          where: {
-            id_stock: ficha.id_stock,
-            ...(!tipoMovimiento.indicador_entrada && {
-              cantidad: { gte: linea.cantidad },
-            }),
-          },
+    const { idMovimiento, resultadosPorLinea } = await this.prisma.$transaction(
+      async (tx) => {
+        const movimiento = await tx.mOVIMIENTO.create({
           data: {
-            cantidad: { increment: delta },
-            hora_actualizacion: new Date(),
+            fecha_movimiento: fechaMovimiento,
+            referencia: dto.referencia,
+            observaciones: dto.observaciones,
+            FK_TipoMovimiento: dto.FK_TipoMovimiento,
+            FK_Deposito: dto.FK_Deposito,
+            FK_usuario_creador: usuarioId,
             FK_usuario_actualizador: usuarioId,
           },
         });
 
-        if (resultado.count === 0) {
-          throw new ConflictException(
-            `Stock insuficiente para "${ficha.articulo.nombre}"`,
-          );
+        const resultados: ResultadoLinea[] = [];
+
+        for (const linea of dto.detalle) {
+          const ficha = fichaPorId.get(linea.FK_Stock)!;
+          const delta = tipoMovimiento.indicador_entrada
+            ? linea.cantidad
+            : -linea.cantidad;
+
+          // updateMany y no update: `update` solo acepta el identificador único
+          // en el where, y acá hace falta combinarlo con la condición "alcanza
+          // el stock". Que esa condición viaje en el mismo WHERE hace que la
+          // base la evalúe atómicamente junto con la escritura — leer primero y
+          // escribir después dejaría una ventana para que dos salidas
+          // concurrentes sobre la misma ficha la dejen en negativo.
+          const resultado = await tx.sTOCK.updateMany({
+            where: {
+              id_stock: ficha.id_stock,
+              ...(!tipoMovimiento.indicador_entrada && {
+                cantidad: { gte: linea.cantidad },
+              }),
+            },
+            data: {
+              cantidad: { increment: delta },
+              hora_actualizacion: new Date(),
+              FK_usuario_actualizador: usuarioId,
+            },
+          });
+
+          if (resultado.count === 0) {
+            throw new ConflictException(
+              `Stock insuficiente para "${ficha.articulo.nombre}"`,
+            );
+          }
+
+          const stockAnterior = ficha.cantidad;
+          const stockNuevo = stockAnterior + delta;
+
+          await tx.sTOCKMOVIMIENTO.create({
+            data: {
+              FK_Movimiento: movimiento.id_movimiento,
+              FK_Stock: ficha.id_stock,
+              cantidad: linea.cantidad,
+              stock_anterior: stockAnterior,
+              stock_nuevo: stockNuevo,
+              observacion: linea.observacion,
+            },
+          });
+
+          resultados.push({ ficha, stockAnterior, stockNuevo });
         }
 
-        await tx.sTOCKMOVIMIENTO.create({
-          data: {
-            FK_Movimiento: movimiento.id_movimiento,
-            FK_Stock: ficha.id_stock,
-            cantidad: linea.cantidad,
-            stock_anterior: ficha.cantidad,
-            stock_nuevo: ficha.cantidad + delta,
-            observacion: linea.observacion,
-          },
-        });
-      }
+        return {
+          idMovimiento: movimiento.id_movimiento,
+          resultadosPorLinea: resultados,
+        };
+      },
+    );
 
-      return movimiento.id_movimiento;
-    });
+    const alertasGeneradas = await this.generarAlertasDeReposicion(
+      idMovimiento,
+      resultadosPorLinea,
+    );
 
-    return this.findOne(idMovimiento);
+    const movimiento = await this.findOne(idMovimiento);
+    return { ...movimiento, alertasGeneradas };
   }
 
   /**
@@ -216,6 +257,58 @@ export class MovimientoService {
     }
 
     return movimiento;
+  }
+
+  /**
+   * Genera una alerta de reposición por cada línea cuyo stock haya cruzado el
+   * umbral mínimo hacia abajo en este movimiento.
+   *
+   * Corre FUERA de la transacción y a propósito: registrar el movimiento con
+   * el stock consistente es lo crítico; avisar que algo quedó bajo el umbral
+   * es un efecto secundario. Por lo mismo, cada alerta va en su propio
+   * try/catch: si el módulo de Alertas falla, se loggea y se sigue, pero el
+   * movimiento ya está registrado y el cliente recibe su 201.
+   */
+  private async generarAlertasDeReposicion(
+    idMovimiento: number,
+    resultadosPorLinea: ResultadoLinea[],
+  ) {
+    const alertasGeneradas: Awaited<ReturnType<AlertaService['crear']>>[] = [];
+
+    for (const { ficha, stockAnterior, stockNuevo } of resultadosPorLinea) {
+      // Solo el cruce: si la ficha ya venía por debajo del umbral, no se
+      // vuelve a alertar por cada salida siguiente.
+      const cruzaHaciaAbajo =
+        stockAnterior >= ficha.umbral_minimo &&
+        stockNuevo < ficha.umbral_minimo;
+      if (!cruzaHaciaAbajo) {
+        continue;
+      }
+
+      try {
+        const alerta = await this.alertaService.crear({
+          tipoAlertaNombre: TipoAlertaNombre.REPOSICION,
+          // Fijo: en este sistema los roles no son por depósito.
+          rolDestinatario: RolNombre.RESPONSABLE_ALMACEN,
+          mensaje: `Stock de "${ficha.articulo.nombre}" bajó a ${stockNuevo} unidades (umbral: ${ficha.umbral_minimo})`,
+          datos: {
+            stockId: ficha.id_stock,
+            movimientoId: idMovimiento,
+            articuloId: ficha.FK_articulo,
+            stockNuevo,
+            umbralMinimo: ficha.umbral_minimo,
+          },
+        });
+        alertasGeneradas.push(alerta);
+      } catch (error) {
+        this.logger.error(
+          `No se pudo generar la alerta de reposición para la ficha ${ficha.id_stock} del movimiento ${idMovimiento}`,
+          error,
+        );
+      }
+    }
+
+    return alertasGeneradas;
   }
 
   /**
