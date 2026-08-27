@@ -77,3 +77,15 @@ export async function editarTipoMovimiento(
   )
   return data
 }
+
+/** PATCH /tipos-movimiento/:id/baja — baja lógica. Sin body; devuelve el tipo ya actualizado. */
+export async function darDeBajaTipoMovimiento(id: number): Promise<TipoMovimientoAuditado> {
+  const { data } = await httpClient.patch<TipoMovimientoAuditado>(`/tipos-movimiento/${id}/baja`)
+  return data
+}
+
+/** PATCH /tipos-movimiento/:id/alta — alta lógica. Sin body; devuelve el tipo ya actualizado. */
+export async function reactivarTipoMovimiento(id: number): Promise<TipoMovimientoAuditado> {
+  const { data } = await httpClient.patch<TipoMovimientoAuditado>(`/tipos-movimiento/${id}/alta`)
+  return data
+}

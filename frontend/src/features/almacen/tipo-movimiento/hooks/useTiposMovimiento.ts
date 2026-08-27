@@ -3,9 +3,11 @@ import type { ApiErrorResponse, PaginatedResponse } from '@/shared/types/api.typ
 import {
   TIPOS_MOVIMIENTO_QUERY_KEYS,
   crearTipoMovimiento,
+  darDeBajaTipoMovimiento,
   editarTipoMovimiento,
   listarTiposMovimiento,
   obtenerTipoMovimiento,
+  reactivarTipoMovimiento,
 } from '../services/tiposMovimiento.service'
 import type {
   CrearTipoMovimientoPayload,
@@ -73,6 +75,35 @@ export function useEditarTipoMovimiento() {
       // puestos, porque son parte de la query key.
       queryClient.invalidateQueries({ queryKey: ['tipos-movimiento', 'lista'] })
       queryClient.invalidateQueries({ queryKey: TIPOS_MOVIMIENTO_QUERY_KEYS.DETALLE(variables.id) })
+    },
+  })
+}
+
+/**
+ * Baja y reactivación comparten forma: reciben el id, no llevan body y al
+ * terminar invalidan el listado y el detalle de ese tipo de movimiento.
+ */
+
+export function useDarDeBajaTipoMovimiento() {
+  const queryClient = useQueryClient()
+
+  return useMutation<TipoMovimientoAuditado, ApiErrorResponse, number>({
+    mutationFn: darDeBajaTipoMovimiento,
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['tipos-movimiento', 'lista'] })
+      queryClient.invalidateQueries({ queryKey: TIPOS_MOVIMIENTO_QUERY_KEYS.DETALLE(id) })
+    },
+  })
+}
+
+export function useReactivarTipoMovimiento() {
+  const queryClient = useQueryClient()
+
+  return useMutation<TipoMovimientoAuditado, ApiErrorResponse, number>({
+    mutationFn: reactivarTipoMovimiento,
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['tipos-movimiento', 'lista'] })
+      queryClient.invalidateQueries({ queryKey: TIPOS_MOVIMIENTO_QUERY_KEYS.DETALLE(id) })
     },
   })
 }
