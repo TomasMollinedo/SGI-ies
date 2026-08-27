@@ -25,6 +25,7 @@ describe('AlertaService', () => {
   let prisma: {
     aLERTA: {
       create: jest.Mock;
+      findFirst: jest.Mock;
       findMany: jest.Mock;
       findUnique: jest.Mock;
       update: jest.Mock;
@@ -69,6 +70,7 @@ describe('AlertaService', () => {
       aLERTA: {
         create: jest.fn().mockResolvedValue({ id_alerta: ID_ALERTA }),
         findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
         findUnique: jest.fn().mockResolvedValue(alerta()),
         update: jest.fn().mockResolvedValue({}),
         count: jest.fn().mockResolvedValue(0),
@@ -92,13 +94,21 @@ describe('AlertaService', () => {
   });
 
   describe('crear', () => {
+    const CLAVE = `${TipoAlertaNombre.REPOSICION}-12`;
+
+    /** Input mínimo para pedir una alerta de reposición de la ficha 12. */
+    const input = (extra: Record<string, unknown> = {}) => ({
+      tipoAlertaNombre: TipoAlertaNombre.REPOSICION,
+      rolDestinatario: RolNombre.RESPONSABLE_ALMACEN,
+      mensaje: 'El stock de "Martillo" quedó por debajo de su umbral',
+      claveDeduplicacion: CLAVE,
+      ...extra,
+    });
+
     it('resuelve el tipo de alerta y el rol destinatario a sus ids', async () => {
-      await service.crear({
-        tipoAlertaNombre: TipoAlertaNombre.REPOSICION,
-        rolDestinatario: RolNombre.RESPONSABLE_ALMACEN,
-        mensaje: 'El stock de "Martillo" quedó por debajo de su umbral',
-        datos: { stockId: 12, stockNuevo: 2, umbralMinimo: 5 },
-      });
+      const resultado = await service.crear(
+        input({ datos: { stockId: 12, stockNuevo: 2, umbralMinimo: 5 } }),
+      );
 
       // Quien llama trabaja con enums, no con ids: la traducción la hace
       // este service.
@@ -115,7 +125,50 @@ describe('AlertaService', () => {
         FK_rol_destinatario: ID_ROL_ALMACEN,
         mensaje: 'El stock de "Martillo" quedó por debajo de su umbral',
         datos: { stockId: 12, stockNuevo: 2, umbralMinimo: 5 },
+        clave_deduplicacion: CLAVE,
       });
+      expect(resultado.creada).toBe(true);
+    });
+
+    it('crea la alerta si no hay ninguna con esa clave todavía', async () => {
+      prisma.aLERTA.findFirst.mockResolvedValue(null);
+
+      const resultado = await service.crear(input());
+
+      expect(prisma.aLERTA.findFirst).toHaveBeenCalledWith({
+        where: { clave_deduplicacion: CLAVE, atendida: false },
+      });
+      expect(prisma.aLERTA.create).toHaveBeenCalled();
+      expect(resultado.creada).toBe(true);
+    });
+
+    it('no duplica si ya hay una alerta sin atender con la misma clave', async () => {
+      const yaAbierta = { id_alerta: 99, clave_deduplicacion: CLAVE };
+      prisma.aLERTA.findFirst.mockResolvedValue(yaAbierta);
+
+      const resultado = await service.crear(input());
+
+      // Mientras la condición siga reportada y sin atender, no se apila una
+      // alerta nueva: se devuelve la que ya está abierta.
+      expect(prisma.aLERTA.create).not.toHaveBeenCalled();
+      expect(resultado).toEqual({ alerta: yaAbierta, creada: false });
+    });
+
+    it('genera una nueva si la anterior con esa clave ya fue atendida', async () => {
+      // La búsqueda de deduplicación filtra por atendida:false, así que una
+      // alerta ya atendida no aparece — es lo que permite volver a alertar
+      // cuando el problema se "reconoció" pero nunca se resolvió.
+      prisma.aLERTA.findFirst.mockResolvedValue(null);
+
+      const resultado = await service.crear(input());
+
+      const [busqueda] = argumentosDe(prisma.aLERTA.findFirst);
+      expect(busqueda.where).toEqual({
+        clave_deduplicacion: CLAVE,
+        atendida: false,
+      });
+      expect(prisma.aLERTA.create).toHaveBeenCalled();
+      expect(resultado.creada).toBe(true);
     });
 
     it('falla con 500 si el tipo de alerta no está sembrado', async () => {
@@ -123,26 +176,18 @@ describe('AlertaService', () => {
 
       // No es NotFoundException: acá no hay un cliente pidiendo algo
       // inexistente, es el seed que no se corrió o un bug de quien llama.
-      await expect(
-        service.crear({
-          tipoAlertaNombre: TipoAlertaNombre.REPOSICION,
-          rolDestinatario: RolNombre.RESPONSABLE_ALMACEN,
-          mensaje: 'da igual',
-        }),
-      ).rejects.toBeInstanceOf(InternalServerErrorException);
+      await expect(service.crear(input())).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
       expect(prisma.aLERTA.create).not.toHaveBeenCalled();
     });
 
     it('falla con 500 si el rol destinatario no existe', async () => {
       prisma.rOL.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.crear({
-          tipoAlertaNombre: TipoAlertaNombre.REPOSICION,
-          rolDestinatario: RolNombre.RESPONSABLE_ALMACEN,
-          mensaje: 'da igual',
-        }),
-      ).rejects.toBeInstanceOf(InternalServerErrorException);
+      await expect(service.crear(input())).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
       expect(prisma.aLERTA.create).not.toHaveBeenCalled();
     });
   });

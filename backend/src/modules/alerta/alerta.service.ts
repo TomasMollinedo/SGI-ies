@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '../../../generated/prisma/client';
+import { ALERTA, Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QueryAlertaDto } from './dto/query-alerta.dto';
 import { RolNombre } from '../../common/enums/rol.enum';
@@ -21,6 +21,18 @@ export interface CrearAlertaInput {
   rolDestinatario: RolNombre;
   mensaje: string;
   datos?: Record<string, unknown>;
+  /**
+   * Identifica la condición concreta que dispara la alerta, ej.
+   * `REPOSICION-42`. Mientras exista una alerta sin atender con esta misma
+   * clave, no se genera otra.
+   *
+   * La arma quien llama, a partir del enum del tipo y del id de la entidad
+   * afectada — cada tipo de alerta define su propio criterio. Tiene que ser
+   * idéntica entre todos los caminos que detectan la misma condición: si dos
+   * caminos la construyen distinto, cada uno cree que la condición es nueva y
+   * la deduplicación deja de funcionar entre ellos.
+   */
+  claveDeduplicacion: string;
 }
 
 const ALERTA_INCLUDE = {
@@ -36,11 +48,39 @@ export class AlertaService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Registra una alerta. No se expone por HTTP: lo llaman otros services
-   * cuando detectan la condición que la dispara (hoy, MovimientoService al
-   * cruzarse el umbral mínimo de una ficha de stock).
+   * Registra una alerta, si no hay ya una activa por la misma condición. No se
+   * expone por HTTP: lo llaman otros services cuando detectan la condición que
+   * la dispara (hoy, MovimientoService al quedar una ficha bajo su umbral, y
+   * el escaneo periódico de StockService).
+   *
+   * Deduplica por `claveDeduplicacion` contra las alertas NO atendidas: si ya
+   * hay una abierta por lo mismo, devuelve esa con `creada: false` en vez de
+   * apilar una segunda. En cuanto alguien la marca como atendida deja de
+   * contar, así que si la condición sigue vigente la próxima detección genera
+   * una alerta nueva — que es lo que evita que un problema no resuelto
+   * desaparezca por haber sido "reconocido".
+   *
+   * Ojo: el chequeo y la creación no son atómicos entre sí. Dos llamadas con
+   * la misma clave en el mismo instante (por ejemplo el escaneo y un
+   * movimiento sobre la misma ficha) pueden generar una alerta duplicada. Se
+   * acepta a propósito: el peor caso es una fila de más, no un dato corrupto,
+   * y no justifica la complejidad del update atómico condicional que sí usa el
+   * descuento de stock.
    */
-  async crear(input: CrearAlertaInput) {
+  async crear(
+    input: CrearAlertaInput,
+  ): Promise<{ alerta: ALERTA; creada: boolean }> {
+    const existente = await this.prisma.aLERTA.findFirst({
+      where: {
+        clave_deduplicacion: input.claveDeduplicacion,
+        atendida: false,
+      },
+    });
+
+    if (existente) {
+      return { alerta: existente, creada: false };
+    }
+
     const [tipoAlerta, rol] = await Promise.all([
       this.prisma.tIPOALERTA.findUnique({
         where: { nombre: input.tipoAlertaNombre },
@@ -58,14 +98,17 @@ export class AlertaService {
       );
     }
 
-    return this.prisma.aLERTA.create({
+    const nueva = await this.prisma.aLERTA.create({
       data: {
         FK_tipo_alerta: tipoAlerta.id_tipo_alerta,
         FK_rol_destinatario: rol.id_rol,
         mensaje: input.mensaje,
         datos: input.datos as Prisma.InputJsonValue | undefined,
+        clave_deduplicacion: input.claveDeduplicacion,
       },
     });
+
+    return { alerta: nueva, creada: true };
   }
 
   /**

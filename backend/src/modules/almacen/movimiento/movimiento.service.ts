@@ -5,7 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, STOCK } from '../../../../generated/prisma/client';
+import { ALERTA, Prisma, STOCK } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateMovimientoDto } from './dto/create-movimiento.dto';
 import { QueryMovimientoDto } from './dto/query-movimiento.dto';
@@ -273,20 +273,19 @@ export class MovimientoService {
     idMovimiento: number,
     resultadosPorLinea: ResultadoLinea[],
   ) {
-    const alertasGeneradas: Awaited<ReturnType<AlertaService['crear']>>[] = [];
+    const alertasGeneradas: ALERTA[] = [];
 
-    for (const { ficha, stockAnterior, stockNuevo } of resultadosPorLinea) {
-      // Solo el cruce: si la ficha ya venía por debajo del umbral, no se
-      // vuelve a alertar por cada salida siguiente.
-      const cruzaHaciaAbajo =
-        stockAnterior >= ficha.umbral_minimo &&
-        stockNuevo < ficha.umbral_minimo;
-      if (!cruzaHaciaAbajo) {
+    for (const { ficha, stockNuevo } of resultadosPorLinea) {
+      // Alcanza con mirar el estado resultante: ya no hace falta chequear si
+      // "cruzó" el umbral en este movimiento, porque de no apilar alertas
+      // mientras la condición sigue abierta se encarga la deduplicación por
+      // clave de AlertaService.
+      if (stockNuevo >= ficha.umbral_minimo) {
         continue;
       }
 
       try {
-        const alerta = await this.alertaService.crear({
+        const { alerta, creada } = await this.alertaService.crear({
           tipoAlertaNombre: TipoAlertaNombre.REPOSICION,
           // Fijo: en este sistema los roles no son por depósito.
           rolDestinatario: RolNombre.RESPONSABLE_ALMACEN,
@@ -298,8 +297,16 @@ export class MovimientoService {
             stockNuevo,
             umbralMinimo: ficha.umbral_minimo,
           },
+          // Tiene que ser idéntica a la que arma el escaneo de StockService,
+          // o cada camino alertaría por su cuenta sobre la misma ficha.
+          claveDeduplicacion: `${TipoAlertaNombre.REPOSICION}-${ficha.id_stock}`,
         });
-        alertasGeneradas.push(alerta);
+
+        // Solo se informan las nuevas: si ya había una alerta abierta por esta
+        // ficha, sigue vigente pero no la generó este movimiento.
+        if (creada) {
+          alertasGeneradas.push(alerta);
+        }
       } catch (error) {
         this.logger.error(
           `No se pudo generar la alerta de reposición para la ficha ${ficha.id_stock} del movimiento ${idMovimiento}`,

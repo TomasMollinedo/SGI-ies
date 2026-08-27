@@ -314,6 +314,16 @@ model ALERTA {
   // aplicación.
   datos   Json?
 
+  // Identifica la condición en curso que originó la alerta, ej "REPOSICION-42"
+  // (tipo + id de la entidad afectada). Sirve para no volver a alertar por algo
+  // que ya está reportado y sin atender.
+  //
+  // Sin @unique a propósito: la unicidad que importa es "única entre las no
+  // atendidas", que se valida a nivel service — mismo criterio que el nombre
+  // único entre activos de MARCA o CATEGORIA. Una vez atendida, la clave queda
+  // libre para que la condición vuelva a alertar si sigue vigente.
+  clave_deduplicacion String
+
   // El destinatario es un rol y no un usuario: la alerta le importa a quien
   // sea que ocupe ese puesto, no a una persona puntual.
   FK_rol_destinatario Int

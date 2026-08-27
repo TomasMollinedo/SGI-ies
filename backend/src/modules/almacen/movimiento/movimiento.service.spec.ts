@@ -117,7 +117,12 @@ describe('MovimientoService', () => {
       ),
     };
 
-    alertaService = { crear: jest.fn().mockResolvedValue({ id_alerta: 1 }) };
+    // Por defecto, la alerta es nueva (no había otra abierta por esa ficha).
+    alertaService = {
+      crear: jest
+        .fn()
+        .mockResolvedValue({ alerta: { id_alerta: 1 }, creada: true }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -313,8 +318,8 @@ describe('MovimientoService', () => {
       prisma.tIPOMOVIMIENTO.findUnique.mockResolvedValue(salida);
     });
 
-    it('genera una alerta cuando el stock cruza el umbral hacia abajo', async () => {
-      // 10 -> 6, con umbral 8: cruza.
+    it('pide la alerta cuando el stock queda por debajo del umbral', async () => {
+      // 10 -> 6, con umbral 8.
       prisma.sTOCK.findMany.mockResolvedValue([
         ficha(1, 10, { umbral_minimo: 8 }),
       ]);
@@ -328,6 +333,7 @@ describe('MovimientoService', () => {
           rolDestinatario: string;
           mensaje: string;
           datos: Record<string, unknown>;
+          claveDeduplicacion: string;
         },
       ];
       expect(input.tipoAlertaNombre).toBe(TipoAlertaNombre.REPOSICION);
@@ -341,12 +347,14 @@ describe('MovimientoService', () => {
         stockNuevo: 6,
         umbralMinimo: 8,
       });
+      // Tiene que ser idéntica a la que arma el escaneo de StockService.
+      expect(input.claveDeduplicacion).toBe(`${TipoAlertaNombre.REPOSICION}-1`);
 
       expect(resultado.alertasGeneradas).toHaveLength(1);
     });
 
-    it('no genera alerta si el stock resultante queda por encima del umbral', async () => {
-      // 10 -> 6, con umbral 5: no llega a cruzar.
+    it('no pide alerta si el stock resultante queda por encima del umbral', async () => {
+      // 10 -> 6, con umbral 5: sigue por encima.
       prisma.sTOCK.findMany.mockResolvedValue([
         ficha(1, 10, { umbral_minimo: 5 }),
       ]);
@@ -357,16 +365,32 @@ describe('MovimientoService', () => {
       expect(resultado.alertasGeneradas).toEqual([]);
     });
 
-    it('no vuelve a alertar si la ficha ya estaba por debajo del umbral', async () => {
-      // 6 -> 2, con umbral 8: ya venía por debajo, no hay cruce nuevo. Sin
-      // esta condición, cada salida siguiente generaría una alerta más.
+    it('pide la alerta aunque la ficha ya viniera por debajo del umbral', async () => {
+      // 6 -> 2, con umbral 8: no hay "cruce", pero el estado resultante sigue
+      // siendo problemático. Ya no se chequea el estado previo: de no apilar
+      // alertas se encarga la deduplicación de AlertaService.
       prisma.sTOCK.findMany.mockResolvedValue([
         ficha(1, 6, { umbral_minimo: 8 }),
       ]);
 
+      await service.create(salidaDe4(), USUARIO_ID);
+
+      expect(alertaService.crear).toHaveBeenCalledTimes(1);
+    });
+
+    it('no informa como generada una alerta que ya estaba abierta', async () => {
+      prisma.sTOCK.findMany.mockResolvedValue([
+        ficha(1, 6, { umbral_minimo: 8 }),
+      ]);
+      // AlertaService deduplicó: la condición ya estaba reportada.
+      alertaService.crear.mockResolvedValue({
+        alerta: { id_alerta: 1 },
+        creada: false,
+      });
+
       const resultado = await service.create(salidaDe4(), USUARIO_ID);
 
-      expect(alertaService.crear).not.toHaveBeenCalled();
+      // Sigue vigente, pero no la generó ESTE movimiento.
       expect(resultado.alertasGeneradas).toEqual([]);
     });
 
@@ -388,7 +412,7 @@ describe('MovimientoService', () => {
         // transacción; avisar que algo cruzó un umbral es un efecto
         // secundario y no tiene por qué sostenerla abierta.
         expect(transaccionAbierta).toBe(false);
-        return Promise.resolve({ id_alerta: 1 });
+        return Promise.resolve({ alerta: { id_alerta: 1 }, creada: true });
       });
 
       await service.create(salidaDe4(), USUARIO_ID);
@@ -419,10 +443,10 @@ describe('MovimientoService', () => {
       logError.mockRestore();
     });
 
-    it('alerta solo por las líneas que cruzan, no por todo el movimiento', async () => {
+    it('alerta solo por las líneas que quedan bajo umbral, no por todo el movimiento', async () => {
       prisma.sTOCK.findMany.mockResolvedValue([
-        ficha(1, 10, { umbral_minimo: 8 }), // 10 -> 6: cruza
-        ficha(2, 10, { umbral_minimo: 2 }), // 10 -> 6: no cruza
+        ficha(1, 10, { umbral_minimo: 8 }), // 10 -> 6: queda bajo umbral
+        ficha(2, 10, { umbral_minimo: 2 }), // 10 -> 6: sigue por encima
       ]);
 
       const resultado = await service.create(
