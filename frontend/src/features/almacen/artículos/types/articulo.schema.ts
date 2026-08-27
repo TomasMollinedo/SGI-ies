@@ -2,11 +2,6 @@ import { z } from 'zod'
 
 /** Límites calcados del DTO Zod del backend (create-articulo.dto.ts). */
 export const articuloFormSchema = z.object({
-  codigo: z
-    .string()
-    .trim()
-    .min(1, 'El código es obligatorio')
-    .max(50, 'El código no puede superar los 50 caracteres'),
   nombre: z
     .string()
     .trim()

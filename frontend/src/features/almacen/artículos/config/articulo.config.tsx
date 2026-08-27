@@ -1,6 +1,8 @@
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { Badge } from '@/shared/components/ui/Badge'
 import type { Articulo } from '../types/articulo.types'
+import { formatearCodigoArticulo } from '../utils/codigoArticulo'
+
 
 /** Resultados por página del listado. Fijo por ahora: falta definir con el equipo si esto se vuelve configurable. */
 export const LIMITE_PAGINA = 10
@@ -13,7 +15,8 @@ export const DEBOUNCE_BUSQUEDA = 400
  * sus handlers.
  */
 export const COLUMNAS_ARTICULOS: DataTableColumn<Articulo>[] = [
-  { key: 'codigo', label: 'Código', render: (item) => item.codigo },
+  { key: 'codigo', label: 'Código', render: (item) => formatearCodigoArticulo(item.id_articulo) },
+
   { key: 'nombre', label: 'Nombre', render: (item) => item.nombre },
   { key: 'categoria', label: 'Categoría', render: (item) => item.categoria.nombre },
   { key: 'marca', label: 'Marca', render: (item) => item.marca?.nombre ?? '—' },

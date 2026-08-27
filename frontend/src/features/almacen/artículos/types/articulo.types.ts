@@ -17,7 +17,6 @@ export interface UnidadMedidaResumen {
 /** Fila del listado (GET /articulos). No trae datos de auditoría — eso es del detalle. */
 export interface Articulo {
   id_articulo: number
-  codigo: string
   nombre: string
   descripcion: string | null
   estado: boolean
@@ -38,7 +37,6 @@ export interface UsuarioResumen {
 /** Shape de crear/editar/dar de baja/reactivar: Articulo (sin relaciones) + campos de auditoría. */
 export interface ArticuloAuditada {
   id_articulo: number
-  codigo: string
   nombre: string
   descripcion: string | null
   estado: boolean
@@ -60,12 +58,8 @@ export interface ArticuloDetalle extends ArticuloAuditada {
   usuarioActualizador: UsuarioResumen
 }
 
-/**
- * Body de POST /articulos. `codigo` sigue siendo obligatorio porque así lo
- * pide el backend hoy; cuando pase a autogenerarse server-side, sale de acá.
- */
+/** Body de POST /articulos. */
 export interface CrearArticuloPayload {
-  codigo: string
   nombre: string
   descripcion?: string
   FK_Categoria: number
