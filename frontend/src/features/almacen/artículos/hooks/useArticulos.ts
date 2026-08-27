@@ -25,11 +25,12 @@ import type {
  * `keepPreviousData` mantiene el paginador en pantalla mientras llega la página
  * siguiente: sin eso, `meta` desaparecería y el pie de la tabla saltaría.
  */
-export function useArticulos(filtros: ArticulosQuery) {
+export function useArticulos(filtros: ArticulosQuery, opciones?: { enabled?: boolean }) {
   return useQuery<PaginatedResponse<Articulo>, ApiErrorResponse>({
     queryKey: ARTICULOS_QUERY_KEYS.LISTA(filtros),
     queryFn: ({ signal }) => listarArticulos(filtros, signal),
     placeholderData: keepPreviousData,
+    enabled: opciones?.enabled,
   })
 }
 
