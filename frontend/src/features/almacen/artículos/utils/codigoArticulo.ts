@@ -4,5 +4,5 @@
  * mostrar — los requests siguen viajando con el id.
  */
 export function formatearCodigoArticulo(id: number): string {
-  return `COD-${id}`
+  return `ART-${id}`
 }

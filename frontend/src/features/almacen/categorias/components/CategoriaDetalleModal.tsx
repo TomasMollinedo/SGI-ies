@@ -52,7 +52,7 @@ export function CategoriaDetalleModal({ id, onClose, onEditar }: CategoriaDetall
       {!isLoading && !isError && categoria && (
         <div className="flex flex-col">
           <DetailRow label="Nombre" value={categoria.nombre} />
-          <DetailRow label="Descripción" value={categoria.descripcion ?? '—'} />
+          <DetailRow label="Descripción" value={categoria.descripcion  || '—'} />
           <DetailRow
             label="Estado"
             value={
