@@ -127,21 +127,32 @@ export class MovimientoService {
     const {
       FK_Deposito,
       FK_TipoMovimiento,
+      FK_articulo,
       fechaDesde,
       fechaHasta,
       page,
       limit,
     } = query;
 
+    // Todos los filtros se combinan con AND: un movimiento tiene que cumplir
+    // todos los que se hayan mandado, no alguno.
     const where: Prisma.MOVIMIENTOWhereInput = {
       ...(FK_Deposito !== undefined && { FK_Deposito }),
       ...(FK_TipoMovimiento !== undefined && { FK_TipoMovimiento }),
+      // ARTICULO no cuelga directo de MOVIMIENTO: la cadena es
+      // stockMovimientos -> stock -> FK_articulo. `some` se traduce a un
+      // EXISTS, así que un movimiento con varias líneas del mismo artículo
+      // aparece una sola vez y la paginación no necesita `distinct`.
+      ...(FK_articulo !== undefined && {
+        stockMovimientos: { some: { stock: { FK_articulo } } },
+      }),
       // Filtra por fecha_movimiento (la fecha de negocio), no por
-      // hora_creacion (el timestamp técnico de la fila).
-      ...((fechaDesde || fechaHasta) && {
+      // hora_creacion (el timestamp técnico de la fila). Cada extremo del
+      // rango es opcional por separado.
+      ...((fechaDesde !== undefined || fechaHasta !== undefined) && {
         fecha_movimiento: {
-          ...(fechaDesde && { gte: fechaDesde }),
-          ...(fechaHasta && { lte: fechaHasta }),
+          ...(fechaDesde !== undefined && { gte: fechaDesde }),
+          ...(fechaHasta !== undefined && { lte: fechaHasta }),
         },
       }),
     };

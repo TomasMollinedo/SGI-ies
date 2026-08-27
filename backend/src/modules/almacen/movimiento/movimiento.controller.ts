@@ -75,7 +75,7 @@ export class MovimientoController {
   @Get()
   @ApiOperation({
     summary:
-      'Listar movimientos, con filtros por depósito, tipo de movimiento y rango de fechas',
+      'Listar movimientos, con filtros combinables por depósito, tipo de movimiento, artículo y rango de fechas',
   })
   @ApiQuery({
     name: 'FK_Deposito',
@@ -89,6 +89,14 @@ export class MovimientoController {
     required: false,
     type: Number,
     description: 'Filtra por tipo de movimiento',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'FK_articulo',
+    required: false,
+    type: Number,
+    description:
+      'Filtra los movimientos que incluyan en su detalle al menos una línea de este artículo',
     example: 1,
   })
   @ApiQuery({

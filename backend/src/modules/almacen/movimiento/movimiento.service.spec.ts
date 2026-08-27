@@ -10,6 +10,7 @@ import {
   CreateMovimientoDto,
   createMovimientoSchema,
 } from './dto/create-movimiento.dto';
+import { QueryMovimientoDto } from './dto/query-movimiento.dto';
 
 /** Argumento con el que se llamó a un mock de Prisma, ya tipado. */
 type ArgumentoPrisma = {
@@ -31,7 +32,11 @@ describe('MovimientoService', () => {
     tIPOMOVIMIENTO: { findUnique: jest.Mock };
     dEPOSITO: { findUnique: jest.Mock };
     sTOCK: { findMany: jest.Mock };
-    mOVIMIENTO: { findUnique: jest.Mock };
+    mOVIMIENTO: {
+      findUnique: jest.Mock;
+      findMany: jest.Mock;
+      count: jest.Mock;
+    };
     $transaction: jest.Mock;
   };
 
@@ -93,6 +98,8 @@ describe('MovimientoService', () => {
         findUnique: jest
           .fn()
           .mockResolvedValue({ id_movimiento: ID_MOVIMIENTO }),
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
       },
       $transaction: jest.fn((callback: (t: typeof tx) => unknown) =>
         callback(tx),
@@ -325,6 +332,109 @@ describe('MovimientoService', () => {
       expect(cabecera.data).toMatchObject({
         FK_usuario_creador: USUARIO_ID,
         FK_usuario_actualizador: USUARIO_ID,
+      });
+    });
+  });
+
+  describe('findAll', () => {
+    const ID_ARTICULO = 42;
+
+    /** Query ya "parseado" por el DTO: page y limit siempre vienen con default. */
+    const query = (filtros: Record<string, unknown> = {}) =>
+      ({ page: 1, limit: 10, ...filtros }) as unknown as QueryMovimientoDto;
+
+    /** El `where` con el que se llamó a findMany. */
+    const whereDelListado = () =>
+      argumentosDe(prisma.mOVIMIENTO.findMany)[0].where;
+
+    it('filtra por artículo atravesando la relación stockMovimientos -> stock', async () => {
+      await service.findAll(query({ FK_articulo: ID_ARTICULO }));
+
+      expect(whereDelListado()).toEqual({
+        stockMovimientos: { some: { stock: { FK_articulo: ID_ARTICULO } } },
+      });
+    });
+
+    it('combina depósito y artículo con AND: pide que se cumplan los dos', async () => {
+      await service.findAll(
+        query({ FK_Deposito: ID_DEPOSITO, FK_articulo: ID_ARTICULO }),
+      );
+
+      // Las dos condiciones van juntas en el mismo objeto where, que Prisma
+      // traduce a un AND. Si fueran un OR, entrarían movimientos del depósito
+      // que no tienen el artículo (y al revés).
+      expect(whereDelListado()).toEqual({
+        FK_Deposito: ID_DEPOSITO,
+        stockMovimientos: { some: { stock: { FK_articulo: ID_ARTICULO } } },
+      });
+    });
+
+    it('usa el mismo where para el listado y para el total de la paginación', async () => {
+      await service.findAll(
+        query({ FK_articulo: ID_ARTICULO, FK_TipoMovimiento: 2 }),
+      );
+
+      // Si el count usara otro where, meta.total no coincidiría con los
+      // resultados devueltos.
+      expect(argumentosDe(prisma.mOVIMIENTO.count)[0].where).toEqual(
+        whereDelListado(),
+      );
+    });
+
+    it('no duplica un movimiento con varias líneas del mismo artículo', async () => {
+      prisma.mOVIMIENTO.findMany.mockResolvedValue([
+        { id_movimiento: 1, _count: { stockMovimientos: 3 } },
+      ]);
+      prisma.mOVIMIENTO.count.mockResolvedValue(1);
+
+      const resultado = await service.findAll(
+        query({ FK_articulo: ID_ARTICULO }),
+      );
+
+      // La deduplicación la hace la base: `some` es un EXISTS, no un JOIN que
+      // multiplique filas. Por eso el service no necesita `distinct` ni
+      // filtrar en memoria, y la paginación cuenta movimientos, no líneas.
+      const argumentos = argumentosDe(prisma.mOVIMIENTO.findMany)[0] as Record<
+        string,
+        unknown
+      >;
+      expect(argumentos.distinct).toBeUndefined();
+      expect(resultado.data).toHaveLength(1);
+      expect(resultado.meta).toEqual({ total: 1, page: 1, limit: 10 });
+    });
+
+    describe('rango de fechas', () => {
+      const desde = new Date('2026-08-01T00:00:00.000Z');
+      const hasta = new Date('2026-08-31T00:00:00.000Z');
+
+      it('acepta solo fechaDesde', async () => {
+        await service.findAll(query({ fechaDesde: desde }));
+
+        expect(whereDelListado()).toEqual({
+          fecha_movimiento: { gte: desde },
+        });
+      });
+
+      it('acepta solo fechaHasta', async () => {
+        await service.findAll(query({ fechaHasta: hasta }));
+
+        expect(whereDelListado()).toEqual({
+          fecha_movimiento: { lte: hasta },
+        });
+      });
+
+      it('acepta las dos juntas', async () => {
+        await service.findAll(query({ fechaDesde: desde, fechaHasta: hasta }));
+
+        expect(whereDelListado()).toEqual({
+          fecha_movimiento: { gte: desde, lte: hasta },
+        });
+      });
+
+      it('no filtra por fecha si no se manda ninguna', async () => {
+        await service.findAll(query());
+
+        expect(whereDelListado()).toEqual({});
       });
     });
   });

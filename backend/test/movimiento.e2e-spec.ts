@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/prisma/prisma.service';
 
 interface LoginResponseBody {
   accessToken: string;
@@ -50,6 +51,8 @@ describe('Movimientos (e2e)', () => {
   let idTipoEntrada: number;
   let idTipoSalida: number;
   let idStock: number;
+  let idArticulo: number;
+  let prisma: PrismaService;
 
   const CANTIDAD_INICIAL = 25;
 
@@ -75,6 +78,8 @@ describe('Movimientos (e2e)', () => {
     app.setGlobalPrefix('api');
     app.use(cookieParser());
     await app.init();
+
+    prisma = app.get(PrismaService);
 
     const login = await request(app.getHttpServer())
       .post('/api/auth/login')
@@ -111,9 +116,10 @@ describe('Movimientos (e2e)', () => {
         unidades.body as ListadoResponseBody<{ id_unidad_medida: number }>
       ).data[0].id_unidad_medida,
     }).expect(201);
+    idArticulo = (articulo.body as { id_articulo: number }).id_articulo;
 
     const stock = await post('/api/stock', {
-      FK_articulo: (articulo.body as { id_articulo: number }).id_articulo,
+      FK_articulo: idArticulo,
       FK_deposito: idDeposito,
       umbral_minimo: 5,
     }).expect(201);
@@ -212,6 +218,84 @@ describe('Movimientos (e2e)', () => {
       fecha_movimiento: manana.toISOString(),
       detalle: [{ FK_Stock: idStock, cantidad: 1 }],
     }).expect(400);
+  });
+
+  /**
+   * El filtro por artículo atraviesa una relación a muchos
+   * (MOVIMIENTO -> STOCKMOVIMIENTO -> STOCK), así que resuelto con un JOIN
+   * devolvería el mismo movimiento repetido, una vez por línea que matchea.
+   * El service usa `some`, que Prisma traduce a un EXISTS, y eso solo se
+   * puede comprobar de verdad contra Postgres.
+   *
+   * El escenario "dos líneas del mismo artículo en un movimiento" no se puede
+   * armar por la API: el detalle rechaza fichas repetidas, y no puede haber
+   * dos fichas activas del mismo artículo en el mismo depósito. Por eso la
+   * segunda línea se inserta directo con Prisma y se borra al final, para no
+   * dejar un movimiento inconsistente en la base.
+   */
+  it('con el filtro por artículo, un movimiento con dos líneas del mismo artículo aparece una sola vez', async () => {
+    const creado = await post('/api/movimientos', {
+      FK_TipoMovimiento: idTipoEntrada,
+      FK_Deposito: idDeposito,
+      detalle: [{ FK_Stock: idStock, cantidad: 3 }],
+    }).expect(201);
+    const idMovimiento = (creado.body as MovimientoBody).id_movimiento;
+
+    const lineaExtra = await prisma.sTOCKMOVIMIENTO.create({
+      data: {
+        FK_Movimiento: idMovimiento,
+        FK_Stock: idStock,
+        cantidad: 2,
+        stock_anterior: 0,
+        stock_nuevo: 2,
+      },
+    });
+
+    try {
+      const listado = await get(
+        `/api/movimientos?FK_articulo=${idArticulo}`,
+      ).expect(200);
+      const { data, meta } = listado.body as ListadoResponseBody<{
+        id_movimiento: number;
+      }>;
+
+      const apariciones = data.filter(
+        (m) => m.id_movimiento === idMovimiento,
+      ).length;
+      expect(apariciones).toBe(1);
+
+      // El total de la paginación cuenta movimientos, no líneas: si contara
+      // líneas, no coincidiría con lo que devuelve la página.
+      const ids = data.map((m) => m.id_movimiento);
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(meta.total).toBe(data.length);
+    } finally {
+      await prisma.sTOCKMOVIMIENTO.delete({
+        where: { id_stock_movimiento: lineaExtra.id_stock_movimiento },
+      });
+    }
+  });
+
+  it('el filtro por artículo excluye los movimientos de otros artículos', async () => {
+    const listado = await get(
+      `/api/movimientos?FK_articulo=${idArticulo}`,
+    ).expect(200);
+    const { data } = listado.body as ListadoResponseBody<{
+      id_movimiento: number;
+    }>;
+
+    // Todos los movimientos de este artículo los creó esta corrida del test:
+    // el artículo se crea con un nombre único y su ficha arranca sin
+    // movimientos.
+    expect(data.length).toBeGreaterThan(0);
+
+    const detalles = await Promise.all(
+      data.map((m) => get(`/api/movimientos/${m.id_movimiento}`).expect(200)),
+    );
+    for (const detalle of detalles) {
+      const lineas = (detalle.body as MovimientoBody).stockMovimientos;
+      expect(lineas.some((linea) => linea.FK_Stock === idStock)).toBe(true);
+    }
   });
 
   // El caso "la ficha existe pero es de otro depósito" (400) está cubierto en

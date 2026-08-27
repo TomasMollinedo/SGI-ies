@@ -9,6 +9,9 @@ import { fechaIsoSchema } from './fecha-iso.schema';
 export const queryMovimientoSchema = z.object({
   FK_Deposito: z.coerce.number().int().positive().optional(),
   FK_TipoMovimiento: z.coerce.number().int().positive().optional(),
+  // Filtra por el artículo de las líneas del detalle: no es un campo de
+  // MOVIMIENTO, se resuelve por la relación stockMovimientos -> stock.
+  FK_articulo: z.coerce.number().int().positive().optional(),
   fechaDesde: fechaIsoSchema.optional(),
   fechaHasta: fechaIsoSchema.optional(),
   page: z.coerce.number().int().min(1).default(1),
