@@ -5,6 +5,7 @@ import { CatalogoArticulosPage } from '@/features/almacen/pages/CatalogoArticulo
 import { DepositoObradoresPage } from '@/features/almacen/pages/DepositoObradoresPage'
 import { MarcasPage } from '@/features/almacen/marca/pages/MarcasPage'
 import { MovimientosPage } from '@/features/almacen/pages/MovimientosPage'
+import { StockPage } from '@/features/almacen/stock/pages/StockPage'
 import { UnidadesMedidaPage } from '@/features/almacen/unidades-medida/pages/UnidadesMedidaPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { MainLayout } from '@/layouts/MainLayout'
@@ -75,7 +76,7 @@ export const router = createBrowserRouter([
                   },
                   {
                     path: PATHS.ALMACEN.DEPOSITO.STOCK,
-                    element: <PlaceholderPage titulo="Stock por Depósito" />,
+                    element: <StockPage />,
                   },
                 ],
               },
