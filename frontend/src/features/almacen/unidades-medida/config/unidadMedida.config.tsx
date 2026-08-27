@@ -1,12 +1,17 @@
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { Badge } from '@/shared/components/ui/Badge'
 import type { UnidadMedida } from '../types/unidadMedida.types'
+import { formatearCodigoUnidadMedida } from '../utils/codigoUnidadMedida'
 
 /** Resultados por página del listado. */
 export const LIMITE_PAGINA = 10
 
 export const COLUMNAS_UNIDADES_MEDIDA: DataTableColumn<UnidadMedida>[] = [
-  { key: 'codigo', label: 'Código', render: (item) => item.id_unidad_medida },
+  {
+    key: 'codigo',
+    label: 'Código',
+    render: (item) => formatearCodigoUnidadMedida(item.id_unidad_medida),
+  },
   { key: 'nombre', label: 'Nombre', render: (item) => item.nombre },
   { key: 'abreviatura', label: 'Abreviatura', render: (item) => item.abreviatura },
   {
