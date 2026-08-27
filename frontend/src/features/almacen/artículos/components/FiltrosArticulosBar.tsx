@@ -57,7 +57,7 @@ export function FiltrosArticulosBar({
       <Input
         size="sm"
         type="search"
-        placeholder="Buscar por código o nombre"
+        placeholder="Buscar por nombre"
         aria-label="Buscar artículos"
         iconLeft={<Search />}
         value={busqueda}

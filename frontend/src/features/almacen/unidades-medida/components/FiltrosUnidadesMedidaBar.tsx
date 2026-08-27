@@ -13,7 +13,7 @@ interface FiltrosUnidadesMedidaBarProps {
 const OPCIONES_ESTADO: SelectOption[] = [
   { value: '', label: 'Todos los estados' },
   { value: 'true', label: 'Activos' },
-  { value: 'false', label: 'Dados de baja' },
+  { value: 'false', label: 'Inactivos' },
 ]
 
 export function FiltrosUnidadesMedidaBar({
