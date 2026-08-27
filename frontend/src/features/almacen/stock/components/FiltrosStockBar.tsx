@@ -99,7 +99,7 @@ export function FiltrosStockBar({
         options={OPCIONES_ESTADO}
         value={estado}
         onChange={(evento) => onEstadoChange(evento.target.value)}
-        className="w-40"
+        className="w-50"
       />
     </div>
   )
