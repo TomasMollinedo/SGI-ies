@@ -1,12 +1,17 @@
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { Badge } from '@/shared/components/ui/Badge'
 import type { Deposito } from '../types/deposito.types'
+import { formatearCodigoDeposito } from '../utils/codigoDeposito'
 
 /** Resultados por página del listado. Fijo por ahora: falta definir con el equipo si esto se vuelve configurable. */
 export const LIMITE_PAGINA = 10
 
 export const COLUMNAS_DEPOSITOS: DataTableColumn<Deposito>[] = [
-  { key: 'codigo', label: 'Código', render: (item) => item.id_deposito },
+  {
+    key: 'codigo',
+    label: 'Código',
+    render: (item) => formatearCodigoDeposito(item.id_deposito),
+  },
   { key: 'nombre', label: 'Nombre', render: (item) => item.nombre },
   { key: 'tipo', label: 'Tipo', render: (item) => (item.es_obrador ? 'Obrador' : 'Depósito') },
   { key: 'ubicacion', label: 'Ubicación', render: (item) => item.ubicacion ?? '' },

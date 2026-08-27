@@ -11,7 +11,7 @@ export const crearStockFormSchema = z.object({
     .min(1, 'Elegí un depósito')
     .transform((valor) => Number(valor)),
   umbral_minimo: z
-    .number()
+    .number('El umbral mínimo solo acepta números')
     .int('El umbral mínimo debe ser un número entero')
     .min(0, 'El umbral mínimo no puede ser negativo'),
   observaciones: z
@@ -28,7 +28,7 @@ export type CrearStockFormOutput = z.output<typeof crearStockFormSchema>
 /** Límites calcados del DTO Zod del backend (update-stock.dto.ts). */
 export const editarStockFormSchema = z.object({
   umbral_minimo: z
-    .number()
+    .number('El umbral mínimo solo acepta números')
     .int('El umbral mínimo debe ser un número entero')
     .min(0, 'El umbral mínimo no puede ser negativo'),
   observaciones: z

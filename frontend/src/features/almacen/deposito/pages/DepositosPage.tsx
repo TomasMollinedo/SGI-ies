@@ -60,29 +60,42 @@ export function DepositosPage() {
   const reactivar = useReactivarDeposito()
 
   function manejarSubmitFormulario(payload: DepositoFormOutput) {
-    const datos = {
-      nombre: payload.nombre,
-      es_obrador: payload.es_obrador,
-      ubicacion: payload.ubicacion || undefined,
-      descripcion: payload.descripcion || undefined,
-    }
-
-    const tipoTexto = datos.es_obrador ? 'Obrador' : 'Depósito'
+    const descripcion = payload.descripcion?.trim() ?? ''
+    const tipoTexto = payload.es_obrador ? 'Obrador' : 'Depósito'
 
     if (formulario?.modo === 'crear') {
-      crear.mutate(datos, {
-        onSuccess: () => {
-          toast.success(`${tipoTexto} creado correctamente.`)
-          setFormulario(null)
+      crear.mutate(
+        // En el alta la descripción vacía se omite: el backend la deja en null.
+        {
+          nombre: payload.nombre,
+          es_obrador: payload.es_obrador,
+          ubicacion: payload.ubicacion,
+          ...(descripcion ? { descripcion } : {}),
         },
-        onError: (error) => toast.error(formatearMensajeError(error.message)),
-      })
+        {
+          onSuccess: () => {
+            toast.success(`${tipoTexto} creado correctamente.`)
+            setFormulario(null)
+          },
+          onError: (error) => toast.error(formatearMensajeError(error.message)),
+        }
+      )
       return
     }
 
     if (formulario?.modo === 'editar') {
       editar.mutate(
-        { id: formulario.deposito.id_deposito, payload: datos },
+        {
+          id: formulario.deposito.id_deposito,
+          // Acá la descripción viaja siempre, incluso vacía: es la única
+          // forma de borrar la que tenía.
+          payload: {
+            nombre: payload.nombre,
+            es_obrador: payload.es_obrador,
+            ubicacion: payload.ubicacion,
+            descripcion,
+          },
+        },
         {
           onSuccess: () => {
             toast.success(`${tipoTexto} editado correctamente.`)

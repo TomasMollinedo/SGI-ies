@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Check, PackagePlus, X } from 'lucide-react'
+import { useArticulos } from '@/features/almacen/artículos/hooks/useArticulos'
+import { formatearCodigoArticulo } from '@/features/almacen/artículos/utils/codigoArticulo'
 import { useDepositos } from '@/features/almacen/deposito/hooks/useDepositos'
 import { Modal } from '@/shared/components/common/Modal'
 import { Button } from '@/shared/components/ui/Button'
@@ -10,7 +12,6 @@ import type { ComboboxOption } from '@/shared/components/ui/Combobox'
 import { Input } from '@/shared/components/ui/Input'
 import { Select } from '@/shared/components/ui/Select'
 import type { SelectOption } from '@/shared/components/ui/Select'
-import { useArticulosLookup } from '../hooks/useArticulosLookup'
 import { crearStockFormSchema } from '../types/stock.schema'
 import type { CrearStockFormOutput, CrearStockFormValues } from '../types/stock.schema'
 
@@ -37,7 +38,13 @@ interface CrearStockFormProps {
 export function CrearStockForm({ open, onClose, onSubmit, loading = false }: CrearStockFormProps) {
   const [busquedaArticulo, setBusquedaArticulo] = useState('')
 
-  const { data: articulos, isFetching: buscandoArticulos } = useArticulosLookup(busquedaArticulo)
+  // Reutiliza el listado del módulo de Artículos: solo corre con 3+
+  // caracteres, para no pedir de más mientras el usuario recién empieza a
+  // tipear (el propio <Combobox> tampoco llama a onSearch antes de eso).
+  const { data: articulos, isFetching: buscandoArticulos } = useArticulos(
+    { busqueda: busquedaArticulo, estado: true, limit: 10 },
+    { enabled: busquedaArticulo.trim().length >= 3 }
+  )
   // A diferencia de artículos, los depósitos son un catálogo chico (depósito
   // central + obradores) que no justifica búsqueda server-side: se traen
   // todos los activos de una y se eligen en un <Select> común.
@@ -49,7 +56,7 @@ export function CrearStockForm({ open, onClose, onSubmit, loading = false }: Cre
   const opcionesArticulo: ComboboxOption[] = (articulos?.data ?? []).map((articulo) => ({
     value: String(articulo.id_articulo),
     label: articulo.nombre,
-    description: articulo.codigo,
+    description: formatearCodigoArticulo(articulo.id_articulo),
   }))
 
   const opcionesDeposito: SelectOption[] = (depositos?.data ?? []).map((deposito) => ({
@@ -64,10 +71,12 @@ export function CrearStockForm({ open, onClose, onSubmit, loading = false }: Cre
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isValid },
   } = useForm<CrearStockFormValues, unknown, CrearStockFormOutput>({
     resolver: zodResolver(crearStockFormSchema),
     defaultValues: VALORES_INICIALES,
+    // Necesario para que "Guardar" sepa en todo momento si el form es válido.
+    mode: 'onChange',
   })
 
   // Cada vez que se abre, el form arranca limpio y la búsqueda de artículo se resetea.
@@ -88,7 +97,14 @@ export function CrearStockForm({ open, onClose, onSubmit, loading = false }: Cre
           <Button variant="error" icon={<X />} onClick={onClose} disabled={loading}>
             Cancelar
           </Button>
-          <Button variant="success" icon={<Check />} type="submit" form={ID_FORM} loading={loading}>
+          <Button
+            variant="success"
+            icon={<Check />}
+            type="submit"
+            form={ID_FORM}
+            loading={loading}
+            disabled={!isValid}
+          >
             Guardar
           </Button>
         </>

@@ -8,6 +8,7 @@ import { Input } from '@/shared/components/ui/Input'
 import { unidadMedidaFormSchema } from '../types/unidadMedida.schema'
 import type { UnidadMedidaFormOutput, UnidadMedidaFormValues } from '../types/unidadMedida.schema'
 import type { UnidadMedida } from '../types/unidadMedida.types'
+import { formatearCodigoUnidadMedida } from '../utils/codigoUnidadMedida'
 
 const ID_FORM = 'form-unidad-medida'
 
@@ -34,16 +35,20 @@ export function UnidadMedidaForm({
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty, isValid },
   } = useForm<UnidadMedidaFormValues, unknown, UnidadMedidaFormOutput>({
     resolver: zodResolver(unidadMedidaFormSchema),
     defaultValues: valoresIniciales(unidadMedida),
+    // Necesario para que "Guardar" sepa en todo momento si el form es válido.
+    mode: 'onChange',
   })
 
   // Cada vez que se abre (alta nueva o edición de otro registro) el form arranca limpio.
   useEffect(() => {
     if (open) reset(valoresIniciales(unidadMedida))
   }, [open, unidadMedida, reset])
+
+  const puedeGuardar = isValid && (!esEdicion || isDirty)
 
   return (
     <Modal
@@ -56,7 +61,14 @@ export function UnidadMedidaForm({
           <Button variant="error" icon={<X />} onClick={onClose} disabled={loading}>
             Cancelar
           </Button>
-          <Button variant="success" icon={<Check />} type="submit" form={ID_FORM} loading={loading}>
+          <Button
+            variant="success"
+            icon={<Check />}
+            type="submit"
+            form={ID_FORM}
+            loading={loading}
+            disabled={!puedeGuardar}
+          >
             Guardar
           </Button>
         </>
@@ -67,7 +79,7 @@ export function UnidadMedidaForm({
           {esEdicion && (
             <Input
               label="Código"
-              value={unidadMedida.id_unidad_medida}
+              value={formatearCodigoUnidadMedida(unidadMedida.id_unidad_medida)}
               readOnly
               helperText="Generado por el sistema"
             />
