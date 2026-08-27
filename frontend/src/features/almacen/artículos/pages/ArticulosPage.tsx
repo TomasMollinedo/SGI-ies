@@ -364,7 +364,6 @@ export function ArticulosPage() {
               pageSize={meta.limit}
               onPageChange={setPage}
               disabled={isFetching}
-              className="justify-center"
             />
           )}
         </>

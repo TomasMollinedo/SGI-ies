@@ -342,7 +342,6 @@ export function MarcasPage() {
               pageSize={meta.limit}
               onPageChange={setPage}
               disabled={isFetching}
-              className="justify-center"
             />
           )}
         </>

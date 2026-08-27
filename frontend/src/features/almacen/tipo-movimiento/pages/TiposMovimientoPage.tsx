@@ -374,7 +374,6 @@ export function TiposMovimientoPage() {
               pageSize={meta.limit}
               onPageChange={setPage}
               disabled={isFetching}
-              className="justify-center"
             />
           )}
         </>
