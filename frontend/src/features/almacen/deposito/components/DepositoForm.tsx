@@ -11,6 +11,7 @@ import { cn } from '@/shared/utils/cn'
 import { depositoFormSchema } from '../types/deposito.schema'
 import type { DepositoFormOutput, DepositoFormValues } from '../types/deposito.schema'
 import type { Deposito } from '../types/deposito.types'
+import { formatearCodigoDeposito } from '../utils/codigoDeposito'
 
 const ID_FORM = 'form-deposito'
 
@@ -38,10 +39,12 @@ export function DepositoForm({
     handleSubmit,
     reset,
     watch,
-    formState: { errors },
+    formState: { errors, isDirty, isValid },
   } = useForm<DepositoFormValues, unknown, DepositoFormOutput>({
     resolver: zodResolver(depositoFormSchema),
     defaultValues: valoresIniciales(deposito),
+    // Necesario para que "Guardar" sepa en todo momento si el form es válido.
+    mode: 'onChange',
   })
 
   // Cada vez que se abre (alta nueva o edición de otro registro) el form arranca limpio.
@@ -50,6 +53,7 @@ export function DepositoForm({
   }, [open, deposito, reset])
 
   const esObrador = watch('es_obrador')
+  const puedeGuardar = isValid && (!esEdicion || isDirty)
 
   return (
     <Modal
@@ -62,7 +66,14 @@ export function DepositoForm({
           <Button variant="error" icon={<X />} onClick={onClose} disabled={loading}>
             Cancelar
           </Button>
-          <Button variant="success" icon={<Check />} type="submit" form={ID_FORM} loading={loading}>
+          <Button
+            variant="success"
+            icon={<Check />}
+            type="submit"
+            form={ID_FORM}
+            loading={loading}
+            disabled={!puedeGuardar}
+          >
             Guardar
           </Button>
         </>
@@ -74,7 +85,7 @@ export function DepositoForm({
             <div className="sm:col-span-2">
               <Input
                 label="Código"
-                value={deposito.id_deposito}
+                value={formatearCodigoDeposito(deposito.id_deposito)}
                 readOnly
                 helperText="Generado por el sistema"
               />
@@ -129,15 +140,26 @@ export function DepositoForm({
             {...register('ubicacion')}
           />
 
-          {/* Proyecto asignado pertenece al módulo de Proyectos, que todavía no
-              existe: el campo queda visible pero deshabilitado hasta que haya
-              un catálogo de proyectos activos contra el cual elegir. */}
-          <Select
-            label="Proyecto asignado"
-            disabled
-            options={[{ value: '', label: '-' }]}
-            helperText="Solo proyectos activos. Los depósitos centrales no requieren vinculación."
-          />
+          {/* Solo los obradores pueden vincularse a un proyecto: un depósito
+              central nunca lo tiene, así que el campo se anima al mostrarse
+              u ocultarse según el tipo elegido. Además, pertenece al módulo
+              de Proyectos, que todavía no existe: por ahora queda
+              deshabilitado hasta que haya un catálogo contra el cual elegir. */}
+          <div
+            className={cn(
+              'grid transition-[grid-template-rows] duration-300 ease-in-out',
+              esObrador === 'true' ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+            )}
+          >
+            <div className="overflow-hidden">
+              <Select
+                label="Proyecto asignado"
+                disabled
+                options={[{ value: '', label: '-' }]}
+                helperText="Solo proyectos activos."
+              />
+            </div>
+          </div>
 
           <div className="sm:col-span-2">
             <Input
