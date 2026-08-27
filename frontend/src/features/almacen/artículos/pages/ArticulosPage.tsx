@@ -159,7 +159,6 @@ export function ArticulosPage() {
     if (formulario?.modo === 'crear') {
       crear.mutate(
         {
-          codigo: payload.codigo,
           nombre: payload.nombre,
           FK_Categoria: payload.FK_Categoria,
           FK_UnidadMedida: payload.FK_UnidadMedida,
@@ -190,7 +189,6 @@ export function ArticulosPage() {
             // Acá la descripción viaja siempre, incluso vacía: es la única
             // forma de borrar la que tenía. Lo mismo para la marca: `null`
             // explícito es como se quita la asignada.
-            codigo: payload.codigo,
             nombre: payload.nombre,
             descripcion,
             FK_Categoria: payload.FK_Categoria,

@@ -95,7 +95,7 @@ export function ArticuloForm({
     reset(valoresIniciales(articulo))
     setErrorGeneral(null)
     setConfirmarDescarte(false)
-    setFocus('codigo')
+    setFocus('nombre')
   }, [open, articulo, reset, setFocus])
 
   useEffect(() => {
@@ -168,15 +168,6 @@ export function ArticuloForm({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
-              label="Código"
-              required
-              placeholder="Ej. ART-001"
-              disabled={loading}
-              error={errors.codigo?.message}
-              {...register('codigo')}
-            />
-
-            <Input
               label="Nombre"
               required
               placeholder="Ej. Cemento Portland"
@@ -244,7 +235,7 @@ export function ArticuloForm({
 }
 
 /** Los campos del formulario, para saber qué issues del backend son de campo. */
-const CAMPOS = ['codigo', 'nombre', 'descripcion', 'FK_Categoria', 'FK_UnidadMedida', 'FK_Marca'] as const
+const CAMPOS = ['nombre', 'descripcion', 'FK_Categoria', 'FK_UnidadMedida', 'FK_Marca'] as const
 type CampoDelFormulario = (typeof CAMPOS)[number]
 
 function esCampoDelFormulario(campo: string): campo is CampoDelFormulario {
@@ -254,8 +245,7 @@ function esCampoDelFormulario(campo: string): campo is CampoDelFormulario {
 /**
  * Manda cada error del backend a donde corresponda y devuelve lo que quedó sin
  * dueño, para el banner. El 409 es el caso importante: el modal no se cierra y
- * el mensaje aparece sobre el campo (Código o Nombre) que lo causó, con el
- * foco puesto ahí.
+ * el mensaje aparece sobre el campo Nombre, con el foco puesto ahí.
  */
 function repartirErrorDelBackend(
   error: ApiErrorResponse,
@@ -263,16 +253,8 @@ function repartirErrorDelBackend(
   setFocus: (campo: CampoDelFormulario) => void
 ): string | null {
   if (error.statusCode === 409) {
-    const mensaje = formatearMensajeError(error.message).toLowerCase()
-    const campo: CampoDelFormulario = mensaje.includes('código') ? 'codigo' : 'nombre'
-
-    setError(campo, {
-      message:
-        campo === 'codigo'
-          ? 'Ya existe un artículo con ese código.'
-          : 'Ya existe un artículo activo con ese nombre.',
-    })
-    setFocus(campo)
+    setError('nombre', { message: 'Ya existe un artículo activo con ese nombre.' })
+    setFocus('nombre')
     return null
   }
 
@@ -296,7 +278,6 @@ function repartirErrorDelBackend(
 
 function valoresIniciales(articulo?: Articulo): ArticuloFormValues {
   return {
-    codigo: articulo?.codigo ?? '',
     nombre: articulo?.nombre ?? '',
     descripcion: articulo?.descripcion ?? '',
     FK_Categoria: articulo ? String(articulo.FK_Categoria) : '',

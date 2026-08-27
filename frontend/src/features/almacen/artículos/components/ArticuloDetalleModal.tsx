@@ -11,6 +11,7 @@ import { useToast } from '@/shared/hooks/useToast'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { useArticuloDetalle } from '../hooks/useArticulos'
 import type { UsuarioResumen } from '../types/articulo.types'
+import { formatearCodigoArticulo } from '../utils/codigoArticulo'
 
 interface ArticuloDetalleModalProps {
   /** Artículo a mostrar. Con `null` el modal está cerrado y no se pide nada. */
@@ -56,7 +57,7 @@ export function ArticuloDetalleModal({ idArticulo, onClose }: ArticuloDetalleMod
         <ErrorState mensaje={formatearMensajeError(error.message)} onReintentar={() => refetch()} />
       ) : articulo ? (
         <div className="flex flex-col">
-          <DetailRow label="Código" value={articulo.codigo} />
+          <DetailRow label="Código" value={formatearCodigoArticulo(articulo.id_articulo)} />
           <DetailRow label="Nombre" value={articulo.nombre} />
           <DetailRow label="Categoría" value={articulo.categoria.nombre} />
           <DetailRow label="Marca" value={articulo.marca?.nombre ?? SIN_DATO} />
