@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ShieldAlert } from 'lucide-react'
+import { Plus, ShieldAlert } from 'lucide-react'
 import { PATHS } from '@/app/router/paths'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { DataTable } from '@/shared/components/common/DataTable'
@@ -8,21 +8,34 @@ import { Pagination } from '@/shared/components/common/Pagination'
 import { RowActions } from '@/shared/components/common/RowActions'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
+import { Button } from '@/shared/components/ui/Button'
 import { Spinner } from '@/shared/components/ui/Spinner'
 import { useDebounce } from '@/shared/hooks/useDebounce'
+import { useToast } from '@/shared/hooks/useToast'
+import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { FiltrosTiposMovimientoBar } from '../components/FiltrosTiposMovimientoBar'
 import { TipoMovimientoDetalleModal } from '../components/TipoMovimientoDetalleModal'
+import { TipoMovimientoForm } from '../components/TipoMovimientoForm'
 import {
   COLUMNAS_TIPOS_MOVIMIENTO,
   DEBOUNCE_BUSQUEDA,
   LIMITE_PAGINA,
 } from '../config/tipoMovimiento.config'
-import { useTiposMovimiento } from '../hooks/useTiposMovimiento'
+import {
+  useCrearTipoMovimiento,
+  useEditarTipoMovimiento,
+  useTiposMovimiento,
+} from '../hooks/useTiposMovimiento'
+import type { TipoMovimientoFormOutput } from '../types/tipoMovimiento.schema'
 import type { FiltroEstado, FiltroIndicador, TipoMovimiento } from '../types/tipoMovimiento.types'
+
+type EstadoFormulario =
+  { modo: 'crear' } | { modo: 'editar'; tipoMovimiento: TipoMovimiento } | null
 
 export function TiposMovimientoPage() {
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [nombre, setNombre] = useState('')
   // El listado abre mostrando solo los activos, que son con los que se trabaja
@@ -31,6 +44,8 @@ export function TiposMovimientoPage() {
   const [indicador, setIndicador] = useState<FiltroIndicador>('')
   const [page, setPage] = useState(1)
   const [detalleId, setDetalleId] = useState<number | null>(null)
+  const [formulario, setFormulario] = useState<EstadoFormulario>(null)
+  const [errorFormulario, setErrorFormulario] = useState<ApiErrorResponse | null>(null)
 
   const nombreDebounced = useDebounce(nombre.trim(), DEBOUNCE_BUSQUEDA)
 
@@ -66,14 +81,103 @@ export function TiposMovimientoPage() {
 
   const cerrarDetalle = useCallback(() => setDetalleId(null), [])
 
-  /**
-   * Editar y baja/reactivar son de otro ticket: las acciones ya quedan
-   * cableadas para que ahí alcance con completar estos handlers.
-   */
-  function manejarEditar() {
-    // TODO: abrir el formulario de edición.
+  const crear = useCrearTipoMovimiento()
+  const editar = useEditarTipoMovimiento()
+
+  function abrirFormulario(estadoInicial: EstadoFormulario) {
+    setErrorFormulario(null)
+    setFormulario(estadoInicial)
   }
 
+  function cerrarFormulario() {
+    setFormulario(null)
+    setErrorFormulario(null)
+  }
+
+  /**
+   * Los errores que no dependen de lo que el usuario haya cargado se resuelven
+   * igual venga de donde venga: se avisa, se cierra el formulario y, si la fila
+   * quedó desactualizada, se refresca. Devuelve `true` si se hizo cargo, para
+   * que quien llama sepa si le queda algo por hacer.
+   */
+  function manejarErrorComun(error: ApiErrorResponse): boolean {
+    switch (error.statusCode) {
+      case 401:
+        navigate(PATHS.LOGIN, { replace: true })
+        return true
+      case 403:
+        toast.error('No tenés permisos para realizar esta acción')
+        cerrarFormulario()
+        return true
+      case 404:
+        toast.error('El tipo de movimiento ya no existe')
+        cerrarFormulario()
+        refetch()
+        return true
+      default:
+        return false
+    }
+  }
+
+  /**
+   * Lo que sí puede corregir desde el formulario — el 409 del nombre repetido,
+   * el 400 de validación y los de servidor — baja al `TipoMovimientoForm`, que
+   * los pinta sin perder lo cargado.
+   */
+  function manejarErrorFormulario(error: ApiErrorResponse) {
+    if (manejarErrorComun(error)) return
+
+    setErrorFormulario(error)
+  }
+
+  function manejarSubmitFormulario(payload: TipoMovimientoFormOutput) {
+    const descripcion = payload.descripcion?.trim() ?? ''
+
+    if (formulario?.modo === 'crear') {
+      crear.mutate(
+        // En el alta la descripción vacía se omite: el backend la deja en null.
+        {
+          nombre: payload.nombre,
+          indicador_entrada: payload.indicador_entrada,
+          ...(descripcion ? { descripcion } : {}),
+        },
+        {
+          onSuccess: () => {
+            toast.success('Tipo de movimiento creado correctamente')
+            cerrarFormulario()
+            // El tipo nuevo puede caer en cualquier página del orden
+            // alfabético; se vuelve a la primera, con los filtros puestos.
+            setPage(1)
+          },
+          onError: manejarErrorFormulario,
+        }
+      )
+      return
+    }
+
+    if (formulario?.modo === 'editar') {
+      editar.mutate(
+        // Acá la descripción viaja siempre, incluso vacía: es la única forma de
+        // borrar la que tenía. El indicador no viaja nunca: no es editable.
+        {
+          id: formulario.tipoMovimiento.id_tipo_movimiento,
+          payload: { nombre: payload.nombre, descripcion },
+        },
+        {
+          onSuccess: () => {
+            toast.success('Tipo de movimiento actualizado correctamente')
+            cerrarFormulario()
+          },
+          onError: manejarErrorFormulario,
+        }
+      )
+    }
+  }
+
+  /**
+   * La baja y la reactivación son de otro ticket: las acciones ya quedan
+   * cableadas para que ahí alcance con completar estos handlers.
+   */
   function manejarBaja() {
     // TODO: confirmar y dar de baja el tipo de movimiento.
   }
@@ -90,9 +194,13 @@ export function TiposMovimientoPage() {
       render: (item) => (
         <RowActions
           isActive={item.estado}
-          // El detalle se pide por id, no por el código que muestra la tabla.
+          // Tanto el detalle como la edición se piden por id, no por el código
+          // que muestra la tabla.
           onView={() => setDetalleId(item.id_tipo_movimiento)}
-          onEdit={manejarEditar}
+          // La fila del listado ya trae todo lo editable (nombre, descripción)
+          // y el indicador que se muestra bloqueado: no hace falta pedir el
+          // detalle para precargar el formulario.
+          onEdit={() => abrirFormulario({ modo: 'editar', tipoMovimiento: item })}
           onDelete={manejarBaja}
           onReactivate={manejarReactivar}
         />
@@ -116,14 +224,19 @@ export function TiposMovimientoPage() {
 
   return (
     <div className="space-y-4">
-      <FiltrosTiposMovimientoBar
-        nombre={nombre}
-        onNombreChange={setNombre}
-        estado={estado}
-        onEstadoChange={setEstado}
-        indicador={indicador}
-        onIndicadorChange={setIndicador}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <FiltrosTiposMovimientoBar
+          nombre={nombre}
+          onNombreChange={setNombre}
+          estado={estado}
+          onEstadoChange={setEstado}
+          indicador={indicador}
+          onIndicadorChange={setIndicador}
+        />
+        <Button icon={<Plus />} onClick={() => abrirFormulario({ modo: 'crear' })}>
+          Nuevo tipo
+        </Button>
+      </div>
 
       {isLoading && (
         <div className="flex justify-center py-12">
@@ -172,7 +285,25 @@ export function TiposMovimientoPage() {
         </>
       )}
 
-      <TipoMovimientoDetalleModal idTipoMovimiento={detalleId} onClose={cerrarDetalle} />
+      <TipoMovimientoForm
+        open={formulario !== null}
+        onClose={cerrarFormulario}
+        tipoMovimiento={formulario?.modo === 'editar' ? formulario.tipoMovimiento : undefined}
+        onSubmit={manejarSubmitFormulario}
+        loading={crear.isPending || editar.isPending}
+        error={errorFormulario}
+      />
+
+      <TipoMovimientoDetalleModal
+        idTipoMovimiento={detalleId}
+        onClose={cerrarDetalle}
+        // Mismo formulario y mismo handler que el lápiz de la fila: el detalle
+        // se cierra y queda abierto el de edición con ese registro.
+        onEditar={(tipoMovimiento) => {
+          cerrarDetalle()
+          abrirFormulario({ modo: 'editar', tipoMovimiento })
+        }}
+      />
     </div>
   )
 }

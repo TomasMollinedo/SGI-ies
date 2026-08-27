@@ -14,14 +14,42 @@ export interface UsuarioResumen {
   apellido: string
 }
 
-/** Respuesta de GET /tipos-movimiento/:id: la fila + trazabilidad y quién la creó/modificó. */
-export interface TipoMovimientoDetalle extends TipoMovimiento {
+/** Shape de crear/editar/dar de baja/reactivar: la fila + campos de auditoría. */
+export interface TipoMovimientoAuditado extends TipoMovimiento {
   hora_creacion: string
   hora_actualizacion: string | null
   FK_usuario_creador: number
   FK_usuario_actualizador: number
+}
+
+/** Respuesta de GET /tipos-movimiento/:id: TipoMovimientoAuditado + quién lo creó/modificó. */
+export interface TipoMovimientoDetalle extends TipoMovimientoAuditado {
   usuarioCreador: UsuarioResumen | null
   usuarioActualizador: UsuarioResumen | null
+}
+
+/**
+ * Body de POST /tipos-movimiento. La descripción se omite si el usuario no
+ * cargó ninguna; `indicador_entrada` es obligatorio y es el único momento en
+ * que se define.
+ */
+export interface CrearTipoMovimientoPayload {
+  nombre: string
+  descripcion?: string
+  indicador_entrada: boolean
+}
+
+/**
+ * Body de PATCH /tipos-movimiento/:id. A propósito no se deriva de
+ * `CrearTipoMovimientoPayload`: se declara solo con los campos editables, y el
+ * `indicador_entrada: never` deja que el compilador rechace el intento de
+ * mandarlo —incluso al armar el body con un spread—, porque el signo del tipo
+ * de movimiento es inmutable después del alta.
+ */
+export interface EditarTipoMovimientoPayload {
+  nombre?: string
+  descripcion?: string
+  indicador_entrada?: never
 }
 
 /**
@@ -32,7 +60,7 @@ export interface TipoMovimientoDetalle extends TipoMovimiento {
 export type FiltroEstado = 'true' | 'false'
 
 /**
- * Valor del filtro de signo. Acá sí hay "Todos" (string vacío): sin el parámetro
+ * Valor del filtro de indicador. Acá sí hay "Todos" (string vacío): sin el parámetro
  * el backend trae entradas y salidas.
  */
 export type FiltroIndicador = '' | 'true' | 'false'

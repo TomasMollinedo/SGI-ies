@@ -24,12 +24,12 @@ const OPCIONES_ESTADO: SelectOption[] = [
 ]
 
 const OPCIONES_INDICADOR: SelectOption[] = [
-  { value: '', label: 'Todos los signos' },
+  { value: '', label: 'Todos los indicadores' },
   { value: 'true', label: 'Entrada' },
   { value: 'false', label: 'Salida' },
 ]
 
-/** Barra de filtros del listado de tipos de movimiento: nombre, estado y signo. */
+/** Barra de filtros del listado de tipos de movimiento: nombre, estado e indicador. */
 export function FiltrosTiposMovimientoBar({
   nombre,
   onNombreChange,
@@ -61,7 +61,7 @@ export function FiltrosTiposMovimientoBar({
       <Select
         size="sm"
         options={OPCIONES_INDICADOR}
-        aria-label="Filtrar por signo"
+        aria-label="Filtrar por indicador"
         value={indicador}
         onChange={(evento) => onIndicadorChange(evento.target.value as FiltroIndicador)}
         className="w-50"

@@ -1,7 +1,10 @@
 import { httpClient } from '@/shared/api/httpClient'
 import type { PaginatedResponse } from '@/shared/types/api.types'
 import type {
+  CrearTipoMovimientoPayload,
+  EditarTipoMovimientoPayload,
   TipoMovimiento,
+  TipoMovimientoAuditado,
   TipoMovimientoDetalle,
   TiposMovimientoQuery,
 } from '../types/tipoMovimiento.types'
@@ -52,5 +55,25 @@ export async function obtenerTipoMovimiento(
     signal,
   })
 
+  return data
+}
+
+/** POST /tipos-movimiento — el alta es el único lugar donde se define el indicador. */
+export async function crearTipoMovimiento(
+  payload: CrearTipoMovimientoPayload
+): Promise<TipoMovimientoAuditado> {
+  const { data } = await httpClient.post<TipoMovimientoAuditado>('/tipos-movimiento', payload)
+  return data
+}
+
+/** PATCH /tipos-movimiento/:id — solo nombre y descripción; el indicador no viaja nunca. */
+export async function editarTipoMovimiento(
+  id: number,
+  payload: EditarTipoMovimientoPayload
+): Promise<TipoMovimientoAuditado> {
+  const { data } = await httpClient.patch<TipoMovimientoAuditado>(
+    `/tipos-movimiento/${id}`,
+    payload
+  )
   return data
 }

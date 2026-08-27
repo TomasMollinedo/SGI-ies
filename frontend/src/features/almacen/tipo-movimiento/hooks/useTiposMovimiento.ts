@@ -1,12 +1,17 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ApiErrorResponse, PaginatedResponse } from '@/shared/types/api.types'
 import {
   TIPOS_MOVIMIENTO_QUERY_KEYS,
+  crearTipoMovimiento,
+  editarTipoMovimiento,
   listarTiposMovimiento,
   obtenerTipoMovimiento,
 } from '../services/tiposMovimiento.service'
 import type {
+  CrearTipoMovimientoPayload,
+  EditarTipoMovimientoPayload,
   TipoMovimiento,
+  TipoMovimientoAuditado,
   TipoMovimientoDetalle,
   TiposMovimientoQuery,
 } from '../types/tipoMovimiento.types'
@@ -38,5 +43,36 @@ export function useTipoMovimientoDetalle(id: number | null) {
     // El `!` es seguro: con `id` en `null` la query no corre (`enabled`).
     queryFn: ({ signal }) => obtenerTipoMovimiento(id!, signal),
     enabled: id !== null,
+  })
+}
+
+/** Las mutaciones invalidan el listado; no muestran toasts — eso lo decide quien las use. */
+
+export function useCrearTipoMovimiento() {
+  const queryClient = useQueryClient()
+
+  return useMutation<TipoMovimientoAuditado, ApiErrorResponse, CrearTipoMovimientoPayload>({
+    mutationFn: crearTipoMovimiento,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tipos-movimiento', 'lista'] })
+    },
+  })
+}
+
+export function useEditarTipoMovimiento() {
+  const queryClient = useQueryClient()
+
+  return useMutation<
+    TipoMovimientoAuditado,
+    ApiErrorResponse,
+    { id: number; payload: EditarTipoMovimientoPayload }
+  >({
+    mutationFn: ({ id, payload }) => editarTipoMovimiento(id, payload),
+    onSuccess: (_data, variables) => {
+      // El listado se vuelve a pedir con la página y los filtros que estaban
+      // puestos, porque son parte de la query key.
+      queryClient.invalidateQueries({ queryKey: ['tipos-movimiento', 'lista'] })
+      queryClient.invalidateQueries({ queryKey: TIPOS_MOVIMIENTO_QUERY_KEYS.DETALLE(variables.id) })
+    },
   })
 }

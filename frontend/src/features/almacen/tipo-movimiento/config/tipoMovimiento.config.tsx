@@ -12,7 +12,7 @@ export const DEBOUNCE_BUSQUEDA = 400
 /** Texto de los campos opcionales que el backend devuelve en `null`. */
 export const SIN_DATO = '—'
 
-/** Etiqueta del signo del movimiento: si suma o resta stock. */
+/** Etiqueta del indicador del movimiento: si suma o resta stock. */
 export function etiquetaIndicador(indicadorEntrada: boolean): string {
   return indicadorEntrada ? 'Entrada' : 'Salida'
 }
