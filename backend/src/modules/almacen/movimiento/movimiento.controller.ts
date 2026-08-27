@@ -25,6 +25,7 @@ import { MovimientoService } from './movimiento.service';
 import { CreateMovimientoDto } from './dto/create-movimiento.dto';
 import { QueryMovimientoDto } from './dto/query-movimiento.dto';
 import {
+  MovimientoCreadoResponseDto,
   MovimientoListResponseDto,
   MovimientoResponseDto,
 } from './dto/movimiento-response.dto';
@@ -50,8 +51,9 @@ export class MovimientoController {
       'Registrar un movimiento de stock con su detalle. Actualiza el stock de cada ficha afectada (suma si el tipo es de entrada, resta si es de salida). Es todo o nada: si una línea falla, no se registra nada',
   })
   @ApiCreatedResponse({
-    description: 'Movimiento registrado, con su detalle completo',
-    type: MovimientoResponseDto,
+    description:
+      'Movimiento registrado, con su detalle completo y las alertas de reposición que haya disparado (alertasGeneradas viene vacío si ninguna ficha cruzó su umbral)',
+    type: MovimientoCreadoResponseDto,
   })
   @ApiBadRequestResponse({
     description:

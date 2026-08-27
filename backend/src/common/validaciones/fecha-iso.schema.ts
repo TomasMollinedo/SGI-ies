@@ -9,7 +9,8 @@ import { z } from 'zod';
  * es un string, que Swagger sí documenta, y la conversión a `Date` la hace el
  * `.transform()`.
  *
- * Acepta tanto fecha sola (`2026-08-01`) como fecha y hora (`2026-08-01T14:30:00Z`).
+ * Acepta tanto fecha sola (`2026-08-01`) como fecha y hora
+ * (`2026-08-01T14:30:00Z`).
  */
 export const fechaIsoSchema = z
   .union([z.iso.datetime({ offset: true }), z.iso.date()])

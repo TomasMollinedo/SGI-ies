@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 import { RolNombre } from '../src/common/enums/rol.enum';
+import { TipoAlertaNombre } from '../src/common/enums/tipo-alerta.enum';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -49,6 +50,14 @@ const usuariosDePrueba: { email: string; rol: RolNombre; dni: string }[] = [
     dni: '10000007',
   },
 ];
+
+// Descripción de cada tipo de alerta. Es un Record sobre el enum a propósito:
+// si mañana se suma un valor a TipoAlertaNombre, TypeScript obliga a
+// describirlo acá en vez de dejarlo sin seedear.
+const descripcionPorTipoAlerta: Record<TipoAlertaNombre, string> = {
+  [TipoAlertaNombre.REPOSICION]:
+    'Stock de una ficha cruzó su umbral mínimo (generada por el módulo de Movimientos)',
+};
 
 const tiposMovimiento = [
   { nombre: 'Entrada por compra', indicador_entrada: true },
@@ -115,6 +124,22 @@ async function main() {
       idUsuarioAdmin = usuario.id_usuario;
     }
   }
+
+  // TIPOALERTA sigue el mismo criterio que ROL: es una tabla de referencia que
+  // se llena desde un enum del código, no desde una pantalla, así que va por
+  // upsert contra el `nombre` unique.
+  await Promise.all(
+    Object.values(TipoAlertaNombre).map((nombre) =>
+      prisma.tIPOALERTA.upsert({
+        where: { nombre },
+        update: { descripcion: descripcionPorTipoAlerta[nombre] },
+        create: { nombre, descripcion: descripcionPorTipoAlerta[nombre] },
+      }),
+    ),
+  );
+  console.log(
+    `Seed de TIPOALERTA: ${Object.values(TipoAlertaNombre).length} registros procesados.`,
+  );
 
   // Catálogos base: se atribuyen al usuario admin de prueba como creador/actualizador.
   const auditoria = {

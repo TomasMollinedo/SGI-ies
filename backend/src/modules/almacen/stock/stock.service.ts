@@ -1,13 +1,18 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Prisma } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateStockDto } from './dto/create-stock.dto';
 import { UpdateStockDto } from './dto/update-stock.dto';
 import { QueryStockDto } from './dto/query-stock.dto';
+import { AlertaService } from '../../alerta/alerta.service';
+import { RolNombre } from '../../../common/enums/rol.enum';
+import { TipoAlertaNombre } from '../../../common/enums/tipo-alerta.enum';
 
 const ARTICULO_RESUMEN_SELECT = {
   id_articulo: true,
@@ -24,7 +29,79 @@ const DEPOSITO_RESUMEN_SELECT = {
 
 @Injectable()
 export class StockService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(StockService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly alertaService: AlertaService,
+  ) {}
+
+  /**
+   * Revisa periódicamente qué fichas activas quedaron por debajo de su umbral
+   * mínimo y genera la alerta de reposición correspondiente.
+   *
+   * Es el complemento del camino reactivo de MovimientoService: aquel solo se
+   * entera cuando alguien mueve stock. Este detecta condiciones que siguen
+   * vigentes aunque nadie vuelva a tocar la ficha — por ejemplo, una alerta
+   * que se marcó como atendida sin que nadie repusiera nada.
+   *
+   * De no apilar alertas mientras la condición sigue abierta se encarga la
+   * deduplicación por clave de AlertaService, así que este método puede correr
+   * las veces que haga falta sin generar ruido.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async escanearFichasBajoUmbral() {
+    // `cantidad < umbral_minimo` compara dos columnas de la misma fila, y el
+    // `where` de Prisma solo compara una columna contra un valor o una
+    // relación. Por eso se traen las fichas activas y se filtra en memoria en
+    // vez de bajar a SQL crudo: al volumen de fichas de este proyecto, la
+    // diferencia es irrelevante.
+    const fichasActivas = await this.prisma.sTOCK.findMany({
+      where: { estado: true },
+      include: { articulo: { select: { nombre: true } } },
+    });
+
+    const bajoUmbral = fichasActivas.filter(
+      (ficha) => ficha.cantidad < ficha.umbral_minimo,
+    );
+
+    let alertasNuevas = 0;
+
+    for (const ficha of bajoUmbral) {
+      try {
+        const { creada } = await this.alertaService.crear({
+          tipoAlertaNombre: TipoAlertaNombre.REPOSICION,
+          rolDestinatario: RolNombre.RESPONSABLE_ALMACEN,
+          mensaje: `Stock de "${ficha.articulo.nombre}" sigue bajo el umbral (${ficha.cantidad} unidades, umbral: ${ficha.umbral_minimo})`,
+          datos: {
+            stockId: ficha.id_stock,
+            articuloId: ficha.FK_articulo,
+            stockActual: ficha.cantidad,
+            umbralMinimo: ficha.umbral_minimo,
+          },
+          // Idéntica a la que arma MovimientoService: si no coincidieran, cada
+          // camino alertaría por su cuenta sobre la misma ficha.
+          claveDeduplicacion: `${TipoAlertaNombre.REPOSICION}-${ficha.id_stock}`,
+        });
+
+        if (creada) {
+          alertasNuevas++;
+        }
+      } catch (error) {
+        // Una ficha que falla no puede cortar el escaneo de las demás.
+        this.logger.error(
+          `No se pudo generar la alerta de reposición para la ficha ${ficha.id_stock} durante el escaneo`,
+          error,
+        );
+      }
+    }
+
+    this.logger.log(
+      `Escaneo de stock: ${bajoUmbral.length} fichas bajo umbral, ${alertasNuevas} alertas nuevas.`,
+    );
+
+    return { fichasBajoUmbral: bajoUmbral.length, alertasNuevas };
+  }
 
   async create(dto: CreateStockDto, usuarioId: number) {
     await this.validarArticuloExiste(dto.FK_articulo);

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
-import { fechaIsoSchema } from './fecha-iso.schema';
+import { fechaIsoSchema } from '../../../../common/validaciones/fecha-iso.schema';
 
 /**
  * Filtros del listado de movimientos. `fechaDesde`/`fechaHasta` filtran por
