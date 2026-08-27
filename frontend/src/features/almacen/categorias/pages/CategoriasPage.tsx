@@ -56,35 +56,36 @@ export function CategoriasPage() {
   const reactivar = useDarAltaCategoria()
 
   function manejarSubmitFormulario(payload: CategoriaFormOutput) {
-    const datos = {
-      nombre: payload.nombre,
-      descripcion: payload.descripcion || undefined,
-    }
+  const descripcion = payload.descripcion?.trim() ?? ''
 
-    if (formulario?.modo === 'crear') {
-      crear.mutate(datos, {
+  if (formulario?.modo === 'crear') {
+    crear.mutate(
+      { nombre: payload.nombre, ...(descripcion ? { descripcion } : {}) },
+      {
         onSuccess: () => {
           toast.success('Categoría creada correctamente.')
           setFormulario(null)
         },
         onError: (error) => toast.error(formatearMensajeError(error.message)),
-      })
-      return
-    }
-
-    if (formulario?.modo === 'editar') {
-      editar.mutate(
-        { id: formulario.categoria.id_categoria, input: datos },
-        {
-          onSuccess: () => {
-            toast.success('Categoría editada correctamente.')
-            setFormulario(null)
-          },
-          onError: (error) => toast.error(formatearMensajeError(error.message)),
-        }
-      )
-    }
+      }
+    )
+    return
   }
+
+  if (formulario?.modo === 'editar') {
+    editar.mutate(
+      { id: formulario.categoria.id_categoria, input: { nombre: payload.nombre, descripcion } },
+      {
+        onSuccess: () => {
+          toast.success('Categoría editada correctamente.')
+          setFormulario(null)
+        },
+        onError: (error) => toast.error(formatearMensajeError(error.message)),
+      }
+    )
+  }
+}
+
 
   function manejarConfirmar() {
     if (!confirmacion) return
