@@ -357,7 +357,16 @@ export function MarcasPage() {
         error={errorFormulario}
       />
 
-      <MarcaDetalleModal idMarca={detalleId} onClose={cerrarDetalle} />
+      <MarcaDetalleModal
+        idMarca={detalleId}
+        onClose={cerrarDetalle}
+        // Mismo formulario y mismo handler que el lápiz de la fila: el detalle
+        // se cierra y queda abierto el de edición con esa marca.
+        onEditar={(marca) => {
+          cerrarDetalle()
+          abrirFormulario({ modo: 'editar', marca })
+        }}
+      />
 
       <ConfirmDialog
         open={confirmacion !== null}

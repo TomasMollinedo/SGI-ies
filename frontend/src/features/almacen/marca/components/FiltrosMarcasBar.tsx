@@ -29,7 +29,7 @@ export function FiltrosMarcasBar({
       <Input
         size="sm"
         type="search"
-        placeholder="Buscar por código o nombre"
+        placeholder="Buscar por nombre"
         aria-label="Buscar marcas"
         iconLeft={<Search />}
         value={nombre}
