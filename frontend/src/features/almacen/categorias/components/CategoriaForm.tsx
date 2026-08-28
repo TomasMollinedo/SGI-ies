@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, Pencil, Tag, X } from 'lucide-react'
+import { Check, Pencil, Tag } from 'lucide-react'
 import { Modal } from '@/shared/components/common/Modal'
 import { Button } from '@/shared/components/ui/Button'
 import { Input } from '@/shared/components/ui/Input'

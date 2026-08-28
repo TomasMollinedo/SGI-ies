@@ -17,17 +17,26 @@ import type {
   MovimientoFormOutput,
   MovimientoFormValues,
 } from '../types/movimiento.schema'
+import { ahoraParaInputLocal } from '../utils/fechaIso'
 
 const ID_FORM = 'form-movimiento'
 
 const LINEA_VACIA: LineaMovimientoFormValues = { FK_Stock: '', cantidad: 1, observacion: '' }
 
-const VALORES_INICIALES: MovimientoFormValues = {
-  FK_TipoMovimiento: '',
-  FK_Deposito: '',
-  referencia: '',
-  observaciones: '',
-  detalle: [LINEA_VACIA],
+/**
+ * La fecha arranca en el momento en que se abre el formulario, que es el caso
+ * habitual, pero el usuario puede corregirla para cargar un movimiento que pasó
+ * antes. Se recalcula en cada apertura, no una sola vez al importar el módulo.
+ */
+function valoresIniciales(): MovimientoFormValues {
+  return {
+    fecha_movimiento: ahoraParaInputLocal(),
+    FK_TipoMovimiento: '',
+    FK_Deposito: '',
+    referencia: '',
+    observaciones: '',
+    detalle: [LINEA_VACIA],
+  }
 }
 
 interface MovimientoFormProps {
@@ -65,7 +74,7 @@ export function MovimientoForm({ open, onClose, onSubmit, loading = false }: Mov
     formState: { errors },
   } = useForm<MovimientoFormValues, unknown, MovimientoFormOutput>({
     resolver: zodResolver(movimientoFormSchema),
-    defaultValues: VALORES_INICIALES,
+    defaultValues: valoresIniciales(),
   })
 
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'detalle' })
@@ -87,7 +96,7 @@ export function MovimientoForm({ open, onClose, onSubmit, loading = false }: Mov
   // Cada vez que se abre, el form arranca limpio.
   useEffect(() => {
     if (!open) return
-    reset(VALORES_INICIALES)
+    reset(valoresIniciales())
     depositoAnteriorRef.current = ''
   }, [open, reset])
 
@@ -128,6 +137,22 @@ export function MovimientoForm({ open, onClose, onSubmit, loading = false }: Mov
       }
     >
       <form id={ID_FORM} onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+        {/* La fecha del movimiento es un dato del negocio y la carga el
+            usuario: es la que se ve en el listado. El momento en que se cargó
+            el registro lo guarda el backend aparte (hora_creacion) y sale en la
+            trazabilidad del detalle. */}
+        <Input
+          label="Fecha del movimiento"
+          required
+          type="datetime-local"
+          // El backend rechaza las fechas futuras: el navegador ya no deja
+          // elegirlas, y el schema lo vuelve a validar por las dudas.
+          max={ahoraParaInputLocal()}
+          helperText="Cuándo ocurrió el movimiento. Por defecto, ahora."
+          error={errors.fecha_movimiento?.message}
+          {...register('fecha_movimiento')}
+        />
+
         <div className="flex items-end gap-3">
           <Select
             label="Tipo de movimiento"

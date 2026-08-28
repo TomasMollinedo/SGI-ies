@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { aIsoConOffset, desdeValorLocal, esValorLocalValido } from '../utils/fechaIso'
 
 /** Límites calcados de `lineaMovimientoSchema` (create-movimiento.dto.ts). */
 export const lineaMovimientoFormSchema = z.object({
@@ -21,6 +22,25 @@ export const lineaMovimientoFormSchema = z.object({
 /** Límites calcados de `createMovimientoSchema` (create-movimiento.dto.ts). */
 export const movimientoFormSchema = z
   .object({
+    /**
+     * La fecha en que ocurrió el movimiento, que es la que se ve en el listado.
+     * No se confunde con `hora_creacion`, el momento en que se cargó el
+     * registro: esa la pone el backend y es parte de la trazabilidad.
+     *
+     * Entra como valor local del `<input type="datetime-local">` y sale como
+     * ISO 8601 con offset, que es lo que espera el backend.
+     */
+    fecha_movimiento: z
+      .string()
+      .min(1, 'La fecha del movimiento es obligatoria')
+      .refine(esValorLocalValido, 'Ingresá una fecha válida')
+      // El backend rechaza las fechas futuras: se avisa acá para no mandar un
+      // request que ya sabemos que va a fallar.
+      .refine(
+        (valor) => desdeValorLocal(valor) <= new Date(),
+        'La fecha del movimiento no puede ser futura'
+      )
+      .transform((valor) => aIsoConOffset(desdeValorLocal(valor))),
     FK_TipoMovimiento: z
       .string()
       .min(1, 'Elegí un tipo de movimiento')
