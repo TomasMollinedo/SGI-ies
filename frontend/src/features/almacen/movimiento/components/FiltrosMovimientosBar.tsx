@@ -1,12 +1,20 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { FilterX } from 'lucide-react'
 import { useArticulos } from '@/features/almacen/artículos/hooks/useArticulos'
+import { formatearCodigoArticulo } from '@/features/almacen/artículos/utils/codigoArticulo'
 import { useDepositos } from '@/features/almacen/deposito/hooks/useDepositos'
+import { formatearCodigoDeposito } from '@/features/almacen/deposito/utils/codigoDeposito'
 import { useTiposMovimiento } from '@/features/almacen/tipo-movimiento/hooks/useTiposMovimiento'
 import { Button } from '@/shared/components/ui/Button'
+import { Combobox } from '@/shared/components/ui/Combobox'
+import type { ComboboxOption } from '@/shared/components/ui/Combobox'
 import { Input } from '@/shared/components/ui/Input'
 import { Select } from '@/shared/components/ui/Select'
 import type { SelectOption } from '@/shared/components/ui/Select'
+
+/** Resultados que se muestran en cada desplegable de búsqueda. */
+const LIMITE_BUSQUEDA = 10
 
 interface FiltrosMovimientosBarProps {
   FK_Deposito: string
@@ -31,9 +39,14 @@ interface FiltrosMovimientosBarProps {
  * Barra de filtros del historial de movimientos: depósito, tipo, artículo y
  * rango de fechas. Todos son opcionales y se combinan entre sí.
  *
- * Se arma en dos filas: arriba los selects —con las acciones de la pantalla
- * pegadas al extremo derecho— y abajo el rango de fechas con el botón de
- * limpiar. En pantallas angostas cada fila envuelve por su cuenta.
+ * Depósito y artículo son `<Combobox>` con búsqueda server-side —igual que el
+ * artículo en el alta de una ficha de stock—, porque son catálogos que crecen y
+ * no entran cómodos en un desplegable. Borrar el texto del campo deshace la
+ * selección, que es la forma de volver a "todos".
+ *
+ * Se arma en dos filas: arriba los filtros de catálogo —con las acciones de la
+ * pantalla pegadas al extremo derecho— y abajo el rango de fechas con el botón
+ * de limpiar. En pantallas angostas cada fila envuelve por su cuenta.
  */
 export function FiltrosMovimientosBar({
   FK_Deposito,
@@ -51,19 +64,63 @@ export function FiltrosMovimientosBar({
   hayFiltros,
   acciones,
 }: FiltrosMovimientosBarProps) {
-  // Solo los activos: no tiene sentido filtrar el historial por algo dado de
-  // baja. El límite de 100 es el máximo que acepta el backend por página.
-  const { data: depositos } = useDepositos({ estado: true, limit: 100 })
-  const { data: tipos } = useTiposMovimiento({ estado: true, limit: 100 })
-  const { data: articulos } = useArticulos({ estado: true, limit: 100 })
+  const [busquedaDeposito, setBusquedaDeposito] = useState('')
+  const [busquedaArticulo, setBusquedaArticulo] = useState('')
 
-  const opcionesDeposito: SelectOption[] = [
-    { value: '', label: 'Todos los depósitos' },
-    ...(depositos?.data.map((deposito) => ({
-      value: String(deposito.id_deposito),
-      label: deposito.nombre,
-    })) ?? []),
+  const { data: tipos } = useTiposMovimiento({ estado: true, limit: 100 })
+
+  // Sin `estado` el backend devuelve activos y dados de baja: el historial
+  // incluye movimientos contra depósitos que después se dieron de baja, y hay
+  // que poder filtrarlos igual.
+  const { data: depositos, isFetching: buscandoDepositos } = useDepositos({
+    nombre: busquedaDeposito.trim() || undefined,
+    limit: LIMITE_BUSQUEDA,
+  })
+
+  // El listado de artículos es el más grande de los tres: recién se pide con 3+
+  // caracteres, igual que en el alta de stock (el propio `Combobox` tampoco
+  // llama a `onSearch` antes de eso).
+  const buscarArticulos = busquedaArticulo.trim().length >= 3
+
+  // GET /articulos es el único listado de Almacén que, sin el parámetro
+  // `estado`, devuelve solo los activos —y no acepta un valor para "todos"—,
+  // así que los dados de baja hay que pedirlos aparte y unirlos acá. El día que
+  // el backend permita omitirlo, esto vuelve a ser una sola llamada.
+  const { data: articulosActivos, isFetching: buscandoActivos } = useArticulos(
+    { busqueda: busquedaArticulo, estado: true, limit: LIMITE_BUSQUEDA },
+    { enabled: buscarArticulos }
+  )
+  const { data: articulosDeBaja, isFetching: buscandoDeBaja } = useArticulos(
+    { busqueda: busquedaArticulo, estado: false, limit: LIMITE_BUSQUEDA },
+    { enabled: buscarArticulos }
+  )
+
+  const buscandoArticulos = buscandoActivos || buscandoDeBaja
+  const articulosEncontrados = [
+    ...(articulosActivos?.data ?? []),
+    ...(articulosDeBaja?.data ?? []),
   ]
+
+  const opcionesDeposito: ComboboxOption[] = (depositos?.data ?? []).map((deposito) => ({
+    value: String(deposito.id_deposito),
+    label: deposito.nombre,
+    description: [
+      formatearCodigoDeposito(deposito.id_deposito),
+      deposito.es_obrador ? 'Obrador' : 'Depósito central',
+      // Se avisa cuál está dado de baja: se puede elegir igual, pero que no
+      // parezca que sigue operativo.
+      ...(deposito.estado ? [] : ['Dado de baja']),
+    ].join(' · '),
+  }))
+
+  const opcionesArticulo: ComboboxOption[] = articulosEncontrados.map((articulo) => ({
+    value: String(articulo.id_articulo),
+    label: articulo.nombre,
+    description: [
+      formatearCodigoArticulo(articulo.id_articulo),
+      ...(articulo.estado ? [] : ['Dado de baja']),
+    ].join(' · '),
+  }))
 
   const opcionesTipo: SelectOption[] = [
     { value: '', label: 'Todos los tipos de movimiento' },
@@ -73,42 +130,54 @@ export function FiltrosMovimientosBar({
     })) ?? []),
   ]
 
-  const opcionesArticulo: SelectOption[] = [
-    { value: '', label: 'Todos los artículos' },
-    ...(articulos?.data.map((articulo) => ({
-      value: String(articulo.id_articulo),
-      label: articulo.nombre,
-    })) ?? []),
-  ]
+  const hayMasDepositos = (depositos?.meta.total ?? 0) > opcionesDeposito.length
+  const totalArticulos =
+    (articulosActivos?.meta.total ?? 0) + (articulosDeBaja?.meta.total ?? 0)
+  const hayMasArticulos = totalArticulos > opcionesArticulo.length
 
   return (
     <div className="flex w-full flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <Select
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <Combobox
             size="sm"
-            options={opcionesDeposito}
-            aria-label="Filtrar por depósito"
+            label="Depósito"
+            placeholder="Todos los depósitos"
+            // Catálogo chico: con una letra ya vale la pena mostrar resultados.
+            minChars={1}
             value={FK_Deposito}
-            onChange={(evento) => onFKDepositoChange(evento.target.value)}
+            onChange={onFKDepositoChange}
+            options={opcionesDeposito}
+            onSearch={setBusquedaDeposito}
+            loading={buscandoDepositos}
+            hasMoreResults={hayMasDepositos}
+            emptyText="No se encontraron depósitos"
             className="w-60"
           />
+
           <Select
             size="sm"
+            label="Tipo de movimiento"
             options={opcionesTipo}
-            aria-label="Filtrar por tipo de movimiento"
             value={FK_TipoMovimiento}
             onChange={(evento) => onFKTipoMovimientoChange(evento.target.value)}
             // Más ancho que los otros dos: "Todos los tipos de movimiento" no
             // entra en w-60 y se corta contra la flecha del select.
             className="w-72"
           />
-          <Select
+
+          <Combobox
             size="sm"
-            options={opcionesArticulo}
-            aria-label="Filtrar por artículo"
+            label="Artículo"
+            placeholder="Todos los artículos"
+            minChars={3}
             value={FK_articulo}
-            onChange={(evento) => onFKArticuloChange(evento.target.value)}
+            onChange={onFKArticuloChange}
+            options={opcionesArticulo}
+            onSearch={setBusquedaArticulo}
+            loading={buscandoArticulos}
+            hasMoreResults={hayMasArticulos}
+            emptyText="No se encontraron artículos"
             className="w-60"
           />
         </div>
