@@ -5,11 +5,12 @@ import { PATHS } from '@/app/router/paths'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { useAuthUser } from '../hooks/useAuthUser'
 import { useLogin } from '../hooks/useLogin'
-import { User, Lock } from 'lucide-react'
+import { User, Lock, Eye, EyeOff } from 'lucide-react'
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [mostrarPassword, setMostrarPassword] = useState(false)
   const { data: usuario, isPending: verificandoSesion } = useAuthUser()
   const { mutate: iniciarSesion, isPending: iniciandoSesion, error } = useLogin()
 
@@ -70,14 +71,22 @@ export function LoginPage() {
               <input
                 id="password"
                 name="password"
-                type="password"
+                type={mostrarPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 required
                 placeholder="********"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="text-content placeholder:text-content-muted w-full bg-transparent text-sm outline-none"
+                className="text-content placeholder:text-content-muted w-full bg-transparent text-sm outline-none [&::-ms-reveal]:hidden"
               />
+              <button
+                type="button"
+                onClick={() => setMostrarPassword((valor) => !valor)}
+                aria-label={mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                className="text-content-muted hover:text-content shrink-0"
+              >
+                {mostrarPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
           </div>
 
