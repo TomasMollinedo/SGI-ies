@@ -99,7 +99,9 @@ export function FiltrosMovimientosBar({
             aria-label="Filtrar por tipo de movimiento"
             value={FK_TipoMovimiento}
             onChange={(evento) => onFKTipoMovimientoChange(evento.target.value)}
-            className="w-60"
+            // Más ancho que los otros dos: "Todos los tipos de movimiento" no
+            // entra en w-60 y se corta contra la flecha del select.
+            className="w-72"
           />
           <Select
             size="sm"

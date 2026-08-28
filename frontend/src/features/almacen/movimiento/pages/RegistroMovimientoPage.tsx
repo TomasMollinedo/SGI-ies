@@ -185,40 +185,49 @@ export function RegistroMovimientoPage() {
         />
       ) : (
         <>
-          {/* El skeleton va adentro de la tabla y no como spinner de pantalla
-              completa: así los filtros de arriba nunca saltan de lugar. */}
-          <DataTable
-            data={movimientos}
-            columns={columnas}
-            obtenerId={(item) => String(item.id_movimiento)}
-            loading={isLoading}
-            ariaLabel="Movimientos"
-            emptyState={
-              hayFiltros ? (
-                <EmptyState
-                  titulo="No se encontraron movimientos con esos filtros"
-                  descripcion="Probá ampliar el rango de fechas o quitar algún filtro."
-                />
-              ) : (
-                <EmptyState
-                  titulo="Todavía no hay movimientos registrados"
-                  descripcion="Registrá el primero con «Nuevo movimiento»."
-                />
-              )
-            }
-          />
-
-          {/* Sin `className`: el pie queda como en Categorías, con el contador
-              de resultados a la izquierda y los controles a la derecha. */}
-          {meta && (
-            <Pagination
-              currentPage={meta.page}
-              totalPages={totalPaginas}
-              totalItems={meta.total}
-              pageSize={meta.limit}
-              onPageChange={setPage}
-              disabled={isFetching}
+          {/* Sin resultados no se dibuja la tabla —ni sus encabezados ni el
+              fondo blanco—, igual que en Marcas: queda solo el mensaje. */}
+          {!isLoading && movimientos.length === 0 && (
+            <EmptyState
+              titulo={
+                hayFiltros
+                  ? 'No se encontraron movimientos con esos filtros'
+                  : 'Todavía no hay movimientos registrados'
+              }
+              descripcion={
+                hayFiltros
+                  ? 'Probá ampliar el rango de fechas o quitar algún filtro.'
+                  : 'Registrá el primero con «Nuevo movimiento».'
+              }
             />
+          )}
+
+          {(isLoading || movimientos.length > 0) && (
+            <>
+              {/* El skeleton va adentro de la tabla y no como spinner de
+                  pantalla completa: así los filtros de arriba nunca saltan. */}
+              <DataTable
+                data={movimientos}
+                columns={columnas}
+                obtenerId={(item) => String(item.id_movimiento)}
+                loading={isLoading}
+                ariaLabel="Movimientos"
+              />
+
+              {/* Sin `className`: el pie queda como en Categorías, con el
+                  contador de resultados a la izquierda y los controles a la
+                  derecha. */}
+              {meta && (
+                <Pagination
+                  currentPage={meta.page}
+                  totalPages={totalPaginas}
+                  totalItems={meta.total}
+                  pageSize={meta.limit}
+                  onPageChange={setPage}
+                  disabled={isFetching}
+                />
+              )}
+            </>
           )}
         </>
       )}
