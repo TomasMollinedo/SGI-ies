@@ -19,8 +19,8 @@ interface FiltrosArticulosBarProps {
 
 const OPCIONES_ESTADO: SelectOption[] = [
   { value: '', label: 'Todos los estados' },
-  { value: 'true', label: 'Activo' },
-  { value: 'false', label: 'Inactivo' },
+  { value: 'true', label: 'Activos' },
+  { value: 'false', label: 'Inactivos' },
 ]
 
 /** Barra de filtros del listado de artículos: búsqueda, categoría, marca y estado. */

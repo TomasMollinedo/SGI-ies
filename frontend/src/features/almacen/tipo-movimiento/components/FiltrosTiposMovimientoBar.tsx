@@ -15,8 +15,8 @@ interface FiltrosTiposMovimientoBarProps {
 
 const OPCIONES_ESTADO: SelectOption[] = [
   { value: '', label: 'Todos los estados' },
-  { value: 'true', label: 'Activo' },
-  { value: 'false', label: 'Inactivo' },
+  { value: 'true', label: 'Activos' },
+  { value: 'false', label: 'Inactivos' },
 ]
 
 const OPCIONES_INDICADOR: SelectOption[] = [
@@ -60,7 +60,7 @@ export function FiltrosTiposMovimientoBar({
         aria-label="Filtrar por indicador"
         value={indicador}
         onChange={(evento) => onIndicadorChange(evento.target.value as FiltroIndicador)}
-        className="w-50"
+        className="w-60"
       />
     </div>
   )
