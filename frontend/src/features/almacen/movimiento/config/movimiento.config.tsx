@@ -30,7 +30,15 @@ export function nombreCompleto(usuario: UsuarioResumen | null | undefined): stri
  * necesita sus handlers.
  */
 export const COLUMNAS_MOVIMIENTOS: DataTableColumn<Movimiento>[] = [
-  { key: 'numero', label: 'N°', render: (item) => formatearCodigoMovimiento(item.id_movimiento) },
+  {
+    key: 'codigo',
+    label: 'Código',
+    // `whitespace-nowrap` para que "MOV-6" no se parta en dos líneas cuando la
+    // columna queda angosta.
+    render: (item) => (
+      <span className="whitespace-nowrap">{formatearCodigoMovimiento(item.id_movimiento)}</span>
+    ),
+  },
   {
     key: 'fecha',
     label: 'Fecha y Hora',

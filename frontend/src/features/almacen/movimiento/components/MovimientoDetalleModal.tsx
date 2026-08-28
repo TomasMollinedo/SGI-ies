@@ -68,10 +68,7 @@ export function MovimientoDetalleModal({ idMovimiento, onClose }: MovimientoDeta
       ) : movimiento ? (
         <div className="flex flex-col gap-6">
           <div className="flex flex-col">
-            <DetailRow
-              label="N° de movimiento"
-              value={formatearCodigoMovimiento(movimiento.id_movimiento)}
-            />
+            <DetailRow label="Código" value={formatearCodigoMovimiento(movimiento.id_movimiento)} />
             <DetailRow
               label="Fecha y Hora"
               value={formatearFechaHora(movimiento.fecha_movimiento)}
