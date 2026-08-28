@@ -21,6 +21,7 @@ export const PATHS = {
       TIPOS: '/almacen/movimientos/tipos',
     },
   },
+  ALERTAS: { ROOT: '/alertas' },
   //COMPRAS: { ROOT: '/compras' },
   //TESORERIA: { ROOT: '/tesoreria' },
   //PROYECTOS: { ROOT: '/proyectos' },
