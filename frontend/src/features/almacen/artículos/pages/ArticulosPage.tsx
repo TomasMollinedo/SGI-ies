@@ -377,7 +377,14 @@ export function ArticulosPage() {
         error={errorFormulario}
       />
 
-      <ArticuloDetalleModal idArticulo={detalleId} onClose={cerrarDetalle} />
+      <ArticuloDetalleModal
+        idArticulo={detalleId}
+        onClose={cerrarDetalle}
+        onEditar={(articulo) => {
+          cerrarDetalle()
+          abrirFormulario({ modo: 'editar', articulo })
+        }}
+      />
 
       <ConfirmDialog
         open={confirmacion !== null}
