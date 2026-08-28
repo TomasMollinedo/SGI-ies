@@ -71,7 +71,7 @@ export class ArticuloController {
   @Get()
   @ApiOperation({
     summary:
-      'Listar artículos (por defecto solo los activos), con filtros por categoría, marca, estado y búsqueda por código (id) o nombre',
+      'Listar artículos, con filtros por categoría, marca, estado y búsqueda por código (id) o nombre',
   })
   @ApiQuery({
     name: 'busqueda',
@@ -100,7 +100,7 @@ export class ArticuloController {
     required: false,
     enum: ['true', 'false'],
     description:
-      'Filtra por activos (true) o dados de baja (false). Sin este parámetro, trae solo los activos.',
+      'Filtra por activos (true) o dados de baja (false). Sin este parámetro, trae ambos.',
   })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
