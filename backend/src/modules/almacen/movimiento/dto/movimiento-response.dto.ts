@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
+import { alertaResponseSchema } from '../../../alerta/dto/alerta-response.dto';
 
 const tipoMovimientoResumenSchema = z.object({
   id_tipo_movimiento: z.number(),
@@ -68,6 +69,23 @@ export const movimientoResponseSchema = z.object({
 
 export class MovimientoResponseDto extends createZodDto(
   movimientoResponseSchema,
+) {}
+
+/**
+ * Respuesta del POST: el movimiento más las alertas que su registro disparó.
+ *
+ * `alertasGeneradas` solo aparece acá, no en el listado ni en el detalle por
+ * id: son alertas de ESTE registro puntual, y una vez creadas se consultan por
+ * el módulo de Alertas (GET /alertas), no volviendo a pedir el movimiento.
+ * Viene vacío cuando ninguna línea cruzó su umbral mínimo — o cuando el
+ * módulo de Alertas falló, que no invalida el movimiento.
+ */
+export const movimientoCreadoResponseSchema = movimientoResponseSchema.extend({
+  alertasGeneradas: z.array(alertaResponseSchema),
+});
+
+export class MovimientoCreadoResponseDto extends createZodDto(
+  movimientoCreadoResponseSchema,
 ) {}
 
 /**

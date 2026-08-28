@@ -20,9 +20,8 @@ export const TIPOS_MOVIMIENTO_QUERY_KEYS = {
  *
  * `estado` e `indicador_entrada` viajan como `'true'`/`'false'` porque el
  * backend los valida como enum de strings, no como booleanos. Los que quedan en
- * `undefined` axios no los manda: sin `indicador_entrada` el backend trae
- * entradas y salidas, pero sin `estado` trae solo los activos — por eso el
- * listado siempre manda estado.
+ * `undefined` axios no los manda, y sin ellos el backend no filtra: trae los
+ * activos y los dados de baja, y las entradas y las salidas.
  */
 export async function listarTiposMovimiento(
   filtros: TiposMovimientoQuery,

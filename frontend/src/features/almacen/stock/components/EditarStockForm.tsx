@@ -8,6 +8,7 @@ import { Input } from '@/shared/components/ui/Input'
 import { editarStockFormSchema } from '../types/stock.schema'
 import type { EditarStockFormOutput, EditarStockFormValues } from '../types/stock.schema'
 import type { Stock } from '../types/stock.types'
+import { formatearCodigoStock } from '../utils/codigoStock'
 
 const ID_FORM = 'form-stock'
 
@@ -35,16 +36,20 @@ export function EditarStockForm({
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty, isValid },
   } = useForm<EditarStockFormValues, unknown, EditarStockFormOutput>({
     resolver: zodResolver(editarStockFormSchema),
     defaultValues: valoresIniciales(stock),
+    // Necesario para que "Guardar" sepa en todo momento si el form es válido.
+    mode: 'onChange',
   })
 
   // Cada vez que se abre para editar otro registro el form arranca con sus valores.
   useEffect(() => {
     if (open) reset(valoresIniciales(stock))
   }, [open, stock, reset])
+
+  const puedeGuardar = isValid && isDirty
 
   return (
     <Modal
@@ -57,7 +62,14 @@ export function EditarStockForm({
           <Button variant="error" icon={<X />} onClick={onClose} disabled={loading}>
             Cancelar
           </Button>
-          <Button variant="success" icon={<Check />} type="submit" form={ID_FORM} loading={loading}>
+          <Button
+            variant="success"
+            icon={<Check />}
+            type="submit"
+            form={ID_FORM}
+            loading={loading}
+            disabled={!puedeGuardar}
+          >
             Guardar
           </Button>
         </>
@@ -65,7 +77,14 @@ export function EditarStockForm({
     >
       <form id={ID_FORM} onSubmit={handleSubmit(onSubmit)}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Input
+            label="Código"
+            value={stock ? formatearCodigoStock(stock.id_stock) : ''}
+            readOnly
+            helperText="Generado por el sistema"
+          />
           <Input label="Artículo" value={stock?.articulo.nombre ?? ''} readOnly />
+
           <Input label="Depósito" value={stock?.deposito.nombre ?? ''} readOnly />
           <Input
             label="Cantidad actual"
@@ -73,7 +92,6 @@ export function EditarStockForm({
             readOnly
             helperText="Se actualiza con los movimientos de stock"
           />
-
           <Input
             label="Umbral mínimo"
             type="number"

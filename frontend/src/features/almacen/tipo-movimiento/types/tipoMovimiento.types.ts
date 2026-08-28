@@ -51,17 +51,11 @@ export interface EditarTipoMovimientoPayload {
   descripcion?: string
   indicador_entrada?: never
 }
-
-/**
- * Valor del filtro de estado tal como lo maneja el `<Select>`. Incluye "Todos"
- * (string vacío): sin el parámetro el backend trae tanto activos como dados
- * de baja, igual que el resto de los catálogos de Almacén.
- */
 export type FiltroEstado = '' | 'true' | 'false'
 
 /**
- * Valor del filtro de indicador. Acá sí hay "Todos" (string vacío): sin el parámetro
- * el backend trae entradas y salidas.
+ * Valor del filtro de indicador, con el mismo criterio que `FiltroEstado`: sin
+ * el parámetro el backend trae entradas y salidas.
  */
 export type FiltroIndicador = '' | 'true' | 'false'
 

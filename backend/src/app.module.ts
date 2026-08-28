@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { ZodValidationPipe } from 'nestjs-zod';
+import { ScheduleModule } from '@nestjs/schedule';
 import { validateEnv } from './config/env.schema';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
@@ -15,10 +16,14 @@ import { StockModule } from './modules/almacen/stock/stock.module';
 import { ArticuloModule } from './modules/almacen/articulo/articulo.module';
 import { TipoMovimientoModule } from './modules/almacen/tipo-movimiento/tipo-movimiento.module';
 import { MovimientoModule } from './modules/almacen/movimiento/movimiento.module';
+import { AlertaModule } from './modules/alerta/alerta.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
+    // Habilita los @Cron de toda la app (hoy, el escaneo de stock bajo
+    // umbral de StockService). Sin esto ningún cron se activa.
+    ScheduleModule.forRoot(),
     PrismaModule,
     HealthModule,
     MarcaModule,
@@ -30,6 +35,7 @@ import { MovimientoModule } from './modules/almacen/movimiento/movimiento.module
     ArticuloModule,
     TipoMovimientoModule,
     MovimientoModule,
+    AlertaModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },

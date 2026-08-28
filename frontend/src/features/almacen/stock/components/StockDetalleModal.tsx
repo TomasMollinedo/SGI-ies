@@ -8,6 +8,7 @@ import { Button } from '@/shared/components/ui/Button'
 import { Spinner } from '@/shared/components/ui/Spinner'
 import { useStockDetalle } from '../hooks/useStock'
 import type { Stock } from '../types/stock.types'
+import { formatearCodigoStock } from '../utils/codigoStock'
 
 interface StockDetalleModalProps {
   id: number | null
@@ -51,13 +52,13 @@ export function StockDetalleModal({ id, onClose, onEditar }: StockDetalleModalPr
 
       {!isLoading && !isError && stock && (
         <div className="flex flex-col">
-          <DetailRow label="Código" value={stock.id_stock} />
+          <DetailRow label="Código" value={formatearCodigoStock(stock.id_stock)} />
           <DetailRow label="Artículo" value={stock.articulo.nombre} />
           <DetailRow label="Depósito" value={stock.deposito.nombre} />
           <DetailRow label="Tipo" value={stock.deposito.es_obrador ? 'Obrador' : 'Depósito'} />
           <DetailRow label="Cantidad" value={stock.cantidad} />
           <DetailRow label="Umbral mínimo" value={stock.umbral_minimo} />
-          <DetailRow label="Observaciones" value={stock.observaciones ?? '—'} />
+          <DetailRow label="Observaciones" value={stock.observaciones || '—'} />
           <DetailRow
             label="Estado"
             value={

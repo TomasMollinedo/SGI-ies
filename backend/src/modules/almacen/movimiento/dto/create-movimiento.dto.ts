@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
-import { fechaIsoSchema } from './fecha-iso.schema';
+import { fechaIsoSchema } from '../../../../common/validaciones/fecha-iso.schema';
 
 /**
  * Una línea del detalle. Referencia una ficha de stock ya existente

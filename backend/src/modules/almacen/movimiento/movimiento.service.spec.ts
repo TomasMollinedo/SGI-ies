@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import {
   BadRequestException,
   ConflictException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { MovimientoService } from './movimiento.service';
@@ -11,6 +12,9 @@ import {
   createMovimientoSchema,
 } from './dto/create-movimiento.dto';
 import { QueryMovimientoDto } from './dto/query-movimiento.dto';
+import { AlertaService } from '../../alerta/alerta.service';
+import { RolNombre } from '../../../common/enums/rol.enum';
+import { TipoAlertaNombre } from '../../../common/enums/tipo-alerta.enum';
 
 /** Argumento con el que se llamó a un mock de Prisma, ya tipado. */
 type ArgumentoPrisma = {
@@ -39,6 +43,7 @@ describe('MovimientoService', () => {
     };
     $transaction: jest.Mock;
   };
+  let alertaService: { crear: jest.Mock };
 
   const USUARIO_ID = 7;
   const ID_DEPOSITO = 1;
@@ -57,7 +62,11 @@ describe('MovimientoService', () => {
     estado: true,
   };
 
-  /** Ficha con 10 unidades en el depósito 1, activa. */
+  /**
+   * Ficha con 10 unidades en el depósito 1, activa. El umbral por defecto es 0
+   * para que ningún movimiento lo cruce salvo que el test lo pida
+   * explícitamente.
+   */
   const ficha = (
     id: number,
     cantidad = 10,
@@ -66,7 +75,9 @@ describe('MovimientoService', () => {
     id_stock: id,
     cantidad,
     estado: true,
+    umbral_minimo: 0,
     FK_deposito: ID_DEPOSITO,
+    FK_articulo: id * 10,
     articulo: { nombre: `Artículo ${id}` },
     ...extra,
   });
@@ -106,10 +117,18 @@ describe('MovimientoService', () => {
       ),
     };
 
+    // Por defecto, la alerta es nueva (no había otra abierta por esa ficha).
+    alertaService = {
+      crear: jest
+        .fn()
+        .mockResolvedValue({ alerta: { id_alerta: 1 }, creada: true }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MovimientoService,
         { provide: PrismaService, useValue: prisma },
+        { provide: AlertaService, useValue: alertaService },
       ],
     }).compile();
 
@@ -285,6 +304,164 @@ describe('MovimientoService', () => {
       // La excepción se tira antes de registrar la línea, así que Prisma
       // revierte también la cabecera ya creada.
       expect(tx.sTOCKMOVIMIENTO.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('alertas de reposición', () => {
+    /** Salida de 4 unidades sobre la ficha 1. */
+    const salidaDe4 = () => ({
+      ...dtoBase([{ FK_Stock: 1, cantidad: 4 }]),
+      FK_TipoMovimiento: salida.id_tipo_movimiento,
+    });
+
+    beforeEach(() => {
+      prisma.tIPOMOVIMIENTO.findUnique.mockResolvedValue(salida);
+    });
+
+    it('pide la alerta cuando el stock queda por debajo del umbral', async () => {
+      // 10 -> 6, con umbral 8.
+      prisma.sTOCK.findMany.mockResolvedValue([
+        ficha(1, 10, { umbral_minimo: 8 }),
+      ]);
+
+      const resultado = await service.create(salidaDe4(), USUARIO_ID);
+
+      expect(alertaService.crear).toHaveBeenCalledTimes(1);
+      const [input] = alertaService.crear.mock.calls[0] as [
+        {
+          tipoAlertaNombre: string;
+          rolDestinatario: string;
+          mensaje: string;
+          datos: Record<string, unknown>;
+          claveDeduplicacion: string;
+        },
+      ];
+      expect(input.tipoAlertaNombre).toBe(TipoAlertaNombre.REPOSICION);
+      // Fijo: los roles de este sistema no son por depósito.
+      expect(input.rolDestinatario).toBe(RolNombre.RESPONSABLE_ALMACEN);
+      expect(input.mensaje).toContain('Artículo 1');
+      expect(input.datos).toEqual({
+        stockId: 1,
+        movimientoId: ID_MOVIMIENTO,
+        articuloId: 10,
+        stockNuevo: 6,
+        umbralMinimo: 8,
+      });
+      // Tiene que ser idéntica a la que arma el escaneo de StockService.
+      expect(input.claveDeduplicacion).toBe(`${TipoAlertaNombre.REPOSICION}-1`);
+
+      expect(resultado.alertasGeneradas).toHaveLength(1);
+    });
+
+    it('no pide alerta si el stock resultante queda por encima del umbral', async () => {
+      // 10 -> 6, con umbral 5: sigue por encima.
+      prisma.sTOCK.findMany.mockResolvedValue([
+        ficha(1, 10, { umbral_minimo: 5 }),
+      ]);
+
+      const resultado = await service.create(salidaDe4(), USUARIO_ID);
+
+      expect(alertaService.crear).not.toHaveBeenCalled();
+      expect(resultado.alertasGeneradas).toEqual([]);
+    });
+
+    it('pide la alerta aunque la ficha ya viniera por debajo del umbral', async () => {
+      // 6 -> 2, con umbral 8: no hay "cruce", pero el estado resultante sigue
+      // siendo problemático. Ya no se chequea el estado previo: de no apilar
+      // alertas se encarga la deduplicación de AlertaService.
+      prisma.sTOCK.findMany.mockResolvedValue([
+        ficha(1, 6, { umbral_minimo: 8 }),
+      ]);
+
+      await service.create(salidaDe4(), USUARIO_ID);
+
+      expect(alertaService.crear).toHaveBeenCalledTimes(1);
+    });
+
+    it('no informa como generada una alerta que ya estaba abierta', async () => {
+      prisma.sTOCK.findMany.mockResolvedValue([
+        ficha(1, 6, { umbral_minimo: 8 }),
+      ]);
+      // AlertaService deduplicó: la condición ya estaba reportada.
+      alertaService.crear.mockResolvedValue({
+        alerta: { id_alerta: 1 },
+        creada: false,
+      });
+
+      const resultado = await service.create(salidaDe4(), USUARIO_ID);
+
+      // Sigue vigente, pero no la generó ESTE movimiento.
+      expect(resultado.alertasGeneradas).toEqual([]);
+    });
+
+    it('genera las alertas fuera de la transacción, ya cerrada', async () => {
+      prisma.sTOCK.findMany.mockResolvedValue([
+        ficha(1, 10, { umbral_minimo: 8 }),
+      ]);
+      let transaccionAbierta = false;
+      prisma.$transaction.mockImplementation(
+        async (callback: (t: typeof tx) => Promise<unknown>) => {
+          transaccionAbierta = true;
+          const resultado = await callback(tx);
+          transaccionAbierta = false;
+          return resultado;
+        },
+      );
+      alertaService.crear.mockImplementation(() => {
+        // Lo crítico (que el stock no quede negativo) va adentro de la
+        // transacción; avisar que algo cruzó un umbral es un efecto
+        // secundario y no tiene por qué sostenerla abierta.
+        expect(transaccionAbierta).toBe(false);
+        return Promise.resolve({ alerta: { id_alerta: 1 }, creada: true });
+      });
+
+      await service.create(salidaDe4(), USUARIO_ID);
+
+      expect(alertaService.crear).toHaveBeenCalledTimes(1);
+    });
+
+    it('devuelve el movimiento igual si falla la generación de la alerta', async () => {
+      prisma.sTOCK.findMany.mockResolvedValue([
+        ficha(1, 10, { umbral_minimo: 8 }),
+      ]);
+      alertaService.crear.mockRejectedValue(new Error('Alertas caído'));
+      // El fallo se espera y se loggea: el mock evita que ensucie la salida
+      // del test, y de paso confirma que quedó registrado.
+      const logError = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => {});
+
+      // El movimiento ya está registrado y el stock ya se descontó: un fallo
+      // avisando no puede invalidar eso ni llegarle al cliente.
+      const resultado = await service.create(salidaDe4(), USUARIO_ID);
+
+      expect(resultado.id_movimiento).toBe(ID_MOVIMIENTO);
+      expect(resultado.alertasGeneradas).toEqual([]);
+      expect(tx.sTOCKMOVIMIENTO.create).toHaveBeenCalled();
+      expect(logError).toHaveBeenCalled();
+
+      logError.mockRestore();
+    });
+
+    it('alerta solo por las líneas que quedan bajo umbral, no por todo el movimiento', async () => {
+      prisma.sTOCK.findMany.mockResolvedValue([
+        ficha(1, 10, { umbral_minimo: 8 }), // 10 -> 6: queda bajo umbral
+        ficha(2, 10, { umbral_minimo: 2 }), // 10 -> 6: sigue por encima
+      ]);
+
+      const resultado = await service.create(
+        {
+          ...dtoBase([
+            { FK_Stock: 1, cantidad: 4 },
+            { FK_Stock: 2, cantidad: 4 },
+          ]),
+          FK_TipoMovimiento: salida.id_tipo_movimiento,
+        },
+        USUARIO_ID,
+      );
+
+      expect(alertaService.crear).toHaveBeenCalledTimes(1);
+      expect(resultado.alertasGeneradas).toHaveLength(1);
     });
   });
 

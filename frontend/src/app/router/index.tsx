@@ -5,13 +5,13 @@ import { CatalogoArticulosPage } from '@/features/almacen/pages/CatalogoArticulo
 import { DepositoObradoresPage } from '@/features/almacen/pages/DepositoObradoresPage'
 import { MarcasPage } from '@/features/almacen/marca/pages/MarcasPage'
 import { MovimientosPage } from '@/features/almacen/pages/MovimientosPage'
+import { RegistroMovimientoPage } from '@/features/almacen/movimiento/pages/RegistroMovimientoPage'
 import { TiposMovimientoPage } from '@/features/almacen/tipo-movimiento/pages/TiposMovimientoPage'
 import { StockPage } from '@/features/almacen/stock/pages/StockPage'
 import { UnidadesMedidaPage } from '@/features/almacen/unidades-medida/pages/UnidadesMedidaPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { MainLayout } from '@/layouts/MainLayout'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { PATHS } from './paths'
 import { ProtectedRoute } from './ProtectedRoute'
 import { CategoriasPage } from '@/features/almacen/categorias/pages/CategoriasPage'
@@ -86,7 +86,7 @@ export const router = createBrowserRouter([
                 element: <MovimientosPage />,
                 handle: { title: 'Movimientos' },
                 children: [
-                  { index: true, element: <PlaceholderPage titulo="Movimientos" /> },
+                  { index: true, element: <RegistroMovimientoPage /> },
                   {
                     path: PATHS.ALMACEN.MOVIMIENTOS.TIPOS,
                     element: <TiposMovimientoPage />,
