@@ -13,12 +13,8 @@ interface FiltrosTiposMovimientoBarProps {
   onIndicadorChange: (valor: FiltroIndicador) => void
 }
 
-/**
- * Sin la opción "Todos" a propósito: el backend, cuando no recibe `estado`,
- * devuelve solo los activos. Un "Todos" que omitiera el parámetro mostraría lo
- * mismo que "Activo" y engañaría al usuario.
- */
 const OPCIONES_ESTADO: SelectOption[] = [
+  { value: '', label: 'Todos los estados' },
   { value: 'true', label: 'Activo' },
   { value: 'false', label: 'Inactivo' },
 ]

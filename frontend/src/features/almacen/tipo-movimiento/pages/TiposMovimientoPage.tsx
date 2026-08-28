@@ -68,9 +68,7 @@ export function TiposMovimientoPage() {
 
   const { data, isLoading, isFetching, error, refetch } = useTiposMovimiento({
     nombre: nombreDebounced || undefined,
-    // `estado` viaja siempre: sin el parámetro el backend devuelve solo los
-    // activos, así que omitirlo nunca mostraría los dados de baja.
-    estado: estado === 'true',
+    estado: estado === '' ? undefined : estado === 'true',
     indicadorEntrada: indicador === '' ? undefined : indicador === 'true',
     page,
     limit: LIMITE_PAGINA,
