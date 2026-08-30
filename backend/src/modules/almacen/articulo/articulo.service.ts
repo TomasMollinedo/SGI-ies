@@ -48,7 +48,7 @@ export class ArticuloService {
     const esBusquedaNumerica = Number.isInteger(busquedaComoId);
 
     const where: Prisma.ARTICULOWhereInput = {
-      estado: estado ?? true,
+      ...(estado !== undefined && { estado }),
       ...(FK_Categoria !== undefined && { FK_Categoria }),
       ...(FK_Marca !== undefined && { FK_Marca }),
       ...(busqueda && {

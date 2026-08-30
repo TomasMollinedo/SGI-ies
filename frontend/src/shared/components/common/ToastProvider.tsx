@@ -70,10 +70,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         // El contenedor es la región viva y está siempre montado: si el
         // `aria-live` naciera junto con el toast, varios lectores de pantalla no
         // llegarían a anunciarlo.
+        // El z-index está por arriba del `Modal` y del `ConfirmDialog` (z-50) a
+        // propósito: los dos se montan después en el DOM, así que con el mismo
+        // nivel el toast quedaba tapado por el overlay oscuro justo cuando más
+        // se necesita — el error que devuelve el backend al confirmar.
         <div
           role="status"
           aria-live="polite"
-          className="pointer-events-none fixed right-4 bottom-4 z-50 flex flex-col gap-2"
+          className="pointer-events-none fixed right-4 bottom-4 z-[60] flex flex-col gap-2"
         >
           {toasts.map((toast) => (
             <Toast

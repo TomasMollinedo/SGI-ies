@@ -336,6 +336,14 @@ export function ArticulosPage() {
           }
           onReintentar={() => refetch()}
         />
+      ) : !isFetching && articulos.length === 0 ? (
+        <EmptyState
+          titulo={
+            hayFiltrosAplicados
+              ? 'No se encontraron artículos con esos criterios'
+              : 'Todavía no hay artículos cargados'
+          }
+        />
       ) : (
         <>
           <DataTable
@@ -345,15 +353,6 @@ export function ArticulosPage() {
             loading={isFetching}
             skeletonRows={LIMITE_PAGINA}
             ariaLabel="Artículos"
-            emptyState={
-              <EmptyState
-                titulo={
-                  hayFiltrosAplicados
-                    ? 'No se encontraron artículos con esos criterios'
-                    : 'Todavía no hay artículos cargados'
-                }
-              />
-            }
           />
 
           {meta && (
@@ -364,7 +363,6 @@ export function ArticulosPage() {
               pageSize={meta.limit}
               onPageChange={setPage}
               disabled={isFetching}
-              className="justify-center"
             />
           )}
         </>
@@ -379,7 +377,14 @@ export function ArticulosPage() {
         error={errorFormulario}
       />
 
-      <ArticuloDetalleModal idArticulo={detalleId} onClose={cerrarDetalle} />
+      <ArticuloDetalleModal
+        idArticulo={detalleId}
+        onClose={cerrarDetalle}
+        onEditar={(articulo) => {
+          cerrarDetalle()
+          abrirFormulario({ modo: 'editar', articulo })
+        }}
+      />
 
       <ConfirmDialog
         open={confirmacion !== null}

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Package } from 'lucide-react'
+import { Package, Pencil, X } from 'lucide-react'
 import { AuditInfo } from '@/shared/components/common/AuditInfo'
 import { DetailRow } from '@/shared/components/common/DetailRow'
 import { Modal } from '@/shared/components/common/Modal'
@@ -10,22 +10,25 @@ import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/hooks/useToast'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { useArticuloDetalle } from '../hooks/useArticulos'
-import type { UsuarioResumen } from '../types/articulo.types'
+import type { ArticuloDetalle, UsuarioResumen } from '../types/articulo.types'
 import { formatearCodigoArticulo } from '../utils/codigoArticulo'
 
 interface ArticuloDetalleModalProps {
   /** Artículo a mostrar. Con `null` el modal está cerrado y no se pide nada. */
   idArticulo: number | null
   onClose: () => void
+  /** Abre el formulario de edición con este artículo, igual que el lápiz de la fila. */
+  onEditar: (articulo: ArticuloDetalle) => void
 }
 
 const SIN_DATO = '—'
 
 /**
  * Modal de solo lectura con los datos de un artículo y su trazabilidad.
- * No edita ni da de baja: para eso están las acciones de la fila.
+ * No da de baja: para eso está la acción de la fila. Editar sí, pero delegado:
+ * el botón del pie llama a `onEditar` con el artículo cargado.
  */
-export function ArticuloDetalleModal({ idArticulo, onClose }: ArticuloDetalleModalProps) {
+export function ArticuloDetalleModal({ idArticulo, onClose, onEditar }: ArticuloDetalleModalProps) {
   const toast = useToast()
   const { data: articulo, isPending, error, refetch } = useArticuloDetalle(idArticulo)
 
@@ -46,7 +49,21 @@ export function ArticuloDetalleModal({ idArticulo, onClose }: ArticuloDetalleMod
       onClose={onClose}
       title="Detalle del artículo"
       icon={<Package />}
-      footer={<Button onClick={onClose}>Cerrar</Button>}
+      footer={
+        <>
+          <Button variant="error" icon={<X />} onClick={onClose}>
+            Cerrar
+          </Button>
+          <Button
+            variant="success"
+            icon={<Pencil />}
+            onClick={() => articulo && onEditar(articulo)}
+            disabled={!articulo}
+          >
+            Editar registro
+          </Button>
+        </>
+      }
     >
       {estaCargando ? (
         <div className="flex justify-center py-10">

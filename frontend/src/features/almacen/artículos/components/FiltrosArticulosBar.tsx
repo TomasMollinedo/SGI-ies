@@ -19,8 +19,8 @@ interface FiltrosArticulosBarProps {
 
 const OPCIONES_ESTADO: SelectOption[] = [
   { value: '', label: 'Todos los estados' },
-  { value: 'true', label: 'Activo' },
-  { value: 'false', label: 'Inactivo' },
+  { value: 'true', label: 'Activos' },
+  { value: 'false', label: 'Inactivos' },
 ]
 
 /** Barra de filtros del listado de artículos: búsqueda, categoría, marca y estado. */
@@ -57,7 +57,7 @@ export function FiltrosArticulosBar({
       <Input
         size="sm"
         type="search"
-        placeholder="Buscar por código o nombre"
+        placeholder="Buscar por nombre"
         aria-label="Buscar artículos"
         iconLeft={<Search />}
         value={busqueda}

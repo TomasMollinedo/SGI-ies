@@ -51,12 +51,6 @@ export interface EditarTipoMovimientoPayload {
   descripcion?: string
   indicador_entrada?: never
 }
-
-/**
- * Valor del filtro de estado tal como lo maneja el `<Select>`: string vacío
- * para "Todos", y los mismos `'true'`/`'false'` que espera la query del
- * backend. Se traduce a `boolean | undefined` recién al armar el request.
- */
 export type FiltroEstado = '' | 'true' | 'false'
 
 /**
