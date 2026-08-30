@@ -21,9 +21,23 @@ export const PATHS = {
       TIPOS: '/almacen/movimientos/tipos',
     },
   },
-  //COMPRAS: { ROOT: '/compras' },
-  //TESORERIA: { ROOT: '/tesoreria' },
+  COMPRAS: {
+    ROOT: '/compras',
+    PROVEEDORES: '/compras/proveedores',
+    ORDENES_COMPRA: '/compras/ordenes-compra',
+  },
+  TESORERIA: {
+    ROOT: '/tesoreria',
+    COMPROBANTES: {
+      ROOT: '/tesoreria/comprobantes',
+      TIPOS: '/tesoreria/comprobantes/tipos',
+    },
+    PAGOS: {
+      ROOT: '/tesoreria/pagos',
+      FORMAS: '/tesoreria/pagos/formas',
+    },
+    CUENTAS_CORRIENTES: '/tesoreria/cuentas-corrientes',
+  },
   //PROYECTOS: { ROOT: '/proyectos' },
   //COMERCIAL: { ROOT: '/comercial' },
-  //SISTEMA: { ROOT: '/sistema' },
 } as const
