@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router'
+import { AlertasPage } from '@/features/alertas/pages/AlertasPage'
 import { ArticulosPage } from '@/features/almacen/artículos/pages/ArticulosPage'
 import { DepositosPage } from '@/features/almacen/deposito/pages/DepositosPage'
 import { CatalogoArticulosPage } from '@/features/almacen/pages/CatalogoArticulosPage'
@@ -94,6 +95,11 @@ export const router = createBrowserRouter([
                 ],
               },
             ],
+          },
+          {
+            path: PATHS.ALERTAS.ROOT,
+            element: <AlertasPage />,
+            handle: { title: 'Alertas' },
           },
           /*
           {

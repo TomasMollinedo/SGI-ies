@@ -1,5 +1,6 @@
 import { Menu } from 'lucide-react'
 import { useMatches } from 'react-router'
+import { AlertasBell } from '@/features/alertas/components/AlertasBell'
 
 interface RouteHandle {
   title?: string
@@ -21,6 +22,9 @@ export function Header({ onAbrirMenu }: HeaderProps) {
 
   return (
     <header className="bg-fondotabla border-subtle flex h-24 shrink-0 items-center justify-between border-b px-6 ">
+      <span className="text-subtitulo font-bold">{titulo}</span>
+      <AlertasBell />
+
       <div className="flex items-center gap-3">
         <button
           type="button"
