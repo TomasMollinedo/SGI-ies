@@ -16,7 +16,7 @@ import { CrearStockForm } from '../components/CrearStockForm'
 import { EditarStockForm } from '../components/EditarStockForm'
 import { FiltrosStockBar } from '../components/FiltrosStockBar'
 import { StockDetalleModal } from '../components/StockDetalleModal'
-import { COLUMNAS_STOCK, LIMITE_PAGINA } from '../config/stock.config'
+import { COLUMNAS_STOCK, LIMITE_PAGINA, stockBajoUmbral } from '../config/stock.config'
 import {
   useCrearStock,
   useDarDeBajaStock,
@@ -179,6 +179,9 @@ export function StockPage() {
             data={data.data}
             columns={columnas}
             obtenerId={(item) => String(item.id_stock)}
+            rowClassName={(item) =>
+              stockBajoUmbral(item) ? 'animate-stock-bajo' : undefined
+            }
           />
           <Pagination
             currentPage={data.meta.page}
