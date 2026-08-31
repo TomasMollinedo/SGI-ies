@@ -65,7 +65,7 @@ El login (`AuthModule`) usa un esquema de doble token:
 
 `JwtAuthGuard` y `RolesGuard` se registran una sola vez, como `APP_GUARD` globales dentro de `AuthModule` — no hay que volver a registrarlos en otros módulos. De esto se desprende:
 - **Todo endpoint nuevo queda protegido por defecto** (requiere `Authorization: Bearer <accessToken>` válido), salvo que se marque explícitamente `@Public()` (hoy solo `login` y `refresh`).
-- **Todo módulo de negocio tiene un rol "dueño" del recurso**, declarado con `@Roles(RolNombre.<ROL>)` a nivel `Controller` (no endpoint por endpoint, salvo que un mismo controller vaya a mezclar endpoints con distinto rol requerido — no pasó todavía). Ejemplo ya implementado: `MarcaController`, `CategoriaController` y `UnidadMedidaController` son los tres `@Roles(RolNombre.ADMINISTRADOR)`, igual que el resto de los submódulos de Almacén. Al sumar un módulo de negocio nuevo, preguntar (si no surge obvio de la HU) qué rol de `RolNombre` es el dueño y aplicar el mismo patrón.
+- **Todo módulo de negocio tiene un rol "dueño" del recurso**, declarado con `@Roles(RolNombre.<ROL>)` a nivel `Controller` (no endpoint por endpoint, salvo que un mismo controller vaya a mezclar endpoints con distinto rol requerido — no pasó todavía). Ejemplo ya implementado: `MarcaController`, `CategoriaController` y `UnidadMedidaController` son los tres `@Roles(RolNombre.ADMINISTRADOR)`, igual que el resto de los submódulos de Almacén. Al sumar un módulo de negocio nuevo, preguntar (si no surge obvio de la HU) qué rol de `RolNombre` es el dueño, aplicar el mismo patrón y sumar el controller a `roles.guard.spec.ts` (ver Testing).
 - `GERENTE_GENERAL` tiene acceso transversal a todo (el propio `RolesGuard` lo bypassea) — nunca hace falta agregarlo a la lista de roles de un endpoint.
 - En el módulo de Alertas, `ADMINISTRADOR` tiene las mismas facultades que `GERENTE_GENERAL`: ve y atiende las alertas de cualquier rol destinatario, no solo las del suyo (ver `AlertaService.veTodasLasAlertas`). Ese bypass es solo de Alertas — a nivel `RolesGuard` el `ADMINISTRADOR` no bypassea nada, entra a los endpoints donde figura en `@Roles(...)`.
 - Un controller **sin** `@Roles(...)` queda accesible para cualquier usuario autenticado, sea cual sea su rol — reservarlo para recursos que de verdad no son específicos de un rol (ej. `GET /auth/me`).
@@ -101,6 +101,9 @@ Todo endpoint de listado que pueda crecer sin límite soporta `?page=1&limit=10`
 ## Testing
 - Unit tests de la lógica de negocio en los services: al menos uno por historia de usuario.
 - E2E solo para flujos críticos (login, alta de movimiento). No exhaustivo en todo — ajustable si la cátedra pide más cobertura.
+- **Al sumar un controller con `@Roles(...)`, agregarlo a `src/common/guards/roles.guard.spec.ts`.** Ese spec importa los controllers de verdad y lee su metadata con un `Reflector` real, así que es lo que fija por escrito qué rol es dueño de cada módulo: cubre que el rol dueño entra, que otro rol recibe 403, y que `GERENTE_GENERAL` bypassea. Si el spec no conoce un controller, ese controller no tiene protegido su `@Roles` contra un cambio accidental.
+- Los tests unitarios de los services **no** pasan por `JwtAuthGuard` ni `RolesGuard` (instancian el service pelado), y los services de negocio reciben solo `usuarioId: number`, nunca el rol. O sea: un cambio de roles no puede romper un spec de service, y tampoco puede estar cubierto por uno — para eso está el spec del guard.
+- Los E2E se loguean con un usuario del seed (`prisma/seed.ts`), así que el email tiene que ser el del rol dueño del módulo que se está probando, o todo el `beforeAll` se cae con 403.
 
 ## Convenciones de código
 - Seguir el ESLint/Prettier ya configurado.
