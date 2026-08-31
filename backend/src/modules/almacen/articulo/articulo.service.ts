@@ -23,7 +23,6 @@ export class ArticuloService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateArticuloDto, usuarioId: number) {
-    await this.validarCodigoUnico(dto.codigo);
     await this.validarNombreUnico(dto.nombre);
     await this.validarCategoriaActiva(dto.FK_Categoria);
     await this.validarUnidadMedidaActiva(dto.FK_UnidadMedida);
@@ -43,16 +42,19 @@ export class ArticuloService {
   async findAll(query: QueryArticuloDto) {
     const { busqueda, FK_Categoria, FK_Marca, estado, page, limit } = query;
 
+    // Si lo que se busca es un número entero, también matchea contra
+    // id_articulo (el "código" que muestra el frontend, hardcodeado al id).
+    const busquedaComoId = busqueda !== undefined ? Number(busqueda) : NaN;
+    const esBusquedaNumerica = Number.isInteger(busquedaComoId);
+
     const where: Prisma.ARTICULOWhereInput = {
-      // Por defecto, solo activos (a diferencia del resto de los listados
-      // de Almacén): así lo pide esta HU explícitamente.
-      estado: estado ?? true,
+      ...(estado !== undefined && { estado }),
       ...(FK_Categoria !== undefined && { FK_Categoria }),
       ...(FK_Marca !== undefined && { FK_Marca }),
       ...(busqueda && {
         OR: [
-          { codigo: { contains: busqueda, mode: 'insensitive' } },
           { nombre: { contains: busqueda, mode: 'insensitive' } },
+          ...(esBusquedaNumerica ? [{ id_articulo: busquedaComoId }] : []),
         ],
       }),
     };
@@ -62,7 +64,6 @@ export class ArticuloService {
         where,
         select: {
           id_articulo: true,
-          codigo: true,
           nombre: true,
           descripcion: true,
           estado: true,
@@ -109,9 +110,6 @@ export class ArticuloService {
   async update(id: number, dto: UpdateArticuloDto, usuarioId: number) {
     await this.findOne(id);
 
-    if (dto.codigo) {
-      await this.validarCodigoUnico(dto.codigo, id);
-    }
     if (dto.nombre) {
       await this.validarNombreUnico(dto.nombre, id);
     }
@@ -179,21 +177,6 @@ export class ArticuloService {
         hora_actualizacion: new Date(),
       },
     });
-  }
-
-  private async validarCodigoUnico(codigo: string, idExcluido?: number) {
-    const existe = await this.prisma.aRTICULO.findFirst({
-      where: {
-        codigo: { equals: codigo, mode: 'insensitive' },
-        ...(idExcluido !== undefined && { id_articulo: { not: idExcluido } }),
-      },
-    });
-
-    if (existe) {
-      throw new ConflictException(
-        `Ya existe un artículo con el código "${codigo}"`,
-      );
-    }
   }
 
   private async validarNombreUnico(nombre: string, idExcluido?: number) {

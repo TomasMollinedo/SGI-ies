@@ -2,7 +2,9 @@ import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
 
 export const queryArticuloSchema = z.object({
-  // Coincidencia parcial contra código o nombre (sin distinguir mayúsculas/minúsculas).
+  // Coincidencia parcial contra el nombre, o coincidencia exacta contra el
+  // id_articulo (el "código" que muestra el frontend) si lo que se busca es
+  // un número.
   busqueda: z.string().trim().min(1).optional(),
   FK_Categoria: z.coerce.number().int().positive().optional(),
   FK_Marca: z.coerce.number().int().positive().optional(),

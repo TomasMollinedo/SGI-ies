@@ -50,6 +50,10 @@ model USUARIO {
 
   stocksCreados             STOCK[] @relation("StockCreador")
   stocksActualizados        STOCK[] @relation("StockActualizador")
+
+  // Alertas que este usuario marcó como atendidas. No hay relación de
+  // "creador": las alertas las genera el sistema, no una persona.
+  alertasAtendidas          ALERTA[]
 }
 
 model ROL {
@@ -57,6 +61,10 @@ model ROL {
   nombre String @unique
 
   usuarios USUARIO[]
+
+  // Alertas dirigidas a este rol: el destinatario de una alerta es un puesto,
+  // no una persona.
+  alertas ALERTA[]
 }
 
 model TIPOMOVIMIENTO {
@@ -80,6 +88,9 @@ model TIPOMOVIMIENTO {
 
 model MOVIMIENTO {
   id_movimiento Int     @id @default(autoincrement())
+  // Fecha "de negocio" del movimiento, la carga el usuario. Distinta de
+  // hora_creacion, que es el timestamp técnico de cuándo se creó la fila.
+  fecha_movimiento DateTime
   observaciones String?
   referencia   String? // Referencia externa (ejemplo: número de factura, remito, etc.)
 
@@ -104,6 +115,10 @@ model STOCKMOVIMIENTO {
   // Cantidad de la línea. El signo del efecto sobre el stock lo define
   // TIPOMOVIMIENTO.indicador_entrada del movimiento de cabecera, no este campo.
   cantidad    Int
+  // Foto del stock antes y después de aplicar esta línea: es el log de
+  // auditoría que pide HU-07 (quién y cuándo salen del MOVIMIENTO de cabecera).
+  stock_anterior Int
+  stock_nuevo    Int
   observacion String?
 
   FK_Movimiento Int
@@ -144,7 +159,6 @@ model STOCK {
 
 model ARTICULO {
   id_articulo Int    @id @default(autoincrement())
-  codigo      String  @unique
   // Único solo entre artículos activos (se valida a nivel service, no acá):
   // un artículo dado de baja libera su nombre para uno nuevo.
   nombre      String
@@ -263,4 +277,63 @@ model PROYECTO {
   id_proyecto Int @id @default(autoincrement())
 
   depositos DEPOSITO[]
+}
+
+// Tabla de referencia de los tipos de alerta que puede generar el sistema.
+// Mismo criterio que ROL: la da de alta un desarrollador al escribir una
+// funcionalidad nueva, no un usuario de negocio desde una pantalla. Por eso no
+// lleva ABM, ni auditoría, ni `estado`: si un tipo deja de usarse, el código
+// simplemente deja de generarlo.
+model TIPOALERTA {
+  id_tipo_alerta Int     @id @default(autoincrement())
+  nombre         String  @unique // "REPOSICION" — identificador estable, lo usa el código
+  descripcion    String? // qué dispara este tipo, para quien lo lea después
+
+  alertas ALERTA[]
+}
+
+// Condición de negocio detectada por algún módulo. Hoy la única fuente es el
+// cruce del umbral mínimo de stock que detecta MovimientoService, pero el
+// modelo es transversal: cualquier dominio puede generar sus propias alertas
+// sin tocar el schema, sumando un tipo a TIPOALERTA.
+//
+// No lleva FK_usuario_creador/actualizador a propósito: es un registro
+// generado por el sistema como efecto de una condición, no algo que un
+// usuario cree o edite.
+model ALERTA {
+  id_alerta Int @id @default(autoincrement())
+
+  FK_tipo_alerta Int
+  tipoAlerta     TIPOALERTA @relation(fields: [FK_tipo_alerta], references: [id_tipo_alerta])
+
+  mensaje String // texto ya armado, listo para mostrar sin interpretar `datos`
+  // Payload específico del tipo: ids involucrados y valores puntuales (para
+  // REPOSICION, por ejemplo, stockId, movimientoId, stockNuevo, umbralMinimo).
+  // Es Json? a propósito, para que un tipo futuro con otra forma no necesite
+  // una migración; la base no valida su contenido, eso queda en la capa de
+  // aplicación.
+  datos   Json?
+
+  // Identifica la condición en curso que originó la alerta, ej "REPOSICION-42"
+  // (tipo + id de la entidad afectada). Sirve para no volver a alertar por algo
+  // que ya está reportado y sin atender.
+  //
+  // Sin @unique a propósito: la unicidad que importa es "única entre las no
+  // atendidas", que se valida a nivel service — mismo criterio que el nombre
+  // único entre activos de MARCA o CATEGORIA. Una vez atendida, la clave queda
+  // libre para que la condición vuelva a alertar si sigue vigente.
+  clave_deduplicacion String
+
+  // El destinatario es un rol y no un usuario: la alerta le importa a quien
+  // sea que ocupe ese puesto, no a una persona puntual.
+  FK_rol_destinatario Int
+  rolDestinatario     ROL @relation(fields: [FK_rol_destinatario], references: [id_rol])
+
+  atendida            Boolean   @default(false)
+  FK_usuario_atencion Int?
+  fecha_atencion      DateTime?
+
+  hora_creacion DateTime @default(now())
+
+  usuarioAtencion USUARIO? @relation(fields: [FK_usuario_atencion], references: [id_usuario])
 }

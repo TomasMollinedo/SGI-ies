@@ -4,6 +4,7 @@ interface DataTableProps<T> {
   data: T[]
   columns: DataTableColumn<T>[]
   obtenerId: (item: T) => string
+  rowClassName?: (item: T) => string | undefined
   loading?: boolean
   skeletonRows?: number
   emptyState?: ReactNode
@@ -35,6 +36,7 @@ export function DataTable<T>({
   data,
   columns,
   obtenerId,
+  rowClassName,
   loading = false,
   skeletonRows = 5,
   emptyState,
@@ -73,7 +75,10 @@ export function DataTable<T>({
           </tr>
         ) : (
           data.map((item) => (
-            <tr key={obtenerId(item)} className="border-subtle border-b">
+            <tr
+              key={obtenerId(item)}
+              className={`border-subtle border-b ${rowClassName?.(item) ?? ''}`}
+            >
               {columns.map((column) => (
                 <td key={column.key} className="px-6 py-2">
                   {column.render(item)}

@@ -8,6 +8,7 @@ import { Button } from '@/shared/components/ui/Button'
 import { Spinner } from '@/shared/components/ui/Spinner'
 import { useDepositoDetalle } from '../hooks/useDepositos'
 import type { Deposito } from '../types/deposito.types'
+import { formatearCodigoDeposito } from '../utils/codigoDeposito'
 
 interface DepositoDetalleModalProps {
   id: number | null
@@ -51,15 +52,15 @@ export function DepositoDetalleModal({ id, onClose, onEditar }: DepositoDetalleM
 
       {!isLoading && !isError && deposito && (
         <div className="flex flex-col">
-          <DetailRow label="Código" value={deposito.id_deposito} />
+          <DetailRow label="Código" value={formatearCodigoDeposito(deposito.id_deposito)} />
           <DetailRow label="Nombre" value={deposito.nombre} />
           <DetailRow label="Tipo" value={deposito.es_obrador ? 'Obrador' : 'Depósito'} />
-          <DetailRow label="Ubicación" value={deposito.ubicacion ?? '—'} />
+          <DetailRow label="Ubicación" value={deposito.ubicacion || '—'} />
           <DetailRow
             label="Proyecto asignado"
             value={deposito.FK_Proyecto ? String(deposito.FK_Proyecto) : '—'}
           />
-          <DetailRow label="Descripción" value={deposito.descripcion ?? '—'} />
+          <DetailRow label="Descripción" value={deposito.descripcion || '—'} />
           <DetailRow
             label="Estado"
             value={

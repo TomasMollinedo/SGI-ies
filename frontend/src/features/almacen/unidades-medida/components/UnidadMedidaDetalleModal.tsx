@@ -8,6 +8,7 @@ import { Button } from '@/shared/components/ui/Button'
 import { Spinner } from '@/shared/components/ui/Spinner'
 import { useUnidadMedidaDetalle } from '../hooks/useUnidadesMedida'
 import type { UnidadMedida } from '../types/unidadMedida.types'
+import { formatearCodigoUnidadMedida } from '../utils/codigoUnidadMedida'
 
 interface UnidadMedidaDetalleModalProps {
   id: number | null
@@ -51,7 +52,10 @@ export function UnidadMedidaDetalleModal({ id, onClose, onEditar }: UnidadMedida
 
       {!isLoading && !isError && unidadMedida && (
         <div className="flex flex-col">
-          <DetailRow label="Código" value={unidadMedida.id_unidad_medida} />
+          <DetailRow
+            label="Código"
+            value={formatearCodigoUnidadMedida(unidadMedida.id_unidad_medida)}
+          />
           <DetailRow label="Nombre" value={unidadMedida.nombre} />
           <DetailRow label="Abreviatura" value={unidadMedida.abreviatura} />
           <DetailRow

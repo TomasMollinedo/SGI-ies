@@ -12,9 +12,9 @@ interface FiltrosMarcasBarProps {
 }
 
 const OPCIONES_ESTADO: SelectOption[] = [
-  { value: '', label: 'Todos' },
-  { value: 'true', label: 'Activo' },
-  { value: 'false', label: 'Inactivo' },
+  { value: '', label: 'Todas las marcas' },
+  { value: 'true', label: 'Activas' },
+  { value: 'false', label: 'Inactivas' },
 ]
 
 /** Barra de filtros del listado de marcas: nombre y estado. */
@@ -29,7 +29,7 @@ export function FiltrosMarcasBar({
       <Input
         size="sm"
         type="search"
-        placeholder="Buscar por código o nombre"
+        placeholder="Buscar por nombre"
         aria-label="Buscar marcas"
         iconLeft={<Search />}
         value={nombre}

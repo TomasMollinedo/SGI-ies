@@ -40,60 +40,83 @@ const navLinkClase = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-secondary text-content' : 'text-light hover:bg-light/10'
   }`
 
-export function Sidebar() {
+interface SidebarProps {
+  abierto: boolean
+  onCerrar: () => void
+}
+
+export function Sidebar({ abierto, onCerrar }: SidebarProps) {
   const location = useLocation()
   const [grupoAbierto, setGrupoAbierto] = useState<string | null>(
     () => ITEMS.find((item) => item.children && location.pathname.startsWith(item.to))?.to ?? null
   )
 
   return (
-    <aside className="bg-dark border-subtle flex w-64 shrink-0 flex-col border-r">
-      <div className="border-subtle flex h-24 items-center justify-start gap-2 border-b  pl-0">
-        <img src={logo} alt="IES" className="h-40 w-40 bg-center mt-4" />
-      </div>
-      <nav className="flex flex-col gap-1 px-2 py-6">
-
-        {ITEMS.map((item) =>
-          item.children ? (
-            <div key={item.to}>
-              <button
-                type="button"
-                onClick={() => setGrupoAbierto((actual) => (actual === item.to ? null : item.to))}
-                className={`flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm ${
-                  location.pathname.startsWith(item.to)
-                    ? 'bg-primary text-fondotabla'
-                    : 'text-light hover:bg-light/10'
-                }`}
+    <>
+      {abierto ? (
+        <div className="bg-dark/50 fixed inset-0 z-30 md:hidden" onClick={onCerrar} />
+      ) : null}
+      <aside
+        className={`bg-dark border-subtle fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r transition-transform duration-200 ease-in-out md:static md:translate-x-0 ${
+          abierto ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="border-subtle flex h-24 items-center border-b px-4">
+          <img src={logo} alt="IES" className="h-40 w-40 bg-center mt-4" />
+        </div>
+        <nav className="flex flex-col gap-1 px-2 py-6">
+          {ITEMS.map((item) =>
+            item.children ? (
+              <div key={item.to}>
+                <button
+                  type="button"
+                  onClick={() => setGrupoAbierto((actual) => (actual === item.to ? null : item.to))}
+                  className={`flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm ${
+                    location.pathname.startsWith(item.to)
+                      ? 'bg-primary text-fondotabla'
+                      : 'text-light hover:bg-light/10'
+                  }`}
+                >
+                  {item.label}
+                  {grupoAbierto === item.to ? (
+                    <ChevronDown size={16} />
+                  ) : (
+                    <ChevronRight size={16} />
+                  )}
+                </button>
+                {grupoAbierto === item.to ? (
+                  <div className="mt-1 flex flex-col gap-1 pl-3">
+                    {item.children.map((child) => (
+                      <NavLink
+                        key={child.to}
+                        to={child.to}
+                        className={navLinkClase}
+                        onClick={onCerrar}
+                      >
+                        {child.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === PATHS.HOME}
+                className={navLinkClase}
+                onClick={onCerrar}
               >
                 {item.label}
-                {grupoAbierto === item.to ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-              </button>
-              {grupoAbierto === item.to ? (
-                <div className="mt-1 flex flex-col gap-1 pl-3">
-                  {item.children.map((child) => (
-                    <NavLink key={child.to} to={child.to} className={navLinkClase}>
-                      {child.label}
-                    </NavLink>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <NavLink 
-              key={item.to}
-              to={item.to}
-              end={item.to === PATHS.HOME}
-              className={navLinkClase}
-            >
-              {item.label}
-            </NavLink>
-          )
-        )}
-      </nav>
-      <div className="mt-auto">
-        <UserMenu />
-      </div>
-    </aside>
+              </NavLink>
+            )
+          )}
+        </nav>
+        <div className="mt-auto">
+          <UserMenu />
+        </div>
+      </aside>
+    </>
   )
 }
 

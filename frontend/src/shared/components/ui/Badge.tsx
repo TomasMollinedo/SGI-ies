@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/shared/utils/cn'
 
-export type BadgeVariant = 'active' | 'inactive'
+export type BadgeVariant = 'active' | 'inactive' | 'error'
 
 interface BadgeProps {
   variant: BadgeVariant
@@ -17,7 +17,9 @@ interface BadgeProps {
  * pinta un texto con el color de su variante.
  *
  * Props:
- * - `variant`: `'active'` (verde de success) o `'inactive'` (gris neutro).
+ * - `variant`: `'active'` (verde de success), `'inactive'` (gris neutro) o
+ *   `'error'` (rojo), para lo que no es un estado de alta/baja sino el signo de
+ *   una operación — por ejemplo la salida de stock de un movimiento.
  * - `dot`: punto de color a la izquierda del texto. Default: `true`.
  * - `children`: el texto de la pastilla.
  * - `className`: clases extra.
@@ -44,4 +46,5 @@ const CLASES_BASE =
 const CLASES_VARIANTE: Record<BadgeVariant, { pastilla: string; punto: string }> = {
   active: { pastilla: 'bg-success-soft text-success', punto: 'bg-success' },
   inactive: { pastilla: 'bg-neutral-soft text-content-muted', punto: 'bg-neutral' },
+  error: { pastilla: 'bg-error-soft text-error', punto: 'bg-error' },
 }
