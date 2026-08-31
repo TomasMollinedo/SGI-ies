@@ -35,6 +35,12 @@ import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
  * entrar, sino qué alertas ve — y eso lo resuelve el service filtrando por el
  * rol del usuario, cosa que un guard no puede hacer.
  *
+ * El Gerente General y el Administrador son la excepción: ven y atienden las
+ * alertas de todos los roles, no solo las dirigidas al suyo (ver
+ * `AlertaService.veTodasLasAlertas`). Es así como al Administrador le llegan
+ * las alertas de Almacén, que se siguen generando con el Responsable de
+ * Almacén como destinatario.
+ *
  * Por lo mismo ningún endpoint documenta un 403: una alerta de otro rol se
  * responde con 404, no con "existe pero no podés verla".
  */
@@ -64,7 +70,7 @@ export class AlertaController {
   @Get()
   @ApiOperation({
     summary:
-      'Listar las alertas dirigidas al rol del usuario autenticado (todas, si es Gerente General)',
+      'Listar las alertas dirigidas al rol del usuario autenticado (todas, si es Gerente General o Administrador)',
   })
   @ApiQuery({
     name: 'FK_tipo_alerta',
@@ -127,12 +133,15 @@ export class AlertaController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Obtener una alerta por id' })
+  @ApiOperation({
+    summary:
+      'Obtener una alerta por id, si está dirigida al rol del usuario autenticado (el Gerente General y el Administrador pueden ver la de cualquier rol)',
+  })
   @ApiParam({ name: 'id', type: Number, description: 'id_alerta de la alerta' })
   @ApiOkResponse({ description: 'Alerta encontrada', type: AlertaResponseDto })
   @ApiNotFoundResponse({
     description:
-      'No existe una alerta con ese id, o está dirigida a otro rol (se responde igual que si no existiera)',
+      'No existe una alerta con ese id, o está dirigida a otro rol y el usuario no tiene acceso transversal (se responde igual que si no existiera)',
   })
   findOne(
     @Param('id', ParseIntPipe) id: number,
@@ -144,7 +153,7 @@ export class AlertaController {
   @Patch(':id/atender')
   @ApiOperation({
     summary:
-      'Marcar una alerta como atendida, dejando registrado qué usuario la atendió y cuándo',
+      'Marcar una alerta como atendida, dejando registrado qué usuario la atendió y cuándo. Solo alertas del propio rol, salvo el Gerente General y el Administrador, que pueden atender la de cualquier rol',
   })
   @ApiParam({
     name: 'id',
@@ -154,7 +163,7 @@ export class AlertaController {
   @ApiOkResponse({ description: 'Alerta atendida', type: AlertaResponseDto })
   @ApiNotFoundResponse({
     description:
-      'No existe una alerta con ese id, o está dirigida a otro rol (se responde igual que si no existiera)',
+      'No existe una alerta con ese id, o está dirigida a otro rol y el usuario no tiene acceso transversal (se responde igual que si no existiera)',
   })
   @ApiConflictResponse({
     description: 'La alerta ya estaba atendida (no se puede desmarcar)',

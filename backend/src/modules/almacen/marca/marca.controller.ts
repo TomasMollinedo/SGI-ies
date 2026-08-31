@@ -38,10 +38,11 @@ import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 
 @ApiTags('Marcas')
 @ApiBearerAuth()
-@Roles(RolNombre.RESPONSABLE_ALMACEN)
+@Roles(RolNombre.ADMINISTRADOR)
 @ApiUnauthorizedResponse({ description: 'No autenticado' })
 @ApiForbiddenResponse({
-  description: 'El usuario autenticado no tiene el rol Responsable de Almacén',
+  description:
+    'El usuario autenticado no tiene el rol Administrador (el Gerente General también tiene acceso, por ser transversal)',
 })
 @Controller('marcas')
 export class MarcaController {

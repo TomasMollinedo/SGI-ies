@@ -71,6 +71,9 @@ export class StockService {
       try {
         const { creada } = await this.alertaService.crear({
           tipoAlertaNombre: TipoAlertaNombre.REPOSICION,
+          // Mismo destinatario que el camino reactivo de MovimientoService: el
+          // Administrador la ve igual por su acceso transversal en
+          // AlertaService, sin duplicar la fila.
           rolDestinatario: RolNombre.RESPONSABLE_ALMACEN,
           mensaje: `Stock de "${ficha.articulo.nombre}" sigue bajo el umbral (${ficha.cantidad} unidades, umbral: ${ficha.umbral_minimo})`,
           datos: {

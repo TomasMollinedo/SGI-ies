@@ -206,8 +206,8 @@ export class AlertaService {
   }
 
   /**
-   * El Gerente General ve las alertas de todos los roles; cualquier otro
-   * usuario ve solo las dirigidas al suyo.
+   * Los roles con acceso transversal (ver `veTodasLasAlertas`) ven las alertas
+   * de todos los roles; cualquier otro usuario ve solo las dirigidas al suyo.
    *
    * Es el mismo bypass que aplica `RolesGuard`, pero replicado a mano: un
    * guard solo puede decidir "entra o no entra", y acá lo que hace falta es
@@ -216,7 +216,7 @@ export class AlertaService {
   private filtroPorRol(
     currentUser: AuthenticatedUser,
   ): Prisma.ALERTAWhereInput {
-    if (currentUser.rol === RolNombre.GERENTE_GENERAL) {
+    if (this.veTodasLasAlertas(currentUser)) {
       return {};
     }
 
@@ -227,12 +227,29 @@ export class AlertaService {
     rolDestinatario: string,
     currentUser: AuthenticatedUser,
   ) {
-    if (currentUser.rol === RolNombre.GERENTE_GENERAL) {
+    if (this.veTodasLasAlertas(currentUser)) {
       return true;
     }
 
     // ROL.nombre llega de la base tipado como string; los valores que guarda
     // son exactamente los del enum RolNombre, que es lo que siembra el seed.
     return rolDestinatario === (currentUser.rol as string);
+  }
+
+  /**
+   * Roles con acceso transversal a las alertas: ven —y pueden atender— las de
+   * cualquier rol destinatario, no solo las dirigidas al suyo.
+   *
+   * El Administrador tiene acá las mismas facultades que el Gerente General.
+   * Es también la forma en que le llegan las alertas dirigidas al Responsable
+   * de Almacén: la alerta se sigue generando con ese rol como destinatario y
+   * el Administrador la ve por este bypass, sin duplicar una fila de ALERTA
+   * por cada rol que tenga que enterarse.
+   */
+  private veTodasLasAlertas(currentUser: AuthenticatedUser) {
+    return (
+      currentUser.rol === RolNombre.GERENTE_GENERAL ||
+      currentUser.rol === RolNombre.ADMINISTRADOR
+    );
   }
 }

@@ -288,6 +288,11 @@ export class MovimientoService {
         const { alerta, creada } = await this.alertaService.crear({
           tipoAlertaNombre: TipoAlertaNombre.REPOSICION,
           // Fijo: en este sistema los roles no son por depósito.
+          //
+          // Sigue siendo el Responsable de Almacén aunque los endpoints de
+          // este módulo hoy sean del Administrador: el Administrador igual ve
+          // esta alerta por su acceso transversal en AlertaService, así que no
+          // hace falta duplicar la fila para que le llegue a los dos.
           rolDestinatario: RolNombre.RESPONSABLE_ALMACEN,
           mensaje: `Stock de "${ficha.articulo.nombre}" bajó a ${stockNuevo} unidades (umbral: ${ficha.umbral_minimo})`,
           datos: {
