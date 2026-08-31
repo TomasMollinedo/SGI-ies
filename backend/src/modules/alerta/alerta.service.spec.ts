@@ -346,6 +346,22 @@ describe('AlertaService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.aLERTA.update).not.toHaveBeenCalled();
     });
+
+    // Contracara del test de arriba: el acceso transversal no es solo de
+    // lectura, también habilita a atender la alerta de cualquier rol.
+    it('deja al Administrador atender una alerta de otro rol', async () => {
+      prisma.aLERTA.findUnique.mockResolvedValue(
+        alerta({ rolDestinatario: { nombre: RolNombre.RESPONSABLE_COMPRAS } }),
+      );
+
+      await service.atender(ID_ALERTA, administrador);
+
+      const [actualizacion] = argumentosDe(prisma.aLERTA.update);
+      expect(actualizacion.data).toMatchObject({
+        atendida: true,
+        FK_usuario_atencion: administrador.id,
+      });
+    });
   });
 
   describe('findTipos', () => {
