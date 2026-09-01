@@ -386,23 +386,11 @@ enum EstadoOrdenCompra {
   CANCELADA
 }
 
-// Qué le hace al saldo del proveedor un comprobante de este tipo.
-enum EfectoSaldo {
-  AUMENTA
-  DISMINUYE
-}
-
 // Situación del documento comprobante (distinta de su estado de saldo).
 enum EstadoComprobante {
   BORRADOR
   REGISTRADO
   ANULADO
-}
-
-// Situación del saldo de un comprobante que aumenta la deuda con el proveedor.
-enum EstadoSaldo {
-  PENDIENTE
-  CANCELADO
 }
 
 enum EstadoOrdenPago {
@@ -531,11 +519,14 @@ model TIPOCOMPROBANTE {
   nombre      String
   descripcion String?
 
-  // efecto_saldo y requiere_comprobante_origen se fijan en el alta y quedan
+  // aumenta_saldo y requiere_comprobante_origen se fijan en el alta y quedan
   // bloqueados de forma permanente: cambiarlos después reinterpretaría todos
   // los comprobantes ya registrados con este tipo. Esa inmutabilidad la aplica
   // el service, la base no puede expresarla.
-  efecto_saldo                EfectoSaldo
+  //
+  // Va como Boolean y no como enum, mismo criterio que
+  // TIPOMOVIMIENTO.indicador_entrada: son solo dos valores posibles.
+  aumenta_saldo               Boolean // Aumenta el saldo del proveedor (true) o lo disminuye (false)
   requiere_comprobante_origen Boolean
 
   estado Boolean @default(true)
@@ -610,15 +601,18 @@ model COMPROBANTEPROVEEDOR {
   importe_iva   Decimal @db.Decimal(14, 2)
   importe_total Decimal @db.Decimal(14, 2)
 
-  // Nullable a propósito: solo los comprobantes cuyo tipo AUMENTA el saldo
-  // llevan saldo propio. Los que lo DISMINUYEN aplican su importe sobre el
-  // comprobante de origen y no quedan disponibles para imputación.
+  // Nullable a propósito: solo los comprobantes cuyo tipo aumenta el saldo
+  // (TIPOCOMPROBANTE.aumenta_saldo = true) llevan saldo propio. Los que lo
+  // disminuyen aplican su importe sobre el comprobante de origen y no quedan
+  // disponibles para imputación.
   saldo_pendiente Decimal? @db.Decimal(14, 2)
 
   // Dos estados independientes: el del documento y el de su saldo.
-  estado       EstadoComprobante @default(BORRADOR)
-  // Nullable: solo aplica a comprobantes REGISTRADOS cuyo tipo aumenta el saldo.
-  estado_saldo EstadoSaldo?
+  estado          EstadoComprobante @default(BORRADOR)
+  // Estado del saldo. Boolean y no enum por el mismo criterio que
+  // TIPOCOMPROBANTE.aumenta_saldo: son solo dos valores. Nullable porque solo
+  // aplica a comprobantes REGISTRADOS cuyo tipo aumenta el saldo.
+  saldo_cancelado Boolean? // Saldo cancelado (true) o pendiente (false)
 
   observaciones    String?
   // Obligatorio a nivel de service al anular.
@@ -660,7 +654,7 @@ model COMPROBANTEPROVEEDOR {
   @@index([FK_proveedor, FK_tipo_comprobante, letra, punto_de_venta, numero])
   @@index([FK_proveedor])
   @@index([estado])
-  @@index([estado_saldo])
+  @@index([saldo_cancelado])
   @@index([fecha_emision])
   @@index([fecha_vencimiento])
 }
