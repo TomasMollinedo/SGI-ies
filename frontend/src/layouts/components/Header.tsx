@@ -25,8 +25,6 @@ export function Header({ onAbrirMenu }: HeaderProps) {
 
   return (
     <header className="bg-fondotabla border-subtle flex h-20 shrink-0 items-center justify-between border-b px-6 ">
-      <span className="text-subtitulo font-bold">{titulo}</span>
-      <AlertasBell />
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -39,6 +37,7 @@ export function Header({ onAbrirMenu }: HeaderProps) {
         {Icon ? <Icon size={20} className="text-content" /> : null}
         <span className="text-subtitulo font-bold">{titulo}</span>
       </div>
+      <AlertasBell />
     </header>
   )
 }
