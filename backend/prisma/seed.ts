@@ -2,6 +2,7 @@ import 'dotenv/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
+import { CondicionIVA } from '../generated/prisma/enums';
 import { RolNombre } from '../src/common/enums/rol.enum';
 import { TipoAlertaNombre } from '../src/common/enums/tipo-alerta.enum';
 
@@ -89,6 +90,102 @@ const depositos = [
     es_obrador: false,
     ubicacion: 'Sede central',
     descripcion: null,
+  },
+];
+
+// --- Datos de arranque del ciclo de gastos (Sprint 2) ---
+//
+// Ninguno de estos registros lleva id explícito a propósito: insertar con un id
+// fijo en una columna autoincremental NO avanza la secuencia de Postgres, y el
+// primer alta hecha desde la aplicación fallaría con clave duplicada. Como el
+// equipo decidió que la PK autoincremental ES el número del documento, ese bug
+// aparecería recién en la demo. Que los ids los asigne la base.
+const proveedores = [
+  {
+    razon_social: 'Corralon San Martin S.A.',
+    cuit: '30712345671',
+    condicion_iva: CondicionIVA.RESPONSABLE_INSCRIPTO,
+    domicilio: 'Av. San Martin 1450, Resistencia, Chaco',
+    telefono: '3624-445566',
+    correo: 'ventas@corralonsanmartin.test',
+    observaciones: 'Proveedor habitual de materiales de obra gruesa.',
+  },
+  {
+    razon_social: 'Hormigones del Litoral S.R.L.',
+    cuit: '30689012341',
+    condicion_iva: CondicionIVA.RESPONSABLE_INSCRIPTO,
+    domicilio: 'Ruta 11 Km 1008, Corrientes',
+    telefono: '3794-223344',
+    correo: 'pedidos@hormigoneslitoral.test',
+    observaciones: 'Hormigon elaborado, entrega con mixer propio.',
+  },
+  {
+    razon_social: 'Ferreteria Industrial Rivadavia',
+    cuit: '20356789017',
+    condicion_iva: CondicionIVA.MONOTRIBUTISTA,
+    domicilio: 'Rivadavia 880, Resistencia, Chaco',
+    telefono: '3624-778899',
+    correo: 'contacto@ferreteriarivadavia.test',
+    observaciones: 'Herramientas y consumibles, compras chicas.',
+  },
+  {
+    razon_social: 'Fundacion Obras Comunitarias',
+    cuit: '30554433223',
+    condicion_iva: CondicionIVA.EXENTO,
+    domicilio: 'Belgrano 245, Barranqueras, Chaco',
+    telefono: '3624-112233',
+    correo: 'administracion@obrascomunitarias.test',
+    observaciones: 'Entidad sin fines de lucro, exenta de IVA.',
+  },
+  {
+    razon_social: 'Transporte y Aridos El Sauce',
+    cuit: '27123456780',
+    condicion_iva: CondicionIVA.CONSUMIDOR_FINAL,
+    domicilio: 'Colectora Norte 320, Fontana, Chaco',
+    telefono: '3624-990011',
+    correo: 'fletes@elsauce.test',
+    observaciones: 'Fletes de arena y ripio, factura como consumidor final.',
+  },
+];
+
+// Datos del sistema, no valores fijos en el codigo: los services leen estos
+// registros en vez de tener la logica cableada.
+const tiposComprobante = [
+  {
+    nombre: 'Factura',
+    descripcion: 'Comprobante de compra que genera deuda con el proveedor',
+    aumenta_saldo: true, // true = aumenta el saldo del proveedor
+    requiere_comprobante_origen: false,
+  },
+  {
+    nombre: 'Nota de Debito',
+    descripcion: 'Ajuste que incrementa el importe de un comprobante anterior',
+    aumenta_saldo: true, // true = aumenta el saldo del proveedor
+    requiere_comprobante_origen: true, // se aplica sobre un comprobante existente
+  },
+  {
+    nombre: 'Nota de Credito',
+    descripcion: 'Ajuste que reduce el importe de un comprobante anterior',
+    aumenta_saldo: false, // false = disminuye el saldo del proveedor
+    requiere_comprobante_origen: true, // se aplica sobre un comprobante existente
+  },
+];
+
+const formasPago = [
+  {
+    nombre: 'Efectivo',
+    descripcion: 'Pago en mano, sin instrumento de respaldo',
+    requiere_referencia: false,
+  },
+  {
+    nombre: 'Transferencia bancaria',
+    descripcion: 'Acreditacion en cuenta del proveedor',
+    requiere_referencia: true, // numero de operacion de la transferencia
+  },
+  {
+    nombre: 'Cheque',
+    descripcion: 'Cheque propio o de terceros endosado',
+    requiere_referencia: true, // numero del cheque
   },
 ];
 
@@ -227,6 +324,55 @@ async function main() {
     }
   }
   console.log(`Seed de DEPOSITO: ${depositos.length} registros procesados.`);
+
+  // PROVEEDOR sí tiene una clave natural unique en la base (el CUIT identifica
+  // a la persona jurídica), así que acá el upsert sirve — sin tocar la PK.
+  for (const proveedor of proveedores) {
+    await prisma.pROVEEDOR.upsert({
+      where: { cuit: proveedor.cuit },
+      update: proveedor,
+      create: { ...proveedor, ...auditoria },
+    });
+  }
+  console.log(`Seed de PROVEEDOR: ${proveedores.length} registros procesados.`);
+
+  // TIPOCOMPROBANTE y FORMAPAGO no tienen ningún campo unique en la base (el
+  // nombre es único solo entre activos y lo valida el service), así que va el
+  // mismo patrón que CATEGORIA/MARCA: buscar por nombre y crear si no existe.
+  // No agregar un @unique al schema solo para poder usar upsert acá.
+  for (const tipoComprobante of tiposComprobante) {
+    const existente = await prisma.tIPOCOMPROBANTE.findFirst({
+      where: { nombre: tipoComprobante.nombre },
+    });
+    if (existente) {
+      await prisma.tIPOCOMPROBANTE.update({
+        where: { id_tipo_comprobante: existente.id_tipo_comprobante },
+        data: tipoComprobante,
+      });
+    } else {
+      await prisma.tIPOCOMPROBANTE.create({
+        data: { ...tipoComprobante, ...auditoria },
+      });
+    }
+  }
+  console.log(
+    `Seed de TIPOCOMPROBANTE: ${tiposComprobante.length} registros procesados.`,
+  );
+
+  for (const formaPago of formasPago) {
+    const existente = await prisma.fORMAPAGO.findFirst({
+      where: { nombre: formaPago.nombre },
+    });
+    if (existente) {
+      await prisma.fORMAPAGO.update({
+        where: { id_forma_pago: existente.id_forma_pago },
+        data: formaPago,
+      });
+    } else {
+      await prisma.fORMAPAGO.create({ data: { ...formaPago, ...auditoria } });
+    }
+  }
+  console.log(`Seed de FORMAPAGO: ${formasPago.length} registros procesados.`);
 }
 
 main()
