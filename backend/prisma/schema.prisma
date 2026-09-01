@@ -4,9 +4,9 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
-  moduleFormat    = "cjs"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
@@ -24,36 +24,55 @@ model USUARIO {
   rol    ROL @relation(fields: [FK_rol], references: [id_rol])
 
   refreshTokenHash String? // hash bcrypt del refresh token vigente; null si no hay sesión activa
-  dni  String @unique
+  dni              String  @unique
 
   // Relaciones
-  tiposMovimientoCreados    TIPOMOVIMIENTO[] @relation("TipoMovimientoCreador")
+  tiposMovimientoCreados      TIPOMOVIMIENTO[] @relation("TipoMovimientoCreador")
   tiposMovimientoActualizados TIPOMOVIMIENTO[] @relation("TipoMovimientoActualizador")
 
-  movimientosCreados        MOVIMIENTO[] @relation("MovimientoCreador")
-  movimientosActualizados   MOVIMIENTO[] @relation("MovimientoActualizador")
+  movimientosCreados      MOVIMIENTO[] @relation("MovimientoCreador")
+  movimientosActualizados MOVIMIENTO[] @relation("MovimientoActualizador")
 
-  articulosCreados          ARTICULO[] @relation("ArticuloCreador")
-  articulosActualizados     ARTICULO[] @relation("ArticuloActualizador")
+  articulosCreados      ARTICULO[] @relation("ArticuloCreador")
+  articulosActualizados ARTICULO[] @relation("ArticuloActualizador")
 
-  categoriasCreadas         CATEGORIA[] @relation("CategoriaCreador")
-  categoriasActualizadas    CATEGORIA[] @relation("CategoriaActualizador")
+  categoriasCreadas      CATEGORIA[] @relation("CategoriaCreador")
+  categoriasActualizadas CATEGORIA[] @relation("CategoriaActualizador")
 
-  marcasCreadas             MARCA[] @relation("MarcaCreador")
-  marcasActualizadas        MARCA[] @relation("MarcaActualizador")
+  marcasCreadas      MARCA[] @relation("MarcaCreador")
+  marcasActualizadas MARCA[] @relation("MarcaActualizador")
 
-  unidadesMedidaCreadas     UNIDADMEDIDA[] @relation("UnidadMedidaCreador")
+  unidadesMedidaCreadas      UNIDADMEDIDA[] @relation("UnidadMedidaCreador")
   unidadesMedidaActualizadas UNIDADMEDIDA[] @relation("UnidadMedidaActualizador")
 
-  depositosCreados          DEPOSITO[] @relation("DepositoCreador")
-  depositosActualizados     DEPOSITO[] @relation("DepositoActualizador")
+  depositosCreados      DEPOSITO[] @relation("DepositoCreador")
+  depositosActualizados DEPOSITO[] @relation("DepositoActualizador")
 
-  stocksCreados             STOCK[] @relation("StockCreador")
-  stocksActualizados        STOCK[] @relation("StockActualizador")
+  stocksCreados      STOCK[] @relation("StockCreador")
+  stocksActualizados STOCK[] @relation("StockActualizador")
 
   // Alertas que este usuario marcó como atendidas. No hay relación de
   // "creador": las alertas las genera el sistema, no una persona.
-  alertasAtendidas          ALERTA[]
+  alertasAtendidas ALERTA[]
+
+  // Ciclo de gastos (Sprint 2)
+  proveedoresCreados      PROVEEDOR[] @relation("ProveedorCreador")
+  proveedoresActualizados PROVEEDOR[] @relation("ProveedorActualizador")
+
+  ordenesCompraCreadas      ORDENCOMPRA[] @relation("OrdenCompraCreador")
+  ordenesCompraActualizadas ORDENCOMPRA[] @relation("OrdenCompraActualizador")
+
+  tiposComprobanteCreados      TIPOCOMPROBANTE[] @relation("TipoComprobanteCreador")
+  tiposComprobanteActualizados TIPOCOMPROBANTE[] @relation("TipoComprobanteActualizador")
+
+  formasPagoCreadas      FORMAPAGO[] @relation("FormaPagoCreador")
+  formasPagoActualizadas FORMAPAGO[] @relation("FormaPagoActualizador")
+
+  comprobantesProveedorCreados      COMPROBANTEPROVEEDOR[] @relation("ComprobanteProveedorCreador")
+  comprobantesProveedorActualizados COMPROBANTEPROVEEDOR[] @relation("ComprobanteProveedorActualizador")
+
+  ordenesPagoCreadas      ORDENPAGO[] @relation("OrdenPagoCreador")
+  ordenesPagoActualizadas ORDENPAGO[] @relation("OrdenPagoActualizador")
 }
 
 model ROL {
@@ -68,58 +87,58 @@ model ROL {
 }
 
 model TIPOMOVIMIENTO {
-  id_tipo_movimiento Int @id @default(autoincrement())
-  nombre             String @unique
+  id_tipo_movimiento Int     @id @default(autoincrement())
+  nombre             String  @unique
   descripcion        String?
-  indicador_entrada    Boolean // Indica si el movimiento es de entrada (true) o de salida (false)
+  indicador_entrada  Boolean // Indica si el movimiento es de entrada (true) o de salida (false)
   estado             Boolean @default(true)
-  
-  hora_creacion DateTime @default(now())
+
+  hora_creacion      DateTime  @default(now())
   hora_actualizacion DateTime? @default(now())
 
-  FK_usuario_creador    Int
+  FK_usuario_creador      Int
   FK_usuario_actualizador Int
 
-  usuarioCreador    USUARIO @relation("TipoMovimientoCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioCreador      USUARIO @relation("TipoMovimientoCreador", fields: [FK_usuario_creador], references: [id_usuario])
   usuarioActualizador USUARIO @relation("TipoMovimientoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
   movimientos MOVIMIENTO[]
 }
 
 model MOVIMIENTO {
-  id_movimiento Int     @id @default(autoincrement())
+  id_movimiento    Int      @id @default(autoincrement())
   // Fecha "de negocio" del movimiento, la carga el usuario. Distinta de
   // hora_creacion, que es el timestamp técnico de cuándo se creó la fila.
   fecha_movimiento DateTime
-  observaciones String?
-  referencia   String? // Referencia externa (ejemplo: número de factura, remito, etc.)
+  observaciones    String?
+  referencia       String? // Referencia externa (ejemplo: número de factura, remito, etc.)
 
-  hora_creacion DateTime @default(now())
+  hora_creacion      DateTime  @default(now())
   hora_actualizacion DateTime? @default(now())
 
-  FK_TipoMovimiento  Int
-  FK_Deposito        Int
-  FK_usuario_creador Int
+  FK_TipoMovimiento       Int
+  FK_Deposito             Int
+  FK_usuario_creador      Int
   FK_usuario_actualizador Int
 
-  tipoMovimiento    TIPOMOVIMIENTO @relation(fields: [FK_TipoMovimiento], references: [id_tipo_movimiento])
-  deposito              DEPOSITO  @relation("MovimientoDeposito", fields: [FK_Deposito], references: [id_deposito])
-  usuarioCreador    USUARIO        @relation("MovimientoCreador", fields: [FK_usuario_creador], references: [id_usuario])
-  usuarioActualizador USUARIO      @relation("MovimientoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+  tipoMovimiento      TIPOMOVIMIENTO @relation(fields: [FK_TipoMovimiento], references: [id_tipo_movimiento])
+  deposito            DEPOSITO       @relation("MovimientoDeposito", fields: [FK_Deposito], references: [id_deposito])
+  usuarioCreador      USUARIO        @relation("MovimientoCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO        @relation("MovimientoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
   stockMovimientos STOCKMOVIMIENTO[]
 }
 
 model STOCKMOVIMIENTO {
-  id_stock_movimiento Int @id @default(autoincrement())
+  id_stock_movimiento Int     @id @default(autoincrement())
   // Cantidad de la línea. El signo del efecto sobre el stock lo define
   // TIPOMOVIMIENTO.indicador_entrada del movimiento de cabecera, no este campo.
-  cantidad    Int
+  cantidad            Int
   // Foto del stock antes y después de aplicar esta línea: es el log de
   // auditoría que pide HU-07 (quién y cuándo salen del MOVIMIENTO de cabecera).
-  stock_anterior Int
-  stock_nuevo    Int
-  observacion String?
+  stock_anterior      Int
+  stock_nuevo         Int
+  observacion         String?
 
   FK_Movimiento Int
   FK_Stock      Int
@@ -129,7 +148,7 @@ model STOCKMOVIMIENTO {
 }
 
 model STOCK {
-  id_stock Int @id @default(autoincrement())
+  id_stock      Int     @id @default(autoincrement())
   // Cantidad actual de ese artículo en ese depósito/obrador. La mantiene al
   // día el módulo de Movimientos (entradas/salidas); arranca en 0 al crear
   // la ficha y no es editable directamente.
@@ -140,12 +159,12 @@ model STOCK {
   // puede haber otra ficha activa para la misma combinación artículo-depósito.
   estado        Boolean @default(true)
 
-  hora_creacion DateTime @default(now())
+  hora_creacion      DateTime  @default(now())
   hora_actualizacion DateTime? @default(now())
 
-  FK_deposito Int
-  FK_articulo Int
-  FK_usuario_creador Int
+  FK_deposito             Int
+  FK_articulo             Int
+  FK_usuario_creador      Int
   FK_usuario_actualizador Int
 
   deposito DEPOSITO @relation(fields: [FK_deposito], references: [id_deposito])
@@ -158,44 +177,47 @@ model STOCK {
 }
 
 model ARTICULO {
-  id_articulo Int    @id @default(autoincrement())
+  id_articulo Int     @id @default(autoincrement())
   // Único solo entre artículos activos (se valida a nivel service, no acá):
   // un artículo dado de baja libera su nombre para uno nuevo.
   nombre      String
   descripcion String?
-  estado     Boolean @default(true)
+  estado      Boolean @default(true)
 
-  hora_creacion DateTime @default(now())
+  hora_creacion      DateTime  @default(now())
   hora_actualizacion DateTime? @default(now())
 
-  FK_Categoria       Int
-  FK_Marca           Int?
-  FK_UnidadMedida    Int
-  FK_usuario_creador Int
+  FK_Categoria            Int
+  FK_Marca                Int?
+  FK_UnidadMedida         Int
+  FK_usuario_creador      Int
   FK_usuario_actualizador Int
 
-  categoria       CATEGORIA    @relation(fields: [FK_Categoria], references: [id_categoria])
-  marca           MARCA?       @relation(fields: [FK_Marca], references: [id_marca])
-  unidadMedida    UNIDADMEDIDA @relation(fields: [FK_UnidadMedida], references: [id_unidad_medida])
+  categoria    CATEGORIA    @relation(fields: [FK_Categoria], references: [id_categoria])
+  marca        MARCA?       @relation(fields: [FK_Marca], references: [id_marca])
+  unidadMedida UNIDADMEDIDA @relation(fields: [FK_UnidadMedida], references: [id_unidad_medida])
 
   usuarioCreador      USUARIO @relation("ArticuloCreador", fields: [FK_usuario_creador], references: [id_usuario])
   usuarioActualizador USUARIO @relation("ArticuloActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
   stocks STOCK[]
+
+  detallesOrdenCompra DETALLEORDENCOMPRA[]
+  detallesComprobante DETALLECOMPROBANTE[]
 }
 
 model CATEGORIA {
-  id_categoria Int @id @default(autoincrement())
+  id_categoria Int     @id @default(autoincrement())
   // Único solo entre categorías activas (se valida a nivel service, no acá):
   // una categoría dada de baja libera su nombre para una categoría nueva.
   nombre       String
   descripcion  String?
   estado       Boolean @default(true)
 
-  hora_creacion DateTime @default(now())
+  hora_creacion      DateTime  @default(now())
   hora_actualizacion DateTime? @default(now())
 
-  FK_usuario_creador     Int
+  FK_usuario_creador      Int
   FK_usuario_actualizador Int
 
   usuarioCreador      USUARIO @relation("CategoriaCreador", fields: [FK_usuario_creador], references: [id_usuario])
@@ -205,17 +227,17 @@ model CATEGORIA {
 }
 
 model MARCA {
-  id_marca Int @id @default(autoincrement())
+  id_marca    Int     @id @default(autoincrement())
   // Único solo entre marcas activas (se valida a nivel service, no acá):
   // una marca dada de baja libera su nombre para una marca nueva.
-  nombre   String
-  descripcion  String?
-  estado   Boolean @default(true)
+  nombre      String
+  descripcion String?
+  estado      Boolean @default(true)
 
-  hora_creacion DateTime @default(now())
+  hora_creacion      DateTime  @default(now())
   hora_actualizacion DateTime? @default(now())
 
-  FK_usuario_creador     Int
+  FK_usuario_creador      Int
   FK_usuario_actualizador Int
 
   usuarioCreador      USUARIO @relation("MarcaCreador", fields: [FK_usuario_creador], references: [id_usuario])
@@ -225,15 +247,15 @@ model MARCA {
 }
 
 model UNIDADMEDIDA {
-  id_unidad_medida Int @id @default(autoincrement())
-  nombre           String 
-  abreviatura      String  // Abreviatura de la unidad de medida (ejemplo: kg, m, l, etc.)
+  id_unidad_medida Int     @id @default(autoincrement())
+  nombre           String
+  abreviatura      String // Abreviatura de la unidad de medida (ejemplo: kg, m, l, etc.)
   estado           Boolean @default(true)
 
-  hora_creacion DateTime @default(now())
+  hora_creacion      DateTime  @default(now())
   hora_actualizacion DateTime? @default(now())
 
-  FK_usuario_creador     Int
+  FK_usuario_creador      Int
   FK_usuario_actualizador Int
 
   usuarioCreador      USUARIO @relation("UnidadMedidaCreador", fields: [FK_usuario_creador], references: [id_usuario])
@@ -243,23 +265,23 @@ model UNIDADMEDIDA {
 }
 
 model DEPOSITO {
-  id_deposito Int @id @default(autoincrement())
+  id_deposito Int     @id @default(autoincrement())
   // Único solo entre depósitos/obradores activos (se valida a nivel service,
   // no acá): uno dado de baja libera su nombre para uno nuevo.
   nombre      String
-  es_obrador Boolean @default(false)
+  es_obrador  Boolean @default(false)
   ubicacion   String?
   descripcion String?
-  estado     Boolean @default(true)
+  estado      Boolean @default(true)
 
   // Opcional: un depósito central puede no estar vinculado a ningún proyecto.
   FK_Proyecto Int?
   proyecto    PROYECTO? @relation(fields: [FK_Proyecto], references: [id_proyecto])
 
-  hora_creacion DateTime @default(now())
+  hora_creacion      DateTime  @default(now())
   hora_actualizacion DateTime? @default(now())
 
-  FK_usuario_creador     Int
+  FK_usuario_creador      Int
   FK_usuario_actualizador Int
 
   usuarioCreador      USUARIO @relation("DepositoCreador", fields: [FK_usuario_creador], references: [id_usuario])
@@ -267,7 +289,9 @@ model DEPOSITO {
 
   stocks STOCK[]
 
-  movimientos               MOVIMIENTO[] @relation("MovimientoDeposito")
+  movimientos MOVIMIENTO[] @relation("MovimientoDeposito")
+
+  ordenesCompra ORDENCOMPRA[] @relation("OrdenCompraDeposito")
 }
 
 // Stub provisorio hasta que exista el módulo de Proyectos: solo el id, para
@@ -336,4 +360,383 @@ model ALERTA {
   hora_creacion DateTime @default(now())
 
   usuarioAtencion USUARIO? @relation(fields: [FK_usuario_atencion], references: [id_usuario])
+}
+
+// ============================================================================
+// CICLO DE GASTOS (Sprint 2) — Compras + Tesorería (HU-12 a HU-18)
+// ============================================================================
+
+// Condición del proveedor frente al IVA. Conjunto cerrado por normativa, no
+// es un dato que el usuario pueda dar de alta.
+enum CondicionIVA {
+  RESPONSABLE_INSCRIPTO
+  MONOTRIBUTISTA
+  EXENTO
+  CONSUMIDOR_FINAL
+}
+
+// Estados de la orden de compra. Van como enum y no como tabla paramétrica:
+// los cinco valores y sus transiciones permitidas son lógica de negocio
+// validada en el service, no datos administrables desde una pantalla.
+enum EstadoOrdenCompra {
+  BORRADOR
+  EMITIDA
+  RECIBIDA_PARCIAL
+  RECIBIDA
+  CANCELADA
+}
+
+// Situación del documento comprobante (distinta de su estado de saldo).
+enum EstadoComprobante {
+  BORRADOR
+  REGISTRADO
+  ANULADO
+}
+
+enum EstadoOrdenPago {
+  BORRADOR
+  CONFIRMADA
+  ANULADA
+}
+
+// --------------------------------------------------------------------------
+// HU-12 — Proveedores
+// --------------------------------------------------------------------------
+model PROVEEDOR {
+  // El "código único generado por el sistema" que pide la HU es esta PK: no
+  // hay campo `codigo` aparte.
+  id_proveedor Int @id @default(autoincrement())
+
+  // Sin @unique a propósito: la unicidad de la razón social es solo entre
+  // proveedores activos y la valida el service (mismo criterio que MARCA).
+  razon_social  String
+  // Único a nivel de base, y es el único índice único de negocio de los datos
+  // maestros del sprint: el CUIT identifica a una persona jurídica, así que
+  // duplicarlo aunque sea contra un proveedor inactivo es un error de datos.
+  // Si un proveedor dado de baja vuelve, se reactiva, no se recrea. El formato
+  // (once dígitos) lo valida Zod en el service, no la base.
+  cuit          String       @unique
+  condicion_iva CondicionIVA
+  domicilio     String?
+  telefono      String?
+  correo        String?
+  observaciones String?
+  estado        Boolean      @default(true)
+
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
+
+  FK_usuario_creador      Int
+  FK_usuario_actualizador Int
+
+  usuarioCreador      USUARIO @relation("ProveedorCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("ProveedorActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+
+  ordenesCompra ORDENCOMPRA[]
+  comprobantes  COMPROBANTEPROVEEDOR[]
+  ordenesPago   ORDENPAGO[]
+
+  // El listado por defecto muestra solo activos.
+  @@index([estado])
+}
+
+// --------------------------------------------------------------------------
+// HU-13 — Órdenes de compra
+// --------------------------------------------------------------------------
+model ORDENCOMPRA {
+  // El número de orden que ve el usuario es esta PK: la secuencia de Postgres
+  // ya es segura ante concurrencia, no hace falta un servicio de numeración.
+  id_orden_compra Int @id @default(autoincrement())
+
+  // Fecha "de negocio" que carga el usuario, distinta de hora_creacion. El
+  // default "hoy" y el rechazo de fechas futuras los aplica el service.
+  fecha_emision            DateTime
+  fecha_entrega_solicitada DateTime?
+
+  // Texto libre: sirve para la observación general y también para dejar
+  // constancia manual del número de movimiento de stock que respalda una
+  // recepción. Se sobrescribe en cada cambio de estado: no hay historial de
+  // estados, es una simplificación deliberada del modelo.
+  observaciones String?
+
+  // Lo calcula el sistema a partir del detalle, nunca lo manda el cliente.
+  total  Decimal           @default(0) @db.Decimal(14, 2)
+  estado EstadoOrdenCompra @default(BORRADOR)
+
+  // Obligatorio a nivel de service cuando el estado pasa a CANCELADA.
+  motivo_cancelacion String?
+
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
+
+  FK_proveedor            Int
+  FK_deposito             Int
+  FK_usuario_creador      Int
+  FK_usuario_actualizador Int
+
+  proveedor           PROVEEDOR @relation(fields: [FK_proveedor], references: [id_proveedor])
+  deposito            DEPOSITO  @relation("OrdenCompraDeposito", fields: [FK_deposito], references: [id_deposito])
+  usuarioCreador      USUARIO   @relation("OrdenCompraCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO   @relation("OrdenCompraActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+
+  detalles     DETALLEORDENCOMPRA[]
+  comprobantes COMPROBANTEPROVEEDOR[]
+
+  // Filtros combinables del listado: proveedor, estado y período.
+  @@index([FK_proveedor])
+  @@index([estado])
+  @@index([fecha_emision])
+}
+
+model DETALLEORDENCOMPRA {
+  id_detalle_orden_compra Int @id @default(autoincrement())
+
+  FK_orden_compra Int
+  FK_articulo     Int
+
+  // La cantidad también es Decimal: los artículos tienen unidad de medida y no
+  // todos se cuentan en unidades enteras.
+  cantidad        Decimal @db.Decimal(14, 2)
+  precio_unitario Decimal @db.Decimal(14, 2)
+  subtotal        Decimal @db.Decimal(14, 2)
+
+  ordenCompra ORDENCOMPRA @relation(fields: [FK_orden_compra], references: [id_orden_compra], onDelete: Cascade)
+  articulo    ARTICULO    @relation(fields: [FK_articulo], references: [id_articulo])
+
+  // Un mismo artículo no se repite en dos líneas de la misma orden. Este único
+  // sí va en la base: no tiene el problema de convivir con documentos anulados.
+  @@unique([FK_orden_compra, FK_articulo])
+}
+
+// --------------------------------------------------------------------------
+// HU-14 — Tipos de comprobante
+// --------------------------------------------------------------------------
+model TIPOCOMPROBANTE {
+  id_tipo_comprobante Int @id @default(autoincrement())
+
+  // Sin @unique: la unicidad del nombre es solo entre activos, la valida el
+  // service.
+  nombre      String
+  descripcion String?
+
+  // aumenta_saldo y requiere_comprobante_origen se fijan en el alta y quedan
+  // bloqueados de forma permanente: cambiarlos después reinterpretaría todos
+  // los comprobantes ya registrados con este tipo. Esa inmutabilidad la aplica
+  // el service, la base no puede expresarla.
+  //
+  // Va como Boolean y no como enum, mismo criterio que
+  // TIPOMOVIMIENTO.indicador_entrada: son solo dos valores posibles.
+  aumenta_saldo               Boolean // Aumenta el saldo del proveedor (true) o lo disminuye (false)
+  requiere_comprobante_origen Boolean
+
+  estado Boolean @default(true)
+
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
+
+  FK_usuario_creador      Int
+  FK_usuario_actualizador Int
+
+  usuarioCreador      USUARIO @relation("TipoComprobanteCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("TipoComprobanteActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+
+  comprobantes COMPROBANTEPROVEEDOR[]
+
+  @@index([estado])
+}
+
+// --------------------------------------------------------------------------
+// HU-15 — Formas de pago
+// --------------------------------------------------------------------------
+model FORMAPAGO {
+  id_forma_pago Int @id @default(autoincrement())
+
+  // Sin @unique: unicidad solo entre activos, la valida el service.
+  nombre      String
+  descripcion String?
+
+  // Igual que en TIPOCOMPROBANTE: se fija en el alta y queda bloqueado de
+  // forma permanente por el service.
+  requiere_referencia Boolean
+
+  estado Boolean @default(true)
+
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
+
+  FK_usuario_creador      Int
+  FK_usuario_actualizador Int
+
+  usuarioCreador      USUARIO @relation("FormaPagoCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("FormaPagoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+
+  ordenesPago ORDENPAGO[]
+
+  @@index([estado])
+}
+
+// --------------------------------------------------------------------------
+// HU-16 — Comprobantes de proveedor
+// --------------------------------------------------------------------------
+// Se llama COMPROBANTEPROVEEDOR y no COMPROBANTE a secas porque el módulo de
+// Comercialización y Ventas va a necesitar sus propios comprobantes de cliente.
+model COMPROBANTEPROVEEDOR {
+  id_comprobante_proveedor Int @id @default(autoincrement())
+
+  // letra, punto_de_venta y numero los imprime el proveedor y los carga el
+  // usuario a mano: son la única numeración del sprint que no genera el
+  // sistema. La letra es del comprobante, no del tipo.
+  letra          String @db.VarChar(1)
+  punto_de_venta Int
+  numero         Int
+
+  // No admite fechas futuras (validación en service).
+  fecha_emision     DateTime
+  // No puede ser anterior a la de emisión (validación en service).
+  fecha_vencimiento DateTime
+
+  // Importes. Una sola alícuota de IVA por comprobante.
+  importe_neto  Decimal @db.Decimal(14, 2) // suma de subtotales del detalle
+  alicuota_iva  Decimal @db.Decimal(5, 2) // porcentaje, no un importe
+  importe_iva   Decimal @db.Decimal(14, 2)
+  importe_total Decimal @db.Decimal(14, 2)
+
+  // Nullable a propósito: solo los comprobantes cuyo tipo aumenta el saldo
+  // (TIPOCOMPROBANTE.aumenta_saldo = true) llevan saldo propio. Los que lo
+  // disminuyen aplican su importe sobre el comprobante de origen y no quedan
+  // disponibles para imputación.
+  saldo_pendiente Decimal? @db.Decimal(14, 2)
+
+  // Dos estados independientes: el del documento y el de su saldo.
+  estado          EstadoComprobante @default(BORRADOR)
+  // Estado del saldo. Boolean y no enum por el mismo criterio que
+  // TIPOCOMPROBANTE.aumenta_saldo: son solo dos valores. Nullable porque solo
+  // aplica a comprobantes REGISTRADOS cuyo tipo aumenta el saldo.
+  saldo_cancelado Boolean? // Saldo cancelado (true) o pendiente (false)
+
+  observaciones    String?
+  // Obligatorio a nivel de service al anular.
+  motivo_anulacion String?
+
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
+
+  FK_proveedor            Int
+  FK_tipo_comprobante     Int
+  // Orden de compra vinculada, opcional.
+  FK_orden_compra         Int?
+  // Autorreferencia: la nota de crédito o débito apunta al comprobante sobre
+  // el que se aplica. Es obligatoria cuando el tipo lo requiere, y el service
+  // valida además que pertenezca al mismo proveedor.
+  FK_comprobante_origen   Int?
+  FK_usuario_creador      Int
+  FK_usuario_actualizador Int
+
+  proveedor           PROVEEDOR       @relation(fields: [FK_proveedor], references: [id_proveedor])
+  tipoComprobante     TIPOCOMPROBANTE @relation(fields: [FK_tipo_comprobante], references: [id_tipo_comprobante])
+  ordenCompra         ORDENCOMPRA?    @relation(fields: [FK_orden_compra], references: [id_orden_compra])
+  usuarioCreador      USUARIO         @relation("ComprobanteProveedorCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO         @relation("ComprobanteProveedorActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+
+  comprobante_origen COMPROBANTEPROVEEDOR?  @relation("NotasAplicadas", fields: [FK_comprobante_origen], references: [id_comprobante_proveedor])
+  notas_aplicadas    COMPROBANTEPROVEEDOR[] @relation("NotasAplicadas")
+
+  detalles          DETALLECOMPROBANTE[]
+  detallesOrdenPago DETALLEORDENPAGO[]
+
+  // NO es @@unique a propósito, aunque la combinación identifique al
+  // comprobante: el criterio de aceptación habla de comprobantes *vigentes*
+  // (excluye los anulados), y un único de base impediría volver a cargar un
+  // comprobante después de anularlo por un error de tipeo en el número. La
+  // validación la hace el service antes de confirmar; este índice está para
+  // que esa verificación sea una búsqueda indexada y no un scan de la tabla.
+  // No convertirlo en @@unique en una PR futura.
+  @@index([FK_proveedor, FK_tipo_comprobante, letra, punto_de_venta, numero])
+  @@index([FK_proveedor])
+  @@index([estado])
+  @@index([saldo_cancelado])
+  @@index([fecha_emision])
+  @@index([fecha_vencimiento])
+}
+
+model DETALLECOMPROBANTE {
+  id_detalle_comprobante Int @id @default(autoincrement())
+
+  FK_comprobante_proveedor Int
+
+  // La descripción es obligatoria y el artículo opcional: un comprobante puede
+  // tener líneas que no correspondan a un artículo de Almacén (fletes,
+  // servicios, etc.).
+  descripcion String
+  FK_articulo Int?
+
+  cantidad        Decimal @db.Decimal(14, 2)
+  precio_unitario Decimal @db.Decimal(14, 2)
+  subtotal        Decimal @db.Decimal(14, 2)
+
+  comprobante COMPROBANTEPROVEEDOR @relation(fields: [FK_comprobante_proveedor], references: [id_comprobante_proveedor], onDelete: Cascade)
+  articulo    ARTICULO?            @relation(fields: [FK_articulo], references: [id_articulo])
+}
+
+// --------------------------------------------------------------------------
+// HU-18 — Órdenes de pago
+// --------------------------------------------------------------------------
+model ORDENPAGO {
+  // El número de la orden de pago es esta PK: no hay campo `numero`.
+  id_orden_pago Int @id @default(autoincrement())
+
+  fecha_pago DateTime
+
+  // Obligatorio a nivel de service cuando la forma de pago lo requiere.
+  numero_referencia String?
+
+  // Suma de las imputaciones del detalle, la calcula el sistema.
+  importe_total Decimal         @default(0) @db.Decimal(14, 2)
+  observaciones String?
+  estado        EstadoOrdenPago @default(BORRADOR)
+
+  // Obligatorio a nivel de service al anular.
+  motivo_anulacion String?
+
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
+
+  FK_proveedor            Int
+  FK_forma_pago           Int
+  FK_usuario_creador      Int
+  FK_usuario_actualizador Int
+
+  proveedor           PROVEEDOR @relation(fields: [FK_proveedor], references: [id_proveedor])
+  formaPago           FORMAPAGO @relation(fields: [FK_forma_pago], references: [id_forma_pago])
+  usuarioCreador      USUARIO   @relation("OrdenPagoCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO   @relation("OrdenPagoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+
+  detalles DETALLEORDENPAGO[]
+
+  @@index([FK_proveedor])
+  @@index([FK_forma_pago])
+  @@index([estado])
+  @@index([fecha_pago])
+}
+
+model DETALLEORDENPAGO {
+  id_detalle_orden_pago Int @id @default(autoincrement())
+
+  FK_orden_pago            Int
+  FK_comprobante_proveedor Int
+
+  importe_imputado Decimal @db.Decimal(14, 2)
+
+  // Foto del saldo del comprobante al momento de confirmar la orden de pago.
+  // Se conservan tal cual y NUNCA se recalculan al consultarlos: el service de
+  // la cuenta corriente los lee, no los deriva. Mismo criterio que
+  // STOCKMOVIMIENTO.stock_anterior / stock_nuevo.
+  saldo_anterior  Decimal @db.Decimal(14, 2)
+  saldo_posterior Decimal @db.Decimal(14, 2)
+
+  ordenPago   ORDENPAGO            @relation(fields: [FK_orden_pago], references: [id_orden_pago], onDelete: Cascade)
+  comprobante COMPROBANTEPROVEEDOR @relation(fields: [FK_comprobante_proveedor], references: [id_comprobante_proveedor])
+
+  // Un mismo comprobante no puede imputarse dos veces en la misma orden de pago.
+  @@unique([FK_orden_pago, FK_comprobante_proveedor])
 }
