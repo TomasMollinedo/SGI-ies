@@ -59,17 +59,17 @@
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  --text-xs: 1rem; /* 16px */
+  --text-xs: 0.875rem; /* 14px */
   --text-xs--font-weight: var(--font-weight-regular);
-  --text-sm: 1.125rem; /* 18px */
+  --text-sm: 0.9375rem; /* 15px */
   --text-sm--font-weight: var(--font-weight-regular);
-  --text-base: 1.25rem; /* 20px */
+  --text-base: 1rem; /* 16px */
   --text-base--font-weight: var(--font-weight-regular);
-  --text-subtitulo: 1.375rem; /* 22px */
+  --text-subtitulo: 1.1875rem; /* 19px */
   --text-subtitulo--font-weight: var(--font-weight-medium);
-  --text-titulo-modal: 1.875rem; /* 30px */
+  --text-titulo-modal: 1.625rem; /* 26px */
   --text-titulo-modal--font-weight: var(--font-weight-semibold);
-  --text-titulo-principal: 3.125rem; /* 50px */
+  --text-titulo-principal: 2.5rem; /* 40px */
   --text-titulo-principal--font-weight: var(--font-weight-medium);
 
   /* ---------- ANIMACIONES ---------- */
