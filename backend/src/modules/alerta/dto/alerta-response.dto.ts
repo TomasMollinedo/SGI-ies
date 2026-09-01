@@ -32,7 +32,8 @@ export const alertaResponseSchema = z.object({
    */
   datos: z.unknown().nullable(),
   // El destinatario es un rol, no una persona. Sirve sobre todo en la vista
-  // del Gerente General, que ve alertas dirigidas a varios roles.
+  // del Gerente General y el Administrador, que ven alertas dirigidas a varios
+  // roles.
   rolDestinatario: rolResumenSchema,
   atendida: z.boolean(),
   // null mientras la alerta no esté atendida.

@@ -38,6 +38,8 @@ export const PATHS = {
     },
     CUENTAS_CORRIENTES: '/tesoreria/cuentas-corrientes',
   },
+  ALERTAS: { ROOT: '/alertas' },
+
   //PROYECTOS: { ROOT: '/proyectos' },
   //COMERCIAL: { ROOT: '/comercial' },
 } as const

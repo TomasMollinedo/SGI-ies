@@ -48,6 +48,8 @@
   --color-error-soft: color-mix(in srgb, var(--color-error) 12%, var(--color-fondotabla));
   /* versión suave del secundario, para los botones de paginación no activos */
   --color-secondary-soft: color-mix(in srgb, var(--color-secondary) 30%, var(--color-fondotabla));
+  /* fondo suave de alerta para stock bajo el umbral mínimo */
+  --color-stock-bajo: color-mix(in srgb, var(--color-error) 25%, var(--color-fondotabla));
 
   /* ---------- TIPOGRAFÍA ---------- */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -96,6 +98,19 @@
     to {
       opacity: 0;
       transform: translateY(0.75rem) scale(0.97);
+    }
+  }
+
+  /* pulso suave para filas con stock bajo el umbral mínimo */
+  --animate-stock-bajo: stock-bajo 1.8s ease-in-out infinite;
+
+  @keyframes stock-bajo {
+    0%,
+    100% {
+      background-color: var(--color-stock-bajo);
+    }
+    50% {
+      background-color: color-mix(in srgb, var(--color-error) 8%, var(--color-fondotabla));
     }
   }
 }

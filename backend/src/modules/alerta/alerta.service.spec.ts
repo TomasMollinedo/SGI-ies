@@ -49,6 +49,11 @@ describe('AlertaService', () => {
     email: 'gerente@axontech.test',
     rol: RolNombre.GERENTE_GENERAL,
   };
+  const administrador: AuthenticatedUser = {
+    id: 11,
+    email: 'admin@axontech.test',
+    rol: RolNombre.ADMINISTRADOR,
+  };
 
   /** Alerta dirigida al Responsable de Almacén, sin atender. */
   const alerta = (extra: Record<string, unknown> = {}) => ({
@@ -207,6 +212,12 @@ describe('AlertaService', () => {
       expect(whereDelListado()).toEqual({});
     });
 
+    it('no aplica filtro de rol para el Administrador: ve todas, incluidas las de Almacén', async () => {
+      await service.findAll(query(), administrador);
+
+      expect(whereDelListado()).toEqual({});
+    });
+
     it('combina el filtro de rol con los filtros del query', async () => {
       const desde = new Date('2026-08-01T00:00:00.000Z');
       const hasta = new Date('2026-08-31T00:00:00.000Z');
@@ -280,6 +291,12 @@ describe('AlertaService', () => {
       expect(resultado.id_alerta).toBe(ID_ALERTA);
     });
 
+    it('deja al Administrador ver una alerta dirigida al Responsable de Almacén', async () => {
+      const resultado = await service.findOne(ID_ALERTA, administrador);
+
+      expect(resultado.id_alerta).toBe(ID_ALERTA);
+    });
+
     it('devuelve 404 si la alerta no existe', async () => {
       prisma.aLERTA.findUnique.mockResolvedValue(null);
 
@@ -328,6 +345,22 @@ describe('AlertaService', () => {
         service.atender(ID_ALERTA, responsableAlmacen),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.aLERTA.update).not.toHaveBeenCalled();
+    });
+
+    // Contracara del test de arriba: el acceso transversal no es solo de
+    // lectura, también habilita a atender la alerta de cualquier rol.
+    it('deja al Administrador atender una alerta de otro rol', async () => {
+      prisma.aLERTA.findUnique.mockResolvedValue(
+        alerta({ rolDestinatario: { nombre: RolNombre.RESPONSABLE_COMPRAS } }),
+      );
+
+      await service.atender(ID_ALERTA, administrador);
+
+      const [actualizacion] = argumentosDe(prisma.aLERTA.update);
+      expect(actualizacion.data).toMatchObject({
+        atendida: true,
+        FK_usuario_atencion: administrador.id,
+      });
     });
   });
 

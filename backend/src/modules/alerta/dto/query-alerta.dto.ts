@@ -6,8 +6,9 @@ import { fechaIsoSchema } from '../../../common/validaciones/fecha-iso.schema';
  * Filtros del listado de alertas.
  *
  * No hay filtro por rol destinatario: cada usuario ve solo las alertas de su
- * propio rol (o todas, si es Gerente General), y eso lo resuelve el service a
- * partir del usuario autenticado. No es algo que el cliente pueda elegir.
+ * propio rol (o todas, si es Gerente General o Administrador), y eso lo
+ * resuelve el service a partir del usuario autenticado. No es algo que el
+ * cliente pueda elegir.
  */
 export const queryAlertaSchema = z.object({
   FK_tipo_alerta: z.coerce.number().int().positive().optional(),

@@ -1,12 +1,25 @@
+import { TriangleAlert } from 'lucide-react'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { Badge } from '@/shared/components/ui/Badge'
 import type { Stock } from '../types/stock.types'
 import { formatearCodigoStock } from '../utils/codigoStock'
 
+export function stockBajoUmbral(item: Stock) {
+  return item.cantidad < item.umbral_minimo
+}
+
 /** Resultados por página del listado. Fijo por ahora: falta definir con el equipo si esto se vuelve configurable. */
 export const LIMITE_PAGINA = 10
 
 export const COLUMNAS_STOCK: DataTableColumn<Stock>[] = [
+  {
+    key: 'alerta',
+    label: '',
+    render: (item) =>
+      stockBajoUmbral(item) ? (
+        <TriangleAlert className="text-error size-5" aria-label="Stock bajo el umbral mínimo" />
+      ) : null,
+  },
   { key: 'codigo', label: 'Código', render: (item) => formatearCodigoStock(item.id_stock) },
   { key: 'articulo', label: 'Artículo', render: (item) => item.articulo.nombre },
   { key: 'deposito', label: 'Depósito', render: (item) => item.deposito.nombre },
