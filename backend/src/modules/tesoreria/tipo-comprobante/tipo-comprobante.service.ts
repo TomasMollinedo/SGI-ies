@@ -6,6 +6,7 @@ import {
 import { Prisma } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { validarNombreUnicoEntreActivos } from '../../../common/validaciones/nombre-unico-entre-activos';
+import { condicionBusquedaPorPalabras } from '../../../common/validaciones/busqueda-por-palabras';
 import { CreateTipoComprobanteDto } from './dto/create-tipo-comprobante.dto';
 import { UpdateTipoComprobanteDto } from './dto/update-tipo-comprobante.dto';
 import { QueryTipoComprobanteDto } from './dto/query-tipo-comprobante.dto';
@@ -44,7 +45,11 @@ export class TipoComprobanteService {
     const where: Prisma.TIPOCOMPROBANTEWhereInput = {
       ...(estado !== undefined && { estado }),
       ...(aumenta_saldo !== undefined && { aumenta_saldo }),
-      ...(nombre && { nombre: { contains: nombre, mode: 'insensitive' } }),
+      ...(nombre &&
+        condicionBusquedaPorPalabras<Prisma.TIPOCOMPROBANTEWhereInput>(
+          'nombre',
+          nombre,
+        )),
     };
 
     const [data, total] = await Promise.all([

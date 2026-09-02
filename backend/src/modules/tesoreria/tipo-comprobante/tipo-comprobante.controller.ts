@@ -13,6 +13,7 @@ import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -30,16 +31,19 @@ import {
   TipoComprobanteListResponseDto,
   TipoComprobanteResponseDto,
 } from './dto/tipo-comprobante-response.dto';
+import { Roles } from '../../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RolNombre } from '../../../common/enums/rol.enum';
 import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 
-// TODO: definir el rol dueño de Tesorería (pendiente para el viernes) y
-// agregar acá @Roles(RolNombre.<ROL>) + @ApiForbiddenResponse, además de
-// sumar este controller a roles.guard.spec.ts. Hasta entonces, cualquier
-// usuario autenticado entra.
 @ApiTags('Tesorería')
 @ApiBearerAuth()
+@Roles(RolNombre.ADMINISTRADOR)
 @ApiUnauthorizedResponse({ description: 'No autenticado' })
+@ApiForbiddenResponse({
+  description:
+    'El usuario autenticado no tiene el rol Administrador (el Gerente General también tiene acceso, por ser transversal)',
+})
 @Controller('tipos-comprobante')
 export class TipoComprobanteController {
   constructor(
