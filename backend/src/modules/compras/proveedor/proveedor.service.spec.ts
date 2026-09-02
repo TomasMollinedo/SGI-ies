@@ -62,6 +62,19 @@ describe('ProveedorService', () => {
     service = module.get(ProveedorService);
   });
 
+  describe('findCondicionesIva', () => {
+    it('devuelve el catálogo con id (valor de base) y code (etiqueta)', () => {
+      const catalogo = service.findCondicionesIva();
+
+      expect(catalogo).toContainEqual({
+        id: 'RESPONSABLE_INSCRIPTO',
+        code: 'Responsable Inscripto',
+        metadata: {},
+      });
+      expect(catalogo).toHaveLength(4);
+    });
+  });
+
   describe('create', () => {
     const dto = {
       razon_social: 'Acme SA',
