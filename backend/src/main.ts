@@ -36,6 +36,8 @@ Esquema de doble token:
 
 Todas las llamadas a \`/auth/*\` desde el frontend necesitan \`credentials: 'include'\` para que el browser envíe/reciba la cookie \`refreshToken\`.`,
     )
+    .addTag('Compras', 'Proveedores, órdenes de compra y tipos de comprobante.')
+    .addTag('Tesorería', 'Formas de pago, comprobantes y órdenes de pago.')
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api', app, cleanupOpenApiDoc(document));

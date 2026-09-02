@@ -17,6 +17,8 @@ import { ArticuloModule } from './modules/almacen/articulo/articulo.module';
 import { TipoMovimientoModule } from './modules/almacen/tipo-movimiento/tipo-movimiento.module';
 import { MovimientoModule } from './modules/almacen/movimiento/movimiento.module';
 import { AlertaModule } from './modules/alerta/alerta.module';
+import { ComprasModule } from './modules/compras/compras.module';
+import { TesoreriaModule } from './modules/tesoreria/tesoreria.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { AlertaModule } from './modules/alerta/alerta.module';
     TipoMovimientoModule,
     MovimientoModule,
     AlertaModule,
+    ComprasModule,
+    TesoreriaModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
