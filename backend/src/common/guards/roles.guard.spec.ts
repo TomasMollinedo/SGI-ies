@@ -1,7 +1,6 @@
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RolesGuard } from './roles.guard';
-import { Roles } from '../decorators/roles.decorator';
 import { RolNombre } from '../enums/rol.enum';
 import type { AuthenticatedUser } from '../../modules/auth/strategies/jwt.strategy';
 import { AlertaController } from '../../modules/alerta/alerta.controller';
@@ -13,13 +12,7 @@ import { MovimientoController } from '../../modules/almacen/movimiento/movimient
 import { StockController } from '../../modules/almacen/stock/stock.controller';
 import { TipoMovimientoController } from '../../modules/almacen/tipo-movimiento/tipo-movimiento.controller';
 import { UnidadMedidaController } from '../../modules/almacen/unidad-medida/unidad-medida.controller';
-
-/**
- * Controller de mentira, para cubrir el caso "el recurso es de otro rol" sin
- * depender de que exista hoy un módulo con ese dueño.
- */
-@Roles(RolNombre.RESPONSABLE_COMPRAS)
-class ControllerDeCompras {}
+import { ProveedorController } from '../../modules/compras/proveedor/proveedor.controller';
 
 /** Controller sin `@Roles`: cualquier usuario autenticado entra. */
 class ControllerSinRoles {}
@@ -105,6 +98,45 @@ describe('RolesGuard', () => {
     );
   });
 
+  describe('controllers de Compras', () => {
+    const controllersDeCompras: [string, object][] = [
+      ['ProveedorController', ProveedorController],
+    ];
+
+    it.each(controllersDeCompras)(
+      '%s deja entrar al Responsable de Compras, que es el rol dueño del recurso',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.RESPONSABLE_COMPRAS)),
+          ),
+        ).toBe(true);
+      },
+    );
+
+    it.each(controllersDeCompras)(
+      '%s rechaza al Administrador, que no es dueño de este recurso',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.ADMINISTRADOR)),
+          ),
+        ).toBe(false);
+      },
+    );
+
+    it.each(controllersDeCompras)(
+      '%s deja entrar al Gerente General por su acceso transversal',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.GERENTE_GENERAL)),
+          ),
+        ).toBe(true);
+      },
+    );
+  });
+
   describe('sin @Roles en el controller', () => {
     it('deja pasar a cualquier usuario autenticado', () => {
       expect(
@@ -132,7 +164,7 @@ describe('RolesGuard', () => {
     it('el Gerente General entra a un recurso de un rol que no es el suyo', () => {
       expect(
         guard.canActivate(
-          contexto(ControllerDeCompras, usuario(RolNombre.GERENTE_GENERAL)),
+          contexto(ProveedorController, usuario(RolNombre.GERENTE_GENERAL)),
         ),
       ).toBe(true);
     });
@@ -142,7 +174,7 @@ describe('RolesGuard', () => {
     it('el Administrador NO bypassea un recurso de otro rol', () => {
       expect(
         guard.canActivate(
-          contexto(ControllerDeCompras, usuario(RolNombre.ADMINISTRADOR)),
+          contexto(ProveedorController, usuario(RolNombre.ADMINISTRADOR)),
         ),
       ).toBe(false);
     });
