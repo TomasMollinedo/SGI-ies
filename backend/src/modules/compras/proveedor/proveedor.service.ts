@@ -6,6 +6,8 @@ import {
 import { Prisma } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { validarNombreUnicoEntreActivos } from '../../../common/validaciones/nombre-unico-entre-activos';
+import { reactivarEntidad } from '../../../common/validaciones/reactivar-entidad';
+import { condicionBusquedaPorPalabras } from '../../../common/validaciones/busqueda-por-palabras';
 import { CreateProveedorDto } from './dto/create-proveedor.dto';
 import { UpdateProveedorDto } from './dto/update-proveedor.dto';
 import { QueryProveedorDto } from './dto/query-proveedor.dto';
@@ -35,13 +37,21 @@ export class ProveedorService {
   async findAll(query: QueryProveedorDto) {
     const { busqueda, condicion_iva, estado, page, limit } = query;
 
+    // Sin filtro explícito, el listado muestra solo activos. `estado:
+    // 'todos'` (a diferencia de no mandar el parámetro) trae activos e
+    // inactivos, para poder encontrar uno dado de baja y reactivarlo.
+    const filtroEstado =
+      estado === undefined ? true : estado === 'todos' ? undefined : estado;
+
     const where: Prisma.PROVEEDORWhereInput = {
-      // Sin filtro explícito de estado, el listado muestra solo activos.
-      estado: estado ?? true,
+      ...(filtroEstado !== undefined && { estado: filtroEstado }),
       ...(condicion_iva && { condicion_iva }),
       ...(busqueda && {
         OR: [
-          { razon_social: { contains: busqueda, mode: 'insensitive' } },
+          condicionBusquedaPorPalabras<Prisma.PROVEEDORWhereInput>(
+            'razon_social',
+            busqueda,
+          ),
           { cuit: { contains: busqueda } },
         ],
       }),
@@ -144,6 +154,32 @@ export class ProveedorService {
         FK_usuario_actualizador: usuarioId,
         hora_actualizacion: new Date(),
       },
+    });
+  }
+
+  /**
+   * Alta lógica (reactivar): solo si está de baja. Vuelve a validar la
+   * razón social entre proveedores activos porque, mientras estuvo de baja,
+   * otro proveedor pudo haber tomado ese mismo nombre. El CUIT no hace
+   * falta revalidarlo: al ser único contra todos los proveedores (activos o
+   * no), un choque ya se hubiera bloqueado antes de llegar a este estado.
+   */
+  async activar(id: number, usuarioId: number) {
+    const proveedor = await this.findOne(id);
+
+    return reactivarEntidad({
+      entidad: proveedor,
+      entidadYaActiva: 'El proveedor ya está activo',
+      revalidar: () => this.validarRazonSocialUnica(proveedor.razon_social, id),
+      activar: () =>
+        this.prisma.pROVEEDOR.update({
+          where: { id_proveedor: id },
+          data: {
+            estado: true,
+            FK_usuario_actualizador: usuarioId,
+            hora_actualizacion: new Date(),
+          },
+        }),
     });
   }
 

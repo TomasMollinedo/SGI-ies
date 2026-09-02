@@ -38,11 +38,11 @@ import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 
 @ApiTags('Proveedores')
 @ApiBearerAuth()
-@Roles(RolNombre.RESPONSABLE_COMPRAS, RolNombre.ADMINISTRADOR, RolNombre.GERENTE_GENERAL)
+@Roles(RolNombre.ADMINISTRADOR)
 @ApiUnauthorizedResponse({ description: 'No autenticado' })
 @ApiForbiddenResponse({
   description:
-    'El usuario autenticado no tiene el rol Responsable de Compras (el Gerente General también tiene acceso, por ser transversal)',
+    'El usuario autenticado no tiene el rol Administrador (el Gerente General también tiene acceso, por ser transversal)',
 })
 @Controller('proveedores')
 export class ProveedorController {
@@ -75,8 +75,9 @@ export class ProveedorController {
     name: 'busqueda',
     required: false,
     type: String,
-    description: 'Filtra por coincidencia parcial de razón social o de CUIT',
-    example: 'acme',
+    description:
+      'Filtra por coincidencia parcial de razón social (cada palabra por separado, sin importar el orden) o de CUIT',
+    example: 'farmacia bermejo',
   })
   @ApiQuery({
     name: 'condicion_iva',
@@ -92,9 +93,9 @@ export class ProveedorController {
   @ApiQuery({
     name: 'estado',
     required: false,
-    enum: ['true', 'false'],
+    enum: ['true', 'false', 'todos'],
     description:
-      'Filtra por proveedores activos (true) o dados de baja (false). Sin este parámetro, trae solo los activos.',
+      'Filtra por proveedores activos (true), dados de baja (false), o ambos (todos). Sin este parámetro, trae solo los activos.',
   })
   @ApiQuery({
     name: 'page',
@@ -184,5 +185,30 @@ export class ProveedorController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.proveedorService.baja(id, user.id);
+  }
+
+  @Patch(':id/alta')
+  @ApiOperation({
+    summary: 'Reactivar un proveedor dado de baja (alta lógica)',
+  })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_proveedor del proveedor a reactivar',
+  })
+  @ApiOkResponse({
+    description: 'Proveedor reactivado',
+    type: ProveedorResponseDto,
+  })
+  @ApiNotFoundResponse({ description: 'No existe un proveedor con ese id' })
+  @ApiConflictResponse({
+    description:
+      'El proveedor ya está activo, o ya existe otro proveedor activo con la misma razón social',
+  })
+  alta(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.proveedorService.activar(id, user.id);
   }
 }

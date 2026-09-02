@@ -140,7 +140,16 @@ describe('ProveedorService', () => {
       });
     });
 
-    it('busqueda filtra por coincidencia parcial de razón social o CUIT', async () => {
+    it("con estado='todos', lista activos e inactivos (para poder reactivar)", async () => {
+      prisma.pROVEEDOR.findMany.mockResolvedValue([]);
+      prisma.pROVEEDOR.count.mockResolvedValue(0);
+
+      await service.findAll({ estado: 'todos', page: 1, limit: 10 });
+
+      expect(primerArgumento(prisma.pROVEEDOR.findMany).where).toEqual({});
+    });
+
+    it('busqueda con una sola palabra filtra por coincidencia parcial de razón social o CUIT', async () => {
       prisma.pROVEEDOR.findMany.mockResolvedValue([]);
       prisma.pROVEEDOR.count.mockResolvedValue(0);
 
@@ -149,8 +158,34 @@ describe('ProveedorService', () => {
       expect(primerArgumento(prisma.pROVEEDOR.findMany).where).toEqual({
         estado: true,
         OR: [
-          { razon_social: { contains: '3050', mode: 'insensitive' } },
+          {
+            AND: [{ razon_social: { contains: '3050', mode: 'insensitive' } }],
+          },
           { cuit: { contains: '3050' } },
+        ],
+      });
+    });
+
+    it('busqueda con varias palabras exige las dos en la razón social, sin importar el orden', async () => {
+      prisma.pROVEEDOR.findMany.mockResolvedValue([]);
+      prisma.pROVEEDOR.count.mockResolvedValue(0);
+
+      await service.findAll({
+        busqueda: 'farmacia bermejo',
+        page: 1,
+        limit: 10,
+      });
+
+      expect(primerArgumento(prisma.pROVEEDOR.findMany).where).toEqual({
+        estado: true,
+        OR: [
+          {
+            AND: [
+              { razon_social: { contains: 'farmacia', mode: 'insensitive' } },
+              { razon_social: { contains: 'bermejo', mode: 'insensitive' } },
+            ],
+          },
+          { cuit: { contains: 'farmacia bermejo' } },
         ],
       });
     });
@@ -204,6 +239,47 @@ describe('ProveedorService', () => {
       });
 
       await expect(service.baja(1, USUARIO_ID)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(prisma.pROVEEDOR.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('activar', () => {
+    it('reactiva un proveedor dado de baja', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue({
+        ...proveedorMock,
+        estado: false,
+      });
+      prisma.pROVEEDOR.update.mockResolvedValue(proveedorMock);
+
+      await service.activar(1, USUARIO_ID);
+
+      const dataEnviada = primerArgumento(prisma.pROVEEDOR.update).data;
+      expect(dataEnviada?.estado).toBe(true);
+      expect(dataEnviada?.FK_usuario_actualizador).toBe(USUARIO_ID);
+    });
+
+    it('rechaza si el proveedor ya está activo', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue(proveedorMock);
+
+      await expect(service.activar(1, USUARIO_ID)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(prisma.pROVEEDOR.update).not.toHaveBeenCalled();
+    });
+
+    it('revalida la razón social: si otro activo la tomó mientras estaba de baja, rechaza', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue({
+        ...proveedorMock,
+        estado: false,
+      });
+      prisma.pROVEEDOR.findFirst.mockResolvedValue({
+        ...proveedorMock,
+        id_proveedor: 2,
+      });
+
+      await expect(service.activar(1, USUARIO_ID)).rejects.toBeInstanceOf(
         ConflictException,
       );
       expect(prisma.pROVEEDOR.update).not.toHaveBeenCalled();
