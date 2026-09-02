@@ -31,6 +31,7 @@ import {
   ProveedorListResponseDto,
   ProveedorResponseDto,
 } from './dto/proveedor-response.dto';
+import { CatalogoItemDto } from '../../../common/dto/catalogo-item.dto';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { RolNombre } from '../../../common/enums/rol.enum';
@@ -47,6 +48,22 @@ import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 @Controller('proveedores')
 export class ProveedorController {
   constructor(private readonly proveedorService: ProveedorService) {}
+
+  // Va antes que @Get(':id') a propósito: si no, Nest matchea GET
+  // /proveedores/condiciones-iva contra la ruta dinámica e intenta parsear
+  // "condiciones-iva" como el id numérico.
+  @Get('condiciones-iva')
+  @ApiOperation({
+    summary:
+      'Listar los valores posibles de condición frente al IVA, para poblar el <select> del frontend',
+  })
+  @ApiOkResponse({
+    description: 'Catálogo de condiciones frente al IVA',
+    type: [CatalogoItemDto],
+  })
+  findCondicionesIva() {
+    return this.proveedorService.findCondicionesIva();
+  }
 
   @Post()
   @ApiOperation({ summary: 'Crear un proveedor' })

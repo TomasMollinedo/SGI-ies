@@ -4,13 +4,27 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
+import { CondicionIVA } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { validarNombreUnicoEntreActivos } from '../../../common/validaciones/nombre-unico-entre-activos';
 import { reactivarEntidad } from '../../../common/validaciones/reactivar-entidad';
 import { condicionBusquedaPorPalabras } from '../../../common/validaciones/busqueda-por-palabras';
+import { CatalogoItemDto } from '../../../common/dto/catalogo-item.dto';
 import { CreateProveedorDto } from './dto/create-proveedor.dto';
 import { UpdateProveedorDto } from './dto/update-proveedor.dto';
 import { QueryProveedorDto } from './dto/query-proveedor.dto';
+
+/**
+ * Etiquetas legibles de `CondicionIVA` para el catálogo que consume el
+ * `<select>` del frontend (ver `findCondicionesIva`). Conjunto cerrado por
+ * normativa AFIP, igual que el enum (ver comentario en schema.prisma).
+ */
+const CONDICION_IVA_LABELS: Record<CondicionIVA, string> = {
+  RESPONSABLE_INSCRIPTO: 'Responsable Inscripto',
+  MONOTRIBUTISTA: 'Monotributista',
+  EXENTO: 'Exento',
+  CONSUMIDOR_FINAL: 'Consumidor Final',
+};
 
 @Injectable()
 export class ProveedorService {
@@ -32,6 +46,21 @@ export class ProveedorService {
         FK_usuario_actualizador: usuarioId,
       },
     });
+  }
+
+  /**
+   * Catálogo de valores de `condicion_iva` para poblar el `<select>` del
+   * frontend. `id` es el valor que persiste la base (lo que viaja en
+   * `condicion_iva` al crear/editar un proveedor); `code` es la etiqueta
+   * que ve el usuario. `metadata` queda vacío: este catálogo no necesita
+   * datos extra por ítem.
+   */
+  findCondicionesIva(): CatalogoItemDto[] {
+    return Object.entries(CONDICION_IVA_LABELS).map(([id, code]) => ({
+      id,
+      code,
+      metadata: {},
+    }));
   }
 
   async findAll(query: QueryProveedorDto) {
