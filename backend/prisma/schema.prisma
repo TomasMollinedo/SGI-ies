@@ -482,9 +482,10 @@ model ORDENCOMPRA {
   detalles     DETALLEORDENCOMPRA[]
   comprobantes COMPROBANTEPROVEEDOR[]
 
-  // Filtros combinables del listado: proveedor, estado y período.
+  // Filtros combinables del listado: proveedor, estado, depósito y período.
   @@index([FK_proveedor])
   @@index([estado])
+  @@index([FK_deposito])
   @@index([fecha_emision])
 }
 
