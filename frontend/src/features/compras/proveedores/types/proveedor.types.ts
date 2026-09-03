@@ -9,18 +9,43 @@ export interface CondicionIva {
   metadata: Record<string, unknown>
 }
 
-/** Fila del listado (GET /proveedores). `condicion_iva` es el `id` del catálogo. */
+/**
+ * Fila del listado (GET /proveedores). `condicion_iva` es el `id` del catálogo.
+ * Los campos opcionales del alta vienen en `null` cuando nunca se cargaron.
+ */
 export interface Proveedor {
   id_proveedor: number
   razon_social: string
   cuit: string
   condicion_iva: string
-  domicilio: string
-  telefono: string
-  correo: string
-  observaciones: string
+  domicilio: string | null
+  telefono: string | null
+  correo: string | null
+  observaciones: string | null
   estado: boolean
 }
+
+/** Nombre y apellido de quien creó o modificó un registro. */
+export interface UsuarioResumen {
+  nombre: string
+  apellido: string
+}
+
+/** Respuesta de GET /proveedores/:id: Proveedor + trazabilidad de quién lo creó/modificó. */
+export interface ProveedorDetalle extends Proveedor {
+  hora_creacion: string
+  hora_actualizacion: string | null
+  FK_usuario_creador: number
+  FK_usuario_actualizador: number | null
+  usuarioCreador: UsuarioResumen
+  usuarioActualizador: UsuarioResumen | null
+}
+
+/**
+ * Body de PATCH /proveedores/:id. Todos los campos son opcionales: solo se
+ * mandan los que cambiaron.
+ */
+export type EditarProveedorPayload = Partial<CrearProveedorPayload>
 
 /**
  * Valor del filtro de estado tal como lo maneja el `<Select>` y tal como lo
@@ -38,4 +63,16 @@ export interface ProveedoresQuery {
   estado?: FiltroEstado
   page?: number
   limit?: number
+}
+
+/** Body de POST /proveedores. Razón social, CUIT y condición IVA son obligatorios. */
+export interface CrearProveedorPayload {
+  razon_social: string
+  cuit: string
+  /** El `id` del catálogo de condiciones frente al IVA. */
+  condicion_iva: string
+  domicilio?: string
+  telefono?: string
+  correo?: string
+  observaciones?: string
 }

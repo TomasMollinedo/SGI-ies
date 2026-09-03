@@ -42,7 +42,9 @@ export function FiltrosProveedoresBar({
         iconLeft={<Search />}
         value={busqueda}
         onChange={(evento) => onBusquedaChange(evento.target.value)}
-        className="w-64"
+        // Más ancho que el resto de los buscadores: "Buscar por razón social o
+        // CUIT" no entra en w-64 y el placeholder queda cortado.
+        className="w-68"
       />
       <Select
         size="sm"
