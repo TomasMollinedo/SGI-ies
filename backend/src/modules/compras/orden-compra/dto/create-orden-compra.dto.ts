@@ -24,28 +24,42 @@ export const cabeceraOrdenCompraSchema = z.object({
   FK_deposito: z.number().int().positive(),
 });
 
-export const createOrdenCompraSchema = cabeceraOrdenCompraSchema
-  .extend({
-    // Sin mínimo de líneas acá a propósito: la HU exige al menos una línea
-    // recién "antes de confirmarse" (al pasar de BORRADOR a EMITIDA), no al
-    // crear. Mientras está en BORRADOR se puede seguir agregando, editando y
-    // sacando líneas — ese mínimo lo valida el service en el cambio de
-    // estado, no este DTO de creación.
-    detalle: z.array(lineaOrdenCompraSchema),
-  })
-  // La unicidad ya la exige la base (@@unique([FK_orden_compra,
-  // FK_articulo])), pero se valida también acá por si la request llega por
-  // fuera del flujo normal del formulario — mismo criterio que Movimiento.
-  .refine(
-    (data) =>
-      new Set(data.detalle.map((linea) => linea.FK_articulo)).size ===
-      data.detalle.length,
-    {
-      message:
-        'No se puede repetir el mismo artículo en el detalle de una orden de compra',
-      path: ['detalle'],
-    },
-  );
+/**
+ * Cabecera + detalle, sin la validación de artículos repetidos todavía —
+ * queda "pelado" (sin `.refine()`) a propósito, para que
+ * `update-orden-compra.dto.ts` le pueda aplicar `.partial()`: Zod no permite
+ * `.partial()` sobre un schema que ya tiene un `.refine()` encima.
+ *
+ * Sin mínimo de líneas acá tampoco a propósito: la HU exige al menos una
+ * línea recién "antes de confirmarse" (al pasar de BORRADOR a EMITIDA), no al
+ * crear. Mientras está en BORRADOR se puede seguir agregando, editando y
+ * sacando líneas — ese mínimo lo valida el service en el cambio de estado,
+ * no este DTO.
+ */
+export const documentoOrdenCompraSchema = cabeceraOrdenCompraSchema.extend({
+  detalle: z.array(lineaOrdenCompraSchema),
+});
+
+/**
+ * La unicidad de artículos por línea ya la exige la base (@@unique([FK_orden_
+ * compra, FK_articulo])), pero se valida también acá por si la request llega
+ * por fuera del flujo normal del formulario — mismo criterio que Movimiento.
+ * Se comparte entre create y update porque las dos necesitan la misma regla.
+ */
+export const sinArticulosRepetidos = (
+  detalle: { FK_articulo: number }[] | undefined,
+) =>
+  detalle === undefined ||
+  new Set(detalle.map((linea) => linea.FK_articulo)).size === detalle.length;
+
+export const createOrdenCompraSchema = documentoOrdenCompraSchema.refine(
+  (data) => sinArticulosRepetidos(data.detalle),
+  {
+    message:
+      'No se puede repetir el mismo artículo en el detalle de una orden de compra',
+    path: ['detalle'],
+  },
+);
 
 export class CreateOrdenCompraDto extends createZodDto(
   createOrdenCompraSchema,
