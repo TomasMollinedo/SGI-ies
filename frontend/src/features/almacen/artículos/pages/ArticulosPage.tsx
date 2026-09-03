@@ -88,7 +88,7 @@ export function ArticulosPage() {
   // vacía, el efecto vuelve a correr hasta llegar a la primera.
   useEffect(() => {
     if (isFetching || !data) return
-    if (data.data.length === 0 && data.meta.page > 1) setPage(data.meta.page - 1)
+    if (data.data.length === 0 && data.meta.page > 1 && data.meta.total > 0) setPage(data.meta.page - 1)
   }, [isFetching, data])
 
   const cerrarDetalle = useCallback(() => setDetalleId(null), [])
