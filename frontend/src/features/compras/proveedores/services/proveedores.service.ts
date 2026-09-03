@@ -50,3 +50,9 @@ export async function darDeBajaProveedor(id: number): Promise<Proveedor> {
   const { data } = await httpClient.patch<Proveedor>(`/proveedores/${id}/baja`)
   return data
 }
+
+/** PATCH /proveedores/:id/alta — reactivación. Sin body; devuelve el proveedor ya actualizado. */
+export async function reactivarProveedor(id: number): Promise<Proveedor> {
+  const { data } = await httpClient.patch<Proveedor>(`/proveedores/${id}/alta`)
+  return data
+}

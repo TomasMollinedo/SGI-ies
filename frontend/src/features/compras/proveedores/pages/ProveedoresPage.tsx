@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@/shared/components/common/ConfirmDialog'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { DataTable } from '@/shared/components/common/DataTable'
 import { Pagination } from '@/shared/components/common/Pagination'
+import type { RowAction } from '@/shared/components/common/RowActions'
 import { RowActions } from '@/shared/components/common/RowActions'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
@@ -27,9 +28,13 @@ import {
   useCrearProveedor,
   useDarDeBajaProveedor,
   useProveedores,
+  useReactivarProveedor,
 } from '../hooks/useProveedores'
 import type { ProveedorFormOutput } from '../types/proveedor.schema'
 import type { FiltroEstado, Proveedor } from '../types/proveedor.types'
+
+type TipoConfirmacion = 'baja' | 'reactivar'
+type EstadoConfirmacion = { tipo: TipoConfirmacion; proveedor: Proveedor } | null
 
 export function ProveedoresPage() {
   const toast = useToast()
@@ -43,7 +48,7 @@ export function ProveedoresPage() {
   const [page, setPage] = useState(1)
   const [formularioAbierto, setFormularioAbierto] = useState(false)
   const [errorFormulario, setErrorFormulario] = useState<ApiErrorResponse | null>(null)
-  const [confirmacion, setConfirmacion] = useState<Proveedor | null>(null)
+  const [confirmacion, setConfirmacion] = useState<EstadoConfirmacion>(null)
   const [errorConfirmacion, setErrorConfirmacion] = useState<ApiErrorResponse | null>(null)
 
   const busquedaDebounced = useDebounce(busqueda.trim(), DEBOUNCE_BUSQUEDA)
@@ -95,28 +100,35 @@ export function ProveedoresPage() {
   )
   const crear = useCrearProveedor()
   const baja = useDarDeBajaProveedor()
+  const reactivar = useReactivarProveedor()
+  const operacionEnCurso = baja.isPending || reactivar.isPending
 
-  const columnas: DataTableColumn<Proveedor>[] = useMemo(
-    () => [
-      ...crearColumnasProveedores((id) => etiquetasCondicionIva.get(id) ?? id),
-      {
-        key: 'acciones',
-        label: 'Acciones',
-        render: (item) => (
-          <RowActions
-            isActive={item.estado}
-            loadingAction={
-              confirmacion?.id_proveedor === item.id_proveedor && baja.isPending
-                ? 'delete'
-                : undefined
-            }
-            onDelete={() => abrirConfirmacion(item)}
-          />
-        ),
-      },
-    ],
-    [etiquetasCondicionIva, confirmacion, baja.isPending]
-  )
+  /**
+   * Mientras la operación corre, el botón que la disparó queda bloqueado con su
+   * spinner: no se puede mandar la misma baja/reactivación dos veces.
+   */
+  function accionEnCurso(proveedor: Proveedor): RowAction | undefined {
+    if (!confirmacion || !operacionEnCurso) return undefined
+    if (confirmacion.proveedor.id_proveedor !== proveedor.id_proveedor) return undefined
+
+    return confirmacion.tipo === 'baja' ? 'delete' : 'reactivate'
+  }
+
+  const columnas: DataTableColumn<Proveedor>[] = [
+    ...crearColumnasProveedores((id) => etiquetasCondicionIva.get(id) ?? id),
+    {
+      key: 'acciones',
+      label: 'Acciones',
+      render: (item) => (
+        <RowActions
+          isActive={item.estado}
+          loadingAction={accionEnCurso(item)}
+          onDelete={() => abrirConfirmacion({ tipo: 'baja', proveedor: item })}
+          onReactivate={() => abrirConfirmacion({ tipo: 'reactivar', proveedor: item })}
+        />
+      ),
+    },
+  ]
 
   function abrirFormulario() {
     setErrorFormulario(null)
@@ -180,9 +192,9 @@ export function ProveedoresPage() {
     )
   }
 
-  function abrirConfirmacion(proveedor: Proveedor) {
+  function abrirConfirmacion(estadoInicial: EstadoConfirmacion) {
     setErrorConfirmacion(null)
-    setConfirmacion(proveedor)
+    setConfirmacion(estadoInicial)
   }
 
   function cerrarConfirmacion() {
@@ -193,10 +205,17 @@ export function ProveedoresPage() {
   function ejecutarConfirmacion() {
     if (!confirmacion) return
 
+    const { tipo, proveedor } = confirmacion
+    const mutacion = tipo === 'baja' ? baja : reactivar
+
     setErrorConfirmacion(null)
-    baja.mutate(confirmacion.id_proveedor, {
+    mutacion.mutate(proveedor.id_proveedor, {
       onSuccess: () => {
-        toast.success('Proveedor dado de baja correctamente')
+        toast.success(
+          tipo === 'baja'
+            ? 'Proveedor dado de baja correctamente'
+            : 'Proveedor reactivado correctamente'
+        )
         cerrarConfirmacion()
       },
       onError: (error) => {
@@ -294,16 +313,16 @@ export function ProveedoresPage() {
         open={confirmacion !== null}
         onCancel={cerrarConfirmacion}
         onConfirm={ejecutarConfirmacion}
-        variant="baja"
-        eyebrow="Dar de baja proveedor"
+        variant={confirmacion?.tipo === 'baja' ? 'baja' : 'reactivar'}
+        eyebrow={confirmacion?.tipo === 'baja' ? 'Dar de baja proveedor' : 'Reactivar proveedor'}
         title={
           confirmacion
-            ? `¿Confirmás que querés dar de baja al proveedor «${confirmacion.razon_social}»?`
+            ? `¿Confirmás que querés ${confirmacion.tipo === 'baja' ? 'dar de baja al' : 'reactivar al'} proveedor «${confirmacion.proveedor.razon_social}»?`
             : ''
         }
         error={errorConfirmacion ? formatearMensajeError(errorConfirmacion.message) : null}
-        confirmLabel="Dar de baja"
-        loading={baja.isPending}
+        confirmLabel={confirmacion?.tipo === 'baja' ? 'Dar de baja' : 'Reactivar'}
+        loading={operacionEnCurso}
       />
     </div>
   )

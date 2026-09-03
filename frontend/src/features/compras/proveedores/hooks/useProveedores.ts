@@ -6,6 +6,7 @@ import {
   darDeBajaProveedor,
   listarCondicionesIva,
   listarProveedores,
+  reactivarProveedor,
 } from '../services/proveedores.service'
 import type {
   CondicionIva,
@@ -50,14 +51,27 @@ export function useCrearProveedor() {
 }
 
 /**
- * No lleva body y al terminar invalida el listado, que se vuelve a pedir con
- * la página y los filtros que estaban puestos, porque son parte de la query key.
+ * Baja y reactivación comparten forma: reciben el id, no llevan body y al
+ * terminar invalidan el listado, que se vuelve a pedir con la página y los
+ * filtros que estaban puestos, porque son parte de la query key.
  */
+
 export function useDarDeBajaProveedor() {
   const queryClient = useQueryClient()
 
   return useMutation<Proveedor, ApiErrorResponse, number>({
     mutationFn: darDeBajaProveedor,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proveedores', 'lista'] })
+    },
+  })
+}
+
+export function useReactivarProveedor() {
+  const queryClient = useQueryClient()
+
+  return useMutation<Proveedor, ApiErrorResponse, number>({
+    mutationFn: reactivarProveedor,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['proveedores', 'lista'] })
     },
