@@ -1,6 +1,11 @@
 import { httpClient } from '@/shared/api/httpClient'
 import type { PaginatedResponse } from '@/shared/types/api.types'
-import type { CondicionIva, Proveedor, ProveedoresQuery } from '../types/proveedor.types'
+import type {
+  CondicionIva,
+  CrearProveedorPayload,
+  Proveedor,
+  ProveedoresQuery,
+} from '../types/proveedor.types'
 
 export const PROVEEDORES_QUERY_KEYS = {
   LISTA: (filtros: ProveedoresQuery) => ['proveedores', 'lista', filtros] as const,
@@ -32,5 +37,10 @@ export async function listarProveedores(
 /** GET /proveedores/condiciones-iva — catálogo para el filtro de condición frente al IVA. */
 export async function listarCondicionesIva(signal?: AbortSignal): Promise<CondicionIva[]> {
   const { data } = await httpClient.get<CondicionIva[]>('/proveedores/condiciones-iva', { signal })
+  return data
+}
+
+export async function crearProveedor(payload: CrearProveedorPayload): Promise<Proveedor> {
+  const { data } = await httpClient.post<Proveedor>('/proveedores', payload)
   return data
 }

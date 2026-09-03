@@ -39,3 +39,15 @@ export interface ProveedoresQuery {
   page?: number
   limit?: number
 }
+
+/** Body de POST /proveedores. Razón social, CUIT y condición IVA son obligatorios. */
+export interface CrearProveedorPayload {
+  razon_social: string
+  cuit: string
+  /** El `id` del catálogo de condiciones frente al IVA. */
+  condicion_iva: string
+  domicilio?: string
+  telefono?: string
+  correo?: string
+  observaciones?: string
+}

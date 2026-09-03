@@ -1,24 +1,30 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ShieldAlert } from 'lucide-react'
+import { Plus, ShieldAlert } from 'lucide-react'
 import { PATHS } from '@/app/router/paths'
 import { DataTable } from '@/shared/components/common/DataTable'
 import { Pagination } from '@/shared/components/common/Pagination'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
+import { Button } from '@/shared/components/ui/Button'
 import { Spinner } from '@/shared/components/ui/Spinner'
 import { useDebounce } from '@/shared/hooks/useDebounce'
+import { useToast } from '@/shared/hooks/useToast'
+import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { FiltrosProveedoresBar } from '../components/FiltrosProveedoresBar'
+import { ProveedorForm } from '../components/ProveedorForm'
 import {
   DEBOUNCE_BUSQUEDA,
   LIMITE_PAGINA,
   crearColumnasProveedores,
 } from '../config/proveedor.config'
-import { useCondicionesIva, useProveedores } from '../hooks/useProveedores'
+import { useCondicionesIva, useCrearProveedor, useProveedores } from '../hooks/useProveedores'
+import type { ProveedorFormOutput } from '../types/proveedor.schema'
 import type { FiltroEstado } from '../types/proveedor.types'
 
 export function ProveedoresPage() {
+  const toast = useToast()
   const navigate = useNavigate()
 
   const [busqueda, setBusqueda] = useState('')
@@ -27,6 +33,8 @@ export function ProveedoresPage() {
   // todos los días. Los dados de baja se ven cambiando el filtro a "Todos".
   const [estado, setEstado] = useState<FiltroEstado>('true')
   const [page, setPage] = useState(1)
+  const [formularioAbierto, setFormularioAbierto] = useState(false)
+  const [errorFormulario, setErrorFormulario] = useState<ApiErrorResponse | null>(null)
 
   const busquedaDebounced = useDebounce(busqueda.trim(), DEBOUNCE_BUSQUEDA)
 
@@ -71,6 +79,55 @@ export function ProveedoresPage() {
     [etiquetasCondicionIva]
   )
 
+  const crear = useCrearProveedor()
+
+  function abrirFormulario() {
+    setErrorFormulario(null)
+    setFormularioAbierto(true)
+  }
+
+  function cerrarFormulario() {
+    setFormularioAbierto(false)
+    setErrorFormulario(null)
+  }
+
+  function manejarSubmitFormulario(payload: ProveedorFormOutput) {
+    crear.mutate(
+      {
+        razon_social: payload.razon_social,
+        cuit: payload.cuit,
+        condicion_iva: payload.condicion_iva,
+        ...(payload.domicilio ? { domicilio: payload.domicilio } : {}),
+        ...(payload.telefono ? { telefono: payload.telefono } : {}),
+        ...(payload.correo ? { correo: payload.correo } : {}),
+        ...(payload.observaciones ? { observaciones: payload.observaciones } : {}),
+      },
+      {
+        onSuccess: () => {
+          toast.success('Proveedor creado correctamente')
+          cerrarFormulario()
+          // El proveedor nuevo puede caer en cualquier página del orden
+          // alfabético; se vuelve a la primera, con los filtros que estaban puestos.
+          setPage(1)
+        },
+        onError: (error) => {
+          // El interceptor del httpClient ya intenta renovar la sesión; si
+          // igual llega un 401 es que no hay sesión recuperable.
+          if (error.statusCode === 401) {
+            navigate(PATHS.LOGIN, { replace: true })
+            return
+          }
+          if (error.statusCode === 403) {
+            toast.error('No tenés permisos para realizar esta acción')
+            cerrarFormulario()
+            return
+          }
+          setErrorFormulario(error)
+        },
+      }
+    )
+  }
+
   if (statusCode === 403) {
     return (
       <EmptyState
@@ -87,14 +144,19 @@ export function ProveedoresPage() {
 
   return (
     <div className="space-y-4">
-      <FiltrosProveedoresBar
-        busqueda={busqueda}
-        onBusquedaChange={setBusqueda}
-        condicionIva={condicionIva}
-        onCondicionIvaChange={setCondicionIva}
-        estado={estado}
-        onEstadoChange={setEstado}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <FiltrosProveedoresBar
+          busqueda={busqueda}
+          onBusquedaChange={setBusqueda}
+          condicionIva={condicionIva}
+          onCondicionIvaChange={setCondicionIva}
+          estado={estado}
+          onEstadoChange={setEstado}
+        />
+        <Button icon={<Plus />} onClick={abrirFormulario}>
+          Nuevo Proveedor
+        </Button>
+      </div>
 
       {isLoading && (
         <div className="flex justify-center py-12">
@@ -141,6 +203,14 @@ export function ProveedoresPage() {
           )}
         </>
       )}
+
+      <ProveedorForm
+        open={formularioAbierto}
+        onClose={cerrarFormulario}
+        onSubmit={manejarSubmitFormulario}
+        loading={crear.isPending}
+        error={errorFormulario}
+      />
     </div>
   )
 }
