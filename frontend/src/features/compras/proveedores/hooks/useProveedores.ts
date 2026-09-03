@@ -4,6 +4,7 @@ import {
   PROVEEDORES_QUERY_KEYS,
   crearProveedor,
   darDeBajaProveedor,
+  editarProveedor,
   listarCondicionesIva,
   listarProveedores,
   obtenerProveedor,
@@ -12,6 +13,7 @@ import {
 import type {
   CondicionIva,
   CrearProveedorPayload,
+  EditarProveedorPayload,
   Proveedor,
   ProveedorDetalle,
   ProveedoresQuery,
@@ -62,6 +64,18 @@ export function useCrearProveedor() {
     mutationFn: crearProveedor,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['proveedores', 'lista'] })
+    },
+  })
+}
+
+export function useEditarProveedor() {
+  const queryClient = useQueryClient()
+
+  return useMutation<Proveedor, ApiErrorResponse, { id: number; payload: EditarProveedorPayload }>({
+    mutationFn: ({ id, payload }) => editarProveedor(id, payload),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['proveedores', 'lista'] })
+      queryClient.invalidateQueries({ queryKey: PROVEEDORES_QUERY_KEYS.DETALLE(variables.id) })
     },
   })
 }

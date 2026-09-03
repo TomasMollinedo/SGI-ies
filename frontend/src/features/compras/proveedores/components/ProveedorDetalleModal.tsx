@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Truck, X } from 'lucide-react'
+import { Pencil, Truck, X } from 'lucide-react'
 import { AuditInfo } from '@/shared/components/common/AuditInfo'
 import { DetailRow } from '@/shared/components/common/DetailRow'
 import { Modal } from '@/shared/components/common/Modal'
@@ -10,18 +10,28 @@ import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/hooks/useToast'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { useCondicionesIva, useProveedorDetalle } from '../hooks/useProveedores'
-import type { UsuarioResumen } from '../types/proveedor.types'
+import type { Proveedor, UsuarioResumen } from '../types/proveedor.types'
 
 interface ProveedorDetalleModalProps {
   /** Proveedor a mostrar. Con `null` el modal está cerrado y no se pide nada. */
   idProveedor: number | null
   onClose: () => void
+  /** Abre el formulario de edición con este proveedor, igual que el lápiz de la fila. */
+  onEditar: (proveedor: Proveedor) => void
 }
 
 const SIN_DATO = '—'
 
-/** Modal de solo lectura con los datos de un proveedor y su trazabilidad. */
-export function ProveedorDetalleModal({ idProveedor, onClose }: ProveedorDetalleModalProps) {
+/**
+ * Modal de solo lectura con los datos de un proveedor y su trazabilidad.
+ * No da de baja ni reactiva: para eso están las acciones de la fila. Editar
+ * sí, pero delegado: el botón del pie llama a `onEditar` con el proveedor cargado.
+ */
+export function ProveedorDetalleModal({
+  idProveedor,
+  onClose,
+  onEditar,
+}: ProveedorDetalleModalProps) {
   const toast = useToast()
   const { data: proveedor, isPending, error, refetch } = useProveedorDetalle(idProveedor)
 
@@ -51,9 +61,19 @@ export function ProveedorDetalleModal({ idProveedor, onClose }: ProveedorDetalle
       title="Detalle del proveedor"
       icon={<Truck />}
       footer={
-        <Button variant="error" icon={<X />} onClick={onClose}>
-          Cerrar
-        </Button>
+        <>
+          <Button variant="error" icon={<X />} onClick={onClose}>
+            Cerrar
+          </Button>
+          <Button
+            variant="success"
+            icon={<Pencil />}
+            onClick={() => proveedor && onEditar(proveedor)}
+            disabled={!proveedor}
+          >
+            Editar registro
+          </Button>
+        </>
       }
     >
       {estaCargando ? (

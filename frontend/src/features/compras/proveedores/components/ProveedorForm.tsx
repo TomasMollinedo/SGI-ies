@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import type { UseFormSetError } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, TriangleAlert, Truck, X } from 'lucide-react'
+import { Check, Pencil, TriangleAlert, Truck, X } from 'lucide-react'
 import { ConfirmDialog } from '@/shared/components/common/ConfirmDialog'
 import { Modal } from '@/shared/components/common/Modal'
 import { Button } from '@/shared/components/ui/Button'
@@ -14,12 +14,15 @@ import { esArrayDeValidationIssues, formatearMensajeError } from '@/shared/utils
 import { useCondicionesIva } from '../hooks/useProveedores'
 import { proveedorFormSchema } from '../types/proveedor.schema'
 import type { ProveedorFormOutput, ProveedorFormValues } from '../types/proveedor.schema'
+import type { Proveedor } from '../types/proveedor.types'
 
 const ID_FORM = 'form-proveedor'
 
 interface ProveedorFormProps {
   open: boolean
   onClose: () => void
+  /** Sin este prop es alta; con un proveedor cargado, es edición. */
+  proveedor?: Proveedor
   onSubmit: (payload: ProveedorFormOutput) => void
   loading?: boolean
   /**
@@ -30,24 +33,16 @@ interface ProveedorFormProps {
   error?: ApiErrorResponse | null
 }
 
-const VALORES_INICIALES: ProveedorFormValues = {
-  razon_social: '',
-  cuit: '',
-  condicion_iva: '',
-  domicilio: '',
-  telefono: '',
-  correo: '',
-  observaciones: '',
-}
-
-/** Modal de alta de un proveedor. */
+/** Modal de crear/editar un proveedor. */
 export function ProveedorForm({
   open,
   onClose,
+  proveedor,
   onSubmit,
   loading = false,
   error = null,
 }: ProveedorFormProps) {
+  const esEdicion = proveedor !== undefined
   const [confirmarDescarte, setConfirmarDescarte] = useState(false)
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
 
@@ -64,20 +59,21 @@ export function ProveedorForm({
     formState: { errors, isDirty, isValid },
   } = useForm<ProveedorFormValues, unknown, ProveedorFormOutput>({
     resolver: zodResolver(proveedorFormSchema),
-    defaultValues: VALORES_INICIALES,
+    defaultValues: valoresIniciales(proveedor),
     // Necesario para que "Guardar" sepa en todo momento si el form es válido.
     mode: 'onChange',
   })
 
-  // Cada vez que se abre, el form arranca limpio y el foco va al primer campo.
+  // Cada vez que se abre (alta nueva o edición de otro registro) el form
+  // arranca limpio y el foco va al primer campo.
   useEffect(() => {
     if (!open) return
 
-    reset(VALORES_INICIALES)
+    reset(valoresIniciales(proveedor))
     setErrorGeneral(null)
     setConfirmarDescarte(false)
     setFocus('razon_social')
-  }, [open, reset, setFocus])
+  }, [open, proveedor, reset, setFocus])
 
   useEffect(() => {
     if (!error) return
@@ -105,13 +101,15 @@ export function ProveedorForm({
     onClose()
   }
 
+  const puedeGuardar = isValid && (!esEdicion || isDirty)
+
   return (
     <>
       <Modal
         open={open}
         onClose={intentarCerrar}
-        title="Nuevo Proveedor"
-        icon={<Truck />}
+        title={esEdicion ? 'Editar Proveedor' : 'Nuevo Proveedor'}
+        icon={esEdicion ? <Pencil /> : <Truck />}
         closeOnEscape={!loading && !confirmarDescarte}
         closeOnOverlayClick={!loading && !confirmarDescarte}
         footer={
@@ -125,7 +123,7 @@ export function ProveedorForm({
               type="submit"
               form={ID_FORM}
               loading={loading}
-              disabled={!isValid}
+              disabled={!puedeGuardar}
             >
               Guardar
             </Button>
@@ -270,4 +268,16 @@ function repartirErrorDelBackend(
   }
 
   return formatearMensajeError(error.message)
+}
+
+function valoresIniciales(proveedor?: Proveedor): ProveedorFormValues {
+  return {
+    razon_social: proveedor?.razon_social ?? '',
+    cuit: proveedor?.cuit ?? '',
+    condicion_iva: proveedor?.condicion_iva ?? '',
+    domicilio: proveedor?.domicilio ?? '',
+    telefono: proveedor?.telefono ?? '',
+    correo: proveedor?.correo ?? '',
+    observaciones: proveedor?.observaciones ?? '',
+  }
 }

@@ -28,11 +28,14 @@ import {
   useCondicionesIva,
   useCrearProveedor,
   useDarDeBajaProveedor,
+  useEditarProveedor,
   useProveedores,
   useReactivarProveedor,
 } from '../hooks/useProveedores'
 import type { ProveedorFormOutput } from '../types/proveedor.schema'
-import type { FiltroEstado, Proveedor } from '../types/proveedor.types'
+import type { EditarProveedorPayload, FiltroEstado, Proveedor } from '../types/proveedor.types'
+
+type EstadoFormulario = { modo: 'crear' } | { modo: 'editar'; proveedor: Proveedor } | null
 
 type TipoConfirmacion = 'baja' | 'reactivar'
 type EstadoConfirmacion = { tipo: TipoConfirmacion; proveedor: Proveedor } | null
@@ -48,7 +51,7 @@ export function ProveedoresPage() {
   const [estado, setEstado] = useState<FiltroEstado>('true')
   const [page, setPage] = useState(1)
   const [detalleId, setDetalleId] = useState<number | null>(null)
-  const [formularioAbierto, setFormularioAbierto] = useState(false)
+  const [formulario, setFormulario] = useState<EstadoFormulario>(null)
   const [errorFormulario, setErrorFormulario] = useState<ApiErrorResponse | null>(null)
   const [confirmacion, setConfirmacion] = useState<EstadoConfirmacion>(null)
   const [errorConfirmacion, setErrorConfirmacion] = useState<ApiErrorResponse | null>(null)
@@ -103,6 +106,7 @@ export function ProveedoresPage() {
   const cerrarDetalle = useCallback(() => setDetalleId(null), [])
 
   const crear = useCrearProveedor()
+  const editar = useEditarProveedor()
   const baja = useDarDeBajaProveedor()
   const reactivar = useReactivarProveedor()
   const operacionEnCurso = baja.isPending || reactivar.isPending
@@ -128,6 +132,7 @@ export function ProveedoresPage() {
           isActive={item.estado}
           loadingAction={accionEnCurso(item)}
           onView={() => setDetalleId(item.id_proveedor)}
+          onEdit={() => abrirFormulario({ modo: 'editar', proveedor: item })}
           onDelete={() => abrirConfirmacion({ tipo: 'baja', proveedor: item })}
           onReactivate={() => abrirConfirmacion({ tipo: 'reactivar', proveedor: item })}
         />
@@ -135,13 +140,13 @@ export function ProveedoresPage() {
     },
   ]
 
-  function abrirFormulario() {
+  function abrirFormulario(estadoInicial: EstadoFormulario) {
     setErrorFormulario(null)
-    setFormularioAbierto(true)
+    setFormulario(estadoInicial)
   }
 
   function cerrarFormulario() {
-    setFormularioAbierto(false)
+    setFormulario(null)
     setErrorFormulario(null)
   }
 
@@ -170,7 +175,29 @@ export function ProveedoresPage() {
     }
   }
 
+  function manejarErrorFormulario(error: ApiErrorResponse) {
+    if (manejarErrorComun(error, cerrarFormulario)) return
+    setErrorFormulario(error)
+  }
+
   function manejarSubmitFormulario(payload: ProveedorFormOutput) {
+    if (formulario?.modo === 'editar') {
+      editar.mutate(
+        {
+          id: formulario.proveedor.id_proveedor,
+          payload: soloCamposModificados(payload, formulario.proveedor),
+        },
+        {
+          onSuccess: () => {
+            toast.success('Proveedor actualizado correctamente')
+            cerrarFormulario()
+          },
+          onError: manejarErrorFormulario,
+        }
+      )
+      return
+    }
+
     crear.mutate(
       {
         razon_social: payload.razon_social,
@@ -189,10 +216,7 @@ export function ProveedoresPage() {
           // alfabético; se vuelve a la primera, con los filtros que estaban puestos.
           setPage(1)
         },
-        onError: (error) => {
-          if (manejarErrorComun(error, cerrarFormulario)) return
-          setErrorFormulario(error)
-        },
+        onError: manejarErrorFormulario,
       }
     )
   }
@@ -255,7 +279,7 @@ export function ProveedoresPage() {
           estado={estado}
           onEstadoChange={setEstado}
         />
-        <Button icon={<Plus />} onClick={abrirFormulario}>
+        <Button icon={<Plus />} onClick={() => abrirFormulario({ modo: 'crear' })}>
           Nuevo Proveedor
         </Button>
       </div>
@@ -307,14 +331,24 @@ export function ProveedoresPage() {
       )}
 
       <ProveedorForm
-        open={formularioAbierto}
+        open={formulario !== null}
         onClose={cerrarFormulario}
+        proveedor={formulario?.modo === 'editar' ? formulario.proveedor : undefined}
         onSubmit={manejarSubmitFormulario}
-        loading={crear.isPending}
+        loading={crear.isPending || editar.isPending}
         error={errorFormulario}
       />
 
-      <ProveedorDetalleModal idProveedor={detalleId} onClose={cerrarDetalle} />
+      <ProveedorDetalleModal
+        idProveedor={detalleId}
+        onClose={cerrarDetalle}
+        // Mismo formulario y mismo handler que el lápiz de la fila: el detalle
+        // se cierra y queda abierto el de edición con ese proveedor.
+        onEditar={(proveedor) => {
+          cerrarDetalle()
+          abrirFormulario({ modo: 'editar', proveedor })
+        }}
+      />
 
       <ConfirmDialog
         open={confirmacion !== null}
@@ -333,4 +367,39 @@ export function ProveedoresPage() {
       />
     </div>
   )
+}
+
+/**
+ * Solo manda lo que cambió respecto al proveedor original. Si un campo no se
+ * tocó no viaja, así el backend no lo revalida contra las reglas de formato
+ * (ej. el correo) — evita rechazar la edición por un campo que ni se editó.
+ */
+function soloCamposModificados(
+  payload: ProveedorFormOutput,
+  original: Proveedor
+): EditarProveedorPayload {
+  const cambios: EditarProveedorPayload = {}
+
+  if (payload.razon_social !== original.razon_social) cambios.razon_social = payload.razon_social
+  if (payload.cuit !== original.cuit) cambios.cuit = payload.cuit
+  if (payload.condicion_iva !== original.condicion_iva) {
+    cambios.condicion_iva = payload.condicion_iva
+  }
+
+  agregarSiCambio(cambios, 'domicilio', payload.domicilio, original.domicilio)
+  agregarSiCambio(cambios, 'telefono', payload.telefono, original.telefono)
+  agregarSiCambio(cambios, 'correo', payload.correo, original.correo)
+  agregarSiCambio(cambios, 'observaciones', payload.observaciones, original.observaciones)
+
+  return cambios
+}
+
+function agregarSiCambio(
+  cambios: EditarProveedorPayload,
+  campo: 'domicilio' | 'telefono' | 'correo' | 'observaciones',
+  nuevo: string | undefined,
+  original: string | null
+) {
+  const valorNuevo = nuevo ?? ''
+  if (valorNuevo !== (original ?? '')) cambios[campo] = valorNuevo
 }

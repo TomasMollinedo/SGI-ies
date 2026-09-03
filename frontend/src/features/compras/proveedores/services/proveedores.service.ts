@@ -3,6 +3,7 @@ import type { PaginatedResponse } from '@/shared/types/api.types'
 import type {
   CondicionIva,
   CrearProveedorPayload,
+  EditarProveedorPayload,
   Proveedor,
   ProveedorDetalle,
   ProveedoresQuery,
@@ -53,6 +54,14 @@ export async function listarCondicionesIva(signal?: AbortSignal): Promise<Condic
 
 export async function crearProveedor(payload: CrearProveedorPayload): Promise<Proveedor> {
   const { data } = await httpClient.post<Proveedor>('/proveedores', payload)
+  return data
+}
+
+export async function editarProveedor(
+  id: number,
+  payload: EditarProveedorPayload
+): Promise<Proveedor> {
+  const { data } = await httpClient.patch<Proveedor>(`/proveedores/${id}`, payload)
   return data
 }
 

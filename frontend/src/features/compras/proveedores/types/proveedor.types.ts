@@ -42,6 +42,12 @@ export interface ProveedorDetalle extends Proveedor {
 }
 
 /**
+ * Body de PATCH /proveedores/:id. Todos los campos son opcionales: solo se
+ * mandan los que cambiaron.
+ */
+export type EditarProveedorPayload = Partial<CrearProveedorPayload>
+
+/**
  * Valor del filtro de estado tal como lo maneja el `<Select>` y tal como lo
  * espera la query del backend: a diferencia de otros listados, acá "todos" es
  * un valor explícito y no la ausencia del parámetro — sin `estado`, el backend
