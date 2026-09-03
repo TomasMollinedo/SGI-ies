@@ -3,6 +3,7 @@ import type { ApiErrorResponse, PaginatedResponse } from '@/shared/types/api.typ
 import {
   PROVEEDORES_QUERY_KEYS,
   crearProveedor,
+  darDeBajaProveedor,
   listarCondicionesIva,
   listarProveedores,
 } from '../services/proveedores.service'
@@ -42,6 +43,21 @@ export function useCrearProveedor() {
 
   return useMutation<Proveedor, ApiErrorResponse, CrearProveedorPayload>({
     mutationFn: crearProveedor,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['proveedores', 'lista'] })
+    },
+  })
+}
+
+/**
+ * No lleva body y al terminar invalida el listado, que se vuelve a pedir con
+ * la página y los filtros que estaban puestos, porque son parte de la query key.
+ */
+export function useDarDeBajaProveedor() {
+  const queryClient = useQueryClient()
+
+  return useMutation<Proveedor, ApiErrorResponse, number>({
+    mutationFn: darDeBajaProveedor,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['proveedores', 'lista'] })
     },

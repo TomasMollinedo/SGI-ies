@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Plus, ShieldAlert } from 'lucide-react'
 import { PATHS } from '@/app/router/paths'
+import { ConfirmDialog } from '@/shared/components/common/ConfirmDialog'
+import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { DataTable } from '@/shared/components/common/DataTable'
 import { Pagination } from '@/shared/components/common/Pagination'
+import { RowActions } from '@/shared/components/common/RowActions'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
 import { Button } from '@/shared/components/ui/Button'
@@ -19,9 +22,14 @@ import {
   LIMITE_PAGINA,
   crearColumnasProveedores,
 } from '../config/proveedor.config'
-import { useCondicionesIva, useCrearProveedor, useProveedores } from '../hooks/useProveedores'
+import {
+  useCondicionesIva,
+  useCrearProveedor,
+  useDarDeBajaProveedor,
+  useProveedores,
+} from '../hooks/useProveedores'
 import type { ProveedorFormOutput } from '../types/proveedor.schema'
-import type { FiltroEstado } from '../types/proveedor.types'
+import type { FiltroEstado, Proveedor } from '../types/proveedor.types'
 
 export function ProveedoresPage() {
   const toast = useToast()
@@ -35,6 +43,8 @@ export function ProveedoresPage() {
   const [page, setPage] = useState(1)
   const [formularioAbierto, setFormularioAbierto] = useState(false)
   const [errorFormulario, setErrorFormulario] = useState<ApiErrorResponse | null>(null)
+  const [confirmacion, setConfirmacion] = useState<Proveedor | null>(null)
+  const [errorConfirmacion, setErrorConfirmacion] = useState<ApiErrorResponse | null>(null)
 
   const busquedaDebounced = useDebounce(busqueda.trim(), DEBOUNCE_BUSQUEDA)
 
@@ -66,6 +76,15 @@ export function ProveedoresPage() {
     if (statusCode === 400) setPage(1)
   }, [statusCode])
 
+  // Una baja puede sacar del filtro a la última fila que quedaba en la página
+  // (ej. dar de baja con el filtro en "Activos"). En vez de dejar la tabla en
+  // blanco, se retrocede una página; si esa también quedó vacía, el efecto
+  // vuelve a correr hasta llegar a la primera.
+  useEffect(() => {
+    if (isFetching || !data) return
+    if (data.data.length === 0 && data.meta.page > 1) setPage(data.meta.page - 1)
+  }, [isFetching, data])
+
   // Para la columna de la tabla: traduce el `id` de cada fila al `code` del
   // catálogo. Mientras el catálogo no llegó, o para un `id` que no está en él,
   // se muestra el id tal cual.
@@ -74,12 +93,30 @@ export function ProveedoresPage() {
     () => new Map(condicionesIva?.map((item) => [item.id, item.code])),
     [condicionesIva]
   )
-  const columnas = useMemo(
-    () => crearColumnasProveedores((id) => etiquetasCondicionIva.get(id) ?? id),
-    [etiquetasCondicionIva]
-  )
-
   const crear = useCrearProveedor()
+  const baja = useDarDeBajaProveedor()
+
+  const columnas: DataTableColumn<Proveedor>[] = useMemo(
+    () => [
+      ...crearColumnasProveedores((id) => etiquetasCondicionIva.get(id) ?? id),
+      {
+        key: 'acciones',
+        label: 'Acciones',
+        render: (item) => (
+          <RowActions
+            isActive={item.estado}
+            loadingAction={
+              confirmacion?.id_proveedor === item.id_proveedor && baja.isPending
+                ? 'delete'
+                : undefined
+            }
+            onDelete={() => abrirConfirmacion(item)}
+          />
+        ),
+      },
+    ],
+    [etiquetasCondicionIva, confirmacion, baja.isPending]
+  )
 
   function abrirFormulario() {
     setErrorFormulario(null)
@@ -89,6 +126,31 @@ export function ProveedoresPage() {
   function cerrarFormulario() {
     setFormularioAbierto(false)
     setErrorFormulario(null)
+  }
+
+  /**
+   * Los errores que no dependen de lo que el usuario haya cargado se resuelven
+   * igual venga de donde venga: se avisa y se cierra lo que estuviera abierto.
+   * Devuelve `true` si se hizo cargo, para que quien llama sepa si le queda
+   * algo por hacer.
+   */
+  function manejarErrorComun(error: ApiErrorResponse, cerrar: () => void): boolean {
+    switch (error.statusCode) {
+      case 401:
+        navigate(PATHS.LOGIN, { replace: true })
+        return true
+      case 403:
+        toast.error('No tenés permisos para realizar esta acción')
+        cerrar()
+        return true
+      case 404:
+        toast.error('El proveedor ya no existe')
+        cerrar()
+        refetch()
+        return true
+      default:
+        return false
+    }
   }
 
   function manejarSubmitFormulario(payload: ProveedorFormOutput) {
@@ -111,21 +173,37 @@ export function ProveedoresPage() {
           setPage(1)
         },
         onError: (error) => {
-          // El interceptor del httpClient ya intenta renovar la sesión; si
-          // igual llega un 401 es que no hay sesión recuperable.
-          if (error.statusCode === 401) {
-            navigate(PATHS.LOGIN, { replace: true })
-            return
-          }
-          if (error.statusCode === 403) {
-            toast.error('No tenés permisos para realizar esta acción')
-            cerrarFormulario()
-            return
-          }
+          if (manejarErrorComun(error, cerrarFormulario)) return
           setErrorFormulario(error)
         },
       }
     )
+  }
+
+  function abrirConfirmacion(proveedor: Proveedor) {
+    setErrorConfirmacion(null)
+    setConfirmacion(proveedor)
+  }
+
+  function cerrarConfirmacion() {
+    setConfirmacion(null)
+    setErrorConfirmacion(null)
+  }
+
+  function ejecutarConfirmacion() {
+    if (!confirmacion) return
+
+    setErrorConfirmacion(null)
+    baja.mutate(confirmacion.id_proveedor, {
+      onSuccess: () => {
+        toast.success('Proveedor dado de baja correctamente')
+        cerrarConfirmacion()
+      },
+      onError: (error) => {
+        if (manejarErrorComun(error, cerrarConfirmacion)) return
+        setErrorConfirmacion(error)
+      },
+    })
   }
 
   if (statusCode === 403) {
@@ -210,6 +288,22 @@ export function ProveedoresPage() {
         onSubmit={manejarSubmitFormulario}
         loading={crear.isPending}
         error={errorFormulario}
+      />
+
+      <ConfirmDialog
+        open={confirmacion !== null}
+        onCancel={cerrarConfirmacion}
+        onConfirm={ejecutarConfirmacion}
+        variant="baja"
+        eyebrow="Dar de baja proveedor"
+        title={
+          confirmacion
+            ? `¿Confirmás que querés dar de baja al proveedor «${confirmacion.razon_social}»?`
+            : ''
+        }
+        error={errorConfirmacion ? formatearMensajeError(errorConfirmacion.message) : null}
+        confirmLabel="Dar de baja"
+        loading={baja.isPending}
       />
     </div>
   )

@@ -44,3 +44,9 @@ export async function crearProveedor(payload: CrearProveedorPayload): Promise<Pr
   const { data } = await httpClient.post<Proveedor>('/proveedores', payload)
   return data
 }
+
+/** PATCH /proveedores/:id/baja — baja lógica. Sin body; devuelve el proveedor ya actualizado. */
+export async function darDeBajaProveedor(id: number): Promise<Proveedor> {
+  const { data } = await httpClient.patch<Proveedor>(`/proveedores/${id}/baja`)
+  return data
+}
