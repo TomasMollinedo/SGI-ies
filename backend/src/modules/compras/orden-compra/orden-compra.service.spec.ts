@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { OrdenCompraService } from './orden-compra.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 
@@ -42,7 +46,9 @@ describe('OrdenCompraService', () => {
         findUnique: jest.fn().mockResolvedValue({ id_proveedor: ID_PROVEEDOR }),
       },
       dEPOSITO: {
-        findUnique: jest.fn().mockResolvedValue({ id_deposito: ID_DEPOSITO }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id_deposito: ID_DEPOSITO, estado: true }),
       },
       aRTICULO: { findMany: jest.fn() },
       oRDENCOMPRA: {
@@ -74,8 +80,8 @@ describe('OrdenCompraService', () => {
 
     beforeEach(() => {
       prisma.aRTICULO.findMany.mockResolvedValue([
-        { id_articulo: 1 },
-        { id_articulo: 2 },
+        { id_articulo: 1, estado: true },
+        { id_articulo: 2, estado: true },
       ]);
       prisma.oRDENCOMPRA.create.mockResolvedValue({
         id_orden_compra: ID_ORDEN,
@@ -132,6 +138,26 @@ describe('OrdenCompraService', () => {
       expect(fecha.getTime()).toBeLessThanOrEqual(despues.getTime());
     });
 
+    it('rechaza una fecha de emisión futura', async () => {
+      const mañana = new Date();
+      mañana.setDate(mañana.getDate() + 1);
+
+      await expect(
+        service.create({ ...dto, fecha_emision: mañana }, USUARIO_ID),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.oRDENCOMPRA.create).not.toHaveBeenCalled();
+    });
+
+    it('acepta una fecha de emisión de hoy o del pasado', async () => {
+      const ayer = new Date();
+      ayer.setDate(ayer.getDate() - 1);
+
+      await service.create({ ...dto, fecha_emision: ayer }, USUARIO_ID);
+
+      const dataEnviada = primerArgumento(prisma.oRDENCOMPRA.create).data;
+      expect(dataEnviada?.fecha_emision).toBe(ayer);
+    });
+
     it('rechaza si el proveedor no existe', async () => {
       prisma.pROVEEDOR.findUnique.mockResolvedValue(null);
 
@@ -150,11 +176,35 @@ describe('OrdenCompraService', () => {
       expect(prisma.oRDENCOMPRA.create).not.toHaveBeenCalled();
     });
 
+    it('rechaza si el depósito está dado de baja', async () => {
+      prisma.dEPOSITO.findUnique.mockResolvedValue({
+        id_deposito: ID_DEPOSITO,
+        estado: false,
+      });
+
+      await expect(service.create(dto, USUARIO_ID)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(prisma.oRDENCOMPRA.create).not.toHaveBeenCalled();
+    });
+
     it('rechaza si algún artículo del detalle no existe', async () => {
       prisma.aRTICULO.findMany.mockResolvedValue([{ id_articulo: 1 }]); // falta el 2
 
       await expect(service.create(dto, USUARIO_ID)).rejects.toBeInstanceOf(
         NotFoundException,
+      );
+      expect(prisma.oRDENCOMPRA.create).not.toHaveBeenCalled();
+    });
+
+    it('rechaza si algún artículo del detalle está dado de baja', async () => {
+      prisma.aRTICULO.findMany.mockResolvedValue([
+        { id_articulo: 1, estado: true },
+        { id_articulo: 2, estado: false },
+      ]);
+
+      await expect(service.create(dto, USUARIO_ID)).rejects.toBeInstanceOf(
+        ConflictException,
       );
       expect(prisma.oRDENCOMPRA.create).not.toHaveBeenCalled();
     });
@@ -181,9 +231,22 @@ describe('OrdenCompraService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    it('rechaza actualizar con una fecha de emisión futura', async () => {
+      prisma.oRDENCOMPRA.findUnique.mockResolvedValue(ordenBorradorMock);
+      const mañana = new Date();
+      mañana.setDate(mañana.getDate() + 1);
+
+      await expect(
+        service.update(ID_ORDEN, { fecha_emision: mañana }, USUARIO_ID),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.oRDENCOMPRA.update).not.toHaveBeenCalled();
+    });
+
     it('reemplaza el detalle completo y recalcula el total cuando se manda `detalle`', async () => {
       prisma.oRDENCOMPRA.findUnique.mockResolvedValue(ordenBorradorMock);
-      prisma.aRTICULO.findMany.mockResolvedValue([{ id_articulo: 3 }]);
+      prisma.aRTICULO.findMany.mockResolvedValue([
+        { id_articulo: 3, estado: true },
+      ]);
       prisma.oRDENCOMPRA.update.mockResolvedValue(ordenBorradorMock);
 
       await service.update(
@@ -222,6 +285,23 @@ describe('OrdenCompraService', () => {
       await expect(service.findOne(999)).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+  });
+
+  describe('validarPuedeConfirmarse', () => {
+    // Todavía no hay un método `confirmar` que llame a esto — el test
+    // prueba la regla aislada, lista para que la próxima tarea (máquina de
+    // estados) la enganche.
+    it('rechaza una orden sin ninguna línea de detalle', () => {
+      expect(() => service.validarPuedeConfirmarse({ detalles: [] })).toThrow(
+        ConflictException,
+      );
+    });
+
+    it('no rechaza una orden con al menos una línea de detalle', () => {
+      expect(() =>
+        service.validarPuedeConfirmarse({ detalles: [{}] }),
+      ).not.toThrow();
     });
   });
 });

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -44,8 +45,8 @@ export class OrdenCompraService {
    */
   async create(dto: CreateOrdenCompraDto, usuarioId: number) {
     await this.validarProveedorExiste(dto.FK_proveedor);
-    await this.validarDepositoExiste(dto.FK_deposito);
-    await this.validarArticulosExisten(
+    await this.validarDepositoActivo(dto.FK_deposito);
+    await this.validarArticulosActivos(
       dto.detalle.map((linea) => linea.FK_articulo),
     );
 
@@ -53,7 +54,7 @@ export class OrdenCompraService {
 
     const orden = await this.prisma.oRDENCOMPRA.create({
       data: {
-        fecha_emision: dto.fecha_emision ?? new Date(),
+        fecha_emision: this.resolverFechaEmision(dto.fecha_emision),
         fecha_entrega_solicitada: dto.fecha_entrega_solicitada,
         observaciones: dto.observaciones,
         FK_proveedor: dto.FK_proveedor,
@@ -85,11 +86,14 @@ export class OrdenCompraService {
       );
     }
 
+    if (dto.fecha_emision !== undefined) {
+      this.validarFechaEmisionNoFutura(dto.fecha_emision);
+    }
     if (dto.FK_proveedor !== undefined) {
       await this.validarProveedorExiste(dto.FK_proveedor);
     }
     if (dto.FK_deposito !== undefined) {
-      await this.validarDepositoExiste(dto.FK_deposito);
+      await this.validarDepositoActivo(dto.FK_deposito);
     }
 
     const nuevoDetalle =
@@ -143,8 +147,28 @@ export class OrdenCompraService {
     return orden;
   }
 
+  /**
+   * Regla de HU-13: una orden necesita al menos una línea de detalle para
+   * poder confirmarse (pasar de BORRADOR a EMITIDA) — no para poder
+   * *crearse*, porque mientras está en BORRADOR se admite ir agregando y
+   * sacando líneas (ver `documentoOrdenCompraSchema`, sin `.min(1)` a
+   * propósito).
+   *
+   * Todavía no hay ningún método que confirme una orden — eso es de otra
+   * tarea (la máquina de estados). Este chequeo queda listo y público para
+   * que esa tarea lo llame en el momento justo antes de pasar a EMITIDA; por
+   * eso no se usa todavía en ningún lado de este archivo.
+   */
+  validarPuedeConfirmarse(orden: { detalles: unknown[] }) {
+    if (orden.detalles.length === 0) {
+      throw new ConflictException(
+        'La orden de compra necesita al menos una línea de detalle para poder confirmarse',
+      );
+    }
+  }
+
   private async prepararDetalle(detalle: LineaEntrada[]) {
-    await this.validarArticulosExisten(
+    await this.validarArticulosActivos(
       detalle.map((linea) => linea.FK_articulo),
     );
 
@@ -178,6 +202,26 @@ export class OrdenCompraService {
     return Math.round(valor * 100) / 100;
   }
 
+  /**
+   * Si el cliente no manda fecha, se usa la de hoy. Nunca se acepta una
+   * fecha futura: una orden de compra registra algo que se emite ahora, no
+   * a futuro (mismo criterio que `resolverFechaMovimiento` en Movimiento).
+   */
+  private resolverFechaEmision(fecha: Date | undefined) {
+    if (fecha === undefined) {
+      return new Date();
+    }
+
+    this.validarFechaEmisionNoFutura(fecha);
+    return fecha;
+  }
+
+  private validarFechaEmisionNoFutura(fecha: Date) {
+    if (fecha > new Date()) {
+      throw new BadRequestException('La fecha de emisión no puede ser futura');
+    }
+  }
+
   private async validarProveedorExiste(id: number) {
     const proveedor = await this.prisma.pROVEEDOR.findUnique({
       where: { id_proveedor: id },
@@ -188,7 +232,7 @@ export class OrdenCompraService {
     }
   }
 
-  private async validarDepositoExiste(id: number) {
+  private async validarDepositoActivo(id: number) {
     const deposito = await this.prisma.dEPOSITO.findUnique({
       where: { id_deposito: id },
     });
@@ -196,26 +240,39 @@ export class OrdenCompraService {
     if (!deposito) {
       throw new NotFoundException(`No existe un depósito con id ${id}`);
     }
+    // El <select> del frontend ya filtra solo depósitos activos, pero eso no alcanza: alguien puede tener el formulario abierto con la lista vieja y el depósito se da de baja mientras tanto, o el request puede llegar directo (Swagger, Postman) sin pasar por ese formulario. El backend es la última línea de defensa, nunca hay que confiar en que el cliente ya
+    // filtró esto.
+    if (!deposito.estado) {
+      throw new ConflictException(
+        `El depósito con id ${id} está dado de baja y no puede usarse en una orden de compra`,
+      );
+    }
   }
 
-  /**
-   * Solo existencia: que el artículo esté activo es una validación de
-   * negocio que corresponde a otra tarea (validaciones de la orden de
-   * compra), no a este service.
-   */
-  private async validarArticulosExisten(idsArticulo: number[]) {
+  private async validarArticulosActivos(idsArticulo: number[]) {
     const ids = [...new Set(idsArticulo)];
 
     const articulos = await this.prisma.aRTICULO.findMany({
       where: { id_articulo: { in: ids } },
-      select: { id_articulo: true },
+      select: { id_articulo: true, estado: true },
     });
-    const encontrados = new Set(articulos.map((a) => a.id_articulo));
+    const encontrados = new Map(articulos.map((a) => [a.id_articulo, a]));
     const noEncontrados = ids.filter((id) => !encontrados.has(id));
 
     if (noEncontrados.length > 0) {
       throw new NotFoundException(
         `No existe un artículo con id: ${noEncontrados.join(', ')}`,
+      );
+    }
+
+    // Mismo criterio que el depósito: el frontend ya filtra artículos
+    // activos en su selector, pero el backend es la última línea de
+    // defensa (carrera con una baja concurrente, o un request que llega
+    // directo sin pasar por ese formulario).
+    const inactivos = ids.filter((id) => !encontrados.get(id)!.estado);
+    if (inactivos.length > 0) {
+      throw new ConflictException(
+        `El artículo con id ${inactivos.join(', ')} está dado de baja y no puede usarse en una orden de compra`,
       );
     }
   }
