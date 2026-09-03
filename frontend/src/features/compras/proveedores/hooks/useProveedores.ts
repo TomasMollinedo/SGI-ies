@@ -6,12 +6,14 @@ import {
   darDeBajaProveedor,
   listarCondicionesIva,
   listarProveedores,
+  obtenerProveedor,
   reactivarProveedor,
 } from '../services/proveedores.service'
 import type {
   CondicionIva,
   CrearProveedorPayload,
   Proveedor,
+  ProveedorDetalle,
   ProveedoresQuery,
 } from '../types/proveedor.types'
 
@@ -27,6 +29,20 @@ export function useProveedores(filtros: ProveedoresQuery) {
     queryKey: PROVEEDORES_QUERY_KEYS.LISTA(filtros),
     queryFn: ({ signal }) => listarProveedores(filtros, signal),
     placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Detalle de un proveedor. Con `id` en `null` (modal cerrado) la query queda
+ * deshabilitada y, como el id es parte de la key, tampoco arrastra el estado
+ * del proveedor anterior.
+ */
+export function useProveedorDetalle(id: number | null) {
+  return useQuery<ProveedorDetalle, ApiErrorResponse>({
+    queryKey: PROVEEDORES_QUERY_KEYS.DETALLE(id),
+    // El `!` es seguro: con `id` en `null` la query no corre (`enabled`).
+    queryFn: ({ signal }) => obtenerProveedor(id!, signal),
+    enabled: id !== null,
   })
 }
 
@@ -61,8 +77,9 @@ export function useDarDeBajaProveedor() {
 
   return useMutation<Proveedor, ApiErrorResponse, number>({
     mutationFn: darDeBajaProveedor,
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['proveedores', 'lista'] })
+      queryClient.invalidateQueries({ queryKey: PROVEEDORES_QUERY_KEYS.DETALLE(id) })
     },
   })
 }
@@ -72,8 +89,9 @@ export function useReactivarProveedor() {
 
   return useMutation<Proveedor, ApiErrorResponse, number>({
     mutationFn: reactivarProveedor,
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['proveedores', 'lista'] })
+      queryClient.invalidateQueries({ queryKey: PROVEEDORES_QUERY_KEYS.DETALLE(id) })
     },
   })
 }

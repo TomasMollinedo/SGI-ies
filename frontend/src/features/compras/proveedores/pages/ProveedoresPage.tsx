@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Plus, ShieldAlert } from 'lucide-react'
 import { PATHS } from '@/app/router/paths'
@@ -17,6 +17,7 @@ import { useToast } from '@/shared/hooks/useToast'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { FiltrosProveedoresBar } from '../components/FiltrosProveedoresBar'
+import { ProveedorDetalleModal } from '../components/ProveedorDetalleModal'
 import { ProveedorForm } from '../components/ProveedorForm'
 import {
   DEBOUNCE_BUSQUEDA,
@@ -46,6 +47,7 @@ export function ProveedoresPage() {
   // todos los días. Los dados de baja se ven cambiando el filtro a "Todos".
   const [estado, setEstado] = useState<FiltroEstado>('true')
   const [page, setPage] = useState(1)
+  const [detalleId, setDetalleId] = useState<number | null>(null)
   const [formularioAbierto, setFormularioAbierto] = useState(false)
   const [errorFormulario, setErrorFormulario] = useState<ApiErrorResponse | null>(null)
   const [confirmacion, setConfirmacion] = useState<EstadoConfirmacion>(null)
@@ -98,6 +100,8 @@ export function ProveedoresPage() {
     () => new Map(condicionesIva?.map((item) => [item.id, item.code])),
     [condicionesIva]
   )
+  const cerrarDetalle = useCallback(() => setDetalleId(null), [])
+
   const crear = useCrearProveedor()
   const baja = useDarDeBajaProveedor()
   const reactivar = useReactivarProveedor()
@@ -123,6 +127,7 @@ export function ProveedoresPage() {
         <RowActions
           isActive={item.estado}
           loadingAction={accionEnCurso(item)}
+          onView={() => setDetalleId(item.id_proveedor)}
           onDelete={() => abrirConfirmacion({ tipo: 'baja', proveedor: item })}
           onReactivate={() => abrirConfirmacion({ tipo: 'reactivar', proveedor: item })}
         />
@@ -308,6 +313,8 @@ export function ProveedoresPage() {
         loading={crear.isPending}
         error={errorFormulario}
       />
+
+      <ProveedorDetalleModal idProveedor={detalleId} onClose={cerrarDetalle} />
 
       <ConfirmDialog
         open={confirmacion !== null}

@@ -4,11 +4,13 @@ import type {
   CondicionIva,
   CrearProveedorPayload,
   Proveedor,
+  ProveedorDetalle,
   ProveedoresQuery,
 } from '../types/proveedor.types'
 
 export const PROVEEDORES_QUERY_KEYS = {
   LISTA: (filtros: ProveedoresQuery) => ['proveedores', 'lista', filtros] as const,
+  DETALLE: (id: number | null) => ['proveedores', 'detalle', id] as const,
   CONDICIONES_IVA: ['proveedores', 'condiciones-iva'] as const,
 }
 
@@ -31,6 +33,15 @@ export async function listarProveedores(
     signal,
   })
 
+  return data
+}
+
+/** GET /proveedores/:id — el proveedor con su trazabilidad, para el modal de detalle. */
+export async function obtenerProveedor(
+  id: number,
+  signal?: AbortSignal
+): Promise<ProveedorDetalle> {
+  const { data } = await httpClient.get<ProveedorDetalle>(`/proveedores/${id}`, { signal })
   return data
 }
 
