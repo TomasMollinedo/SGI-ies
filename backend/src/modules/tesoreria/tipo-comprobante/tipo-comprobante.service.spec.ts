@@ -179,5 +179,20 @@ describe('TipoComprobanteService', () => {
 
       expect(primerArgumento(findMany).where).toEqual({});
     });
+
+    it('filtra por nombre con condicionBusquedaPorPalabras (coincidencia parcial, sin importar el orden)', async () => {
+      const findMany = jest.fn().mockResolvedValue([]);
+      const count = jest.fn().mockResolvedValue(0);
+      Object.assign(prisma.tIPOCOMPROBANTE, { findMany, count });
+
+      await service.findAll({ nombre: 'nota credito', page: 1, limit: 10 });
+
+      expect(primerArgumento(findMany).where).toEqual({
+        AND: [
+          { nombre: { contains: 'nota', mode: 'insensitive' } },
+          { nombre: { contains: 'credito', mode: 'insensitive' } },
+        ],
+      });
+    });
   });
 });

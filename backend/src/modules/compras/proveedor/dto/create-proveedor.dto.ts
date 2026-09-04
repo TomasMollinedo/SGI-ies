@@ -10,9 +10,8 @@ export const createProveedorSchema = z.object({
     .min(1, 'La razón social es obligatoria')
     .max(150),
   // Once dígitos sin guiones (ej. "20304050609"); el detalle del algoritmo
-  // de validación vive en esCuitValido, que se testea aislada.
   cuit: z.string().trim().refine(esCuitValido, {
-    message: 'El CUIT no es válido: debe tener 11 dígitos sin guiones',
+   message: 'El CUIT no es válido: debe tener 11 dígitos sin guiones', 
   }),
   condicion_iva: z.enum(CondicionIVA),
   domicilio: z.string().trim().max(200).optional(),

@@ -100,6 +100,34 @@ Como no hay nada compartido con el frontend, Swagger ES la única fuente de verd
 ## Paginación
 Todo endpoint de listado que pueda crecer sin límite soporta `?page=1&limit=10` y devuelve `{ data: [...], meta: { total, page, limit } }`. No hace falta en catálogos chicos y fijos por diseño (ej. tipos de movimiento, roles).
 
+## Catálogos para `<select>` del frontend
+Cuando un endpoint expone una lista fija y chica para poblar un `<select>` (valores de un enum de `schema.prisma`, una tabla de referencia sin ABM, etc.), la respuesta es siempre un array de `CatalogoItemDto` (`src/common/dto/catalogo-item.dto.ts`) — DTO común a todo el proyecto, no vive en ningún módulo de negocio:
+```ts
+{ id: string, code: string, metadata: Record<string, unknown> }
+```
+- `id`: el valor que acepta la base de datos (lo que viaja de vuelta al crear/editar un registro — ej. el nombre del enum, `"RESPONSABLE_INSCRIPTO"`).
+- `code`: la etiqueta legible que se le muestra al usuario (ej. `"Responsable Inscripto"`).
+- `metadata`: objeto libre para datos extra que un catálogo puntual necesite a futuro (color, ícono, etc.) — va vacío (`{}`) en catálogos simples como Condición frente al IVA.
+
+No lleva paginación (son listas chicas y fijas por diseño). El endpoint vive dentro del módulo dueño del enum/tabla (ej. `GET /proveedores/condiciones-iva` en `ProveedorController`, mismo patrón que `GET /alertas/tipos`), declarado antes que cualquier ruta `:id` del mismo controller para que Nest no la matchee como parámetro dinámico. Ejemplo de referencia (ver `ProveedorService`/`ProveedorController` para el caso completo):
+```ts
+// service: un Record<Enum, string> con la etiqueta de cada valor, mapeado a CatalogoItemDto[]
+const MI_ENUM_LABELS: Record<MiEnum, string> = { VALOR_A: 'Valor A', VALOR_B: 'Valor B' };
+
+findMiCatalogo(): CatalogoItemDto[] {
+  return Object.entries(MI_ENUM_LABELS).map(([id, code]) => ({ id, code, metadata: {} }));
+}
+```
+```ts
+// controller: antes que @Get(':id'), sin paginación
+@Get('mi-catalogo')
+@ApiOperation({ summary: 'Listar los valores posibles de X, para poblar el <select> del frontend' })
+@ApiOkResponse({ description: 'Catálogo de X', type: [CatalogoItemDto] })
+findMiCatalogo() {
+  return this.miService.findMiCatalogo();
+}
+```
+
 ## Testing
 - Unit tests de la lógica de negocio en los services: al menos uno por historia de usuario.
 - E2E solo para flujos críticos (login, alta de movimiento). No exhaustivo en todo — ajustable si la cátedra pide más cobertura.
