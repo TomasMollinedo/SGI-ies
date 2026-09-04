@@ -27,6 +27,7 @@ describe('OrdenCompraService', () => {
       update: jest.Mock;
       findUnique: jest.Mock;
     };
+    $transaction: jest.Mock;
   };
 
   const USUARIO_ID = 7;
@@ -56,6 +57,12 @@ describe('OrdenCompraService', () => {
         update: jest.fn(),
         findUnique: jest.fn(),
       },
+      // Simula la transacción ejecutando el callback con `prisma` mismo
+      // como `tx` — alcanza para probar qué se manda a `oRDENCOMPRA.update`
+      // sin necesitar una base de datos real.
+      $transaction: jest.fn((callback: (tx: unknown) => unknown) =>
+        callback(prisma),
+      ),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -289,9 +296,6 @@ describe('OrdenCompraService', () => {
   });
 
   describe('validarPuedeConfirmarse', () => {
-    // Todavía no hay un método `confirmar` que llame a esto — el test
-    // prueba la regla aislada, lista para que la próxima tarea (máquina de
-    // estados) la enganche.
     it('rechaza una orden sin ninguna línea de detalle', () => {
       expect(() => service.validarPuedeConfirmarse({ detalles: [] })).toThrow(
         ConflictException,
@@ -302,6 +306,54 @@ describe('OrdenCompraService', () => {
       expect(() =>
         service.validarPuedeConfirmarse({ detalles: [{}] }),
       ).not.toThrow();
+    });
+  });
+
+  describe('confirmar', () => {
+    const ordenConDetalle = {
+      ...ordenBorradorMock,
+      detalles: [{ id_detalle_orden_compra: 1 }],
+    };
+
+    it('pasa la orden de BORRADOR a EMITIDA', async () => {
+      prisma.oRDENCOMPRA.findUnique.mockResolvedValue(ordenConDetalle);
+
+      await service.confirmar(ID_ORDEN, USUARIO_ID);
+
+      const dataEnviada = primerArgumento(prisma.oRDENCOMPRA.update).data;
+      expect(dataEnviada?.estado).toBe('EMITIDA');
+    });
+
+    it('rechaza confirmar una orden que no está en BORRADOR', async () => {
+      prisma.oRDENCOMPRA.findUnique.mockResolvedValue({
+        ...ordenConDetalle,
+        estado: 'EMITIDA',
+      });
+
+      await expect(
+        service.confirmar(ID_ORDEN, USUARIO_ID),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.oRDENCOMPRA.update).not.toHaveBeenCalled();
+    });
+
+    it('rechaza confirmar una orden sin líneas de detalle', async () => {
+      prisma.oRDENCOMPRA.findUnique.mockResolvedValue({
+        ...ordenBorradorMock,
+        detalles: [],
+      });
+
+      await expect(
+        service.confirmar(ID_ORDEN, USUARIO_ID),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.oRDENCOMPRA.update).not.toHaveBeenCalled();
+    });
+
+    it('rechaza si la orden no existe', async () => {
+      prisma.oRDENCOMPRA.findUnique.mockResolvedValue(null);
+
+      await expect(service.confirmar(999, USUARIO_ID)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 });

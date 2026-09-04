@@ -148,16 +148,51 @@ export class OrdenCompraService {
   }
 
   /**
-   * Regla de HU-13: una orden necesita al menos una línea de detalle para
-   * poder confirmarse (pasar de BORRADOR a EMITIDA) — no para poder
-   * *crearse*, porque mientras está en BORRADOR se admite ir agregando y
-   * sacando líneas (ver `documentoOrdenCompraSchema`, sin `.min(1)` a
-   * propósito).
+   * Confirma una orden en BORRADOR, pasándola a EMITIDA. A partir de acá
+   * `update()` rechaza cualquier edición (su chequeo de estado ya cubre
+   * esto: solo admite editar mientras está en BORRADOR).
    *
-   * Todavía no hay ningún método que confirme una orden — eso es de otra
-   * tarea (la máquina de estados). Este chequeo queda listo y público para
-   * que esa tarea lo llame en el momento justo antes de pasar a EMITIDA; por
-   * eso no se usa todavía en ningún lado de este archivo.
+   * El "número correlativo" que pedía originalmente la HU es directamente
+   * `id_orden_compra`: no hace falta asignar nada nuevo acá, la orden ya lo
+   * tiene desde que se creó (ver el comentario en `schema.prisma` sobre por
+   * qué el PK de Postgres ya alcanza, sin necesitar un servicio aparte).
+   *
+   * Todo el cambio va dentro de una transacción explícita, aunque hoy sea
+   * una sola escritura: es el punto donde en el futuro se agregaría
+   * cualquier otro efecto que tenga que ocurrir atómicamente junto con la
+   * confirmación.
+   */
+  async confirmar(id: number, usuarioId: number) {
+    const orden = await this.findOne(id);
+
+    if (orden.estado !== EstadoOrdenCompra.BORRADOR) {
+      throw new ConflictException(
+        'Solo se puede confirmar una orden de compra en estado BORRADOR',
+      );
+    }
+
+    this.validarPuedeConfirmarse(orden);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.oRDENCOMPRA.update({
+        where: { id_orden_compra: id },
+        data: {
+          estado: EstadoOrdenCompra.EMITIDA,
+          FK_usuario_actualizador: usuarioId,
+          hora_actualizacion: new Date(),
+        },
+      });
+    });
+
+    return this.findOne(id);
+  }
+
+  /**
+   * Regla de HU-13: una orden necesita al menos una línea de detalle para
+   * poder confirmarse — no para poder *crearse*, porque mientras está en
+   * BORRADOR se admite ir agregando y sacando líneas (ver
+   * `documentoOrdenCompraSchema`, sin `.min(1)` a propósito). La llama
+   * `confirmar()` antes de hacer la transición de estado.
    */
   validarPuedeConfirmarse(orden: { detalles: unknown[] }) {
     if (orden.detalles.length === 0) {
