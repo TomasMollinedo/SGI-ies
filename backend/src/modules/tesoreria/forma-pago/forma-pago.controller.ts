@@ -36,7 +36,7 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { RolNombre } from '../../../common/enums/rol.enum';
 import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 
-@ApiTags('Formas de Pago')
+@ApiTags('Tesorería')
 @ApiBearerAuth()
 @Roles(RolNombre.ADMINISTRADOR)
 @ApiUnauthorizedResponse({ description: 'No autenticado' })
