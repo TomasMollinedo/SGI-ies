@@ -21,6 +21,4 @@ export const queryComprobanteSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(10),
 });
 
-export class QueryComprobanteDto extends createZodDto(
-  queryComprobanteSchema,
-) {}
+export class QueryComprobanteDto extends createZodDto(queryComprobanteSchema) {}

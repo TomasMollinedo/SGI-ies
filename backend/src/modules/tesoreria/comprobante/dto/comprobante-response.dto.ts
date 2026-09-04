@@ -105,16 +105,15 @@ const ordenPagoResumenSchema = z.object({
  * de origen o las notas aplicadas sobre él, y las órdenes de pago que lo
  * imputaron.
  */
-export const comprobanteDetalleResponseSchema = comprobanteResponseSchema.extend(
-  {
+export const comprobanteDetalleResponseSchema =
+  comprobanteResponseSchema.extend({
     detalle: z.array(lineaDetalleResponseSchema),
     comprobanteOrigen: comprobanteListItemSchema.nullable(),
     notasAplicadas: z.array(comprobanteListItemSchema),
     ordenesPago: z.array(ordenPagoResumenSchema),
     usuarioCreador: usuarioResumenSchema,
     usuarioActualizador: usuarioResumenSchema,
-  },
-);
+  });
 
 export class ComprobanteDetalleResponseDto extends createZodDto(
   comprobanteDetalleResponseSchema,
