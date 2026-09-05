@@ -44,7 +44,7 @@ export class OrdenCompraService {
    * manipule.
    */
   async create(dto: CreateOrdenCompraDto, usuarioId: number) {
-    await this.validarProveedorExiste(dto.FK_proveedor);
+    await this.validarProveedorActivo(dto.FK_proveedor);
     await this.validarDepositoActivo(dto.FK_deposito);
     await this.validarArticulosActivos(
       dto.detalle.map((linea) => linea.FK_articulo),
@@ -90,7 +90,7 @@ export class OrdenCompraService {
       this.validarFechaEmisionNoFutura(dto.fecha_emision);
     }
     if (dto.FK_proveedor !== undefined) {
-      await this.validarProveedorExiste(dto.FK_proveedor);
+      await this.validarProveedorActivo(dto.FK_proveedor);
     }
     if (dto.FK_deposito !== undefined) {
       await this.validarDepositoActivo(dto.FK_deposito);
@@ -257,13 +257,22 @@ export class OrdenCompraService {
     }
   }
 
-  private async validarProveedorExiste(id: number) {
+  private async validarProveedorActivo(id: number) {
     const proveedor = await this.prisma.pROVEEDOR.findUnique({
       where: { id_proveedor: id },
     });
 
     if (!proveedor) {
       throw new NotFoundException(`No existe un proveedor con id ${id}`);
+    }
+    // Mismo criterio que el depósito y los artículos: el frontend ya filtra
+    // proveedores activos en su selector, pero el backend es la última línea
+    // de defensa (carrera con una baja concurrente, o un request que llega
+    // directo sin pasar por ese formulario).
+    if (!proveedor.estado) {
+      throw new ConflictException(
+        `El proveedor con id ${id} está dado de baja y no puede usarse en una orden de compra`,
+      );
     }
   }
 
