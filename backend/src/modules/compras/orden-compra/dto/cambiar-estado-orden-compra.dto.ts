@@ -15,9 +15,10 @@ import { EstadoOrdenCompra } from '../../../../../generated/prisma/enums';
 export const cambiarEstadoOrdenCompraSchema = z.object({
   estado: z.enum(EstadoOrdenCompra),
   motivo_cancelacion: z.string().trim().max(500).optional(),
-  // Se sobrescribe la observación general de la orden en cada cambio de
-  // estado: no hay historial de estados (ver ORDENCOMPRA en el schema).
-  observaciones: z.string().trim().max(500).optional(),
+  // Observación de ESTE cambio puntual: queda en su propia fila de
+  // ORDENCOMPRAHISTORIALESTADO, no pisa el campo `observaciones` general de
+  // la orden.
+  observacion: z.string().trim().max(500).optional(),
 });
 
 export class CambiarEstadoOrdenCompraDto extends createZodDto(
