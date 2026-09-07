@@ -44,7 +44,9 @@ describe('OrdenCompraService', () => {
   beforeEach(async () => {
     prisma = {
       pROVEEDOR: {
-        findUnique: jest.fn().mockResolvedValue({ id_proveedor: ID_PROVEEDOR }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id_proveedor: ID_PROVEEDOR, estado: true }),
       },
       dEPOSITO: {
         findUnique: jest
@@ -170,6 +172,18 @@ describe('OrdenCompraService', () => {
 
       await expect(service.create(dto, USUARIO_ID)).rejects.toBeInstanceOf(
         NotFoundException,
+      );
+      expect(prisma.oRDENCOMPRA.create).not.toHaveBeenCalled();
+    });
+
+    it('rechaza si el proveedor está dado de baja', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue({
+        id_proveedor: ID_PROVEEDOR,
+        estado: false,
+      });
+
+      await expect(service.create(dto, USUARIO_ID)).rejects.toBeInstanceOf(
+        ConflictException,
       );
       expect(prisma.oRDENCOMPRA.create).not.toHaveBeenCalled();
     });
