@@ -59,8 +59,9 @@ model USUARIO {
   proveedoresCreados      PROVEEDOR[] @relation("ProveedorCreador")
   proveedoresActualizados PROVEEDOR[] @relation("ProveedorActualizador")
 
-  ordenesCompraCreadas      ORDENCOMPRA[] @relation("OrdenCompraCreador")
-  ordenesCompraActualizadas ORDENCOMPRA[] @relation("OrdenCompraActualizador")
+  ordenesCompraCreadas      ORDENCOMPRA[]                @relation("OrdenCompraCreador")
+  ordenesCompraActualizadas ORDENCOMPRA[]                @relation("OrdenCompraActualizador")
+  ordenesCompraHistorial    ORDENCOMPRAHISTORIALESTADO[] @relation("OrdenCompraHistorialUsuario")
 
   tiposComprobanteCreados      TIPOCOMPROBANTE[] @relation("TipoComprobanteCreador")
   tiposComprobanteActualizados TIPOCOMPROBANTE[] @relation("TipoComprobanteActualizador")
@@ -453,10 +454,9 @@ model ORDENCOMPRA {
   fecha_emision            DateTime
   fecha_entrega_solicitada DateTime?
 
-  // Texto libre: sirve para la observación general y también para dejar
-  // constancia manual del número de movimiento de stock que respalda una
-  // recepción. Se sobrescribe en cada cambio de estado: no hay historial de
-  // estados, es una simplificación deliberada del modelo.
+  // Texto libre: observación general de la orden (alta/edición en BORRADOR).
+  // La observación de cada cambio de estado NO pisa este campo — queda en su
+  // propia fila de ORDENCOMPRAHISTORIALESTADO (ver ese modelo).
   observaciones String?
 
   // Lo calcula el sistema a partir del detalle, nunca lo manda el cliente.
@@ -479,14 +479,40 @@ model ORDENCOMPRA {
   usuarioCreador      USUARIO   @relation("OrdenCompraCreador", fields: [FK_usuario_creador], references: [id_usuario])
   usuarioActualizador USUARIO   @relation("OrdenCompraActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
-  detalles     DETALLEORDENCOMPRA[]
-  comprobantes COMPROBANTEPROVEEDOR[]
+  detalles         DETALLEORDENCOMPRA[]
+  comprobantes     COMPROBANTEPROVEEDOR[]
+  historialEstados ORDENCOMPRAHISTORIALESTADO[]
 
   // Filtros combinables del listado: proveedor, estado, depósito y período.
   @@index([FK_proveedor])
   @@index([estado])
   @@index([FK_deposito])
   @@index([fecha_emision])
+}
+
+/**
+ * Historial de HU-13: una fila por cada transición manual de estado de una
+ * orden de compra (BORRADOR → EMITIDA → RECIBIDA_PARCIAL/RECIBIDA/CANCELADA).
+ * El alta en BORRADOR no genera fila acá — no es una transición, es el
+ * estado inicial de la orden — por eso `estado_anterior` siempre tiene valor.
+ * Append-only — nunca se edita ni se borra una fila, por eso no tiene
+ * `hora_actualizacion` ni `FK_usuario_actualizador` (mismo criterio que
+ * ALERTA, que tampoco los tiene por no ser una entidad editable).
+ */
+model ORDENCOMPRAHISTORIALESTADO {
+  id_historial    Int               @id @default(autoincrement())
+  estado_anterior EstadoOrdenCompra
+  estado_nuevo    EstadoOrdenCompra
+  observacion     String?
+  fecha           DateTime          @default(now())
+
+  FK_orden_compra Int
+  FK_usuario      Int
+
+  ordenCompra ORDENCOMPRA @relation(fields: [FK_orden_compra], references: [id_orden_compra])
+  usuario     USUARIO     @relation("OrdenCompraHistorialUsuario", fields: [FK_usuario], references: [id_usuario])
+
+  @@index([FK_orden_compra])
 }
 
 model DETALLEORDENCOMPRA {

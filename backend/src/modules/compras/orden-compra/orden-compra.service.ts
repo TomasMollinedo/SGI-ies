@@ -6,8 +6,29 @@ import {
 } from '@nestjs/common';
 import { EstadoOrdenCompra } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { CambiarEstadoOrdenCompraDto } from './dto/cambiar-estado-orden-compra.dto';
 import { CreateOrdenCompraDto } from './dto/create-orden-compra.dto';
 import { UpdateOrdenCompraDto } from './dto/update-orden-compra.dto';
+
+/**
+ * Mapa explícito de transiciones válidas (HU-13): desde cada estado, a qué
+ * estados se puede pasar. BORRADOR solo emite; EMITIDA y RECIBIDA_PARCIAL
+ * pueden avanzar en la recepción o cancelarse; RECIBIDA y CANCELADA son
+ * finales, sin retroceso. Un mapa en vez de una cadena de `if` porque así
+ * agregar o quitar una transición es tocar una sola línea, no lógica
+ * dispersa por el método.
+ */
+const TRANSICIONES_VALIDAS: Record<EstadoOrdenCompra, EstadoOrdenCompra[]> = {
+  BORRADOR: [EstadoOrdenCompra.EMITIDA],
+  EMITIDA: [
+    EstadoOrdenCompra.RECIBIDA_PARCIAL,
+    EstadoOrdenCompra.RECIBIDA,
+    EstadoOrdenCompra.CANCELADA,
+  ],
+  RECIBIDA_PARCIAL: [EstadoOrdenCompra.RECIBIDA, EstadoOrdenCompra.CANCELADA],
+  RECIBIDA: [],
+  CANCELADA: [],
+};
 
 const PROVEEDOR_RESUMEN_SELECT = {
   id_proveedor: true,
@@ -148,43 +169,79 @@ export class OrdenCompraService {
   }
 
   /**
-   * Confirma una orden en BORRADOR, pasándola a EMITIDA. A partir de acá
-   * `update()` rechaza cualquier edición (su chequeo de estado ya cubre
-   * esto: solo admite editar mientras está en BORRADOR).
+   * Avanza una orden de compra de su estado actual a `dto.estado`, según el
+   * mapa `TRANSICIONES_VALIDAS`, y deja constancia del cambio en
+   * `ORDENCOMPRAHISTORIALESTADO`. Cubre las 5 transiciones de la HU-13:
+   * BORRADOR→EMITIDA (con la regla de "al menos una línea" que antes vivía
+   * en `confirmar()`), EMITIDA/RECIBIDA_PARCIAL→RECIBIDA_PARCIAL|RECIBIDA|
+   * CANCELADA. RECIBIDA y CANCELADA son finales: el mapa no les da salida,
+   * así que cualquier intento de moverlas cae en `validarTransicion`.
    *
    * El "número correlativo" que pedía originalmente la HU es directamente
    * `id_orden_compra`: no hace falta asignar nada nuevo acá, la orden ya lo
    * tiene desde que se creó (ver el comentario en `schema.prisma` sobre por
    * qué el PK de Postgres ya alcanza, sin necesitar un servicio aparte).
    *
-   * Todo el cambio va dentro de una transacción explícita, aunque hoy sea
-   * una sola escritura: es el punto donde en el futuro se agregaría
-   * cualquier otro efecto que tenga que ocurrir atómicamente junto con la
-   * confirmación.
+   * La actualización de la orden y el alta del historial van en la misma
+   * transacción: si una falla, no queda un estado sin su registro.
    */
-  async confirmar(id: number, usuarioId: number) {
+  async cambiarEstado(
+    id: number,
+    dto: CambiarEstadoOrdenCompraDto,
+    usuarioId: number,
+  ) {
     const orden = await this.findOne(id);
 
-    if (orden.estado !== EstadoOrdenCompra.BORRADOR) {
-      throw new ConflictException(
-        'Solo se puede confirmar una orden de compra en estado BORRADOR',
+    this.validarTransicion(orden.estado, dto.estado);
+
+    if (dto.estado === EstadoOrdenCompra.EMITIDA) {
+      this.validarPuedeConfirmarse(orden);
+    }
+    if (dto.estado === EstadoOrdenCompra.CANCELADA && !dto.motivo_cancelacion) {
+      throw new BadRequestException(
+        'El motivo de cancelación es obligatorio para cancelar una orden de compra',
       );
     }
-
-    this.validarPuedeConfirmarse(orden);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.oRDENCOMPRA.update({
         where: { id_orden_compra: id },
         data: {
-          estado: EstadoOrdenCompra.EMITIDA,
+          estado: dto.estado,
+          motivo_cancelacion: dto.motivo_cancelacion,
           FK_usuario_actualizador: usuarioId,
           hora_actualizacion: new Date(),
+        },
+      });
+
+      await tx.oRDENCOMPRAHISTORIALESTADO.create({
+        data: {
+          FK_orden_compra: id,
+          estado_anterior: orden.estado,
+          estado_nuevo: dto.estado,
+          observacion: dto.observacion,
+          FK_usuario: usuarioId,
         },
       });
     });
 
     return this.findOne(id);
+  }
+
+  /**
+   * Único lugar donde se consulta `TRANSICIONES_VALIDAS`: si el estado
+   * pedido no está entre los admitidos desde el estado actual, la orden se
+   * queda como está y se avisa por qué.
+   */
+  private validarTransicion(
+    estadoActual: EstadoOrdenCompra,
+    estadoNuevo: EstadoOrdenCompra,
+  ) {
+    if (!TRANSICIONES_VALIDAS[estadoActual].includes(estadoNuevo)) {
+      throw new ConflictException(
+        `No se puede pasar una orden de compra de ${estadoActual} a ${estadoNuevo}`,
+      );
+    }
   }
 
   /**

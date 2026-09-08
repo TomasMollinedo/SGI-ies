@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { OrdenCompraService } from './orden-compra.service';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { EstadoOrdenCompra } from '../../../../generated/prisma/enums';
+import { CambiarEstadoOrdenCompraDto } from './dto/cambiar-estado-orden-compra.dto';
 
 /** Primer argumento con el que se llamó a un mock de Prisma, ya tipado. */
 type ArgumentoPrisma = {
@@ -27,6 +29,7 @@ describe('OrdenCompraService', () => {
       update: jest.Mock;
       findUnique: jest.Mock;
     };
+    oRDENCOMPRAHISTORIALESTADO: { create: jest.Mock };
     $transaction: jest.Mock;
   };
 
@@ -59,6 +62,7 @@ describe('OrdenCompraService', () => {
         update: jest.fn(),
         findUnique: jest.fn(),
       },
+      oRDENCOMPRAHISTORIALESTADO: { create: jest.fn() },
       // Simula la transacción ejecutando el callback con `prisma` mismo
       // como `tx` — alcanza para probar qué se manda a `oRDENCOMPRA.update`
       // sin necesitar una base de datos real.
@@ -323,51 +327,138 @@ describe('OrdenCompraService', () => {
     });
   });
 
-  describe('confirmar', () => {
+  describe('cambiarEstado', () => {
     const ordenConDetalle = {
       ...ordenBorradorMock,
       detalles: [{ id_detalle_orden_compra: 1 }],
     };
 
-    it('pasa la orden de BORRADOR a EMITIDA', async () => {
-      prisma.oRDENCOMPRA.findUnique.mockResolvedValue(ordenConDetalle);
+    const ordenEnEstado = (estado: EstadoOrdenCompra) => ({
+      ...ordenConDetalle,
+      estado,
+    });
 
-      await service.confirmar(ID_ORDEN, USUARIO_ID);
+    const dtoCambiarEstado = (
+      estado: EstadoOrdenCompra,
+      extra: Partial<CambiarEstadoOrdenCompraDto> = {},
+    ): CambiarEstadoOrdenCompraDto => ({ estado, ...extra });
+
+    it.each([
+      [EstadoOrdenCompra.BORRADOR, EstadoOrdenCompra.EMITIDA],
+      [EstadoOrdenCompra.EMITIDA, EstadoOrdenCompra.RECIBIDA_PARCIAL],
+      [EstadoOrdenCompra.EMITIDA, EstadoOrdenCompra.RECIBIDA],
+      [EstadoOrdenCompra.EMITIDA, EstadoOrdenCompra.CANCELADA],
+      [EstadoOrdenCompra.RECIBIDA_PARCIAL, EstadoOrdenCompra.RECIBIDA],
+      [EstadoOrdenCompra.RECIBIDA_PARCIAL, EstadoOrdenCompra.CANCELADA],
+    ])('permite pasar de %s a %s', async (estadoActual, estadoNuevo) => {
+      prisma.oRDENCOMPRA.findUnique.mockResolvedValue(
+        ordenEnEstado(estadoActual),
+      );
+
+      await service.cambiarEstado(
+        ID_ORDEN,
+        dtoCambiarEstado(estadoNuevo, {
+          motivo_cancelacion:
+            estadoNuevo === EstadoOrdenCompra.CANCELADA
+              ? 'Proveedor sin stock'
+              : undefined,
+        }),
+        USUARIO_ID,
+      );
 
       const dataEnviada = primerArgumento(prisma.oRDENCOMPRA.update).data;
-      expect(dataEnviada?.estado).toBe('EMITIDA');
+      expect(dataEnviada?.estado).toBe(estadoNuevo);
     });
 
-    it('rechaza confirmar una orden que no está en BORRADOR', async () => {
-      prisma.oRDENCOMPRA.findUnique.mockResolvedValue({
-        ...ordenConDetalle,
-        estado: 'EMITIDA',
-      });
+    it.each([
+      [EstadoOrdenCompra.RECIBIDA, EstadoOrdenCompra.EMITIDA],
+      [EstadoOrdenCompra.CANCELADA, EstadoOrdenCompra.EMITIDA],
+      [EstadoOrdenCompra.EMITIDA, EstadoOrdenCompra.BORRADOR],
+      [EstadoOrdenCompra.RECIBIDA_PARCIAL, EstadoOrdenCompra.EMITIDA],
+    ])(
+      'rechaza pasar de %s a %s por no estar en el mapa de transiciones',
+      async (estadoActual, estadoNuevo) => {
+        prisma.oRDENCOMPRA.findUnique.mockResolvedValue(
+          ordenEnEstado(estadoActual),
+        );
 
-      await expect(
-        service.confirmar(ID_ORDEN, USUARIO_ID),
-      ).rejects.toBeInstanceOf(ConflictException);
-      expect(prisma.oRDENCOMPRA.update).not.toHaveBeenCalled();
-    });
+        await expect(
+          service.cambiarEstado(
+            ID_ORDEN,
+            dtoCambiarEstado(estadoNuevo),
+            USUARIO_ID,
+          ),
+        ).rejects.toBeInstanceOf(ConflictException);
+        expect(prisma.oRDENCOMPRA.update).not.toHaveBeenCalled();
+      },
+    );
 
-    it('rechaza confirmar una orden sin líneas de detalle', async () => {
+    it('exige al menos una línea de detalle para pasar a EMITIDA', async () => {
       prisma.oRDENCOMPRA.findUnique.mockResolvedValue({
         ...ordenBorradorMock,
         detalles: [],
       });
 
       await expect(
-        service.confirmar(ID_ORDEN, USUARIO_ID),
+        service.cambiarEstado(
+          ID_ORDEN,
+          dtoCambiarEstado(EstadoOrdenCompra.EMITIDA),
+          USUARIO_ID,
+        ),
       ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.oRDENCOMPRA.update).not.toHaveBeenCalled();
+    });
+
+    it('exige motivo_cancelacion para pasar a CANCELADA', async () => {
+      prisma.oRDENCOMPRA.findUnique.mockResolvedValue(
+        ordenEnEstado(EstadoOrdenCompra.EMITIDA),
+      );
+
+      await expect(
+        service.cambiarEstado(
+          ID_ORDEN,
+          dtoCambiarEstado(EstadoOrdenCompra.CANCELADA),
+          USUARIO_ID,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
       expect(prisma.oRDENCOMPRA.update).not.toHaveBeenCalled();
     });
 
     it('rechaza si la orden no existe', async () => {
       prisma.oRDENCOMPRA.findUnique.mockResolvedValue(null);
 
-      await expect(service.confirmar(999, USUARIO_ID)).rejects.toBeInstanceOf(
-        NotFoundException,
+      await expect(
+        service.cambiarEstado(
+          999,
+          dtoCambiarEstado(EstadoOrdenCompra.EMITIDA),
+          USUARIO_ID,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('registra el cambio en ORDENCOMPRAHISTORIALESTADO', async () => {
+      prisma.oRDENCOMPRA.findUnique.mockResolvedValue(
+        ordenEnEstado(EstadoOrdenCompra.BORRADOR),
       );
+
+      await service.cambiarEstado(
+        ID_ORDEN,
+        dtoCambiarEstado(EstadoOrdenCompra.EMITIDA, {
+          observacion: 'Emitida a proveedor',
+        }),
+        USUARIO_ID,
+      );
+
+      const historialEnviado = primerArgumento(
+        prisma.oRDENCOMPRAHISTORIALESTADO.create,
+      ).data;
+      expect(historialEnviado).toMatchObject({
+        FK_orden_compra: ID_ORDEN,
+        estado_anterior: EstadoOrdenCompra.BORRADOR,
+        estado_nuevo: EstadoOrdenCompra.EMITIDA,
+        observacion: 'Emitida a proveedor',
+        FK_usuario: USUARIO_ID,
+      });
     });
   });
 });
