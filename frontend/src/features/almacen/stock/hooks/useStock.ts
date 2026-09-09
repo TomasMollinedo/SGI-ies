@@ -6,9 +6,11 @@ import {
   darDeBajaStock,
   editarStock,
   listarStock,
+  obtenerCardex,
   obtenerStock,
   reactivarStock,
 } from '../services/stock.service'
+import type { CardexResponse, FiltrosCardex } from '../types/cardex.types'
 import type {
   CrearStockPayload,
   EditarStockPayload,
@@ -32,6 +34,22 @@ export function useStockDetalle(id: number | null) {
     queryKey: STOCK_QUERY_KEYS.DETALLE(id ?? -1),
     queryFn: () => obtenerStock(id as number),
     enabled: id !== null,
+  })
+}
+
+/**
+ * Cardex de una ficha. `enabled` en null porque la página lo pide con el id que
+ * viene de la URL, que puede no ser un número válido.
+ *
+ * Mismo `keepPreviousData` que el listado: al cambiar de página o de período,
+ * la tabla anterior queda en pantalla en vez de parpadear.
+ */
+export function useCardex(id: number | null, filtros: FiltrosCardex) {
+  return useQuery<CardexResponse, ApiErrorResponse>({
+    queryKey: STOCK_QUERY_KEYS.CARDEX(id ?? -1, filtros),
+    queryFn: () => obtenerCardex(id as number, filtros),
+    enabled: id !== null,
+    placeholderData: keepPreviousData,
   })
 }
 

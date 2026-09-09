@@ -5,6 +5,7 @@ import { DepositosPage } from '@/features/almacen/deposito/pages/DepositosPage'
 import { MarcasPage } from '@/features/almacen/marca/pages/MarcasPage'
 import { RegistroMovimientoPage } from '@/features/almacen/movimiento/pages/RegistroMovimientoPage'
 import { TiposMovimientoPage } from '@/features/almacen/tipo-movimiento/pages/TiposMovimientoPage'
+import { CardexPage } from '@/features/almacen/stock/pages/CardexPage'
 import { StockPage } from '@/features/almacen/stock/pages/StockPage'
 import { UnidadesMedidaPage } from '@/features/almacen/unidades-medida/pages/UnidadesMedidaPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
@@ -79,6 +80,11 @@ export const router = createBrowserRouter([
                 path: PATHS.ALMACEN.DEPOSITO.STOCK,
                 element: <StockPage />,
                 handle: { title: 'Stock por Depósito' },
+              },
+              {
+                path: PATHS.ALMACEN.DEPOSITO.STOCK_CARDEX,
+                element: <CardexPage />,
+                handle: { title: 'Cardex del Artículo' },
               },
 
               {
