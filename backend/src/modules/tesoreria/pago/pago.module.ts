@@ -1,11 +1,9 @@
 import { Module } from '@nestjs/common';
+import { PagoController } from './pago.controller';
+import { PagoService } from './pago.service';
 
-/**
- * HU-18 — Pagos. El controller y el service se agregan al implementar la
- * historia; por ahora el módulo existe solo para reservar la estructura.
- */
 @Module({
-  controllers: [],
-  providers: [],
+  controllers: [PagoController],
+  providers: [PagoService],
 })
 export class PagoModule {}

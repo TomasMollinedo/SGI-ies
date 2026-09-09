@@ -22,6 +22,7 @@ import { OrdenCompraModule } from './modules/compras/orden-compra/orden-compra.m
 import { TipoComprobanteModule } from './modules/tesoreria/tipo-comprobante/tipo-comprobante.module';
 import { FormaPagoModule } from './modules/tesoreria/forma-pago/forma-pago.module';
 import { ComprobanteModule } from './modules/tesoreria/comprobante/comprobante.module';
+import { PagoModule } from './modules/tesoreria/pago/pago.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { ComprobanteModule } from './modules/tesoreria/comprobante/comprobante.m
     TipoComprobanteModule,
     FormaPagoModule,
     ComprobanteModule,
+    PagoModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },

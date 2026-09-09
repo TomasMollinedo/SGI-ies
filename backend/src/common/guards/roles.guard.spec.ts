@@ -16,6 +16,7 @@ import { UnidadMedidaController } from '../../modules/almacen/unidad-medida/unid
 import { ProveedorController } from '../../modules/compras/proveedor/proveedor.controller';
 import { FormaPagoController } from '../../modules/tesoreria/forma-pago/forma-pago.controller';
 import { TipoComprobanteController } from '../../modules/tesoreria/tipo-comprobante/tipo-comprobante.controller';
+import { PagoController } from '../../modules/tesoreria/pago/pago.controller';
 
 /**
  * Controller de mentira, dueño de un rol que no es ni Administrador ni
@@ -157,6 +158,7 @@ describe('RolesGuard', () => {
     const controllersDeTesoreria: [string, object][] = [
       ['FormaPagoController', FormaPagoController],
       ['TipoComprobanteController', TipoComprobanteController],
+      ['PagoController', PagoController],
     ];
 
     it.each(controllersDeTesoreria)(
