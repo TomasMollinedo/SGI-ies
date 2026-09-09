@@ -464,7 +464,7 @@ function notaConfirmacion(esBaja: boolean, motivo: MotivoConflicto | null): stri
       return 'Editá el nombre de la forma de pago antes de reactivarla.'
     case null:
       return esBaja
-        ? 'La baja es lógica: la forma de pago deja de estar disponible para nuevas órdenes de pago, pero las históricas no se tocan.'
+        ? 'La baja es lógica: la forma de pago deja de estar disponible para nuevos pagos, pero los históricos no se tocan.'
         : undefined
     default:
       return undefined

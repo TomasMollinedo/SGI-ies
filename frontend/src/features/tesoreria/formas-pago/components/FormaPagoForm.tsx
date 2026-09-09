@@ -41,7 +41,7 @@ interface FormaPagoFormProps {
  * Modal de crear/editar una forma de pago.
  *
  * `requiere_referencia` se define en el alta y después queda bloqueado:
- * cambiarlo dejaría incumpliendo la regla a todas las órdenes de pago
+ * cambiarlo dejaría incumpliendo la regla a todos los pagos
  * históricas que se cargaron sin número de referencia. En edición se muestra
  * igual pero deshabilitado.
  */
@@ -176,12 +176,12 @@ export function FormaPagoForm({
             // cargado, y el campo está deshabilitado.
             placeholder={esEdicion ? undefined : 'Seleccioná una opción'}
             // Se muestra igual en edición, pero bloqueado: si se pudiera
-            // cambiar, las órdenes de pago ya cargadas sin referencia quedarían
+            // cambiar, los pagos ya cargadas sin referencia quedarían
             // incumpliendo la regla que la forma de pago pasa a exigir.
             disabled={esEdicion || loading}
             helperText={
               esEdicion
-                ? 'El indicador se definió al crear la forma de pago y queda bloqueado de forma permanente: cambiarlo dejaría incumpliendo la regla a las órdenes de pago ya registradas.'
+                ? 'El indicador se definió al crear la forma de pago y queda bloqueado de forma permanente: cambiarlo dejaría incumpliendo la regla a los pagos ya registrados.'
                 : 'Indica si al pagar hay que cargar el nro. de operación, de cheque, etc. Una vez guardado no se va a poder modificar.'
             }
             error={errors.requiere_referencia?.message}
