@@ -94,9 +94,10 @@ export class MovimientoCreadoResponseDto extends createZodDto(
  * que ir al detalle (GET /movimientos/:id).
  */
 export const movimientoListItemSchema = movimientoResponseSchema
+  // Conserva hora_creacion (la fecha de registro): es lo que permite ver en el
+  // listado qué movimientos se cargaron de forma retroactiva.
   .omit({
     observaciones: true,
-    hora_creacion: true,
     FK_usuario_creador: true,
     stockMovimientos: true,
   })

@@ -145,6 +145,10 @@ model STOCKMOVIMIENTO {
 
   movimiento MOVIMIENTO @relation(fields: [FK_Movimiento], references: [id_movimiento])
   stock      STOCK      @relation(fields: [FK_Stock], references: [id_stock])
+
+  // El cardex de una ficha de stock filtra exactamente por esta columna.
+  // Postgres no indexa las claves foráneas por su cuenta, así que va explícito.
+  @@index([FK_Stock])
 }
 
 model STOCK {

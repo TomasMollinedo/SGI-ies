@@ -1,0 +1,2 @@
+-- CreateIndex
+CREATE INDEX "STOCKMOVIMIENTO_FK_Stock_idx" ON "STOCKMOVIMIENTO"("FK_Stock");

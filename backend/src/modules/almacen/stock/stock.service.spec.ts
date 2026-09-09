@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Logger } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import { StockService } from './stock.service';
+import { QueryCardexDto } from './dto/query-cardex.dto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AlertaService } from '../../alerta/alerta.service';
 import { RolNombre } from '../../../common/enums/rol.enum';
@@ -16,7 +17,10 @@ interface InputAlerta {
 
 describe('StockService', () => {
   let service: StockService;
-  let prisma: { sTOCK: { findMany: jest.Mock } };
+  let prisma: {
+    sTOCK: { findMany: jest.Mock; findUnique: jest.Mock };
+    sTOCKMOVIMIENTO: { findMany: jest.Mock; count: jest.Mock };
+  };
   let alertaService: { crear: jest.Mock };
 
   /** Ficha activa con su artículo resuelto. */
@@ -29,6 +33,13 @@ describe('StockService', () => {
     articulo: { nombre: `Artículo ${id}` },
   });
 
+  /** Query del cardex con los defaults que ya aplicó el DTO Zod. */
+  const filtros = (parcial: Partial<QueryCardexDto> = {}): QueryCardexDto => ({
+    page: 1,
+    limit: 10,
+    ...parcial,
+  });
+
   /** Inputs con los que se llamó a AlertaService.crear. */
   const inputsDeAlerta = (): InputAlerta[] =>
     (alertaService.crear.mock.calls as InputAlerta[][]).map(
@@ -36,7 +47,16 @@ describe('StockService', () => {
     );
 
   beforeEach(async () => {
-    prisma = { sTOCK: { findMany: jest.fn().mockResolvedValue([]) } };
+    prisma = {
+      sTOCK: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      sTOCKMOVIMIENTO: {
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
+      },
+    };
     alertaService = {
       crear: jest
         .fn()
@@ -148,6 +168,148 @@ describe('StockService', () => {
       expect(logError).toHaveBeenCalled();
 
       logError.mockRestore();
+    });
+  });
+
+  describe('cardex', () => {
+    /** Ficha tal como la devuelve el `findUnique` del cardex. */
+    const fichaCardex = {
+      id_stock: 1,
+      cantidad: 12,
+      umbral_minimo: 5,
+      estado: true,
+      articulo: {
+        id_articulo: 10,
+        nombre: 'Cemento',
+        FK_Categoria: 1,
+        FK_Marca: null,
+      },
+      deposito: { id_deposito: 2, nombre: 'Central', es_obrador: false },
+    };
+
+    /** Línea de cardex tal como la devuelve Prisma, con su movimiento anidado. */
+    const linea = (
+      idLinea: number,
+      idMovimiento: number,
+      anterior: number,
+      nuevo: number,
+    ) => ({
+      id_stock_movimiento: idLinea,
+      cantidad: Math.abs(nuevo - anterior),
+      stock_anterior: anterior,
+      stock_nuevo: nuevo,
+      observacion: null,
+      movimiento: {
+        id_movimiento: idMovimiento,
+        fecha_movimiento: new Date('2026-08-10'),
+        // Posterior a fecha_movimiento: es una carga retroactiva.
+        hora_creacion: new Date('2026-08-15'),
+        referencia: `REM-${idMovimiento}`,
+        tipoMovimiento: {
+          id_tipo_movimiento: 1,
+          nombre: 'Ingreso por compra',
+          indicador_entrada: true,
+        },
+        usuarioCreador: { nombre: 'Ana', apellido: 'Pérez' },
+      },
+    });
+
+    beforeEach(() => {
+      prisma.sTOCK.findUnique.mockResolvedValue(fichaCardex);
+    });
+
+    it('falla si no existe la ficha', async () => {
+      prisma.sTOCK.findUnique.mockResolvedValue(null);
+
+      await expect(service.cardex(99, filtros())).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('pide las líneas de esa ficha ordenadas por número de movimiento ascendente', async () => {
+      await service.cardex(1, filtros());
+
+      // Orden de registro y no por fecha: es lo que hace que el stock_nuevo de
+      // cada línea cierre con el stock_anterior de la siguiente aunque haya
+      // movimientos cargados de forma retroactiva.
+      expect(prisma.sTOCKMOVIMIENTO.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { FK_Stock: 1 },
+          orderBy: { FK_Movimiento: 'asc' },
+          skip: 0,
+          take: 10,
+        }),
+      );
+    });
+
+    it('devuelve los saldos registrados y aplana el movimiento sobre la línea', async () => {
+      prisma.sTOCKMOVIMIENTO.findMany.mockResolvedValue([
+        linea(1, 5, 0, 10),
+        linea(2, 8, 10, 12),
+      ]);
+      prisma.sTOCKMOVIMIENTO.count.mockResolvedValue(2);
+
+      const resultado = await service.cardex(1, filtros());
+
+      expect(resultado.ficha).toEqual(fichaCardex);
+      expect(resultado.meta).toEqual({ total: 2, page: 1, limit: 10 });
+      expect(resultado.data).toHaveLength(2);
+
+      const [primera, segunda] = resultado.data;
+      expect(primera.id_movimiento).toBe(5);
+      expect(primera.referencia).toBe('REM-5');
+      expect(primera.tipoMovimiento.indicador_entrada).toBe(true);
+      expect(primera.usuarioCreador).toEqual({
+        nombre: 'Ana',
+        apellido: 'Pérez',
+      });
+      // Las dos fechas viajan por separado para poder detectar las cargas
+      // retroactivas.
+      expect(primera.fecha_movimiento).toEqual(new Date('2026-08-10'));
+      expect(primera.hora_creacion).toEqual(new Date('2026-08-15'));
+
+      // La cadena cierra: cada saldo posterior es el anterior de la siguiente,
+      // y el último coincide con el stock actual de la ficha.
+      expect(primera.stock_nuevo).toBe(segunda.stock_anterior);
+      expect(segunda.stock_nuevo).toBe(resultado.ficha.cantidad);
+    });
+
+    it('filtra por período contra la fecha del movimiento, sin recalcular los saldos', async () => {
+      prisma.sTOCKMOVIMIENTO.findMany.mockResolvedValue([linea(2, 8, 10, 12)]);
+      prisma.sTOCKMOVIMIENTO.count.mockResolvedValue(1);
+
+      const resultado = await service.cardex(
+        1,
+        filtros({
+          fechaDesde: new Date('2026-08-01'),
+          fechaHasta: new Date('2026-08-31'),
+        }),
+      );
+
+      expect(prisma.sTOCKMOVIMIENTO.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            FK_Stock: 1,
+            movimiento: {
+              fecha_movimiento: {
+                gte: new Date('2026-08-01'),
+                lte: new Date('2026-08-31'),
+              },
+            },
+          },
+        }),
+      );
+      // El saldo de la línea es el que quedó registrado al confirmar el
+      // movimiento: acotar el período no lo rebasea a 0.
+      expect(resultado.data[0].stock_anterior).toBe(10);
+    });
+
+    it('pagina sobre el historial completo', async () => {
+      await service.cardex(1, filtros({ page: 3, limit: 20 }));
+
+      expect(prisma.sTOCKMOVIMIENTO.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 40, take: 20 }),
+      );
     });
   });
 });
