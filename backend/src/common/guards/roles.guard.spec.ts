@@ -14,6 +14,7 @@ import { StockController } from '../../modules/almacen/stock/stock.controller';
 import { TipoMovimientoController } from '../../modules/almacen/tipo-movimiento/tipo-movimiento.controller';
 import { UnidadMedidaController } from '../../modules/almacen/unidad-medida/unidad-medida.controller';
 import { ProveedorController } from '../../modules/compras/proveedor/proveedor.controller';
+import { FormaPagoController } from '../../modules/tesoreria/forma-pago/forma-pago.controller';
 import { TipoComprobanteController } from '../../modules/tesoreria/tipo-comprobante/tipo-comprobante.controller';
 
 /**
@@ -154,6 +155,7 @@ describe('RolesGuard', () => {
 
   describe('controllers de Tesorería', () => {
     const controllersDeTesoreria: [string, object][] = [
+      ['FormaPagoController', FormaPagoController],
       ['TipoComprobanteController', TipoComprobanteController],
     ];
 
@@ -168,6 +170,9 @@ describe('RolesGuard', () => {
       },
     );
 
+    // Las formas de pago son datos maestros, así que siguen el mismo criterio
+    // que Almacén y Compras: el dueño es el Administrador, no el Responsable
+    // de Tesorería, aunque sea quien las usa para registrar pagos.
     // El Responsable de Tesorería no es el dueño del recurso: Tipos de
     // Comprobante, como el resto de los datos maestros del proyecto (ver
     // Almacén y Compras), queda a cargo del Administrador.

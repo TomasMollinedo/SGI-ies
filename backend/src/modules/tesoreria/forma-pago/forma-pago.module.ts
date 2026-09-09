@@ -1,12 +1,10 @@
 import { Module } from '@nestjs/common';
+import { FormaPagoController } from './forma-pago.controller';
+import { FormaPagoService } from './forma-pago.service';
 
-/**
- * HU-15 — Formas de pago. El controller y el service se agregan al
- * implementar la historia; por ahora el módulo existe solo para reservar la
- * estructura.
- */
+/** HU-15 — Formas de pago. */
 @Module({
-  controllers: [],
-  providers: [],
+  controllers: [FormaPagoController],
+  providers: [FormaPagoService],
 })
 export class FormaPagoModule {}
