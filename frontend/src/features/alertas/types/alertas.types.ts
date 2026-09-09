@@ -49,3 +49,12 @@ export interface FiltrosAlertas {
   page?: number
   limit?: number
 }
+
+/**
+ * Respuesta de PATCH /alertas/atender-todas: cuántas alertas pendientes quedaron
+ * marcadas como atendidas. No devuelve las alertas afectadas (pueden ser muchas
+ * y el listado se refresca igual).
+ */
+export interface ResultadoAtenderTodas {
+  atendidas: number
+}

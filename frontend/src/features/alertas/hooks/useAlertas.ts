@@ -3,11 +3,17 @@ import type { ApiErrorResponse, PaginatedResponse } from '@/shared/types/api.typ
 import {
   ALERTAS_QUERY_KEYS,
   atenderAlerta,
+  atenderTodasLasAlertas,
   listarAlertas,
   listarTiposAlerta,
   obtenerAlerta,
 } from '../services/alertas.service'
-import type { Alerta, FiltrosAlertas, TipoAlerta } from '../types/alertas.types'
+import type {
+  Alerta,
+  FiltrosAlertas,
+  ResultadoAtenderTodas,
+  TipoAlerta,
+} from '../types/alertas.types'
 
 /** Tipos de alerta para poblar el filtro. Lista chica y estable: no se repagina ni se filtra. */
 export function useTiposAlerta() {
@@ -63,6 +69,24 @@ export function useAtenderAlerta() {
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['alertas', 'lista'] })
       queryClient.invalidateQueries({ queryKey: ALERTAS_QUERY_KEYS.DETALLE(id) })
+    },
+  })
+}
+
+/**
+ * Marca como atendidas todas las alertas pendientes del usuario de una sola vez.
+ *
+ * Invalida todos los listados —no solo el que se está mirando— porque la
+ * operación afecta también al contador de la campanita. Igual que
+ * `useAtenderAlerta`, no dispara toasts: eso lo decide quien la use.
+ */
+export function useAtenderTodasLasAlertas() {
+  const queryClient = useQueryClient()
+
+  return useMutation<ResultadoAtenderTodas, ApiErrorResponse, void>({
+    mutationFn: atenderTodasLasAlertas,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['alertas'] })
     },
   })
 }

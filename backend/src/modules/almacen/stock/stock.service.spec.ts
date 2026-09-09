@@ -23,14 +23,16 @@ describe('StockService', () => {
   };
   let alertaService: { crear: jest.Mock };
 
-  /** Ficha activa con su artículo resuelto. */
+  /** Ficha activa con su artículo y su depósito resueltos. */
   const ficha = (id: number, cantidad: number, umbral: number) => ({
     id_stock: id,
     cantidad,
     umbral_minimo: umbral,
     estado: true,
     FK_articulo: id * 10,
+    FK_deposito: id * 100,
     articulo: { nombre: `Artículo ${id}` },
+    deposito: { nombre: `Depósito ${id}` },
   });
 
   /** Query del cardex con los defaults que ya aplicó el DTO Zod. */
@@ -120,9 +122,14 @@ describe('StockService', () => {
       expect(input.tipoAlertaNombre).toBe(TipoAlertaNombre.REPOSICION);
       expect(input.rolDestinatario).toBe(RolNombre.RESPONSABLE_ALMACEN);
       expect(input.mensaje).toContain('Artículo 7');
+      // El depósito va en el mensaje porque la misma combinación
+      // artículo/depósito es una ficha distinta: sin él no se sabe dónde
+      // reponer.
+      expect(input.mensaje).toContain('Depósito 7');
       expect(input.datos).toEqual({
         stockId: 7,
         articuloId: 70,
+        depositoId: 700,
         stockActual: 2,
         umbralMinimo: 5,
       });

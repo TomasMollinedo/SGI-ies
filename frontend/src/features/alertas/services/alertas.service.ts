@@ -1,6 +1,11 @@
 import { httpClient } from '@/shared/api/httpClient'
 import type { PaginatedResponse } from '@/shared/types/api.types'
-import type { Alerta, FiltrosAlertas, TipoAlerta } from '../types/alertas.types'
+import type {
+  Alerta,
+  FiltrosAlertas,
+  ResultadoAtenderTodas,
+  TipoAlerta,
+} from '../types/alertas.types'
 
 export const ALERTAS_QUERY_KEYS = {
   LISTA: (filtros: FiltrosAlertas) => ['alertas', 'lista', filtros] as const,
@@ -45,5 +50,15 @@ export async function obtenerAlerta(id: number, signal?: AbortSignal): Promise<A
 /** PATCH /alertas/{id}/atender. Sin body. 409 si ya estaba atendida. */
 export async function atenderAlerta(id: number): Promise<Alerta> {
   const { data } = await httpClient.patch<Alerta>(`/alertas/${id}/atender`)
+  return data
+}
+
+/**
+ * PATCH /alertas/atender-todas. Sin body: marca todas las alertas pendientes
+ * que le corresponden al usuario y devuelve cuántas quedaron marcadas. No
+ * falla con 409 si no había ninguna: devuelve `atendidas: 0`.
+ */
+export async function atenderTodasLasAlertas(): Promise<ResultadoAtenderTodas> {
+  const { data } = await httpClient.patch<ResultadoAtenderTodas>('/alertas/atender-todas')
   return data
 }
