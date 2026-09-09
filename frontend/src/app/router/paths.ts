@@ -15,6 +15,9 @@ export const PATHS = {
       ROOT: '/almacen/deposito',
       OBRADORES: '/almacen/deposito/obradores',
       STOCK: '/almacen/deposito/stock',
+      // Patrón de ruta, no una URL navegable: para armar la de una ficha
+      // concreta está `rutaCardexStock`.
+      STOCK_CARDEX: '/almacen/deposito/stock/:idStock/cardex',
     },
     MOVIMIENTOS: {
       ROOT: '/almacen/movimientos',
@@ -43,3 +46,8 @@ export const PATHS = {
   //PROYECTOS: { ROOT: '/proyectos' },
   //COMERCIAL: { ROOT: '/comercial' },
 } as const
+
+/** La ruta del cardex de una ficha puntual (ej. 42 → /almacen/deposito/stock/42/cardex). */
+export function rutaCardexStock(idStock: number): string {
+  return PATHS.ALMACEN.DEPOSITO.STOCK_CARDEX.replace(':idStock', String(idStock))
+}

@@ -1,5 +1,6 @@
 import { httpClient } from '@/shared/api/httpClient'
 import type { PaginatedResponse } from '@/shared/types/api.types'
+import type { CardexResponse, FiltrosCardex } from '../types/cardex.types'
 import type {
   CrearStockPayload,
   EditarStockPayload,
@@ -12,6 +13,7 @@ import type {
 export const STOCK_QUERY_KEYS = {
   LISTA: (filtros: FiltrosStock) => ['stock', 'lista', filtros] as const,
   DETALLE: (id: number) => ['stock', 'detalle', id] as const,
+  CARDEX: (id: number, filtros: FiltrosCardex) => ['stock', 'cardex', id, filtros] as const,
 }
 
 export async function crearStock(payload: CrearStockPayload): Promise<StockAuditado> {
@@ -36,6 +38,22 @@ export async function listarStock(filtros: FiltrosStock): Promise<PaginatedRespo
 
 export async function obtenerStock(id: number): Promise<StockDetalle> {
   const { data } = await httpClient.get<StockDetalle>(`/stock/${id}`)
+  return data
+}
+
+/**
+ * Historial de la ficha. Viene ordenado por número de movimiento ascendente
+ * (orden de registro), que es el orden en el que los saldos encadenan.
+ */
+export async function obtenerCardex(id: number, filtros: FiltrosCardex): Promise<CardexResponse> {
+  const { data } = await httpClient.get<CardexResponse>(`/stock/${id}/cardex`, {
+    params: {
+      fechaDesde: filtros.fechaDesde,
+      fechaHasta: filtros.fechaHasta,
+      page: filtros.page,
+      limit: filtros.limit,
+    },
+  })
   return data
 }
 

@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { useNavigate } from 'react-router'
+import { History, Plus } from 'lucide-react'
+import { rutaCardexStock } from '@/app/router/paths'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { DataTable } from '@/shared/components/common/DataTable'
 import { ConfirmDialog } from '@/shared/components/common/ConfirmDialog'
 import { Pagination } from '@/shared/components/common/Pagination'
 import { RowActions } from '@/shared/components/common/RowActions'
+import { IconButton } from '@/shared/components/ui/IconButton'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
 import { Button } from '@/shared/components/ui/Button'
@@ -31,6 +34,7 @@ type EstadoFormulario = { modo: 'crear' } | { modo: 'editar'; stock: Stock } | n
 type EstadoConfirmacion = { tipo: 'baja' | 'reactivar'; stock: Stock } | null
 
 export function StockPage() {
+  const navigate = useNavigate()
   const [nombreArticulo, setNombreArticulo] = useState('')
   const [FK_deposito, setFKDeposito] = useState('')
   const [esObrador, setEsObrador] = useState('')
@@ -126,14 +130,28 @@ export function StockPage() {
     {
       key: 'acciones',
       label: 'Acciones',
+      // El cardex va aparte de `RowActions` y no adentro: ese componente tiene
+      // fijas las cuatro acciones de ABM del sistema, y esta es propia de stock.
       render: (item) => (
-        <RowActions
-          isActive={item.estado}
-          onView={() => setDetalleId(item.id_stock)}
-          onEdit={() => setFormulario({ modo: 'editar', stock: item })}
-          onDelete={() => setConfirmacion({ tipo: 'baja', stock: item })}
-          onReactivate={() => setConfirmacion({ tipo: 'reactivar', stock: item })}
-        />
+        <div className="inline-flex items-center gap-1">
+          <IconButton
+            icon={<History />}
+            ariaLabel={`Ver cardex de ${item.articulo.nombre} en ${item.deposito.nombre}`}
+            title="Ver cardex"
+            variant="soft"
+            size="sm"
+            bgColor="secondary-soft"
+            iconColor="content"
+            onClick={() => navigate(rutaCardexStock(item.id_stock))}
+          />
+          <RowActions
+            isActive={item.estado}
+            onView={() => setDetalleId(item.id_stock)}
+            onEdit={() => setFormulario({ modo: 'editar', stock: item })}
+            onDelete={() => setConfirmacion({ tipo: 'baja', stock: item })}
+            onReactivate={() => setConfirmacion({ tipo: 'reactivar', stock: item })}
+          />
+        </div>
       ),
     },
   ]
@@ -179,9 +197,7 @@ export function StockPage() {
             data={data.data}
             columns={columnas}
             obtenerId={(item) => String(item.id_stock)}
-            rowClassName={(item) =>
-              stockBajoUmbral(item) ? 'animate-stock-bajo' : undefined
-            }
+            rowClassName={(item) => (stockBajoUmbral(item) ? 'animate-stock-bajo' : undefined)}
           />
           <Pagination
             currentPage={data.meta.page}
