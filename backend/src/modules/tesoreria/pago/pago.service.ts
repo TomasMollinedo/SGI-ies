@@ -42,6 +42,31 @@ type ComprobanteAImputar = Prisma.COMPROBANTEPROVEEDORGetPayload<{
   select: typeof COMPROBANTE_A_IMPUTAR_SELECT;
 }>;
 
+const PROVEEDOR_RESUMEN_SELECT = {
+  id_proveedor: true,
+  razon_social: true,
+} as const;
+
+const FORMA_PAGO_RESUMEN_SELECT = {
+  id_forma_pago: true,
+  nombre: true,
+  requiere_referencia: true,
+} as const;
+
+const USUARIO_RESUMEN_SELECT = {
+  nombre: true,
+  apellido: true,
+} as const;
+
+/** Datos identificatorios del comprobante imputado en una línea (T88). */
+const COMPROBANTE_RESUMEN_SELECT = {
+  id_comprobante_proveedor: true,
+  FK_tipo_comprobante: true,
+  letra: true,
+  punto_de_venta: true,
+  numero: true,
+} as const;
+
 type LineaImputacion = CreatePagoDto['detalle'][number];
 
 const MS_POR_DIA = 1000 * 60 * 60 * 24;
@@ -401,5 +426,168 @@ export class PagoService {
 
   private formatearFecha(fecha: Date) {
     return fecha.toISOString().slice(0, 10);
+  }
+
+  /**
+   * Confirma un pago: es el único estado en el que nace (ver Decisiones de
+   * la HU), no existe un borrador previo.
+   *
+   * Corre las nueve validaciones de T87 fuera de la transacción, para fallar
+   * barato y con mensajes claros antes de tocar la base. Dentro de una única
+   * `$transaction` crea la cabecera y, por cada línea, descuenta el saldo del
+   * comprobante imputado con un lock optimista y registra la imputación con
+   * la foto de su saldo antes/después — mismo molde que
+   * `MovimientoService.create` con el stock.
+   */
+  async create(dto: CreatePagoDto, usuarioId: number) {
+    await this.buscarProveedorActivo(dto.FK_proveedor);
+    const formaPago = await this.buscarFormaPagoActiva(dto.FK_forma_pago);
+    this.validarNumeroReferencia(dto.numero_referencia, formaPago);
+    const fechaPago = this.resolverFechaPago(dto.fecha_pago);
+
+    const comprobantePorId = await this.buscarComprobantesImputables(
+      dto.FK_proveedor,
+      dto.detalle,
+    );
+    this.validarImportesImputados(dto.detalle, comprobantePorId);
+    this.validarFechaPagoContraEmisiones(
+      fechaPago,
+      dto.detalle,
+      comprobantePorId,
+    );
+    this.validarImporteNetoValido(dto.detalle, comprobantePorId);
+
+    const importeTotal = this.calcularImporteNeto(
+      dto.detalle,
+      comprobantePorId,
+    );
+
+    const idPago = await this.prisma.$transaction(async (tx) => {
+      const pago = await tx.pAGO.create({
+        data: {
+          fecha_pago: fechaPago,
+          numero_referencia: dto.numero_referencia,
+          observaciones: dto.observaciones,
+          importe_total: importeTotal,
+          estado: 'CONFIRMADA',
+          ...this.obtenerDatosBancariosProveedor(),
+          FK_proveedor: dto.FK_proveedor,
+          FK_forma_pago: dto.FK_forma_pago,
+          FK_usuario_creador: usuarioId,
+          FK_usuario_actualizador: usuarioId,
+        },
+      });
+
+      for (const linea of dto.detalle) {
+        const comprobante = comprobantePorId.get(
+          linea.FK_comprobante_proveedor,
+        )!;
+        // No nulo: buscarComprobantesImputables ya exigió saldo > 0.
+        const saldoAnterior = comprobante.saldo_pendiente!;
+        const importeImputado = new Prisma.Decimal(linea.importe_imputado);
+        const saldoPosterior = saldoAnterior.minus(importeImputado);
+
+        // updateMany y no update: el WHERE lleva el saldo exacto que se leyó
+        // al validar, así que la base confirma atómicamente que nadie lo
+        // tocó entre esa lectura y esta escritura — lock optimista, mismo
+        // criterio que el `updateMany` de stock en `MovimientoService`.
+        const { count } = await tx.cOMPROBANTEPROVEEDOR.updateMany({
+          where: {
+            id_comprobante_proveedor: comprobante.id_comprobante_proveedor,
+            saldo_pendiente: saldoAnterior,
+            estado: 'REGISTRADO',
+          },
+          data: {
+            saldo_pendiente: saldoPosterior,
+            saldo_cancelado: saldoPosterior.equals(0),
+            hora_actualizacion: new Date(),
+            FK_usuario_actualizador: usuarioId,
+          },
+        });
+
+        if (count === 0) {
+          throw new ConflictException(
+            `El saldo del comprobante ${this.identificarComprobante(comprobante)} cambió mientras se procesaba el pago; reintentá la operación`,
+          );
+        }
+
+        await tx.dETALLEPAGO.create({
+          data: {
+            FK_pago: pago.id_pago,
+            FK_comprobante_proveedor: comprobante.id_comprobante_proveedor,
+            importe_imputado: importeImputado,
+            saldo_anterior: saldoAnterior,
+            saldo_posterior: saldoPosterior,
+          },
+        });
+      }
+
+      return pago.id_pago;
+    });
+
+    return this.findOne(idPago);
+  }
+
+  /**
+   * Detalle completo de un pago: cabecera + las líneas de imputación con los
+   * datos identificatorios del comprobante que cada una imputa, y quién lo
+   * creó/actualizó. Es el shape que alimenta también el documento imprimible
+   * ("orden de pago") que pide la HU.
+   */
+  async findOne(id: number) {
+    const pago = await this.prisma.pAGO.findUnique({
+      where: { id_pago: id },
+      include: {
+        proveedor: { select: PROVEEDOR_RESUMEN_SELECT },
+        formaPago: { select: FORMA_PAGO_RESUMEN_SELECT },
+        usuarioCreador: { select: USUARIO_RESUMEN_SELECT },
+        usuarioActualizador: { select: USUARIO_RESUMEN_SELECT },
+        detalles: {
+          select: {
+            id_detalle_pago: true,
+            FK_comprobante_proveedor: true,
+            importe_imputado: true,
+            saldo_anterior: true,
+            saldo_posterior: true,
+            comprobante: { select: COMPROBANTE_RESUMEN_SELECT },
+          },
+          orderBy: { id_detalle_pago: 'asc' },
+        },
+      },
+    });
+
+    if (!pago) {
+      throw new NotFoundException(`No existe un pago con id ${id}`);
+    }
+
+    const { detalles, ...cabecera } = pago;
+
+    return {
+      ...cabecera,
+      importe_total: cabecera.importe_total.toNumber(),
+      detalle: detalles.map((linea) => ({
+        id_detalle_pago: linea.id_detalle_pago,
+        FK_comprobante_proveedor: linea.FK_comprobante_proveedor,
+        importe_imputado: linea.importe_imputado.toNumber(),
+        saldo_anterior: linea.saldo_anterior.toNumber(),
+        saldo_posterior: linea.saldo_posterior.toNumber(),
+        comprobante: linea.comprobante,
+      })),
+    };
+  }
+
+  /**
+   * Foto de los datos bancarios del proveedor al confirmar (HU-12, bloqueado
+   * hoy: ver Decisiones de la HU). Siempre `null` hasta que `PROVEEDOR` tenga
+   * banco/titular/cbu/alias — el día que existan, este método pasa a
+   * leerlos, sin tocar el resto del service.
+   */
+  private obtenerDatosBancariosProveedor() {
+    return {
+      banco_utilizado: null,
+      titular_utilizado: null,
+      cbu_utilizado: null,
+      alias_utilizado: null,
+    };
   }
 }

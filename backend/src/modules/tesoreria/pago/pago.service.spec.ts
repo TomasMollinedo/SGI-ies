@@ -18,6 +18,29 @@ type ArgumentoPrisma = {
 const primerArgumento = (mock: jest.Mock): ArgumentoPrisma =>
   (mock.mock.calls as ArgumentoPrisma[][])[0][0];
 
+/** Argumento de un `create`/`updateMany` de la transacción de `create()` (T88), ya tipado. */
+type ArgumentoTx = {
+  where?: { saldo_pendiente?: Prisma.Decimal };
+  data: {
+    saldo_pendiente?: Prisma.Decimal;
+    saldo_cancelado?: boolean;
+    saldo_anterior?: Prisma.Decimal;
+    saldo_posterior?: Prisma.Decimal;
+    importe_total?: Prisma.Decimal;
+    estado?: string;
+    banco_utilizado?: string | null;
+    titular_utilizado?: string | null;
+    cbu_utilizado?: string | null;
+    alias_utilizado?: string | null;
+  };
+};
+
+const argumentoTx = (mock: jest.Mock, llamada = 0): ArgumentoTx =>
+  (mock.mock.calls as ArgumentoTx[][])[llamada][0];
+
+const argumentosTx = (mock: jest.Mock): ArgumentoTx[] =>
+  (mock.mock.calls as ArgumentoTx[][]).map((llamada) => llamada[0]);
+
 type LineaImputacion = CreatePagoDto['detalle'][number];
 
 /**
@@ -97,13 +120,22 @@ const lineaImputacion = (
 
 describe('PagoService', () => {
   let service: PagoService;
+  let tx: {
+    pAGO: { create: jest.Mock };
+    cOMPROBANTEPROVEEDOR: { updateMany: jest.Mock };
+    dETALLEPAGO: { create: jest.Mock };
+  };
   let prisma: {
     pROVEEDOR: { findUnique: jest.Mock };
     fORMAPAGO: { findUnique: jest.Mock };
     cOMPROBANTEPROVEEDOR: { findMany: jest.Mock };
+    pAGO: { findUnique: jest.Mock };
+    $transaction: jest.Mock;
   };
 
   const ID_PROVEEDOR = 1;
+  const ID_PAGO = 100;
+  const USUARIO_ID = 7;
 
   /** Comprobante DEBE (factura) o HABER (nota de crédito), ambos con saldo propio. */
   const comprobante = (
@@ -123,7 +155,56 @@ describe('PagoService', () => {
     ...extra,
   });
 
+  /** Cabecera completa devuelta por `findOne` al final de `create()`. */
+  const pagoCompleto = (extra: Partial<Record<string, unknown>> = {}) => ({
+    id_pago: ID_PAGO,
+    fecha_pago: new Date('2026-08-15T00:00:00Z'),
+    numero_referencia: null,
+    importe_total: new Prisma.Decimal(0),
+    observaciones: null,
+    estado: 'CONFIRMADA',
+    motivo_anulacion: null,
+    banco_utilizado: null,
+    titular_utilizado: null,
+    cbu_utilizado: null,
+    alias_utilizado: null,
+    hora_creacion: new Date('2026-08-15T00:00:00Z'),
+    hora_actualizacion: null,
+    FK_proveedor: ID_PROVEEDOR,
+    FK_forma_pago: 1,
+    FK_usuario_creador: USUARIO_ID,
+    FK_usuario_actualizador: USUARIO_ID,
+    proveedor: { id_proveedor: ID_PROVEEDOR, razon_social: 'Proveedor SA' },
+    formaPago: {
+      id_forma_pago: 1,
+      nombre: 'Efectivo',
+      requiere_referencia: false,
+    },
+    usuarioCreador: { nombre: 'Ana', apellido: 'Gómez' },
+    usuarioActualizador: { nombre: 'Ana', apellido: 'Gómez' },
+    detalles: [],
+    ...extra,
+  });
+
+  const crearPagoDto = (detalle: LineaImputacion[]): CreatePagoDto => ({
+    FK_proveedor: ID_PROVEEDOR,
+    FK_forma_pago: 1,
+    // Fija y anterior a cualquier `fecha_emision` de fixture, para no
+    // depender de la fecha real del sistema al correr el test.
+    fecha_pago: new Date('2026-08-15T00:00:00Z'),
+    detalle,
+  });
+
   beforeEach(async () => {
+    tx = {
+      pAGO: { create: jest.fn().mockResolvedValue({ id_pago: ID_PAGO }) },
+      // count: 1 = el update aplicó (nadie tocó el saldo entre medio).
+      cOMPROBANTEPROVEEDOR: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      dETALLEPAGO: { create: jest.fn().mockResolvedValue({}) },
+    };
+
     prisma = {
       pROVEEDOR: {
         findUnique: jest.fn().mockResolvedValue({
@@ -141,6 +222,10 @@ describe('PagoService', () => {
         }),
       },
       cOMPROBANTEPROVEEDOR: { findMany: jest.fn().mockResolvedValue([]) },
+      pAGO: { findUnique: jest.fn().mockResolvedValue(pagoCompleto()) },
+      $transaction: jest.fn((callback: (t: typeof tx) => unknown) =>
+        callback(tx),
+      ),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -640,6 +725,149 @@ describe('PagoService', () => {
       expect(() =>
         privado(service).validarImporteNetoValido(detalle, comprobantePorId),
       ).toThrow(BadRequestException);
+    });
+  });
+
+  describe('create', () => {
+    it('imputación parcial: descuenta el saldo y no cancela el comprobante', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+        comprobanteAImputar(1, { saldo_pendiente: new Prisma.Decimal(1000) }),
+      ]);
+
+      await service.create(crearPagoDto([lineaImputacion(1, 300)]), USUARIO_ID);
+
+      const argUpdate = argumentoTx(tx.cOMPROBANTEPROVEEDOR.updateMany);
+      expect(argUpdate.where?.saldo_pendiente).toEqual(
+        new Prisma.Decimal(1000),
+      );
+      expect(argUpdate.data.saldo_pendiente).toEqual(new Prisma.Decimal(700));
+      expect(argUpdate.data.saldo_cancelado).toBe(false);
+
+      const argDetalle = argumentoTx(tx.dETALLEPAGO.create);
+      expect(argDetalle.data.saldo_anterior).toEqual(new Prisma.Decimal(1000));
+      expect(argDetalle.data.saldo_posterior).toEqual(new Prisma.Decimal(700));
+    });
+
+    it('imputación total: el saldo queda en 0 y el comprobante se cancela', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+        comprobanteAImputar(1, { saldo_pendiente: new Prisma.Decimal(1000) }),
+      ]);
+
+      await service.create(
+        crearPagoDto([lineaImputacion(1, 1000)]),
+        USUARIO_ID,
+      );
+
+      const argUpdate = argumentoTx(tx.cOMPROBANTEPROVEEDOR.updateMany);
+      expect(argUpdate.data.saldo_pendiente).toEqual(new Prisma.Decimal(0));
+      expect(argUpdate.data.saldo_cancelado).toBe(true);
+    });
+
+    it('si el lock optimista falla en una línea, no confirma nada después de esa línea', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+        comprobanteAImputar(1),
+        comprobanteAImputar(2),
+        comprobanteAImputar(3),
+      ]);
+      tx.cOMPROBANTEPROVEEDOR.updateMany
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 });
+
+      await expect(
+        service.create(
+          crearPagoDto([
+            lineaImputacion(1, 100),
+            lineaImputacion(2, 100),
+            lineaImputacion(3, 100),
+          ]),
+          USUARIO_ID,
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(tx.cOMPROBANTEPROVEEDOR.updateMany).toHaveBeenCalledTimes(2);
+      // Solo la primera línea (la que sí aplicó) llegó a registrarse.
+      expect(tx.dETALLEPAGO.create).toHaveBeenCalledTimes(1);
+      expect(prisma.pAGO.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('importe_total es el neto exacto DEBE - HABER, con decimales', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+        comprobanteAImputar(1, {
+          tipoComprobante: { aumenta_saldo: true },
+          saldo_pendiente: new Prisma.Decimal(1000.5),
+        }),
+        comprobanteAImputar(2, {
+          tipoComprobante: { aumenta_saldo: false },
+          saldo_pendiente: new Prisma.Decimal(300.25),
+        }),
+      ]);
+
+      await service.create(
+        crearPagoDto([lineaImputacion(1, 1000.5), lineaImputacion(2, 300.25)]),
+        USUARIO_ID,
+      );
+
+      const argCreate = argumentoTx(tx.pAGO.create);
+      expect(argCreate.data.importe_total).toEqual(new Prisma.Decimal(700.25));
+    });
+
+    it('compensación total: DEBE == HABER da importe_total 0 y ambos comprobantes quedan cancelados', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+        comprobanteAImputar(1, {
+          tipoComprobante: { aumenta_saldo: true },
+          saldo_pendiente: new Prisma.Decimal(1000),
+        }),
+        comprobanteAImputar(2, {
+          tipoComprobante: { aumenta_saldo: false },
+          saldo_pendiente: new Prisma.Decimal(1000),
+        }),
+      ]);
+
+      await service.create(
+        crearPagoDto([lineaImputacion(1, 1000), lineaImputacion(2, 1000)]),
+        USUARIO_ID,
+      );
+
+      const argCreate = argumentoTx(tx.pAGO.create);
+      expect(argCreate.data.importe_total).toEqual(new Prisma.Decimal(0));
+
+      const cancelados = argumentosTx(tx.cOMPROBANTEPROVEEDOR.updateMany).map(
+        (llamada) => llamada.data.saldo_cancelado,
+      );
+      expect(cancelados).toEqual([true, true]);
+    });
+
+    it('los 4 campos de datos bancarios viajan null (bloqueados hasta HU-12)', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+        comprobanteAImputar(1),
+      ]);
+
+      await service.create(crearPagoDto([lineaImputacion(1, 100)]), USUARIO_ID);
+
+      const argCreate = argumentoTx(tx.pAGO.create).data;
+      expect(argCreate).toMatchObject({
+        banco_utilizado: null,
+        titular_utilizado: null,
+        cbu_utilizado: null,
+        alias_utilizado: null,
+      });
+    });
+
+    it('estado CONFIRMADA explícito y devuelve el detalle vía findOne', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+        comprobanteAImputar(1),
+      ]);
+
+      const resultado = await service.create(
+        crearPagoDto([lineaImputacion(1, 100)]),
+        USUARIO_ID,
+      );
+
+      expect(argumentoTx(tx.pAGO.create).data.estado).toBe('CONFIRMADA');
+      expect(prisma.pAGO.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id_pago: ID_PAGO } }),
+      );
+      expect(resultado.id_pago).toBe(ID_PAGO);
     });
   });
 });
