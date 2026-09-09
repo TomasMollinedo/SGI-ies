@@ -205,6 +205,9 @@ export class MovimientoService {
           id_movimiento: true,
           fecha_movimiento: true,
           referencia: true,
+          // Fecha de registro: junto con fecha_movimiento permite identificar
+          // los movimientos cargados de forma retroactiva.
+          hora_creacion: true,
           FK_TipoMovimiento: true,
           FK_Deposito: true,
           tipoMovimiento: { select: TIPO_MOVIMIENTO_RESUMEN_SELECT },

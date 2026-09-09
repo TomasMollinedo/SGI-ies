@@ -10,6 +10,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateStockDto } from './dto/create-stock.dto';
 import { UpdateStockDto } from './dto/update-stock.dto';
 import { QueryStockDto } from './dto/query-stock.dto';
+import { QueryCardexDto } from './dto/query-cardex.dto';
 import { AlertaService } from '../../alerta/alerta.service';
 import { RolNombre } from '../../../common/enums/rol.enum';
 import { TipoAlertaNombre } from '../../../common/enums/tipo-alerta.enum';
@@ -25,6 +26,17 @@ const DEPOSITO_RESUMEN_SELECT = {
   id_deposito: true,
   nombre: true,
   es_obrador: true,
+} as const;
+
+const TIPO_MOVIMIENTO_RESUMEN_SELECT = {
+  id_tipo_movimiento: true,
+  nombre: true,
+  indicador_entrada: true,
+} as const;
+
+const USUARIO_RESUMEN_SELECT = {
+  nombre: true,
+  apellido: true,
 } as const;
 
 @Injectable()
@@ -281,6 +293,100 @@ export class StockService {
       FK_articulo: idArticulo,
       stock_total: resultado._sum.cantidad ?? 0,
     };
+  }
+
+  /**
+   * Cardex de una ficha: el historial acumulado de líneas de movimiento que
+   * afectaron a esa combinación artículo–depósito.
+   *
+   * Se ordena por número de movimiento ascendente (orden de registro) y no por
+   * fecha: es lo que hace que la cadena cierre: el `stock_nuevo` de cada línea
+   * coincide con el `stock_anterior` de la siguiente, y el de la última con el
+   * stock actual de la ficha. Ordenar por `fecha_movimiento` rompería esa
+   * cadena en cuanto hubiera un movimiento cargado de forma retroactiva.
+   *
+   * Los saldos son los que se registraron al confirmar cada movimiento
+   * (HU-07): se leen tal cual, nunca se recalculan, ni siquiera al filtrar por
+   * período. Es una vista de solo lectura — el historial es inmutable.
+   */
+  async cardex(idStock: number, query: QueryCardexDto) {
+    const ficha = await this.prisma.sTOCK.findUnique({
+      where: { id_stock: idStock },
+      select: {
+        id_stock: true,
+        cantidad: true,
+        umbral_minimo: true,
+        estado: true,
+        articulo: { select: ARTICULO_RESUMEN_SELECT },
+        deposito: { select: DEPOSITO_RESUMEN_SELECT },
+      },
+    });
+
+    if (!ficha) {
+      throw new NotFoundException(
+        `No existe una ficha de stock con id ${idStock}`,
+      );
+    }
+
+    const { fechaDesde, fechaHasta, page, limit } = query;
+
+    // El período filtra por la fecha de negocio del movimiento de cabecera,
+    // igual que el listado de movimientos.
+    const where: Prisma.STOCKMOVIMIENTOWhereInput = {
+      FK_Stock: idStock,
+      ...((fechaDesde !== undefined || fechaHasta !== undefined) && {
+        movimiento: {
+          fecha_movimiento: {
+            ...(fechaDesde !== undefined && { gte: fechaDesde }),
+            ...(fechaHasta !== undefined && { lte: fechaHasta }),
+          },
+        },
+      }),
+    };
+
+    const [lineas, total] = await Promise.all([
+      this.prisma.sTOCKMOVIMIENTO.findMany({
+        where,
+        select: {
+          id_stock_movimiento: true,
+          cantidad: true,
+          stock_anterior: true,
+          stock_nuevo: true,
+          observacion: true,
+          movimiento: {
+            select: {
+              id_movimiento: true,
+              fecha_movimiento: true,
+              hora_creacion: true,
+              referencia: true,
+              tipoMovimiento: { select: TIPO_MOVIMIENTO_RESUMEN_SELECT },
+              usuarioCreador: { select: USUARIO_RESUMEN_SELECT },
+            },
+          },
+        },
+        skip: (page - 1) * limit,
+        take: limit,
+        // Orden de registro. Un movimiento no puede tener dos líneas sobre la
+        // misma ficha (lo rechaza CreateMovimientoDto), así que ordenar por el
+        // id de la cabecera ya es un orden total.
+        orderBy: { FK_Movimiento: 'asc' },
+      }),
+      this.prisma.sTOCKMOVIMIENTO.count({ where }),
+    ]);
+
+    // Se aplana el movimiento sobre la línea: la UI muestra una fila por línea
+    // y no tiene por qué navegar la cabecera para cada celda.
+    const data = lineas.map(({ movimiento, ...linea }) => ({
+      ...linea,
+      id_movimiento: movimiento.id_movimiento,
+      fecha_movimiento: movimiento.fecha_movimiento,
+      hora_creacion: movimiento.hora_creacion,
+      referencia: movimiento.referencia,
+      tipoMovimiento: movimiento.tipoMovimiento,
+      usuarioCreador: movimiento.usuarioCreador,
+    }));
+
+    return { ficha, data, meta: { total, page, limit } };
   }
 
   private async validarArticuloExiste(idArticulo: number) {

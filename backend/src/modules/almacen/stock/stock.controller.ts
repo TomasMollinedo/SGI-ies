@@ -26,6 +26,8 @@ import { StockService } from './stock.service';
 import { CreateStockDto } from './dto/create-stock.dto';
 import { UpdateStockDto } from './dto/update-stock.dto';
 import { QueryStockDto } from './dto/query-stock.dto';
+import { QueryCardexDto } from './dto/query-cardex.dto';
+import { CardexResponseDto } from './dto/cardex-response.dto';
 import {
   StockConsolidadoResponseDto,
   StockDetalleResponseDto,
@@ -158,6 +160,64 @@ export class StockController {
   })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.stockService.findOne(id);
+  }
+
+  @Get(':id/cardex')
+  @ApiOperation({
+    summary:
+      'Cardex de una ficha de stock: historial de todas las líneas de movimiento que afectaron esa combinación artículo–depósito, en orden de registro. Vista de solo lectura',
+  })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_stock de la ficha cuyo historial se quiere consultar',
+  })
+  @ApiQuery({
+    name: 'fechaDesde',
+    required: false,
+    type: String,
+    description:
+      'Acota el historial a los movimientos con fecha_movimiento mayor o igual a esta fecha (ISO 8601). No recalcula los saldos de las líneas',
+    example: '2026-08-01',
+  })
+  @ApiQuery({
+    name: 'fechaHasta',
+    required: false,
+    type: String,
+    description:
+      'Acota el historial a los movimientos con fecha_movimiento menor o igual a esta fecha (ISO 8601). No recalcula los saldos de las líneas',
+    example: '2026-08-31',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página, empezando en 1 (default 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Resultados por página, máximo 100 (default 10)',
+    example: 10,
+  })
+  @ApiOkResponse({
+    description:
+      'Cabecera de la ficha (artículo, depósito, stock actual y umbral) más el listado paginado de líneas, ordenado por número de movimiento ascendente. Los saldos son los registrados al confirmar cada movimiento, no se recalculan',
+    type: CardexResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Parámetros de filtro/paginación inválidos',
+  })
+  @ApiNotFoundResponse({
+    description: 'No existe una ficha de stock con ese id',
+  })
+  cardex(
+    @Param('id', ParseIntPipe) id: number,
+    @Query() query: QueryCardexDto,
+  ) {
+    return this.stockService.cardex(id, query);
   }
 
   @Patch(':id')
