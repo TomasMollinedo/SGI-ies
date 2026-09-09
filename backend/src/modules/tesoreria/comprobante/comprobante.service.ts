@@ -9,6 +9,7 @@ import { EstadoComprobante } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateComprobanteDto } from './dto/create-comprobante.dto';
 import { UpdateComprobanteDto } from './dto/update-comprobante.dto';
+import { AnularComprobanteDto } from './dto/anular-comprobante.dto';
 
 /**
  * Escala de todos los importes del comprobante: 2 decimales, la misma que
@@ -236,8 +237,7 @@ export class ComprobanteService {
     });
   }
 
-
-    /**
+  /**
    * Confirma un comprobante: BORRADOR → REGISTRADO. A partir de acá la
    * cabecera y el detalle quedan congelados y el comprobante entra en la cuenta
    * corriente del proveedor.
@@ -280,6 +280,51 @@ export class ComprobanteService {
   }
 
   /**
+   * Anula un comprobante REGISTRADO. El motivo es obligatorio y
+   * queda en `motivo_anulacion` para la trazabilidad de la cuenta corriente.
+   *
+   * Solo se puede anular si el comprobante no tiene ninguna imputación de
+   * pago: se detecta comparando el saldo pendiente con el importe total
+   * Un comprobante con pagos aplicados no se anula desde acá — primero habría
+   * que revertir esos pagos.
+   *
+   * Al anularse queda sin saldo (fuera de la cuenta corriente) y deja de
+   * poder imputarse. Su combinación de numeración vuelve a quedar libre (ver
+   * `validarNumeracionUnica`, que ignora los ANULADOS).
+   */
+  async anular(id: number, dto: AnularComprobanteDto, usuarioId: number) {
+    const comprobante = await this.findOne(id);
+
+    if (comprobante.estado !== EstadoComprobante.REGISTRADO) {
+      throw new ConflictException(
+        'Solo se puede anular un comprobante en estado REGISTRADO',
+      );
+    }
+
+    if (
+      !comprobante.saldo_pendiente ||
+      !comprobante.saldo_pendiente.equals(comprobante.importe_total)
+    ) {
+      throw new ConflictException(
+        'No se puede anular un comprobante que ya tiene imputaciones de pago',
+      );
+    }
+
+    return this.prisma.cOMPROBANTEPROVEEDOR.update({
+      where: { id_comprobante_proveedor: id },
+      data: {
+        estado: EstadoComprobante.ANULADO,
+        motivo_anulacion: dto.motivo_anulacion,
+        saldo_pendiente: null,
+        saldo_cancelado: null,
+        FK_usuario_actualizador: usuarioId,
+        hora_actualizacion: new Date(),
+      },
+      include: { detalles: { orderBy: { id_detalle_comprobante: 'asc' } } },
+    });
+  }
+
+  /**
    * Calcula, del lado del servidor, el subtotal de cada línea y los cuatro
    * importes de la cabecera:
    *
@@ -293,7 +338,7 @@ export class ComprobanteService {
    *
    * Un detalle vacío da los cuatro importes en 0: es válido mientras el
    * comprobante está en BORRADOR (el mínimo de una línea se exige al confirmar,
-   * T74).
+   * ).
    */
   private calcularTotales(
     detalle: LineaCalculable[],

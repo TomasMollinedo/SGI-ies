@@ -9,7 +9,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { Prisma } from '../../../../generated/prisma/client';
 import { CreateComprobanteDto } from './dto/create-comprobante.dto';
 import { updateComprobanteSchema } from './dto/update-comprobante.dto';
-
+import { anularComprobanteSchema } from './dto/anular-comprobante.dto';
 /** Primer argumento con el que se llamó a un mock de Prisma, ya tipado. */
 type ArgumentoPrisma = { data?: any; where?: any };
 const primerArgumento = (mock: jest.Mock): ArgumentoPrisma =>
@@ -503,7 +503,7 @@ describe('ComprobanteService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
-    describe('confirmar (T74)', () => {
+  describe('confirmar', () => {
     it('falla si el comprobante no existe', async () => {
       prisma.cOMPROBANTEPROVEEDOR.findUnique.mockResolvedValue(null);
 
@@ -558,6 +558,76 @@ describe('ComprobanteService', () => {
       const { data } = primerArgumento(prisma.cOMPROBANTEPROVEEDOR.update);
       expect(data.saldo_pendiente.toFixed(2)).toBe('100.00');
       expect(data.saldo_cancelado).toBe(false);
+    });
+  });
+  describe('anular', () => {
+    const dtoAnular = anularComprobanteSchema.parse({
+      motivo_anulacion: 'Cargado con el número equivocado',
+    });
+
+    it('falla si el comprobante no existe', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.anular(99, dtoAnular, USUARIO_ID),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rechaza anular un comprobante en BORRADOR', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findUnique.mockResolvedValue(
+        comprobanteBorrador(),
+      );
+
+      await expect(
+        service.anular(10, dtoAnular, USUARIO_ID),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.cOMPROBANTEPROVEEDOR.update).not.toHaveBeenCalled();
+    });
+
+    it('rechaza anular un comprobante ya ANULADO', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findUnique.mockResolvedValue(
+        comprobanteBorrador({ estado: 'ANULADO' }),
+      );
+
+      await expect(
+        service.anular(10, dtoAnular, USUARIO_ID),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('rechaza anular un comprobante con imputaciones de pago (saldo pendiente < importe total)', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findUnique.mockResolvedValue(
+        comprobanteBorrador({
+          estado: 'REGISTRADO',
+          importe_total: new Prisma.Decimal('1000.00'),
+          saldo_pendiente: new Prisma.Decimal('400.00'),
+          saldo_cancelado: false,
+        }),
+      );
+
+      await expect(
+        service.anular(10, dtoAnular, USUARIO_ID),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.cOMPROBANTEPROVEEDOR.update).not.toHaveBeenCalled();
+    });
+
+    it('anula un REGISTRADO sin imputaciones: ANULADO, con motivo y sin saldo', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findUnique.mockResolvedValue(
+        comprobanteBorrador({
+          estado: 'REGISTRADO',
+          importe_total: new Prisma.Decimal('1000.00'),
+          saldo_pendiente: new Prisma.Decimal('1000.00'),
+          saldo_cancelado: false,
+        }),
+      );
+
+      await service.anular(10, dtoAnular, USUARIO_ID);
+
+      const { data } = primerArgumento(prisma.cOMPROBANTEPROVEEDOR.update);
+      expect(data.estado).toBe('ANULADO');
+      expect(data.motivo_anulacion).toBe(dtoAnular.motivo_anulacion);
+      expect(data.saldo_pendiente).toBeNull();
+      expect(data.saldo_cancelado).toBeNull();
+      expect(data.FK_usuario_actualizador).toBe(USUARIO_ID);
     });
   });
 });
