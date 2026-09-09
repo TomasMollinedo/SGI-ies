@@ -61,6 +61,7 @@ describe('ComprobanteService', () => {
     fecha_emision: new Date('2026-08-01'),
     fecha_vencimiento: new Date('2026-08-31'),
     alicuota_iva: new Prisma.Decimal(21),
+    importe_total: new Prisma.Decimal('200.00'),
     FK_proveedor: 1,
     FK_tipo_comprobante: 1,
     FK_orden_compra: null,
@@ -500,6 +501,63 @@ describe('ComprobanteService', () => {
           USUARIO_ID,
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+    describe('confirmar (T74)', () => {
+    it('falla si el comprobante no existe', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findUnique.mockResolvedValue(null);
+
+      await expect(service.confirmar(99, USUARIO_ID)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('rechaza confirmar un comprobante que no está en BORRADOR', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findUnique.mockResolvedValue(
+        comprobanteBorrador({ estado: 'REGISTRADO' }),
+      );
+
+      await expect(service.confirmar(10, USUARIO_ID)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(prisma.cOMPROBANTEPROVEEDOR.update).not.toHaveBeenCalled();
+    });
+
+    it('rechaza confirmar un comprobante sin líneas de detalle', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findUnique.mockResolvedValue(
+        comprobanteBorrador({ detalles: [] }),
+      );
+
+      await expect(service.confirmar(10, USUARIO_ID)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(prisma.cOMPROBANTEPROVEEDOR.update).not.toHaveBeenCalled();
+    });
+
+    it('pasa a REGISTRADO e inicializa el saldo con el importe total y estado de saldo PENDIENTE', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findUnique.mockResolvedValue(
+        comprobanteBorrador({ importe_total: new Prisma.Decimal('727.17') }),
+      );
+
+      await service.confirmar(10, USUARIO_ID);
+
+      const { data } = primerArgumento(prisma.cOMPROBANTEPROVEEDOR.update);
+      expect(data.estado).toBe('REGISTRADO');
+      expect(data.saldo_pendiente.toFixed(2)).toBe('727.17');
+      expect(data.saldo_cancelado).toBe(false);
+      expect(data.FK_usuario_actualizador).toBe(USUARIO_ID);
+    });
+
+    it('una nota (tipo que disminuye el saldo) también queda con saldo pendiente propio', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findUnique.mockResolvedValue(
+        comprobanteBorrador({ importe_total: new Prisma.Decimal('100.00') }),
+      );
+
+      await service.confirmar(10, USUARIO_ID);
+
+      const { data } = primerArgumento(prisma.cOMPROBANTEPROVEEDOR.update);
+      expect(data.saldo_pendiente.toFixed(2)).toBe('100.00');
+      expect(data.saldo_cancelado).toBe(false);
     });
   });
 });

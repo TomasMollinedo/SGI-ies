@@ -236,6 +236,49 @@ export class ComprobanteService {
     });
   }
 
+
+    /**
+   * Confirma un comprobante: BORRADOR → REGISTRADO. A partir de acá la
+   * cabecera y el detalle quedan congelados y el comprobante entra en la cuenta
+   * corriente del proveedor.
+   *
+   * Inicializa el saldo pendiente con el importe total y el estado de saldo
+   * en PENDIENTE para cualquier tipo de comprobante (HU-16): una factura y
+   * una nota arrancan igual. Lo que cambia es el signo con que ese saldo se
+   * interpreta en la cuenta corriente —deuda para los tipos que aumentan el
+   * saldo, crédito a favor para los que lo disminuyen—, no cómo se inicializa.
+   *
+   * Es una sola escritura sobre la misma fila (estado + saldo), sin efectos
+   * sobre otras entidades, así que no necesita un `$transaction` explícito.
+   */
+  async confirmar(id: number, usuarioId: number) {
+    const comprobante = await this.findOne(id);
+
+    if (comprobante.estado !== EstadoComprobante.BORRADOR) {
+      throw new ConflictException(
+        'Solo se puede confirmar un comprobante en estado BORRADOR',
+      );
+    }
+
+    if (comprobante.detalles.length === 0) {
+      throw new ConflictException(
+        'El comprobante necesita al menos una línea de detalle para confirmarse',
+      );
+    }
+
+    return this.prisma.cOMPROBANTEPROVEEDOR.update({
+      where: { id_comprobante_proveedor: id },
+      data: {
+        estado: EstadoComprobante.REGISTRADO,
+        saldo_pendiente: comprobante.importe_total,
+        saldo_cancelado: false,
+        FK_usuario_actualizador: usuarioId,
+        hora_actualizacion: new Date(),
+      },
+      include: { detalles: { orderBy: { id_detalle_comprobante: 'asc' } } },
+    });
+  }
+
   /**
    * Calcula, del lado del servidor, el subtotal de cada línea y los cuatro
    * importes de la cabecera:
