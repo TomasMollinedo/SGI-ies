@@ -198,6 +198,32 @@ export class AlertaService {
   }
 
   /**
+   * Marca como atendidas, de una sola vez, todas las alertas pendientes que le
+   * corresponden al usuario (las de su rol, o las de todos los roles si tiene
+   * acceso transversal). Devuelve cuántas quedaron marcadas.
+   *
+   * A diferencia de `atender`, no falla si no hay ninguna pendiente: es un
+   * "dejar la bandeja en cero", y una bandeja ya vacía no es un error del
+   * cliente. Por lo mismo tampoco devuelve las alertas afectadas — podrían ser
+   * muchas, y el frontend refresca el listado igual.
+   *
+   * Va en un solo `updateMany` y no en N `atender`: es una única sentencia
+   * atómica y evita el N+1.
+   */
+  async atenderTodas(currentUser: AuthenticatedUser) {
+    const { count } = await this.prisma.aLERTA.updateMany({
+      where: { ...this.filtroPorRol(currentUser), atendida: false },
+      data: {
+        atendida: true,
+        FK_usuario_atencion: currentUser.id,
+        fecha_atencion: new Date(),
+      },
+    });
+
+    return { atendidas: count };
+  }
+
+  /**
    * Tipos de alerta disponibles, para poblar el filtro del frontend.
    * TIPOALERTA es una tabla de referencia chica y fija, así que no se pagina.
    */

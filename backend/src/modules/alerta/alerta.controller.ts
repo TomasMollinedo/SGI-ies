@@ -25,6 +25,7 @@ import {
   AlertaResponseDto,
 } from './dto/alerta-response.dto';
 import { TipoAlertaResponseDto } from './dto/tipo-alerta-response.dto';
+import { AtenderTodasResponseDto } from './dto/atender-todas-response.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
 
@@ -148,6 +149,22 @@ export class AlertaController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.alertaService.findOne(id, user);
+  }
+
+  // Misma razón que `GET /alertas/tipos`: va antes que cualquier ruta PATCH
+  // con parámetro dinámico para que Nest no intente matchearla como un id.
+  @Patch('atender-todas')
+  @ApiOperation({
+    summary:
+      'Marcar como atendidas todas las alertas pendientes del rol del usuario autenticado (todas las de cualquier rol, si es Gerente General o Administrador)',
+  })
+  @ApiOkResponse({
+    description:
+      'Cantidad de alertas que quedaron marcadas como atendidas. Es 0 si no había ninguna pendiente, que no se considera un error',
+    type: AtenderTodasResponseDto,
+  })
+  atenderTodas(@CurrentUser() user: AuthenticatedUser) {
+    return this.alertaService.atenderTodas(user);
   }
 
   @Patch(':id/atender')

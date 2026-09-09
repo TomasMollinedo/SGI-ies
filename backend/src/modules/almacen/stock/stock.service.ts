@@ -70,7 +70,13 @@ export class StockService {
     // diferencia es irrelevante.
     const fichasActivas = await this.prisma.sTOCK.findMany({
       where: { estado: true },
-      include: { articulo: { select: { nombre: true } } },
+      include: {
+        articulo: { select: { nombre: true } },
+        // El mensaje de la alerta nombra el depósito: la misma combinación
+        // artículo/depósito es una ficha distinta, así que sin ese dato el
+        // aviso no dice dónde falta el material.
+        deposito: { select: { nombre: true } },
+      },
     });
 
     const bajoUmbral = fichasActivas.filter(
@@ -87,10 +93,11 @@ export class StockService {
           // Administrador la ve igual por su acceso transversal en
           // AlertaService, sin duplicar la fila.
           rolDestinatario: RolNombre.RESPONSABLE_ALMACEN,
-          mensaje: `Stock de "${ficha.articulo.nombre}" sigue bajo el umbral (${ficha.cantidad} unidades, umbral: ${ficha.umbral_minimo})`,
+          mensaje: `Stock de "${ficha.articulo.nombre}" en el depósito "${ficha.deposito.nombre}" sigue bajo el umbral (${ficha.cantidad} unidades, umbral: ${ficha.umbral_minimo})`,
           datos: {
             stockId: ficha.id_stock,
             articuloId: ficha.FK_articulo,
+            depositoId: ficha.FK_deposito,
             stockActual: ficha.cantidad,
             umbralMinimo: ficha.umbral_minimo,
           },

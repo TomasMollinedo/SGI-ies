@@ -10,6 +10,7 @@ import { Spinner } from '@/shared/components/ui/Spinner'
 import { useToast } from '@/shared/hooks/useToast'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { AlertaDetalleModal } from '../components/AlertaDetalleModal'
+import { BotonAtenderTodas } from '../components/BotonAtenderTodas'
 import { FiltrosAlertasBar } from '../components/FiltrosAlertasBar'
 import { COLUMNAS_ALERTAS, LIMITE_PAGINA } from '../config/alertas.config'
 import { useAlertas, useAtenderAlerta } from '../hooks/useAlertas'
@@ -88,16 +89,19 @@ export function AlertasPage() {
 
   return (
     <div className="space-y-4">
-      <FiltrosAlertasBar
-        tipoAlertaId={tipoAlertaId}
-        onTipoAlertaIdChange={setTipoAlertaId}
-        atendida={atendida}
-        onAtendidaChange={setAtendida}
-        fechaDesde={fechaDesde}
-        onFechaDesdeChange={setFechaDesde}
-        fechaHasta={fechaHasta}
-        onFechaHastaChange={setFechaHasta}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <FiltrosAlertasBar
+          tipoAlertaId={tipoAlertaId}
+          onTipoAlertaIdChange={setTipoAlertaId}
+          atendida={atendida}
+          onAtendidaChange={setAtendida}
+          fechaDesde={fechaDesde}
+          onFechaDesdeChange={setFechaDesde}
+          fechaHasta={fechaHasta}
+          onFechaHastaChange={setFechaHasta}
+        />
+        <BotonAtenderTodas size="sm" />
+      </div>
 
       {isLoading && (
         <div className="flex justify-center py-12">

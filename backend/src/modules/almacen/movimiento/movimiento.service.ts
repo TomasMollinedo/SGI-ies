@@ -30,8 +30,16 @@ const USUARIO_RESUMEN_SELECT = {
   apellido: true,
 } as const;
 
-/** Ficha de stock con el nombre de su artículo, como se lee al validar el detalle. */
-type FichaConArticulo = STOCK & { articulo: { nombre: string } };
+/**
+ * Ficha de stock con el nombre de su artículo y el de su depósito, como se lee
+ * al validar el detalle. El depósito se trae porque el mensaje de la alerta de
+ * reposición lo nombra: la misma combinación artículo/depósito es una ficha
+ * distinta, así que sin ese dato el aviso no dice dónde falta el material.
+ */
+type FichaConArticulo = STOCK & {
+  articulo: { nombre: string };
+  deposito: { nombre: string };
+};
 
 /**
  * Efecto de una línea sobre su ficha, tal como quedó aplicado dentro de la
@@ -297,11 +305,12 @@ export class MovimientoService {
           // esta alerta por su acceso transversal en AlertaService, así que no
           // hace falta duplicar la fila para que le llegue a los dos.
           rolDestinatario: RolNombre.RESPONSABLE_ALMACEN,
-          mensaje: `Stock de "${ficha.articulo.nombre}" bajó a ${stockNuevo} unidades (umbral: ${ficha.umbral_minimo})`,
+          mensaje: `Stock de "${ficha.articulo.nombre}" en el depósito "${ficha.deposito.nombre}" bajó a ${stockNuevo} unidades (umbral: ${ficha.umbral_minimo})`,
           datos: {
             stockId: ficha.id_stock,
             movimientoId: idMovimiento,
             articuloId: ficha.FK_articulo,
+            depositoId: ficha.FK_deposito,
             stockNuevo,
             umbralMinimo: ficha.umbral_minimo,
           },
@@ -375,7 +384,10 @@ export class MovimientoService {
 
     const fichas = await this.prisma.sTOCK.findMany({
       where: { id_stock: { in: idsStock } },
-      include: { articulo: { select: { nombre: true } } },
+      include: {
+        articulo: { select: { nombre: true } },
+        deposito: { select: { nombre: true } },
+      },
     });
     const fichaPorId = new Map<number, FichaConArticulo>(
       fichas.map((ficha) => [ficha.id_stock, ficha]),

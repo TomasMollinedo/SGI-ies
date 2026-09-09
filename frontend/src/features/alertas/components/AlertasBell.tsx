@@ -9,6 +9,7 @@ import { useToast } from '@/shared/hooks/useToast'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { formatearFechaRelativa } from '@/shared/utils/fecha'
 import { useAlertasPendientes, useAtenderAlerta } from '../hooks/useAlertas'
+import { BotonAtenderTodas } from './BotonAtenderTodas'
 
 /**
  * Vista rápida de alertas pendientes en el header: campanita con contador que
@@ -68,9 +69,12 @@ export function AlertasBell() {
         icon={<Bell />}
         size="md"
         footer={
-          <Button variant="primary" onClick={irATodas}>
-            Ver todas las alertas
-          </Button>
+          <>
+            {total > 0 && <BotonAtenderTodas />}
+            <Button variant="primary" onClick={irATodas}>
+              Ver todas las alertas
+            </Button>
+          </>
         }
       >
         {data && data.data.length === 0 ? (
