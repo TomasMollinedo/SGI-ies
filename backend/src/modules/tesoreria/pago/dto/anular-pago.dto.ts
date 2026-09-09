@@ -4,7 +4,7 @@ import { createZodDto } from 'nestjs-zod';
 /**
  * Payload de la anulación..
  */
-export const anularOrdenPagoSchema = z.object({
+export const anularPagoSchema = z.object({
   motivo_anulacion: z
     .string()
     .trim()
@@ -12,4 +12,4 @@ export const anularOrdenPagoSchema = z.object({
     .max(500),
 });
 
-export class AnularOrdenPagoDto extends createZodDto(anularOrdenPagoSchema) {}
+export class AnularPagoDto extends createZodDto(anularPagoSchema) {}

@@ -9,8 +9,8 @@ import { createZodDto } from 'nestjs-zod';
  * base nunca llega a aplicarse. Mismo criterio que `ESTADO_SALDO` en
  * `comprobante-response.dto.ts`.
  */
-export const ESTADO_ORDEN_PAGO = ['CONFIRMADA', 'ANULADA'] as const;
-export const estadoOrdenPagoSchema = z.enum(ESTADO_ORDEN_PAGO);
+export const ESTADO_PAGO = ['CONFIRMADA', 'ANULADA'] as const;
+export const estadoPagoSchema = z.enum(ESTADO_PAGO);
 
 const proveedorResumenSchema = z.object({
   id_proveedor: z.number(),
@@ -40,12 +40,12 @@ const comprobanteResumenSchema = z.object({
 /**
  * Una línea de imputación tal como quedó registrada. `saldo_anterior` y
  * `saldo_posterior` son la foto del saldo del comprobante al momento de
- * confirmar la orden de pago: se conservan tal cual y NUNCA se recalculan al
+ * confirmar el pago: se conservan tal cual y NUNCA se recalculan al
  * consultarlas, mismo criterio que `STOCKMOVIMIENTO.stock_anterior`/
  * `stock_nuevo`.
  */
-const lineaOrdenPagoResponseSchema = z.object({
-  id_detalle_orden_pago: z.number(),
+const lineaPagoResponseSchema = z.object({
+  id_detalle_pago: z.number(),
   FK_comprobante_proveedor: z.number(),
   importe_imputado: z.number(),
   saldo_anterior: z.number(),
@@ -55,20 +55,21 @@ const lineaOrdenPagoResponseSchema = z.object({
 
 /**
  * Cabecera completa. El "identificador generado por el sistema" que pide la
- * HU es `id_orden_pago` — no hay un campo `numero` aparte (mismo criterio que
- * `ORDENCOMPRA`/`id_orden_compra`).
+ * HU es `id_pago` — no hay un campo `numero` aparte (mismo criterio que
+ * `ORDENCOMPRA`/`id_orden_compra`). El documento imprimible "orden de pago"
+ * usa este mismo número.
  */
-export const ordenPagoResponseSchema = z.object({
-  id_orden_pago: z.number(),
+export const pagoResponseSchema = z.object({
+  id_pago: z.number(),
   fecha_pago: z.iso.datetime(),
   numero_referencia: z.string().nullable(),
   importe_total: z.number(),
   observaciones: z.string().nullable(),
-  estado: estadoOrdenPagoSchema,
+  estado: estadoPagoSchema,
   motivo_anulacion: z.string().nullable(),
   // Foto de los datos bancarios del proveedor al confirmar (HU-12). Viajan
   // siempre null hasta que PROVEEDOR tenga banco/titular/cbu/alias — ver
-  // OrdenPagoService.obtenerDatosBancariosProveedor.
+  // PagoService.obtenerDatosBancariosProveedor.
   banco_utilizado: z.string().nullable(),
   titular_utilizado: z.string().nullable(),
   cbu_utilizado: z.string().nullable(),
@@ -83,16 +84,14 @@ export const ordenPagoResponseSchema = z.object({
   formaPago: formaPagoResumenSchema,
 });
 
-export class OrdenPagoResponseDto extends createZodDto(
-  ordenPagoResponseSchema,
-) {}
+export class PagoResponseDto extends createZodDto(pagoResponseSchema) {}
 
 /**
  * Ítem del listado (criterio 18): número, fecha, proveedor, forma de pago,
  * importe total y estado — sin el detalle de imputaciones ni los datos de
- * auditoría, eso lo trae el detalle (GET /ordenes-pago/:id).
+ * auditoría, eso lo trae el detalle (GET /pagos/:id).
  */
-export const ordenPagoListItemSchema = ordenPagoResponseSchema.omit({
+export const pagoListItemSchema = pagoResponseSchema.omit({
   observaciones: true,
   motivo_anulacion: true,
   banco_utilizado: true,
@@ -129,41 +128,41 @@ export const resumenPeriodoSchema = z.object({
   ),
 });
 
-export const ordenPagoListResponseSchema = z.object({
-  data: z.array(ordenPagoListItemSchema),
+export const pagoListResponseSchema = z.object({
+  data: z.array(pagoListItemSchema),
   meta: z.object({
     total: z.number(),
     page: z.number(),
     limit: z.number(),
   }),
   // null salvo que la query traiga fechaDesde y fechaHasta juntas — ver
-  // OrdenPagoController/Service.calcularResumenPeriodo.
+  // PagoController/Service.calcularResumenPeriodo.
   resumenPeriodo: resumenPeriodoSchema.nullable(),
 });
 
-export class OrdenPagoListResponseDto extends createZodDto(
-  ordenPagoListResponseSchema,
+export class PagoListResponseDto extends createZodDto(
+  pagoListResponseSchema,
 ) {}
 
 /**
- * Detalle (POST y GET /ordenes-pago/:id): cabecera completa + las líneas de
+ * Detalle (POST y GET /pagos/:id): cabecera completa + las líneas de
  * imputación + quién la creó/actualizó. Es el shape que alimenta también el
- * documento imprimible que pide la HU.
+ * documento imprimible ("orden de pago") que pide la HU.
  */
-export const ordenPagoDetalleResponseSchema = ordenPagoResponseSchema.extend({
-  detalle: z.array(lineaOrdenPagoResponseSchema),
+export const pagoDetalleResponseSchema = pagoResponseSchema.extend({
+  detalle: z.array(lineaPagoResponseSchema),
   usuarioCreador: usuarioResumenSchema,
   usuarioActualizador: usuarioResumenSchema,
 });
 
-export class OrdenPagoDetalleResponseDto extends createZodDto(
-  ordenPagoDetalleResponseSchema,
+export class PagoDetalleResponseDto extends createZodDto(
+  pagoDetalleResponseSchema,
 ) {}
 
 /**
  * DEBE = comprobante cuyo tipo aumenta el saldo (factura); HABER = lo
  * disminuye (nota de crédito). Ambos se listan como imputables por igual
- * (ver `OrdenPagoService.listarComprobantesImputables`); esto es lo que le
+ * (ver `PagoService.listarComprobantesImputables`); esto es lo que le
  * permite al frontend sumar o restar cada línea en la previsualización del
  * importe neto del pago.
  */

@@ -71,8 +71,8 @@ model USUARIO {
   comprobantesProveedorCreados      COMPROBANTEPROVEEDOR[] @relation("ComprobanteProveedorCreador")
   comprobantesProveedorActualizados COMPROBANTEPROVEEDOR[] @relation("ComprobanteProveedorActualizador")
 
-  ordenesPagoCreadas      ORDENPAGO[] @relation("OrdenPagoCreador")
-  ordenesPagoActualizadas ORDENPAGO[] @relation("OrdenPagoActualizador")
+  pagosCreados      PAGO[] @relation("PagoCreador")
+  pagosActualizados PAGO[] @relation("PagoActualizador")
 }
 
 model ROL {
@@ -393,7 +393,7 @@ enum EstadoComprobante {
   ANULADO
 }
 
-enum EstadoOrdenPago {
+enum EstadoPago {
   BORRADOR
   CONFIRMADA
   ANULADA
@@ -434,7 +434,7 @@ model PROVEEDOR {
 
   ordenesCompra ORDENCOMPRA[]
   comprobantes  COMPROBANTEPROVEEDOR[]
-  ordenesPago   ORDENPAGO[]
+  pagos         PAGO[]
 
   // El listado por defecto muestra solo activos.
   @@index([estado])
@@ -571,7 +571,7 @@ model FORMAPAGO {
   usuarioCreador      USUARIO @relation("FormaPagoCreador", fields: [FK_usuario_creador], references: [id_usuario])
   usuarioActualizador USUARIO @relation("FormaPagoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
-  ordenesPago ORDENPAGO[]
+  pagos PAGO[]
 
   @@index([estado])
 }
@@ -643,7 +643,7 @@ model COMPROBANTEPROVEEDOR {
   notas_aplicadas    COMPROBANTEPROVEEDOR[] @relation("NotasAplicadas")
 
   detalles          DETALLECOMPROBANTE[]
-  detallesOrdenPago DETALLEORDENPAGO[]
+  detallesPago DETALLEPAGO[]
 
   // NO es @@unique a propósito, aunque la combinación identifique al
   // comprobante: el criterio de aceptación habla de comprobantes *vigentes*
@@ -680,11 +680,13 @@ model DETALLECOMPROBANTE {
 }
 
 // --------------------------------------------------------------------------
-// HU-18 — Órdenes de pago
+// HU-18 — Pagos
 // --------------------------------------------------------------------------
-model ORDENPAGO {
-  // El número de la orden de pago es esta PK: no hay campo `numero`.
-  id_orden_pago Int @id @default(autoincrement())
+model PAGO {
+  // El número del pago es esta PK: no hay campo `numero`. El documento
+  // imprimible "orden de pago" se emite a partir de un pago confirmado y
+  // lleva este mismo número — no es una entidad aparte.
+  id_pago Int @id @default(autoincrement())
 
   fecha_pago DateTime
 
@@ -692,9 +694,9 @@ model ORDENPAGO {
   numero_referencia String?
 
   // Suma de las imputaciones del detalle, la calcula el sistema.
-  importe_total Decimal         @default(0) @db.Decimal(14, 2)
+  importe_total Decimal    @default(0) @db.Decimal(14, 2)
   observaciones String?
-  estado        EstadoOrdenPago @default(BORRADOR)
+  estado        EstadoPago @default(BORRADOR)
 
   // Obligatorio a nivel de service al anular.
   motivo_anulacion String?
@@ -702,7 +704,7 @@ model ORDENPAGO {
   // Foto de los datos bancarios del proveedor (HU-12) al momento de
   // confirmar, para que una edición posterior de la ficha del proveedor no
   // altere un documento ya emitido — mismo criterio que
-  // DETALLEORDENPAGO.saldo_anterior/saldo_posterior, pero de datos en vez de
+  // DETALLEPAGO.saldo_anterior/saldo_posterior, pero de datos en vez de
   // importes. Quedan en null hasta que PROVEEDOR tenga los campos fuente
   // (banco/titular/cbu/alias no existen todavía en ese modelo).
   banco_utilizado   String?
@@ -720,10 +722,10 @@ model ORDENPAGO {
 
   proveedor           PROVEEDOR @relation(fields: [FK_proveedor], references: [id_proveedor])
   formaPago           FORMAPAGO @relation(fields: [FK_forma_pago], references: [id_forma_pago])
-  usuarioCreador      USUARIO   @relation("OrdenPagoCreador", fields: [FK_usuario_creador], references: [id_usuario])
-  usuarioActualizador USUARIO   @relation("OrdenPagoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+  usuarioCreador      USUARIO   @relation("PagoCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO   @relation("PagoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
-  detalles DETALLEORDENPAGO[]
+  detalles DETALLEPAGO[]
 
   @@index([FK_proveedor])
   @@index([FK_forma_pago])
@@ -731,24 +733,24 @@ model ORDENPAGO {
   @@index([fecha_pago])
 }
 
-model DETALLEORDENPAGO {
-  id_detalle_orden_pago Int @id @default(autoincrement())
+model DETALLEPAGO {
+  id_detalle_pago Int @id @default(autoincrement())
 
-  FK_orden_pago            Int
+  FK_pago                  Int
   FK_comprobante_proveedor Int
 
   importe_imputado Decimal @db.Decimal(14, 2)
 
-  // Foto del saldo del comprobante al momento de confirmar la orden de pago.
-  // Se conservan tal cual y NUNCA se recalculan al consultarlos: el service de
+  // Foto del saldo del comprobante al momento de confirmar el pago. Se
+  // conservan tal cual y NUNCA se recalculan al consultarlos: el service de
   // la cuenta corriente los lee, no los deriva. Mismo criterio que
   // STOCKMOVIMIENTO.stock_anterior / stock_nuevo.
   saldo_anterior  Decimal @db.Decimal(14, 2)
   saldo_posterior Decimal @db.Decimal(14, 2)
 
-  ordenPago   ORDENPAGO            @relation(fields: [FK_orden_pago], references: [id_orden_pago], onDelete: Cascade)
+  pago        PAGO                 @relation(fields: [FK_pago], references: [id_pago], onDelete: Cascade)
   comprobante COMPROBANTEPROVEEDOR @relation(fields: [FK_comprobante_proveedor], references: [id_comprobante_proveedor])
 
-  // Un mismo comprobante no puede imputarse dos veces en la misma orden de pago.
-  @@unique([FK_orden_pago, FK_comprobante_proveedor])
+  // Un mismo comprobante no puede imputarse dos veces en el mismo pago.
+  @@unique([FK_pago, FK_comprobante_proveedor])
 }
