@@ -4,11 +4,13 @@ import { EstadoComprobante } from '../../../../../generated/prisma/enums';
 
 /**
  * Estado de saldo, expuesto en el contrato como enum simétrico al estado del
- * documento (HU-16) aunque en la base sea `saldo_cancelado: Boolean?`. Solo
- * aplica a comprobantes REGISTRADOS cuyo tipo aumenta el saldo — en cualquier
- * otro caso viaja `null`. La traducción boolean↔enum la hace el service.
+ * documento (HU-16) aunque en la base sea `saldo_cancelado: Boolean?`. Todo
+ * comprobante REGISTRADO tiene estado de saldo, cualquiera sea el efecto de
+ * su tipo sobre el saldo del proveedor; viaja `null` solo mientras está en
+ * BORRADOR o si fue ANULADO. La traducción boolean↔enum la hace el service:
+ * `saldo_cancelado` false → `PENDIENTE`, true → `SALDADO`, null → `null`.
  */
-export const ESTADO_SALDO = ['PENDIENTE', 'CANCELADO'] as const;
+export const ESTADO_SALDO = ['PENDIENTE', 'SALDADO'] as const;
 export const estadoSaldoSchema = z.enum(ESTADO_SALDO);
 
 const lineaDetalleResponseSchema = z.object({
@@ -36,7 +38,7 @@ export const comprobanteResponseSchema = z.object({
   alicuota_iva: z.number(),
   importe_iva: z.number(),
   importe_total: z.number(),
-  // Solo tiene valor cuando el tipo de comprobante aumenta el saldo.
+
   saldo_pendiente: z.number().nullable(),
   estado: z.enum(EstadoComprobante),
   estado_saldo: estadoSaldoSchema.nullable(),

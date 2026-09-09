@@ -20,9 +20,9 @@ export const lineaComprobanteSchema = z.object({
 });
 
 /**
- * Cabecera del comprobante. No incluye `estado`, `estado_saldo`,
- * `saldo_pendiente` ni los importes: son responsabilidad exclusiva del
- * service (ver HU-16, service de confirmación).
+ * Cabecera del comprobante. No incluye los importes (los calcula el service
+ * al guardar) ni `estado` / `estado_saldo` / `saldo_pendiente` (los
+ * fija la confirmación): nada de eso viaja en el body.
  */
 export const cabeceraComprobanteSchema = z.object({
   FK_tipo_comprobante: z.number().int().positive(),
@@ -36,9 +36,10 @@ export const cabeceraComprobanteSchema = z.object({
   FK_proveedor: z.number().int().positive(),
   // Vínculo opcional a la orden de compra que origina el comprobante.
   FK_orden_compra: z.number().int().positive().optional(),
-  // Obligatorio a nivel de service cuando el tipo de comprobante lo requiere
-  // (TIPOCOMPROBANTE.requiere_comprobante_origen) — no se puede validar acá
-  // porque depende de una consulta a la base.
+  // Opcional e informativo para cualquier tipo de comprobante: deja
+  // constancia de qué comprobante anterior lo motivó, sin ningún efecto
+  // sobre los saldos. Si se carga, el service valida que pertenezca al
+  // mismo proveedor (T73).
   FK_comprobante_origen: z.number().int().positive().optional(),
   observaciones: z.string().trim().max(500).optional(),
   // La carga el usuario: no hay catálogo de alícuotas en el schema. A partir
