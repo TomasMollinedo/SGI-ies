@@ -7,6 +7,7 @@ import {
 import { Prisma } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreatePagoDto } from './dto/create-pago.dto';
+import { AnularPagoDto } from './dto/anular-pago.dto';
 
 const COMPROBANTE_IMPUTABLE_SELECT = {
   id_comprobante_proveedor: true,
@@ -589,5 +590,67 @@ export class PagoService {
       cbu_utilizado: null,
       alias_utilizado: null,
     };
+  }
+
+  private async buscarPagoConfirmado(id: number) {
+    const pago = await this.prisma.pAGO.findUnique({
+      where: { id_pago: id },
+      include: { detalles: true },
+    });
+
+    if (!pago) {
+      throw new NotFoundException(`No existe un pago con id ${id}`);
+    }
+    if (pago.estado !== 'CONFIRMADA') {
+      throw new ConflictException(
+        `El pago ${id} no está CONFIRMADA (estado actual: ${pago.estado}); no se puede anular`,
+      );
+    }
+
+    return pago;
+  }
+
+  /**
+   * Anula un pago confirmado. Dentro de una única `$transaction`, restituye a
+   * cada comprobante imputado exactamente lo que este pago descontó (con
+   * `increment`, no un valor recalculado: el comprobante pudo haber recibido
+   * otros pagos después de este) y vuelve a `PENDIENTE` (`saldo_cancelado:
+   * false`, criterio 16), y recién después marca la cabecera como ANULADA con
+   * su motivo.
+   *
+   * No se tocan las líneas de `DETALLEPAGO`: `saldo_anterior`/
+   * `saldo_posterior` son la foto histórica de lo que pasó al confirmar y
+   * siguen valiendo aunque el pago se anule.
+   */
+  async anular(id: number, dto: AnularPagoDto, usuarioId: number) {
+    const pago = await this.buscarPagoConfirmado(id);
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const detalle of pago.detalles) {
+        await tx.cOMPROBANTEPROVEEDOR.update({
+          where: {
+            id_comprobante_proveedor: detalle.FK_comprobante_proveedor,
+          },
+          data: {
+            saldo_pendiente: { increment: detalle.importe_imputado },
+            saldo_cancelado: false,
+            hora_actualizacion: new Date(),
+            FK_usuario_actualizador: usuarioId,
+          },
+        });
+      }
+
+      await tx.pAGO.update({
+        where: { id_pago: id },
+        data: {
+          estado: 'ANULADA',
+          motivo_anulacion: dto.motivo_anulacion,
+          hora_actualizacion: new Date(),
+          FK_usuario_actualizador: usuarioId,
+        },
+      });
+    });
+
+    return this.findOne(id);
   }
 }

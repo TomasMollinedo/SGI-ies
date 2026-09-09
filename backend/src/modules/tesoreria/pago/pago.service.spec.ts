@@ -8,6 +8,7 @@ import { PagoService } from './pago.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { Prisma } from '../../../../generated/prisma/client';
 import { CreatePagoDto } from './dto/create-pago.dto';
+import { AnularPagoDto } from './dto/anular-pago.dto';
 
 /** Primer argumento con el que se llamó a un mock de Prisma, ya tipado. */
 type ArgumentoPrisma = {
@@ -26,6 +27,7 @@ type ArgumentoTx = {
     saldo_cancelado?: boolean;
     saldo_anterior?: Prisma.Decimal;
     saldo_posterior?: Prisma.Decimal;
+    importe_imputado?: Prisma.Decimal;
     importe_total?: Prisma.Decimal;
     estado?: string;
     banco_utilizado?: string | null;
@@ -40,6 +42,30 @@ const argumentoTx = (mock: jest.Mock, llamada = 0): ArgumentoTx =>
 
 const argumentosTx = (mock: jest.Mock): ArgumentoTx[] =>
   (mock.mock.calls as ArgumentoTx[][]).map((llamada) => llamada[0]);
+
+/** Argumento de un `update` de comprobante dentro de la transacción de `anular()` (T89). */
+type ArgumentoUpdateComprobante = {
+  where: { id_comprobante_proveedor: number };
+  data: {
+    saldo_pendiente?: { increment: Prisma.Decimal };
+    saldo_cancelado?: boolean;
+  };
+};
+
+const argumentoUpdateComprobante = (
+  mock: jest.Mock,
+  llamada = 0,
+): ArgumentoUpdateComprobante =>
+  (mock.mock.calls as ArgumentoUpdateComprobante[][])[llamada][0];
+
+/** Argumento del `update` de cabecera dentro de la transacción de `anular()` (T89). */
+type ArgumentoUpdatePago = {
+  where: { id_pago: number };
+  data: { estado?: string; motivo_anulacion?: string };
+};
+
+const argumentoUpdatePago = (mock: jest.Mock): ArgumentoUpdatePago =>
+  (mock.mock.calls as ArgumentoUpdatePago[][])[0][0];
 
 type LineaImputacion = CreatePagoDto['detalle'][number];
 
@@ -121,8 +147,8 @@ const lineaImputacion = (
 describe('PagoService', () => {
   let service: PagoService;
   let tx: {
-    pAGO: { create: jest.Mock };
-    cOMPROBANTEPROVEEDOR: { updateMany: jest.Mock };
+    pAGO: { create: jest.Mock; update: jest.Mock };
+    cOMPROBANTEPROVEEDOR: { updateMany: jest.Mock; update: jest.Mock };
     dETALLEPAGO: { create: jest.Mock };
   };
   let prisma: {
@@ -186,6 +212,25 @@ describe('PagoService', () => {
     ...extra,
   });
 
+  /**
+   * Pago CONFIRMADA con su detalle "crudo" (Decimal sin convertir), tal como
+   * lo devuelve Prisma con `include: { detalles: true }` — es lo que consume
+   * `buscarPagoConfirmado` (T89), a diferencia de `pagoCompleto()` que
+   * modela la respuesta ya armada de `findOne`.
+   */
+  const pagoConfirmadoConDetalles = (
+    detalles: {
+      FK_comprobante_proveedor: number;
+      importe_imputado: Prisma.Decimal;
+    }[],
+    extra: Partial<Record<string, unknown>> = {},
+  ) => ({
+    id_pago: ID_PAGO,
+    estado: 'CONFIRMADA',
+    detalles,
+    ...extra,
+  });
+
   const crearPagoDto = (detalle: LineaImputacion[]): CreatePagoDto => ({
     FK_proveedor: ID_PROVEEDOR,
     FK_forma_pago: 1,
@@ -197,10 +242,14 @@ describe('PagoService', () => {
 
   beforeEach(async () => {
     tx = {
-      pAGO: { create: jest.fn().mockResolvedValue({ id_pago: ID_PAGO }) },
+      pAGO: {
+        create: jest.fn().mockResolvedValue({ id_pago: ID_PAGO }),
+        update: jest.fn().mockResolvedValue({}),
+      },
       // count: 1 = el update aplicó (nadie tocó el saldo entre medio).
       cOMPROBANTEPROVEEDOR: {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        update: jest.fn().mockResolvedValue({}),
       },
       dETALLEPAGO: { create: jest.fn().mockResolvedValue({}) },
     };
@@ -868,6 +917,136 @@ describe('PagoService', () => {
         expect.objectContaining({ where: { id_pago: ID_PAGO } }),
       );
       expect(resultado.id_pago).toBe(ID_PAGO);
+    });
+  });
+
+  describe('anular', () => {
+    const anularDto: AnularPagoDto = { motivo_anulacion: 'Error de carga' };
+
+    it('rechaza si el pago no existe', async () => {
+      prisma.pAGO.findUnique.mockResolvedValueOnce(null);
+
+      await expect(
+        service.anular(999, anularDto, USUARIO_ID),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rechaza si el pago no está CONFIRMADA', async () => {
+      prisma.pAGO.findUnique.mockResolvedValueOnce(
+        pagoConfirmadoConDetalles([], { estado: 'ANULADA' }),
+      );
+
+      await expect(
+        service.anular(ID_PAGO, anularDto, USUARIO_ID),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('restituye el saldo de cada comprobante con increment y lo vuelve a PENDIENTE', async () => {
+      prisma.pAGO.findUnique.mockResolvedValueOnce(
+        pagoConfirmadoConDetalles([
+          {
+            FK_comprobante_proveedor: 1,
+            importe_imputado: new Prisma.Decimal(300),
+          },
+          {
+            FK_comprobante_proveedor: 2,
+            importe_imputado: new Prisma.Decimal(150.5),
+          },
+        ]),
+      );
+
+      await service.anular(ID_PAGO, anularDto, USUARIO_ID);
+
+      const primera = argumentoUpdateComprobante(
+        tx.cOMPROBANTEPROVEEDOR.update,
+        0,
+      );
+      expect(primera.where).toEqual({ id_comprobante_proveedor: 1 });
+      expect(primera.data).toMatchObject({
+        saldo_pendiente: { increment: new Prisma.Decimal(300) },
+        saldo_cancelado: false,
+      });
+
+      const segunda = argumentoUpdateComprobante(
+        tx.cOMPROBANTEPROVEEDOR.update,
+        1,
+      );
+      expect(segunda.where).toEqual({ id_comprobante_proveedor: 2 });
+      expect(segunda.data).toMatchObject({
+        saldo_pendiente: { increment: new Prisma.Decimal(150.5) },
+        saldo_cancelado: false,
+      });
+    });
+
+    it('no modifica las líneas de DETALLEPAGO: quedan como foto histórica', async () => {
+      prisma.pAGO.findUnique.mockResolvedValueOnce(
+        pagoConfirmadoConDetalles([
+          {
+            FK_comprobante_proveedor: 1,
+            importe_imputado: new Prisma.Decimal(300),
+          },
+        ]),
+      );
+
+      await service.anular(ID_PAGO, anularDto, USUARIO_ID);
+
+      expect(tx.dETALLEPAGO.create).not.toHaveBeenCalled();
+    });
+
+    it('marca la cabecera como ANULADA con el motivo y devuelve el detalle vía findOne', async () => {
+      prisma.pAGO.findUnique.mockResolvedValueOnce(
+        pagoConfirmadoConDetalles([
+          {
+            FK_comprobante_proveedor: 1,
+            importe_imputado: new Prisma.Decimal(300),
+          },
+        ]),
+      );
+
+      const resultado = await service.anular(ID_PAGO, anularDto, USUARIO_ID);
+
+      const argUpdatePago = argumentoUpdatePago(tx.pAGO.update);
+      expect(argUpdatePago.where).toEqual({ id_pago: ID_PAGO });
+      expect(argUpdatePago.data).toMatchObject({
+        estado: 'ANULADA',
+        motivo_anulacion: 'Error de carga',
+      });
+      expect(prisma.pAGO.findUnique).toHaveBeenCalledTimes(2);
+      expect(resultado.id_pago).toBe(ID_PAGO);
+    });
+
+    it('el saldo tras confirmar y anular vuelve a ser el original', async () => {
+      const saldoOriginal = new Prisma.Decimal(1000);
+      prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+        comprobanteAImputar(1, { saldo_pendiente: saldoOriginal }),
+      ]);
+
+      await service.create(crearPagoDto([lineaImputacion(1, 300)]), USUARIO_ID);
+      const saldoTrasConfirmar = argumentoTx(tx.cOMPROBANTEPROVEEDOR.updateMany)
+        .data.saldo_pendiente!;
+      const importeImputado = argumentoTx(tx.dETALLEPAGO.create).data
+        .importe_imputado!;
+
+      prisma.pAGO.findUnique.mockResolvedValueOnce(
+        pagoConfirmadoConDetalles([
+          {
+            FK_comprobante_proveedor: 1,
+            importe_imputado: importeImputado,
+          },
+        ]),
+      );
+
+      await service.anular(ID_PAGO, anularDto, USUARIO_ID);
+
+      const incrementoAnulacion = argumentoUpdateComprobante(
+        tx.cOMPROBANTEPROVEEDOR.update,
+      ).data.saldo_pendiente!.increment;
+
+      expect(saldoTrasConfirmar.plus(incrementoAnulacion)).toEqual(
+        saldoOriginal,
+      );
     });
   });
 });
