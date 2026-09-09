@@ -699,6 +699,17 @@ model ORDENPAGO {
   // Obligatorio a nivel de service al anular.
   motivo_anulacion String?
 
+  // Foto de los datos bancarios del proveedor (HU-12) al momento de
+  // confirmar, para que una edición posterior de la ficha del proveedor no
+  // altere un documento ya emitido — mismo criterio que
+  // DETALLEORDENPAGO.saldo_anterior/saldo_posterior, pero de datos en vez de
+  // importes. Quedan en null hasta que PROVEEDOR tenga los campos fuente
+  // (banco/titular/cbu/alias no existen todavía en ese modelo).
+  banco_utilizado   String?
+  titular_utilizado String?
+  cbu_utilizado     String?
+  alias_utilizado   String?
+
   hora_creacion      DateTime  @default(now())
   hora_actualizacion DateTime? @default(now())
 

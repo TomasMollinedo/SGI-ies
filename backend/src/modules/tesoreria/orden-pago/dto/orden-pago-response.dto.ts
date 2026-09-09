@@ -66,6 +66,13 @@ export const ordenPagoResponseSchema = z.object({
   observaciones: z.string().nullable(),
   estado: estadoOrdenPagoSchema,
   motivo_anulacion: z.string().nullable(),
+  // Foto de los datos bancarios del proveedor al confirmar (HU-12). Viajan
+  // siempre null hasta que PROVEEDOR tenga banco/titular/cbu/alias — ver
+  // OrdenPagoService.obtenerDatosBancariosProveedor.
+  banco_utilizado: z.string().nullable(),
+  titular_utilizado: z.string().nullable(),
+  cbu_utilizado: z.string().nullable(),
+  alias_utilizado: z.string().nullable(),
   hora_creacion: z.iso.datetime(),
   hora_actualizacion: z.iso.datetime().nullable(),
   FK_proveedor: z.number(),
@@ -88,12 +95,38 @@ export class OrdenPagoResponseDto extends createZodDto(
 export const ordenPagoListItemSchema = ordenPagoResponseSchema.omit({
   observaciones: true,
   motivo_anulacion: true,
+  banco_utilizado: true,
+  titular_utilizado: true,
+  cbu_utilizado: true,
+  alias_utilizado: true,
   hora_creacion: true,
   hora_actualizacion: true,
   FK_proveedor: true,
   FK_forma_pago: true,
   FK_usuario_creador: true,
   FK_usuario_actualizador: true,
+});
+
+/**
+ * Control de egresos (criterio del listado): total del período + subtotales
+ * por proveedor y por forma de pago. Se calcula siempre sobre pagos
+ * CONFIRMADA, excluyendo los anulados sin importar qué filtro de `estado`
+ * haya pedido la query — es un indicador de caja, no un filtro más.
+ */
+export const resumenPeriodoSchema = z.object({
+  totalEgresos: z.number(),
+  subtotalesPorProveedor: z.array(
+    z.object({
+      proveedor: proveedorResumenSchema,
+      total: z.number(),
+    }),
+  ),
+  subtotalesPorFormaPago: z.array(
+    z.object({
+      formaPago: formaPagoResumenSchema,
+      total: z.number(),
+    }),
+  ),
 });
 
 export const ordenPagoListResponseSchema = z.object({
@@ -103,6 +136,9 @@ export const ordenPagoListResponseSchema = z.object({
     page: z.number(),
     limit: z.number(),
   }),
+  // null salvo que la query traiga fechaDesde y fechaHasta juntas — ver
+  // OrdenPagoController/Service.calcularResumenPeriodo.
+  resumenPeriodo: resumenPeriodoSchema.nullable(),
 });
 
 export class OrdenPagoListResponseDto extends createZodDto(
@@ -125,6 +161,16 @@ export class OrdenPagoDetalleResponseDto extends createZodDto(
 ) {}
 
 /**
+ * DEBE = comprobante cuyo tipo aumenta el saldo (factura); HABER = lo
+ * disminuye (nota de crédito). Ambos se listan como imputables por igual
+ * (ver `OrdenPagoService.listarComprobantesImputables`); esto es lo que le
+ * permite al frontend sumar o restar cada línea en la previsualización del
+ * importe neto del pago.
+ */
+export const EFECTO_SALDO = ['DEBE', 'HABER'] as const;
+export const efectoSaldoSchema = z.enum(EFECTO_SALDO);
+
+/**
  * Un comprobante imputable, tal como lo necesita el formulario de emisión
  * (HU-18, T86): datos de identificación, importes, y los días transcurridos
  * desde el vencimiento como dato de apoyo para decidir cuáles imputar.
@@ -134,6 +180,7 @@ export const comprobanteImputableSchema = z.object({
   id_comprobante_proveedor: z.number(),
   FK_tipo_comprobante: z.number(),
   tipo_comprobante_nombre: z.string(),
+  efecto_saldo: efectoSaldoSchema,
   letra: z.string(),
   punto_de_venta: z.number(),
   numero: z.number(),
