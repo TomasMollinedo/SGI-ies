@@ -53,7 +53,7 @@ export class TipoComprobanteController {
   @Post()
   @ApiOperation({
     summary:
-      'Crear un tipo de comprobante. Es el único momento en que se definen el efecto sobre el saldo y si requiere comprobante de origen: después quedan bloqueados de forma permanente',
+      'Crear un tipo de comprobante. Es el único momento en que se define el efecto sobre el saldo: después queda bloqueado de forma permanente, cualquiera sea su valor',
   })
   @ApiCreatedResponse({
     description: 'Tipo de comprobante creado',
@@ -145,7 +145,7 @@ export class TipoComprobanteController {
   @Patch(':id')
   @ApiOperation({
     summary:
-      'Editar un tipo de comprobante: solo nombre y descripción. El efecto sobre el saldo y si requiere comprobante de origen no son editables',
+      'Editar un tipo de comprobante: solo nombre y descripción (el estado se cambia por /baja y /alta). El efecto sobre el saldo no es editable en ningún caso',
   })
   @ApiParam({
     name: 'id',

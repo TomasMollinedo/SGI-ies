@@ -58,8 +58,8 @@ export async function obtenerTipoComprobante(
 }
 
 /**
- * POST /tipos-comprobante — el alta es el único lugar donde se definen el
- * efecto sobre el saldo y si requiere comprobante de origen.
+ * POST /tipos-comprobante — el alta es el único lugar donde se define el
+ * efecto sobre el saldo.
  */
 export async function crearTipoComprobante(
   payload: CrearTipoComprobantePayload
@@ -68,7 +68,7 @@ export async function crearTipoComprobante(
   return data
 }
 
-/** PATCH /tipos-comprobante/:id — solo nombre y descripción; los indicadores no viajan nunca. */
+/** PATCH /tipos-comprobante/:id — solo nombre y descripción; el efecto sobre el saldo no viaja nunca. */
 export async function editarTipoComprobante(
   id: number,
   payload: EditarTipoComprobantePayload

@@ -31,7 +31,6 @@ describe('TipoComprobanteService', () => {
     nombre: 'Factura',
     descripcion: 'Comprobante de compra',
     aumenta_saldo: true,
-    requiere_comprobante_origen: false,
     estado: true,
   };
 
@@ -60,14 +59,7 @@ describe('TipoComprobanteService', () => {
       prisma.tIPOCOMPROBANTE.findFirst.mockResolvedValue(tipoMock);
 
       await expect(
-        service.create(
-          {
-            nombre: 'Factura',
-            aumenta_saldo: true,
-            requiere_comprobante_origen: false,
-          },
-          USUARIO_ID,
-        ),
+        service.create({ nombre: 'Factura', aumenta_saldo: true }, USUARIO_ID),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(prisma.tIPOCOMPROBANTE.create).not.toHaveBeenCalled();
     });
@@ -76,11 +68,7 @@ describe('TipoComprobanteService', () => {
       prisma.tIPOCOMPROBANTE.create.mockResolvedValue(tipoMock);
 
       await service.create(
-        {
-          nombre: 'Factura',
-          aumenta_saldo: true,
-          requiere_comprobante_origen: false,
-        },
+        { nombre: 'Factura', aumenta_saldo: true },
         USUARIO_ID,
       );
 
@@ -88,7 +76,6 @@ describe('TipoComprobanteService', () => {
         data: {
           nombre: 'Factura',
           aumenta_saldo: true,
-          requiere_comprobante_origen: false,
           FK_usuario_creador: USUARIO_ID,
           FK_usuario_actualizador: USUARIO_ID,
         },
@@ -97,28 +84,37 @@ describe('TipoComprobanteService', () => {
   });
 
   describe('update', () => {
-    it('no modifica aumenta_saldo ni requiere_comprobante_origen aunque vengan en el body', async () => {
-      prisma.tIPOCOMPROBANTE.findUnique.mockResolvedValue(tipoMock);
-      prisma.tIPOCOMPROBANTE.update.mockResolvedValue(tipoMock);
+    // El bloqueo es permanente y no depende del valor: se prueban las dos
+    // direcciones (true → false y false → true) para que quede claro que no hay
+    // ningún caso en el que el indicador se pueda modificar.
+    it.each([
+      ['aumenta', true, false],
+      ['disminuye', false, true],
+    ])(
+      'sobre un tipo que %s el saldo, no modifica aumenta_saldo aunque venga en el body',
+      async (_caso, valorGuardado, valorIntentado) => {
+        prisma.tIPOCOMPROBANTE.findUnique.mockResolvedValue({
+          ...tipoMock,
+          aumenta_saldo: valorGuardado,
+        });
+        prisma.tIPOCOMPROBANTE.update.mockResolvedValue(tipoMock);
 
-      // El bloqueo vive en el schema de Zod: el ZodValidationPipe global
-      // descarta las claves antes de que el DTO llegue al service.
-      const dto = updateTipoComprobanteSchema.parse({
-        nombre: 'Factura A',
-        aumenta_saldo: false,
-        requiere_comprobante_origen: true,
-      });
-      expect(dto).not.toHaveProperty('aumenta_saldo');
-      expect(dto).not.toHaveProperty('requiere_comprobante_origen');
+        // El bloqueo vive en el schema de Zod: el ZodValidationPipe global
+        // descarta la clave antes de que el DTO llegue al service.
+        const dto = updateTipoComprobanteSchema.parse({
+          nombre: 'Factura A',
+          aumenta_saldo: valorIntentado,
+        });
+        expect(dto).not.toHaveProperty('aumenta_saldo');
 
-      await service.update(1, dto, USUARIO_ID);
+        await service.update(1, dto, USUARIO_ID);
 
-      const dataEnviada = primerArgumento(prisma.tIPOCOMPROBANTE.update).data;
-      expect(dataEnviada?.aumenta_saldo).toBeUndefined();
-      expect(dataEnviada?.requiere_comprobante_origen).toBeUndefined();
-      expect(dataEnviada?.nombre).toBe('Factura A');
-      expect(dataEnviada?.FK_usuario_actualizador).toBe(USUARIO_ID);
-    });
+        const dataEnviada = primerArgumento(prisma.tIPOCOMPROBANTE.update).data;
+        expect(dataEnviada?.aumenta_saldo).toBeUndefined();
+        expect(dataEnviada?.nombre).toBe('Factura A');
+        expect(dataEnviada?.FK_usuario_actualizador).toBe(USUARIO_ID);
+      },
+    );
 
     it('falla si el tipo de comprobante no existe', async () => {
       prisma.tIPOCOMPROBANTE.findUnique.mockResolvedValue(null);

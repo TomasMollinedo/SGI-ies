@@ -107,10 +107,6 @@ export function TipoComprobanteDetalleModal({
             }
           />
           <DetailRow
-            label="Requiere comprobante de origen"
-            value={tipoComprobante.requiere_comprobante_origen ? 'Sí' : 'No'}
-          />
-          <DetailRow
             label="Estado"
             value={
               <Badge variant={tipoComprobante.estado ? 'active' : 'inactive'}>

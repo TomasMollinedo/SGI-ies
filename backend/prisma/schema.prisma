@@ -546,15 +546,14 @@ model TIPOCOMPROBANTE {
   nombre      String
   descripcion String?
 
-  // aumenta_saldo y requiere_comprobante_origen se fijan en el alta y quedan
-  // bloqueados de forma permanente: cambiarlos después reinterpretaría todos
-  // los comprobantes ya registrados con este tipo. Esa inmutabilidad la aplica
-  // el service, la base no puede expresarla.
+  // aumenta_saldo se fija en el alta y queda bloqueado de forma permanente:
+  // cambiarlo después reinterpretaría todos los comprobantes ya registrados
+  // con este tipo. Esa inmutabilidad la aplica el service, la base no puede
+  // expresarla.
   //
   // Va como Boolean y no como enum, mismo criterio que
   // TIPOMOVIMIENTO.indicador_entrada: son solo dos valores posibles.
-  aumenta_saldo               Boolean // Aumenta el saldo del proveedor (true) o lo disminuye (false)
-  requiere_comprobante_origen Boolean
+  aumenta_saldo Boolean // Aumenta el saldo del proveedor (true) o lo disminuye (false)
 
   estado Boolean @default(true)
 

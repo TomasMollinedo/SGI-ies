@@ -43,11 +43,6 @@ export const COLUMNAS_TIPOS_COMPROBANTE: DataTableColumn<TipoComprobante>[] = [
     ),
   },
   {
-    key: 'requiereOrigen',
-    label: 'Requiere origen',
-    render: (item) => (item.requiere_comprobante_origen ? 'Sí' : 'No'),
-  },
-  {
     key: 'estado',
     label: 'Estado',
     render: (item) => (
