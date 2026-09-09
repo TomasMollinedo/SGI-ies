@@ -8,6 +8,7 @@ import { Prisma } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreatePagoDto } from './dto/create-pago.dto';
 import { AnularPagoDto } from './dto/anular-pago.dto';
+import { QueryPagoDto } from './dto/query-pago.dto';
 
 const COMPROBANTE_IMPUTABLE_SELECT = {
   id_comprobante_proveedor: true,
@@ -57,6 +58,17 @@ const FORMA_PAGO_RESUMEN_SELECT = {
 const USUARIO_RESUMEN_SELECT = {
   nombre: true,
   apellido: true,
+} as const;
+
+/** Ítem del listado (criterio 18): sin el detalle de imputaciones. */
+const PAGO_LIST_ITEM_SELECT = {
+  id_pago: true,
+  fecha_pago: true,
+  numero_referencia: true,
+  importe_total: true,
+  estado: true,
+  proveedor: { select: PROVEEDOR_RESUMEN_SELECT },
+  formaPago: { select: FORMA_PAGO_RESUMEN_SELECT },
 } as const;
 
 /** Datos identificatorios del comprobante imputado en una línea (T88). */
@@ -527,6 +539,137 @@ export class PagoService {
     });
 
     return this.findOne(idPago);
+  }
+
+  /**
+   * Listado paginado de pagos (criterio 18), con filtros combinables por
+   * proveedor, forma de pago, estado y período (sobre `fecha_pago`, la fecha
+   * de negocio). Suma `resumenPeriodo` (control de egresos) cuando la query
+   * trae `fechaDesde` y `fechaHasta` juntos; `null` en caso contrario.
+   */
+  async findAll(query: QueryPagoDto) {
+    const {
+      FK_proveedor,
+      FK_forma_pago,
+      estado,
+      fechaDesde,
+      fechaHasta,
+      page,
+      limit,
+    } = query;
+
+    const where: Prisma.PAGOWhereInput = {
+      ...(FK_proveedor !== undefined && { FK_proveedor }),
+      ...(FK_forma_pago !== undefined && { FK_forma_pago }),
+      ...(estado !== undefined && { estado }),
+      ...((fechaDesde !== undefined || fechaHasta !== undefined) && {
+        fecha_pago: {
+          ...(fechaDesde !== undefined && { gte: fechaDesde }),
+          ...(fechaHasta !== undefined && { lte: fechaHasta }),
+        },
+      }),
+    };
+
+    const [pagos, total, resumenPeriodo] = await Promise.all([
+      this.prisma.pAGO.findMany({
+        where,
+        select: PAGO_LIST_ITEM_SELECT,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { fecha_pago: 'desc' },
+      }),
+      this.prisma.pAGO.count({ where }),
+      this.calcularResumenPeriodo(query),
+    ]);
+
+    return {
+      data: pagos.map((pago) => ({
+        ...pago,
+        importe_total: pago.importe_total.toNumber(),
+      })),
+      meta: { total, page, limit },
+      resumenPeriodo,
+    };
+  }
+
+  /**
+   * Control de egresos del período: total + subtotales por proveedor y por
+   * forma de pago. Se calcula siempre sobre pagos CONFIRMADA (ignora el
+   * filtro `estado` de la query, si lo hubiera) porque "egresos" tiene que
+   * excluir anulados sin importar qué filtro esté aplicado. Solo cuando la
+   * query trae `fechaDesde` y `fechaHasta` juntos — si falta alguno de los
+   * dos, no hay período definido y se devuelve `null`. El volumen de pagos de
+   * un período es chico, así que se agrupa en memoria con un `Map` en vez de
+   * un GROUP BY de Postgres.
+   */
+  private async calcularResumenPeriodo(query: QueryPagoDto) {
+    if (!query.fechaDesde || !query.fechaHasta) {
+      return null;
+    }
+
+    const where: Prisma.PAGOWhereInput = {
+      ...(query.FK_proveedor !== undefined && {
+        FK_proveedor: query.FK_proveedor,
+      }),
+      ...(query.FK_forma_pago !== undefined && {
+        FK_forma_pago: query.FK_forma_pago,
+      }),
+      fecha_pago: { gte: query.fechaDesde, lte: query.fechaHasta },
+      estado: 'CONFIRMADA',
+    };
+
+    const pagos = await this.prisma.pAGO.findMany({
+      where,
+      select: {
+        importe_total: true,
+        proveedor: { select: PROVEEDOR_RESUMEN_SELECT },
+        formaPago: { select: FORMA_PAGO_RESUMEN_SELECT },
+      },
+    });
+
+    let totalEgresos = new Prisma.Decimal(0);
+    const porProveedor = new Map<
+      number,
+      { proveedor: (typeof pagos)[number]['proveedor']; total: Prisma.Decimal }
+    >();
+    const porFormaPago = new Map<
+      number,
+      { formaPago: (typeof pagos)[number]['formaPago']; total: Prisma.Decimal }
+    >();
+
+    for (const pago of pagos) {
+      totalEgresos = totalEgresos.plus(pago.importe_total);
+
+      const entradaProveedor = porProveedor.get(
+        pago.proveedor.id_proveedor,
+      ) ?? {
+        proveedor: pago.proveedor,
+        total: new Prisma.Decimal(0),
+      };
+      entradaProveedor.total = entradaProveedor.total.plus(pago.importe_total);
+      porProveedor.set(pago.proveedor.id_proveedor, entradaProveedor);
+
+      const entradaFormaPago = porFormaPago.get(
+        pago.formaPago.id_forma_pago,
+      ) ?? {
+        formaPago: pago.formaPago,
+        total: new Prisma.Decimal(0),
+      };
+      entradaFormaPago.total = entradaFormaPago.total.plus(pago.importe_total);
+      porFormaPago.set(pago.formaPago.id_forma_pago, entradaFormaPago);
+    }
+
+    return {
+      totalEgresos: totalEgresos.toNumber(),
+      subtotalesPorProveedor: [...porProveedor.values()].map((entrada) => ({
+        proveedor: entrada.proveedor,
+        total: entrada.total.toNumber(),
+      })),
+      subtotalesPorFormaPago: [...porFormaPago.values()].map((entrada) => ({
+        formaPago: entrada.formaPago,
+        total: entrada.total.toNumber(),
+      })),
+    };
   }
 
   /**

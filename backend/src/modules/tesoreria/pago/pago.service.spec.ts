@@ -9,6 +9,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { Prisma } from '../../../../generated/prisma/client';
 import { CreatePagoDto } from './dto/create-pago.dto';
 import { AnularPagoDto } from './dto/anular-pago.dto';
+import { QueryPagoDto } from './dto/query-pago.dto';
 
 /** Primer argumento con el que se llamó a un mock de Prisma, ya tipado. */
 type ArgumentoPrisma = {
@@ -155,7 +156,11 @@ describe('PagoService', () => {
     pROVEEDOR: { findUnique: jest.Mock };
     fORMAPAGO: { findUnique: jest.Mock };
     cOMPROBANTEPROVEEDOR: { findMany: jest.Mock };
-    pAGO: { findUnique: jest.Mock };
+    pAGO: {
+      findUnique: jest.Mock;
+      findMany: jest.Mock;
+      count: jest.Mock;
+    };
     $transaction: jest.Mock;
   };
 
@@ -271,7 +276,11 @@ describe('PagoService', () => {
         }),
       },
       cOMPROBANTEPROVEEDOR: { findMany: jest.fn().mockResolvedValue([]) },
-      pAGO: { findUnique: jest.fn().mockResolvedValue(pagoCompleto()) },
+      pAGO: {
+        findUnique: jest.fn().mockResolvedValue(pagoCompleto()),
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
+      },
       $transaction: jest.fn((callback: (t: typeof tx) => unknown) =>
         callback(tx),
       ),
@@ -1047,6 +1056,109 @@ describe('PagoService', () => {
       expect(saldoTrasConfirmar.plus(incrementoAnulacion)).toEqual(
         saldoOriginal,
       );
+    });
+  });
+
+  describe('findAll', () => {
+    const query = (extra: Partial<QueryPagoDto> = {}): QueryPagoDto => ({
+      page: 1,
+      limit: 10,
+      ...extra,
+    });
+
+    /** Fila cruda tal como la selecciona `calcularResumenPeriodo`. */
+    const pagoDelPeriodo = (
+      importeTotal: number,
+      proveedor: { id_proveedor: number; razon_social: string },
+      formaPago: {
+        id_forma_pago: number;
+        nombre: string;
+        requiere_referencia: boolean;
+      },
+    ) => ({
+      importe_total: new Prisma.Decimal(importeTotal),
+      proveedor,
+      formaPago,
+    });
+
+    const proveedorA = {
+      id_proveedor: ID_PROVEEDOR,
+      razon_social: 'Proveedor SA',
+    };
+    const proveedorB = { id_proveedor: 2, razon_social: 'Otro Proveedor SA' };
+    const efectivo = {
+      id_forma_pago: 1,
+      nombre: 'Efectivo',
+      requiere_referencia: false,
+    };
+
+    it('resumenPeriodo viaja null si falta fechaDesde o fechaHasta', async () => {
+      const resultado = await service.findAll(
+        query({ fechaDesde: new Date('2026-08-01') }),
+      );
+
+      expect(resultado.resumenPeriodo).toBeNull();
+      expect(prisma.pAGO.findMany).toHaveBeenCalledTimes(1); // solo el listado, no el resumen
+    });
+
+    it('resumenPeriodo trae los totales cuando la query trae fechaDesde y fechaHasta juntos', async () => {
+      prisma.pAGO.findMany
+        .mockResolvedValueOnce([]) // listado paginado
+        .mockResolvedValueOnce([
+          pagoDelPeriodo(1000, proveedorA, efectivo),
+          pagoDelPeriodo(500, proveedorB, efectivo),
+        ]); // resumen del período
+
+      const resultado = await service.findAll(
+        query({
+          fechaDesde: new Date('2026-08-01'),
+          fechaHasta: new Date('2026-08-31'),
+        }),
+      );
+
+      expect(resultado.resumenPeriodo).toEqual({
+        totalEgresos: 1500,
+        subtotalesPorProveedor: [
+          { proveedor: proveedorA, total: 1000 },
+          { proveedor: proveedorB, total: 500 },
+        ],
+        subtotalesPorFormaPago: [{ formaPago: efectivo, total: 1500 }],
+      });
+    });
+
+    it('el resumen del período consulta siempre estado CONFIRMADA, sin importar el filtro estado de la query', async () => {
+      prisma.pAGO.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+      await service.findAll(
+        query({
+          estado: 'ANULADA',
+          fechaDesde: new Date('2026-08-01'),
+          fechaHasta: new Date('2026-08-31'),
+        }),
+      );
+
+      // Primera llamada: el listado, respeta el filtro `estado` de la query.
+      // Segunda llamada: el resumen del período, siempre CONFIRMADA.
+      const llamadas = prisma.pAGO.findMany.mock.calls as {
+        where?: { estado?: string };
+      }[][];
+      expect(llamadas[0][0].where?.estado).toBe('ANULADA');
+      expect(llamadas[1][0].where?.estado).toBe('CONFIRMADA');
+    });
+
+    it('la paginación y el orden del listado son independientes del resumen', async () => {
+      await service.findAll(query({ page: 2, limit: 5 }));
+
+      const llamada = (
+        prisma.pAGO.findMany.mock.calls as {
+          skip?: number;
+          take?: number;
+          orderBy?: Record<string, unknown>;
+        }[][]
+      )[0][0];
+      expect(llamada.skip).toBe(5);
+      expect(llamada.take).toBe(5);
+      expect(llamada.orderBy).toEqual({ fecha_pago: 'desc' });
     });
   });
 });
