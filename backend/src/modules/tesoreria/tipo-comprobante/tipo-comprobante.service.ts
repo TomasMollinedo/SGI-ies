@@ -16,11 +16,11 @@ export class TipoComprobanteService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Alta de un tipo de comprobante. Es el único momento en que se definen
-   * `aumenta_saldo` y `requiere_comprobante_origen`: después quedan
-   * bloqueados para siempre, porque de ellos depende cómo impactó (o va a
-   * impactar) cada comprobante ya registrado con este tipo en la cuenta
-   * corriente del proveedor.
+   * Alta de un tipo de comprobante. Es el único momento en que se define
+   * `aumenta_saldo`: después queda bloqueado para siempre, cualquiera sea su
+   * valor, porque de él depende cómo impactó (o va a impactar) cada
+   * comprobante ya registrado con este tipo en la cuenta corriente del
+   * proveedor.
    */
   async create(dto: CreateTipoComprobanteDto, usuarioId: number) {
     await this.validarNombreUnico(dto.nombre);
@@ -62,7 +62,6 @@ export class TipoComprobanteService {
           nombre: true,
           descripcion: true,
           aumenta_saldo: true,
-          requiere_comprobante_origen: true,
           estado: true,
         },
         skip: (page - 1) * limit,
@@ -98,10 +97,9 @@ export class TipoComprobanteService {
   }
 
   /**
-   * Edición: solo `nombre` y `descripcion`. `aumenta_saldo` y
-   * `requiere_comprobante_origen` no forman parte del DTO de update (quedan
-   * bloqueados desde el alta) y `estado` se cambia por los endpoints
-   * /baja y /alta.
+   * Edición: solo `nombre` y `descripcion`. `aumenta_saldo` no forma parte del
+   * DTO de update (queda bloqueado desde el alta, cualquiera sea su valor) y
+   * `estado` se cambia por los endpoints /baja y /alta.
    */
   async update(id: number, dto: UpdateTipoComprobanteDto, usuarioId: number) {
     await this.findOne(id);

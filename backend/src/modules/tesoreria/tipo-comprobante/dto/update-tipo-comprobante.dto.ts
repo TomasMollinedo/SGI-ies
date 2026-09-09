@@ -3,13 +3,13 @@ import { createZodDto } from 'nestjs-zod';
 
 /**
  * A propósito NO se arma como `.partial()` del schema de create: el schema se declara solo con los campos realmente editables, para que
- * `aumenta_saldo` y `requiere_comprobante_origen` ni siquiera sean
- * representables en el body.
+ * `aumenta_saldo` ni siquiera sea representable en el body.
  *
- * El motivo es que ambos indicadores definen cómo cada comprobante ya
- * registrado con este tipo impactó (o va a impactar) la cuenta corriente del
- * proveedor. Si se pudieran editar, cambiarían retroactivamente la
- * interpretación de todos los comprobantes históricos que usaron este tipo.
+ * El motivo es que ese indicador define cómo cada comprobante ya registrado
+ * con este tipo impactó (o va a impactar) la cuenta corriente del proveedor.
+ * Si se pudiera editar, cambiaría retroactivamente la interpretación de todos
+ * los comprobantes históricos que usaron este tipo. El bloqueo es permanente y
+ * no depende del valor: ni de `true` a `false` ni al revés.
  *
  * El `estado` tampoco se toca acá: va por PATCH /:id/baja y /:id/alta.
  */

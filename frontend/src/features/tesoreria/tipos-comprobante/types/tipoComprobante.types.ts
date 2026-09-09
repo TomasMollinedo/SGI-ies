@@ -8,11 +8,6 @@ export interface TipoComprobante {
    * disminuye. No es editable después del alta.
    */
   aumenta_saldo: boolean
-  /**
-   * Si el comprobante necesita referenciar un comprobante de origen (ej. una
-   * Nota de Crédito sobre una Factura). No es editable después del alta.
-   */
-  requiere_comprobante_origen: boolean
   estado: boolean
 }
 
@@ -38,28 +33,26 @@ export interface TipoComprobanteDetalle extends TipoComprobanteAuditado {
 
 /**
  * Body de POST /tipos-comprobante. La descripción se omite si el usuario no
- * cargó ninguna; `aumenta_saldo` y `requiere_comprobante_origen` son
- * obligatorios y es el único momento en que se definen.
+ * cargó ninguna; `aumenta_saldo` es obligatorio y es el único momento en que
+ * se define.
  */
 export interface CrearTipoComprobantePayload {
   nombre: string
   descripcion?: string
   aumenta_saldo: boolean
-  requiere_comprobante_origen: boolean
 }
 
 /**
  * Body de PATCH /tipos-comprobante/:id. A propósito no se deriva de
  * `CrearTipoComprobantePayload`: se declara solo con los campos editables, y
- * `aumenta_saldo: never` / `requiere_comprobante_origen: never` dejan que el
- * compilador rechace el intento de mandarlos —incluso al armar el body con un
- * spread—, porque los dos indicadores son inmutables después del alta.
+ * `aumenta_saldo: never` deja que el compilador rechace el intento de mandarlo
+ * —incluso al armar el body con un spread—, porque el indicador es inmutable
+ * después del alta, cualquiera sea su valor.
  */
 export interface EditarTipoComprobantePayload {
   nombre?: string
   descripcion?: string
   aumenta_saldo?: never
-  requiere_comprobante_origen?: never
 }
 
 export type FiltroEstado = '' | 'true' | 'false'

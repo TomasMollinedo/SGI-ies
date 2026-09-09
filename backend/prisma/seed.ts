@@ -155,19 +155,16 @@ const tiposComprobante = [
     nombre: 'Factura',
     descripcion: 'Comprobante de compra que genera deuda con el proveedor',
     aumenta_saldo: true, // true = aumenta el saldo del proveedor
-    requiere_comprobante_origen: false,
   },
   {
     nombre: 'Nota de Debito',
     descripcion: 'Ajuste que incrementa el importe de un comprobante anterior',
     aumenta_saldo: true, // true = aumenta el saldo del proveedor
-    requiere_comprobante_origen: true, // se aplica sobre un comprobante existente
   },
   {
     nombre: 'Nota de Credito',
     descripcion: 'Ajuste que reduce el importe de un comprobante anterior',
     aumenta_saldo: false, // false = disminuye el saldo del proveedor
-    requiere_comprobante_origen: true, // se aplica sobre un comprobante existente
   },
 ];
 

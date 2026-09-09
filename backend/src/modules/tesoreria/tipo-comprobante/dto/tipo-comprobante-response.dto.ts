@@ -7,7 +7,6 @@ export const tipoComprobanteResponseSchema = z.object({
   nombre: z.string(),
   descripcion: z.string().nullable(),
   aumenta_saldo: z.boolean(),
-  requiere_comprobante_origen: z.boolean(),
   estado: z.boolean(),
   // Prisma devuelve Date, pero sobre HTTP viaja como string ISO 8601 —
   // el DTO de respuesta documenta lo que realmente recibe el frontend.

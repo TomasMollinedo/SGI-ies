@@ -25,11 +25,6 @@ const OPCIONES_EFECTO_SALDO: SelectOption[] = [
   { value: 'false', label: 'Disminuye el saldo' },
 ]
 
-const OPCIONES_REQUIERE_ORIGEN: SelectOption[] = [
-  { value: 'true', label: 'Sí, requiere comprobante de origen' },
-  { value: 'false', label: 'No requiere comprobante de origen' },
-]
-
 interface TipoComprobanteFormProps {
   open: boolean
   onClose: () => void
@@ -48,10 +43,11 @@ interface TipoComprobanteFormProps {
 /**
  * Modal de crear/editar un tipo de comprobante.
  *
- * Los dos indicadores estructurales (efecto sobre el saldo y si requiere
- * comprobante de origen) se definen en el alta y después quedan bloqueados:
- * cambiarlos reinterpretaría el signo de todos los comprobantes ya
- * registrados con ese tipo. En edición se muestran igual pero deshabilitados.
+ * El efecto sobre el saldo se define en el alta y después queda bloqueado,
+ * cualquiera sea su valor: cambiarlo reinterpretaría el signo de todos los
+ * comprobantes ya registrados con ese tipo. En edición se muestra igual pero
+ * deshabilitado, y lo único editable es nombre y descripción (el estado se
+ * cambia desde el listado, con las acciones de baja y reactivación).
  */
 export function TipoComprobanteForm({
   open,
@@ -194,21 +190,6 @@ export function TipoComprobanteForm({
             error={errors.aumenta_saldo?.message}
             {...register('aumenta_saldo')}
           />
-
-          <Select
-            label="Requiere comprobante de origen"
-            required
-            options={OPCIONES_REQUIERE_ORIGEN}
-            placeholder={esEdicion ? undefined : 'Seleccioná una opción'}
-            disabled={esEdicion || loading}
-            helperText={
-              esEdicion
-                ? 'Si requiere comprobante de origen se definió al crear el tipo y no se puede modificar: cambiarlo reinterpretaría todos los comprobantes ya registrados.'
-                : 'Una vez guardado no se va a poder modificar.'
-            }
-            error={errors.requiere_comprobante_origen?.message}
-            {...register('requiere_comprobante_origen')}
-          />
         </form>
       </Modal>
 
@@ -231,7 +212,7 @@ export function TipoComprobanteForm({
 }
 
 /** Los campos del formulario, para saber qué issues del backend son de campo. */
-const CAMPOS = ['nombre', 'descripcion', 'aumenta_saldo', 'requiere_comprobante_origen'] as const
+const CAMPOS = ['nombre', 'descripcion', 'aumenta_saldo'] as const
 type CampoDelFormulario = (typeof CAMPOS)[number]
 
 function esCampoDelFormulario(campo: string): campo is CampoDelFormulario {
@@ -276,9 +257,7 @@ function valoresIniciales(tipoComprobante?: TipoComprobante): TipoComprobanteFor
   return {
     nombre: tipoComprobante?.nombre ?? '',
     descripcion: tipoComprobante?.descripcion ?? '',
-    // Sin tipo de comprobante (alta) los selects arrancan en el placeholder.
+    // Sin tipo de comprobante (alta) el select arranca en el placeholder.
     aumenta_saldo: tipoComprobante === undefined ? '' : String(tipoComprobante.aumenta_saldo),
-    requiere_comprobante_origen:
-      tipoComprobante === undefined ? '' : String(tipoComprobante.requiere_comprobante_origen),
   }
 }

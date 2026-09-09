@@ -168,7 +168,6 @@ export function TiposComprobantePage() {
         {
           nombre: payload.nombre,
           aumenta_saldo: payload.aumenta_saldo,
-          requiere_comprobante_origen: payload.requiere_comprobante_origen,
           ...(descripcion ? { descripcion } : {}),
         },
         {
@@ -188,7 +187,8 @@ export function TiposComprobantePage() {
     if (formulario?.modo === 'editar') {
       editar.mutate(
         // Acá la descripción viaja siempre, incluso vacía: es la única forma de
-        // borrar la que tenía. Los indicadores no viajan nunca: no son editables.
+        // borrar la que tenía. El efecto sobre el saldo no viaja nunca: no es
+        // editable.
         {
           id: formulario.tipoComprobante.id_tipo_comprobante,
           payload: { nombre: payload.nombre, descripcion },
@@ -289,8 +289,8 @@ export function TiposComprobantePage() {
           // que muestra la tabla.
           onView={() => setDetalleId(item.id_tipo_comprobante)}
           // La fila del listado ya trae todo lo editable (nombre, descripción)
-          // y los indicadores que se muestran bloqueados: no hace falta pedir
-          // el detalle para precargar el formulario.
+          // y el indicador que se muestra bloqueado: no hace falta pedir el
+          // detalle para precargar el formulario.
           onEdit={() => abrirFormulario({ modo: 'editar', tipoComprobante: item })}
           // Baja y reactivación son excluyentes: `RowActions` muestra una u
           // otra según `isActive`.
