@@ -13,6 +13,7 @@ import { MovimientoController } from '../../modules/almacen/movimiento/movimient
 import { StockController } from '../../modules/almacen/stock/stock.controller';
 import { TipoMovimientoController } from '../../modules/almacen/tipo-movimiento/tipo-movimiento.controller';
 import { UnidadMedidaController } from '../../modules/almacen/unidad-medida/unidad-medida.controller';
+import { OrdenCompraController } from '../../modules/compras/orden-compra/orden-compra.controller';
 import { ProveedorController } from '../../modules/compras/proveedor/proveedor.controller';
 import { TipoComprobanteController } from '../../modules/tesoreria/tipo-comprobante/tipo-comprobante.controller';
 
@@ -113,6 +114,7 @@ describe('RolesGuard', () => {
   describe('controllers de Compras', () => {
     const controllersDeCompras: [string, object][] = [
       ['ProveedorController', ProveedorController],
+      ['OrdenCompraController', OrdenCompraController],
     ];
 
     it.each(controllersDeCompras)(
@@ -126,9 +128,9 @@ describe('RolesGuard', () => {
       },
     );
 
-    // El Responsable de Compras no es el dueño del recurso: Proveedores,
-    // como el resto de los datos maestros del proyecto (ver Almacén), queda
-    // a cargo del Administrador.
+    // El Responsable de Compras no es el dueño del recurso: Proveedores y
+    // Órdenes de Compra, como el resto de los datos maestros del proyecto
+    // (ver Almacén), quedan a cargo del Administrador.
     it.each(controllersDeCompras)(
       '%s rechaza al Responsable de Compras',
       (_nombre, controller) => {
