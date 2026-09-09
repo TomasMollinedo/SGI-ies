@@ -140,9 +140,7 @@ export const pagoListResponseSchema = z.object({
   resumenPeriodo: resumenPeriodoSchema.nullable(),
 });
 
-export class PagoListResponseDto extends createZodDto(
-  pagoListResponseSchema,
-) {}
+export class PagoListResponseDto extends createZodDto(pagoListResponseSchema) {}
 
 /**
  * Detalle (POST y GET /pagos/:id): cabecera completa + las líneas de
