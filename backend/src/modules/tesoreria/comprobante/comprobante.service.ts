@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -65,12 +66,22 @@ export class ComprobanteService {
    * una línea.
    */
   async create(dto: CreateComprobanteDto, usuarioId: number) {
+    this.validarFechas(dto.fecha_emision, dto.fecha_vencimiento);
+
     await this.validarReferencias({
       FK_proveedor: dto.FK_proveedor,
       FK_tipo_comprobante: dto.FK_tipo_comprobante,
       FK_orden_compra: dto.FK_orden_compra,
       FK_comprobante_origen: dto.FK_comprobante_origen,
       articulos: this.articulosDelDetalle(dto.detalle),
+    });
+
+    await this.validarNumeracionUnica({
+      FK_proveedor: dto.FK_proveedor,
+      FK_tipo_comprobante: dto.FK_tipo_comprobante,
+      letra: dto.letra,
+      punto_de_venta: dto.punto_de_venta,
+      numero: dto.numero,
     });
 
     const totales = this.calcularTotales(dto.detalle, dto.alicuota_iva);
@@ -146,13 +157,41 @@ export class ComprobanteService {
 
     const { detalle, alicuota_iva: alicuotaDto, ...cabecera } = dto;
 
+    // Cabecera "efectiva": lo guardado, pisado por lo que trae el PATCH. La
+    // unicidad de numeración y el "origen del mismo proveedor" tienen que
+    // validarse sobre la combinación final, no solo sobre los campos que
+    // cambian en esta edición.
+    const proveedorEfectivo = dto.FK_proveedor ?? comprobante.FK_proveedor;
+    const tipoEfectivo =
+      dto.FK_tipo_comprobante ?? comprobante.FK_tipo_comprobante;
+    const origenEfectivo =
+      dto.FK_comprobante_origen ??
+      comprobante.FK_comprobante_origen ??
+      undefined;
+
+    this.validarFechas(
+      dto.fecha_emision ?? comprobante.fecha_emision,
+      dto.fecha_vencimiento ?? comprobante.fecha_vencimiento,
+    );
+
     await this.validarReferencias({
-      FK_proveedor: dto.FK_proveedor,
-      FK_tipo_comprobante: dto.FK_tipo_comprobante,
+      FK_proveedor: proveedorEfectivo,
+      FK_tipo_comprobante: tipoEfectivo,
       FK_orden_compra: dto.FK_orden_compra,
-      FK_comprobante_origen: dto.FK_comprobante_origen,
+      FK_comprobante_origen: origenEfectivo,
       articulos: detalle ? this.articulosDelDetalle(detalle) : [],
     });
+
+    await this.validarNumeracionUnica(
+      {
+        FK_proveedor: proveedorEfectivo,
+        FK_tipo_comprobante: tipoEfectivo,
+        letra: dto.letra ?? comprobante.letra,
+        punto_de_venta: dto.punto_de_venta ?? comprobante.punto_de_venta,
+        numero: dto.numero ?? comprobante.numero,
+      },
+      id,
+    );
 
     // Detalle y alícuota "efectivos": si el dto no los trae, se mantienen los
     // actuales, para que el recálculo de los importes sea siempre coherente.
@@ -249,10 +288,17 @@ export class ComprobanteService {
   }
 
   /**
-   * Valida que las entidades referenciadas por el comprobante existan, para
-   * responder 404 con un mensaje claro en vez de romper con un error de clave
-   * foránea. Las reglas de negocio de la cabecera (unicidad de la numeración,
-   * comprobante de origen obligatorio y del mismo proveedor, fechas) son de T73.
+   * Valida las entidades referenciadas por la cabecera:
+   *
+   * - proveedor, tipo de comprobante y artículos del detalle deben existir
+   *   (404 con mensaje claro en vez de un error de clave foránea) y estar
+   *   activos. El chequeo de "activo" es la misma "última línea de defensa"
+   *   que en OrdenCompra: el `<select>` del front ya filtra, pero un request
+   *   directo o una baja concurrente no.
+   * - la orden de compra vinculada, si viene, debe existir.
+   * - el comprobante de origen, si viene, debe existir y pertenecer al mismo
+   *   proveedor (HU-16). Es opcional para cualquier tipo: no hay regla de
+   *   "obligatorio según el tipo".
    */
   private async validarReferencias(refs: {
     FK_proveedor?: number;
@@ -264,11 +310,16 @@ export class ComprobanteService {
     if (refs.FK_proveedor !== undefined) {
       const proveedor = await this.prisma.pROVEEDOR.findUnique({
         where: { id_proveedor: refs.FK_proveedor },
-        select: { id_proveedor: true },
+        select: { id_proveedor: true, estado: true },
       });
       if (!proveedor) {
         throw new NotFoundException(
           `No existe un proveedor con id ${refs.FK_proveedor}`,
+        );
+      }
+      if (!proveedor.estado) {
+        throw new ConflictException(
+          `El proveedor con id ${refs.FK_proveedor} está dado de baja y no puede usarse en un comprobante`,
         );
       }
     }
@@ -276,11 +327,16 @@ export class ComprobanteService {
     if (refs.FK_tipo_comprobante !== undefined) {
       const tipoComprobante = await this.prisma.tIPOCOMPROBANTE.findUnique({
         where: { id_tipo_comprobante: refs.FK_tipo_comprobante },
-        select: { id_tipo_comprobante: true },
+        select: { id_tipo_comprobante: true, estado: true },
       });
       if (!tipoComprobante) {
         throw new NotFoundException(
           `No existe un tipo de comprobante con id ${refs.FK_tipo_comprobante}`,
+        );
+      }
+      if (!tipoComprobante.estado) {
+        throw new ConflictException(
+          `El tipo de comprobante con id ${refs.FK_tipo_comprobante} está dado de baja y no puede usarse en un comprobante`,
         );
       }
     }
@@ -300,11 +356,19 @@ export class ComprobanteService {
     if (refs.FK_comprobante_origen !== undefined) {
       const origen = await this.prisma.cOMPROBANTEPROVEEDOR.findUnique({
         where: { id_comprobante_proveedor: refs.FK_comprobante_origen },
-        select: { id_comprobante_proveedor: true },
+        select: { id_comprobante_proveedor: true, FK_proveedor: true },
       });
       if (!origen) {
         throw new NotFoundException(
           `No existe un comprobante con id ${refs.FK_comprobante_origen}`,
+        );
+      }
+      if (
+        refs.FK_proveedor !== undefined &&
+        origen.FK_proveedor !== refs.FK_proveedor
+      ) {
+        throw new BadRequestException(
+          'El comprobante de origen pertenece a otro proveedor',
         );
       }
     }
@@ -312,17 +376,81 @@ export class ComprobanteService {
     if (refs.articulos.length > 0) {
       const encontrados = await this.prisma.aRTICULO.findMany({
         where: { id_articulo: { in: refs.articulos } },
-        select: { id_articulo: true },
+        select: { id_articulo: true, estado: true },
       });
-      const idsEncontrados = new Set(
-        encontrados.map((articulo) => articulo.id_articulo),
+      const porId = new Map(
+        encontrados.map((articulo) => [articulo.id_articulo, articulo]),
       );
-      const faltantes = refs.articulos.filter((id) => !idsEncontrados.has(id));
+      const faltantes = refs.articulos.filter((id) => !porId.has(id));
       if (faltantes.length > 0) {
         throw new NotFoundException(
           `No existe un artículo con id: ${faltantes.join(', ')}`,
         );
       }
+      const inactivos = refs.articulos.filter((id) => !porId.get(id)!.estado);
+      if (inactivos.length > 0) {
+        throw new ConflictException(
+          `El artículo con id ${inactivos.join(', ')} está dado de baja y no puede usarse en un comprobante`,
+        );
+      }
+    }
+  }
+  /**
+   * HU-16: no puede existir otro comprobante *vigente* — cualquier estado
+   * menos ANULADO — con la misma combinación de proveedor + tipo + letra +
+   * punto de venta + número. Esa quíntupla es la identidad del documento tal
+   * como lo emitió el proveedor.
+   *
+   * A propósito NO es un `@@unique` de base (ver el comentario en
+   * `schema.prisma`): si un comprobante se cargó con el número mal tipeado y
+   * se anula, hay que poder volver a cargarlo con el número correcto. El
+   * chequeo corre acá y se apoya en el `@@index` por esa combinación.
+   */
+  private async validarNumeracionUnica(
+    clave: {
+      FK_proveedor: number;
+      FK_tipo_comprobante: number;
+      letra: string;
+      punto_de_venta: number;
+      numero: number;
+    },
+    idExcluido?: number,
+  ) {
+    const existente = await this.prisma.cOMPROBANTEPROVEEDOR.findFirst({
+      where: {
+        FK_proveedor: clave.FK_proveedor,
+        FK_tipo_comprobante: clave.FK_tipo_comprobante,
+        letra: clave.letra,
+        punto_de_venta: clave.punto_de_venta,
+        numero: clave.numero,
+        estado: { not: EstadoComprobante.ANULADO },
+        ...(idExcluido !== undefined && {
+          id_comprobante_proveedor: { not: idExcluido },
+        }),
+      },
+      select: { id_comprobante_proveedor: true },
+    });
+
+    if (existente) {
+      throw new ConflictException(
+        `Ya existe un comprobante ${clave.letra} ${clave.punto_de_venta}-${clave.numero} vigente para ese proveedor y tipo (comprobante #${existente.id_comprobante_proveedor})`,
+      );
+    }
+  }
+
+  /**
+   * HU-16: la fecha de emisión no puede ser futura (el comprobante registra
+   * algo ya emitido, mismo criterio que OrdenCompra y Movimiento) y la de
+   * vencimiento no puede ser anterior a la de emisión.
+   */
+  private validarFechas(fechaEmision: Date, fechaVencimiento: Date) {
+    if (fechaEmision > new Date()) {
+      throw new BadRequestException('La fecha de emisión no puede ser futura');
+    }
+    if (fechaVencimiento < fechaEmision) {
+      throw new BadRequestException(
+        'La fecha de vencimiento no puede ser anterior a la de emisión',
+      );
     }
   }
 
