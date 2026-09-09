@@ -29,7 +29,9 @@ export async function listarAlertas(
 ): Promise<PaginatedResponse<Alerta>> {
   const { data } = await httpClient.get<PaginatedResponse<Alerta>>('/alertas', {
     params: {
-      tipoAlertaId: filtros.tipoAlertaId,
+      // El backend espera `FK_tipo_alerta`; adentro del frontend el filtro se
+      // llama `tipoAlertaId`, así que la traducción se hace acá, en el borde.
+      FK_tipo_alerta: filtros.tipoAlertaId,
       atendida: filtros.atendida,
       fechaDesde: filtros.fechaDesde,
       fechaHasta: filtros.fechaHasta,
