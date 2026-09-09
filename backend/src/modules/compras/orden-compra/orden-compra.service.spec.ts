@@ -28,6 +28,8 @@ describe('OrdenCompraService', () => {
       create: jest.Mock;
       update: jest.Mock;
       findUnique: jest.Mock;
+      findMany: jest.Mock;
+      count: jest.Mock;
     };
     oRDENCOMPRAHISTORIALESTADO: { create: jest.Mock };
     $transaction: jest.Mock;
@@ -61,6 +63,8 @@ describe('OrdenCompraService', () => {
         create: jest.fn(),
         update: jest.fn(),
         findUnique: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
       },
       oRDENCOMPRAHISTORIALESTADO: { create: jest.fn() },
       // Simula la transacción ejecutando el callback con `prisma` mismo
@@ -300,6 +304,55 @@ describe('OrdenCompraService', () => {
       expect(dataEnviada).not.toHaveProperty('detalles');
       expect(dataEnviada).not.toHaveProperty('total');
       expect(prisma.aRTICULO.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findAll', () => {
+    it('arma el where con todos los filtros combinados y pagina correctamente', async () => {
+      const fechaDesde = new Date('2026-01-01');
+      const fechaHasta = new Date('2026-01-31');
+
+      await service.findAll({
+        FK_proveedor: ID_PROVEEDOR,
+        estado: EstadoOrdenCompra.EMITIDA,
+        FK_deposito: ID_DEPOSITO,
+        fechaDesde,
+        fechaHasta,
+        page: 2,
+        limit: 5,
+      });
+
+      const argumentoFindMany = primerArgumento(prisma.oRDENCOMPRA.findMany);
+      expect(argumentoFindMany.where).toEqual({
+        FK_proveedor: ID_PROVEEDOR,
+        estado: EstadoOrdenCompra.EMITIDA,
+        FK_deposito: ID_DEPOSITO,
+        fecha_emision: { gte: fechaDesde, lte: fechaHasta },
+      });
+      expect(argumentoFindMany).toMatchObject({ skip: 5, take: 5 });
+      expect(primerArgumento(prisma.oRDENCOMPRA.count).where).toEqual(
+        argumentoFindMany.where,
+      );
+    });
+
+    it('no agrega al where los filtros que no vinieron', async () => {
+      await service.findAll({ page: 1, limit: 10 });
+
+      expect(primerArgumento(prisma.oRDENCOMPRA.findMany).where).toEqual({});
+    });
+
+    it('devuelve data y meta con el total de count', async () => {
+      prisma.oRDENCOMPRA.findMany.mockResolvedValue([
+        { id_orden_compra: ID_ORDEN },
+      ]);
+      prisma.oRDENCOMPRA.count.mockResolvedValue(1);
+
+      const resultado = await service.findAll({ page: 1, limit: 10 });
+
+      expect(resultado).toEqual({
+        data: [{ id_orden_compra: ID_ORDEN }],
+        meta: { total: 1, page: 1, limit: 10 },
+      });
     });
   });
 

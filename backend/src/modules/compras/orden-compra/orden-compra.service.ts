@@ -5,9 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EstadoOrdenCompra } from '../../../../generated/prisma/enums';
+import { Prisma } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CambiarEstadoOrdenCompraDto } from './dto/cambiar-estado-orden-compra.dto';
 import { CreateOrdenCompraDto } from './dto/create-orden-compra.dto';
+import { QueryOrdenCompraDto } from './dto/query-orden-compra.dto';
 import { UpdateOrdenCompraDto } from './dto/update-orden-compra.dto';
 
 /**
@@ -145,6 +147,56 @@ export class OrdenCompraService {
     });
 
     return this.findOne(id);
+  }
+
+  /**
+   * Listado paginado con filtros combinables: proveedor, estado, depósito y
+   * período (`fechaDesde`/`fechaHasta` sobre `fecha_emision`, la fecha de
+   * negocio). Ordenado de la más reciente a la más antigua.
+   *
+   * A diferencia de `findOne`, no trae el detalle línea por línea — es
+   * carga innecesaria para una tabla de listado (mismo criterio que
+   * `ProveedorService.findAll`, que tampoco expone lo que solo hace falta
+   * en el detalle).
+   */
+  async findAll(query: QueryOrdenCompraDto) {
+    const {
+      FK_proveedor,
+      estado,
+      FK_deposito,
+      fechaDesde,
+      fechaHasta,
+      page,
+      limit,
+    } = query;
+
+    const where: Prisma.ORDENCOMPRAWhereInput = {
+      ...(FK_proveedor !== undefined && { FK_proveedor }),
+      ...(estado !== undefined && { estado }),
+      ...(FK_deposito !== undefined && { FK_deposito }),
+      ...((fechaDesde !== undefined || fechaHasta !== undefined) && {
+        fecha_emision: {
+          ...(fechaDesde !== undefined && { gte: fechaDesde }),
+          ...(fechaHasta !== undefined && { lte: fechaHasta }),
+        },
+      }),
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.oRDENCOMPRA.findMany({
+        where,
+        include: {
+          proveedor: { select: PROVEEDOR_RESUMEN_SELECT },
+          deposito: { select: DEPOSITO_RESUMEN_SELECT },
+        },
+        orderBy: { fecha_emision: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.oRDENCOMPRA.count({ where }),
+    ]);
+
+    return { data, meta: { total, page, limit } };
   }
 
   /** Detalle completo: cabecera + todas sus líneas con el artículo resuelto. */
