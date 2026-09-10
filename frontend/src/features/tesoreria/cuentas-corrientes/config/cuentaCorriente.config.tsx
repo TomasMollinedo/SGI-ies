@@ -1,7 +1,7 @@
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import type { SelectOption } from '@/shared/components/ui/Select'
 import { Badge } from '@/shared/components/ui/Badge'
-import { formatearFecha } from '@/shared/utils/fecha'
+import { formatearFechaSinHora, hoyIso } from '../utils/fechaCuentaCorriente'
 import type { CondicionSaldo, CuentaCorrienteProveedor } from '../types/cuentaCorriente.types'
 
 /** Resultados por página del listado. Fijo, igual que en el resto de los listados. */
@@ -39,13 +39,14 @@ export function formatearCuit(cuit: string): string {
 
 /**
  * El flag de vencido no lo manda el backend: se compara contra la fecha de
- * hoy acá, comparando solo el día (no la hora) para no marcar como vencido un
- * vencimiento que es hoy mismo.
+ * hoy acá. Se comparan los strings `YYYY-MM-DD` y no los `Date` completos: acá
+ * también aplica lo de `formatearFechaSinHora` — la fecha viaja como
+ * medianoche UTC, y compararla como instante contra la medianoche local
+ * (`hoy.setHours(0,0,0,0)`, que en Argentina es 03:00 UTC) marcaría como
+ * vencido un vencimiento que es hoy mismo.
  */
 export function esVencido(fechaIso: string): boolean {
-  const hoy = new Date()
-  hoy.setHours(0, 0, 0, 0)
-  return new Date(fechaIso) < hoy
+  return fechaIso.slice(0, 10) < hoyIso()
 }
 
 /** Positivo = la empresa debe (rojo); negativo = crédito a favor de la empresa (verde). */
@@ -98,7 +99,9 @@ export const COLUMNAS_CUENTAS_CORRIENTES: DataTableColumn<CuentaCorrienteProveed
     render: (item) =>
       item.vencimiento_mas_antiguo ? (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="whitespace-nowrap">{formatearFecha(item.vencimiento_mas_antiguo)}</span>
+          <span className="whitespace-nowrap">
+            {formatearFechaSinHora(item.vencimiento_mas_antiguo)}
+          </span>
           {esVencido(item.vencimiento_mas_antiguo) && (
             <Badge variant="error" dot={false}>
               Vencido

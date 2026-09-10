@@ -2,13 +2,13 @@ import { ArrowDown, ArrowUp } from 'lucide-react'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import type { SelectOption } from '@/shared/components/ui/Select'
 import { Badge } from '@/shared/components/ui/Badge'
-import { formatearFecha } from '@/shared/utils/fecha'
 import { claseSaldo, esVencido, formatearMoneda } from './cuentaCorriente.config'
 import type {
   ClaseFiltroCardex,
   ClaseMovimientoCardex,
   MovimientoCuentaCorriente,
 } from '../types/cardexCuentaCorriente.types'
+import { formatearFechaSinHora } from '../utils/fechaCuentaCorriente'
 
 /** Texto de los campos que vienen nulos o en cero. */
 const SIN_DATO = '—'
@@ -41,7 +41,7 @@ export const COLUMNAS_CARDEX_CUENTA_CORRIENTE: DataTableColumn<MovimientoCuentaC
     key: 'fecha',
     label: 'Fecha',
     render: (movimiento) => (
-      <span className="whitespace-nowrap">{formatearFecha(movimiento.fecha)}</span>
+      <span className="whitespace-nowrap">{formatearFechaSinHora(movimiento.fecha)}</span>
     ),
   },
   {
@@ -69,7 +69,9 @@ export const COLUMNAS_CARDEX_CUENTA_CORRIENTE: DataTableColumn<MovimientoCuentaC
     render: (movimiento) =>
       movimiento.fecha_vencimiento ? (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="whitespace-nowrap">{formatearFecha(movimiento.fecha_vencimiento)}</span>
+          <span className="whitespace-nowrap">
+            {formatearFechaSinHora(movimiento.fecha_vencimiento)}
+          </span>
           {esVencido(movimiento.fecha_vencimiento) && (
             <Badge variant="error" dot={false}>
               Vencido
