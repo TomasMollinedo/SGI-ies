@@ -65,12 +65,23 @@ export interface ComprobanteListItem {
   saldo_pendiente: number | null
   estado: EstadoComprobante
   estado_saldo: EstadoSaldo | null
+  proveedor: ProveedorResumen
+  tipoComprobante: TipoComprobanteResumen
 }
 
 /** Nombre y apellido de quien creó o modificó un registro. */
 export interface UsuarioResumen {
   nombre: string
   apellido: string
+}
+export interface ProveedorResumen {
+  id_proveedor: number
+  razon_social: string
+}
+
+export interface TipoComprobanteResumen {
+  id_tipo_comprobante: number
+  nombre: string
 }
 
 /**
@@ -86,6 +97,8 @@ export interface PagoImputado {
 /** Respuesta de GET /comprobantes/:id: cabecera + líneas + trazabilidad. */
 export interface ComprobanteDetalle extends Comprobante {
   detalle: LineaComprobante[]
+  proveedor: ProveedorResumen
+  tipoComprobante: TipoComprobanteResumen
   /** El comprobante anterior que lo motivó, si se cargó. Informativo, no afecta saldos. */
   comprobanteOrigen: ComprobanteListItem | null
   /** Los comprobantes que declararon a este como su origen. */
