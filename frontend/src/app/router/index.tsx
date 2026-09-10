@@ -85,7 +85,7 @@ export const router = createBrowserRouter([
               {
                 path: PATHS.ALMACEN.DEPOSITO.STOCK_CARDEX,
                 element: <CardexPage />,
-                handle: { title: 'Cardex del Artículo' },
+                handle: { title: 'Historial de Movimientos por Artículo' },
               },
 
               {
