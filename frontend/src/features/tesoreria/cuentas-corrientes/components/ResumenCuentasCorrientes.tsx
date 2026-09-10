@@ -20,7 +20,7 @@ export function ResumenCuentasCorrientes({ resumen }: ResumenCuentasCorrientesPr
       aria-label="Resumen de cuentas corrientes"
       className="grid grid-cols-2 gap-4 lg:grid-cols-4"
     >
-      <StatTile label="Deudores" value={resumen.deudores} note="proveedores con saldo a pagar" />
+      <StatTile label="Acreedores" value={resumen.deudores} note="proveedores con saldo a pagar" />
       <StatTile
         label="A favor"
         value={resumen.a_favor}
