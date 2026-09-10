@@ -20,6 +20,7 @@ import { ComprobantesPage } from '@/features/tesoreria/comprobantes/pages/Compro
 import { TiposComprobantePage } from '@/features/tesoreria/tipos-comprobante/pages/TiposComprobantePage'
 import { OrdenesPagoPage } from '@/features/tesoreria/pagos/pages/OrdenesPagoPage'
 import { FormasPagoPage } from '@/features/tesoreria/formas-pago/pages/FormasPagoPage'
+import { CardexCuentaCorrientePage } from '@/features/tesoreria/cuentas-corrientes/pages/CardexCuentaCorrientePage'
 import { CuentasCorrientesPage } from '@/features/tesoreria/cuentas-corrientes/pages/CuentasCorrientesPage'
 
 export const router = createBrowserRouter([
@@ -151,6 +152,11 @@ export const router = createBrowserRouter([
                 path: PATHS.TESORERIA.CUENTAS_CORRIENTES,
                 element: <CuentasCorrientesPage />,
                 handle: { title: 'Cuentas Corrientes' },
+              },
+              {
+                path: PATHS.TESORERIA.CUENTAS_CORRIENTES_CARDEX,
+                element: <CardexCuentaCorrientePage />,
+                handle: { title: 'Cuenta Corriente del Proveedor' },
               },
             ],
           },

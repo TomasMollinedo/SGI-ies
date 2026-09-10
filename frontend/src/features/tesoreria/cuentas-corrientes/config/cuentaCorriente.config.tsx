@@ -32,7 +32,7 @@ export function formatearMoneda(valor: number): string {
 }
 
 /** El CUIT viaja sin guiones; el formato XX-XXXXXXXX-X es solo de presentación. */
-function formatearCuit(cuit: string): string {
+export function formatearCuit(cuit: string): string {
   if (cuit.length !== 11) return cuit
   return `${cuit.slice(0, 2)}-${cuit.slice(2, 10)}-${cuit.slice(10)}`
 }
@@ -42,14 +42,14 @@ function formatearCuit(cuit: string): string {
  * hoy acá, comparando solo el día (no la hora) para no marcar como vencido un
  * vencimiento que es hoy mismo.
  */
-function esVencido(fechaIso: string): boolean {
+export function esVencido(fechaIso: string): boolean {
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
   return new Date(fechaIso) < hoy
 }
 
 /** Positivo = la empresa debe (rojo); negativo = crédito a favor de la empresa (verde). */
-function claseSaldo(saldo: number): string {
+export function claseSaldo(saldo: number): string {
   if (saldo > 0) return 'text-error font-medium'
   if (saldo < 0) return 'text-success font-medium'
   return 'text-content-muted'
