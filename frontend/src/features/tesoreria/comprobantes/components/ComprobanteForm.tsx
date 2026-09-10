@@ -506,6 +506,14 @@ export function ComprobanteForm({
               {...register('FK_comprobante_origen')}
             />
           </div>
+          <Input
+            label="Observaciones"
+            multiline
+            placeholder="Texto breve para identificar el comprobante"
+            disabled={cargando}
+            error={errors.observaciones?.message}
+            {...register('observaciones')}
+          />
 
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -574,14 +582,7 @@ export function ComprobanteForm({
             </dl>
           </div>
 
-          <Input
-            label="Observaciones"
-            multiline
-            placeholder="Texto breve para identificar el comprobante"
-            disabled={cargando}
-            error={errors.observaciones?.message}
-            {...register('observaciones')}
-          />
+          
         </form>
       </Modal>
 

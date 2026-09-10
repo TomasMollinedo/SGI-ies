@@ -78,7 +78,7 @@ export function FiltrosComprobantesBar({
   const opcionesProveedor: ComboboxOption[] = (proveedores?.data ?? []).map((proveedor) => ({
     value: String(proveedor.id_proveedor),
     label: proveedor.razon_social,
-    description: proveedor.estado ? undefined : 'Dado de baja',
+    description: [proveedor.cuit, ...(proveedor.estado ? [] : ['Dado de baja'])].join(' · '),
   }))
   const hayMasProveedores = (proveedores?.meta.total ?? 0) > opcionesProveedor.length
 
@@ -98,7 +98,7 @@ export function FiltrosComprobantesBar({
             size="sm"
             label="Proveedor"
             placeholder="Todos los proveedores"
-            minChars={0}
+            minChars={1}
             value={FK_proveedor}
             onChange={onFKProveedorChange}
             options={opcionesProveedor}
@@ -106,7 +106,7 @@ export function FiltrosComprobantesBar({
             loading={buscandoProveedores}
             hasMoreResults={hayMasProveedores}
             emptyText="No se encontraron proveedores"
-            className="w-60"
+            className="w-64"
           />
 
           <Select
