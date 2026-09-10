@@ -1,14 +1,20 @@
 import { formatearNumeroComprobante } from '@/features/tesoreria/comprobantes/utils/numeroComprobante'
+import type { TipoComprobante } from '@/features/tesoreria/tipos-comprobante/types/tipoComprobante.types'
 import { formatearFecha } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
-import { badgeEfectoSaldo, textoOSinDato } from '../config/pago.config'
+import {
+  badgeEfectoSaldo,
+  formatearTipoComprobante,
+  SIN_DATO,
+  textoOSinDato,
+} from '../config/pago.config'
 import type { PagoDetalle } from '../types/pago.types'
 import { formatearCodigoPago } from '../utils/codigoPago'
 
 interface ComprobantePagoImpresionProps {
   pago: PagoDetalle
-  /** `FK_tipo_comprobante → aumenta_saldo`, para marcar cada línea como Debe o Haber (ver `PagoDetalleModal`). */
-  aumentaSaldoPorTipo: Map<number, boolean>
+  /** `FK_tipo_comprobante → tipo`, para mostrar su nombre y marcar cada línea como Debe o Haber (ver `PagoDetalleModal`). */
+  tiposComprobantePorId: Map<number, TipoComprobante>
 }
 
 /**
@@ -19,7 +25,7 @@ interface ComprobantePagoImpresionProps {
  */
 export function ComprobantePagoImpresion({
   pago,
-  aumentaSaldoPorTipo,
+  tiposComprobantePorId,
 }: ComprobantePagoImpresionProps) {
   return (
     <div data-imprimible className="hidden print:block">
@@ -36,20 +42,26 @@ export function ComprobantePagoImpresion({
         <thead>
           <tr className="border-subtle border-b text-left">
             <th className="py-1.5 font-semibold">Efecto</th>
+            <th className="py-1.5 font-semibold">Tipo</th>
             <th className="py-1.5 font-semibold">Comprobante imputado</th>
             <th className="py-1.5 text-right font-semibold">Importe</th>
           </tr>
         </thead>
         <tbody>
-          {pago.detalle.map((linea) => (
-            <tr key={linea.id_detalle_pago} className="border-subtle border-b">
-              <td className="py-1.5">
-                {badgeEfectoSaldo(aumentaSaldoPorTipo.get(linea.comprobante.FK_tipo_comprobante))}
-              </td>
-              <td className="py-1.5">{formatearNumeroComprobante(linea.comprobante)}</td>
-              <td className="py-1.5 text-right">{formatearImporte(linea.importe_imputado)}</td>
-            </tr>
-          ))}
+          {pago.detalle.map((linea) => {
+            const tipo = tiposComprobantePorId.get(linea.comprobante.FK_tipo_comprobante)
+
+            return (
+              <tr key={linea.id_detalle_pago} className="border-subtle border-b">
+                <td className="py-1.5">{badgeEfectoSaldo(tipo?.aumenta_saldo)}</td>
+                <td className="py-1.5">
+                  {tipo ? formatearTipoComprobante(tipo.nombre, linea.comprobante.letra) : SIN_DATO}
+                </td>
+                <td className="py-1.5">{formatearNumeroComprobante(linea.comprobante)}</td>
+                <td className="py-1.5 text-right">{formatearImporte(linea.importe_imputado)}</td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
 
