@@ -24,7 +24,6 @@ import type {
 } from '../types/ordenCompra.schema'
 import type { OrdenCompra } from '../types/ordenCompra.types'
 import { formatearCodigoOrdenCompra } from '../utils/codigoOrdenCompra'
-import { hoyIso } from '../utils/fechaOrdenCompra'
 import { formatearMoneda } from '../utils/formatearMoneda'
 
 const ID_FORM = 'form-orden-compra'
