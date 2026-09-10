@@ -14,6 +14,7 @@ import type { ComboboxOption } from '@/shared/components/ui/Combobox'
 import { Input } from '@/shared/components/ui/Input'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { esArrayDeValidationIssues, formatearMensajeError } from '@/shared/utils/apiError'
+import { hoyIso } from '@/shared/utils/fecha'
 import { DetalleLineaOrdenCompraRow } from './DetalleLineaOrdenCompraRow'
 import { ordenCompraFormSchema } from '../types/ordenCompra.schema'
 import type {
@@ -21,7 +22,6 @@ import type {
   OrdenCompraFormOutput,
   OrdenCompraFormValues,
 } from '../types/ordenCompra.schema'
-import { hoyIso } from '../utils/fechaOrdenCompra'
 import { formatearMoneda } from '../utils/formatearMoneda'
 
 const ID_FORM = 'form-orden-compra'

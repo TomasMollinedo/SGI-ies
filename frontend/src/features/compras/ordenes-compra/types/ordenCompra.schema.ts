@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { hoyIso } from '../utils/fechaOrdenCompra'
+import { hoyIso } from '@/shared/utils/fecha'
 
 /** Límites calcados de `lineaOrdenCompraSchema` (create-orden-compra.dto.ts). */
 export const lineaOrdenCompraFormSchema = z.object({

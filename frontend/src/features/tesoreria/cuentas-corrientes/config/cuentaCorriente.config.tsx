@@ -1,7 +1,7 @@
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import type { SelectOption } from '@/shared/components/ui/Select'
 import { Badge } from '@/shared/components/ui/Badge'
-import { formatearFechaSinHora, hoyIso } from '../utils/fechaCuentaCorriente'
+import { formatearFechaSinHora, hoyIso } from '@/shared/utils/fecha'
 import type { CondicionSaldo, CuentaCorrienteProveedor } from '../types/cuentaCorriente.types'
 
 /** Resultados por página del listado. Fijo, igual que en el resto de los listados. */

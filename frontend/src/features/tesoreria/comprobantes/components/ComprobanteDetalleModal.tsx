@@ -10,6 +10,7 @@ import { Spinner } from '@/shared/components/estados-pantalla/Spinner'
 import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/hooks/useToast'
 import { formatearMensajeError } from '@/shared/utils/apiError'
+import { formatearFechaSinHora } from '@/shared/utils/fecha'
 import {
   COLUMNAS_LINEAS,
   SIN_DATO,
@@ -20,7 +21,6 @@ import {
 } from '../config/comprobante.config'
 import { useComprobanteDetalle } from '../hooks/useComprobantes'
 import type { ComprobanteDetalle } from '../types/comprobante.types'
-import { formatearFechaSinHora } from '../utils/fechaComprobante'
 import { formatearMoneda } from '../utils/formatearMoneda'
 import { formatearNumeroComprobante } from '../utils/numeroComprobante'
 
@@ -108,9 +108,7 @@ export function ComprobanteDetalleModal({
             />
             <DetailRow
               label="Orden de compra vinculada"
-              value={
-                comprobante.FK_orden_compra ? `OC #${comprobante.FK_orden_compra}` : SIN_DATO
-              }
+              value={comprobante.FK_orden_compra ? `OC #${comprobante.FK_orden_compra}` : SIN_DATO}
             />
             <DetailRow
               label="Comprobante de origen"
@@ -120,10 +118,7 @@ export function ComprobanteDetalleModal({
                   : SIN_DATO
               }
             />
-            <DetailRow
-              label="Observaciones"
-              value={textoOSinDato(comprobante.observaciones)}
-            />
+            <DetailRow label="Observaciones" value={textoOSinDato(comprobante.observaciones)} />
             <DetailRow label="Estado" value={badgeEstadoComprobante(comprobante.estado)} />
             <DetailRow label="Estado de saldo" value={badgeEstadoSaldo(comprobante.estado_saldo)} />
             {comprobante.estado === 'ANULADO' && (
@@ -173,9 +168,7 @@ export function ComprobanteDetalleModal({
 
           {comprobante.comprobanteOrigen && (
             <div className="flex flex-col gap-2">
-              <span className="text-content text-sm font-medium">
-                Comprobante de origen
-              </span>
+              <span className="text-content text-sm font-medium">Comprobante de origen</span>
               <p className="text-content-muted text-xs">
                 {comprobante.comprobanteOrigen.tipoComprobante.nombre}{' '}
                 {formatearNumeroComprobante(comprobante.comprobanteOrigen)} ·{' '}
@@ -245,13 +238,7 @@ function FilaImporte({
   return (
     <div className="flex justify-between gap-8">
       <dt className={destacado ? 'text-content font-medium' : 'text-content-muted'}>{label}</dt>
-      <dd
-        className={
-          destacado
-            ? 'text-content text-lg font-semibold'
-            : 'text-content font-medium'
-        }
-      >
+      <dd className={destacado ? 'text-content text-lg font-semibold' : 'text-content font-medium'}>
         {valor}
       </dd>
     </div>

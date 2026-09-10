@@ -2,13 +2,13 @@ import { ArrowDown, ArrowUp } from 'lucide-react'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import type { SelectOption } from '@/shared/components/ui/Select'
 import { Badge } from '@/shared/components/ui/Badge'
+import { formatearFechaSinHora } from '@/shared/utils/fecha'
 import { claseSaldo, esVencido, formatearMoneda } from './cuentaCorriente.config'
 import type {
   ClaseFiltroCardex,
   ClaseMovimientoCardex,
   MovimientoCuentaCorriente,
 } from '../types/cardexCuentaCorriente.types'
-import { formatearFechaSinHora } from '../utils/fechaCuentaCorriente'
 
 /** Texto de los campos que vienen nulos o en cero. */
 const SIN_DATO = '—'

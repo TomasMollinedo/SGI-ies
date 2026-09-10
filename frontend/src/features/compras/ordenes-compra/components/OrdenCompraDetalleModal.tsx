@@ -9,11 +9,10 @@ import { Spinner } from '@/shared/components/estados-pantalla/Spinner'
 import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/hooks/useToast'
 import { formatearMensajeError } from '@/shared/utils/apiError'
-import { formatearFechaHora } from '@/shared/utils/fecha'
+import { formatearFechaHora, formatearFechaSinHora } from '@/shared/utils/fecha'
 import { badgeEstadoOrdenCompra, COLUMNAS_LINEAS } from '../config/ordenCompra.config'
 import { useOrdenCompraDetalle } from '../hooks/useOrdenesCompra'
 import { formatearCodigoOrdenCompra } from '../utils/codigoOrdenCompra'
-import { formatearFechaSinHora } from '../utils/fechaOrdenCompra'
 import { formatearMoneda } from '../utils/formatearMoneda'
 
 interface OrdenCompraDetalleModalProps {
