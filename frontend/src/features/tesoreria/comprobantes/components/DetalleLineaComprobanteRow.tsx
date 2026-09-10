@@ -56,7 +56,7 @@ export function DetalleLineaComprobanteRow({
   const hayMasArticulos = (articulos?.meta.total ?? 0) > (articulos?.data.length ?? 0)
 
   return (
-    <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[1fr_1fr_5rem_7rem_7rem_auto]">
+    <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[1fr_1fr_7rem_8rem_7rem_auto]">
       <Input
         placeholder="Descripción"
         error={errors?.descripcion?.message}
