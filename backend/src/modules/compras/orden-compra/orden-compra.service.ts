@@ -210,6 +210,10 @@ export class OrdenCompraService {
           include: { articulo: { select: ARTICULO_RESUMEN_SELECT } },
           orderBy: { id_detalle_orden_compra: 'asc' },
         },
+        historialEstados: {
+          include: { usuario: { select: { nombre: true, apellido: true } } },
+          orderBy: { fecha: 'desc' },
+        },
       },
     });
 
