@@ -93,7 +93,8 @@ export function FiltrosPagosBar({
     { value: '', label: 'Todas las formas de pago' },
     ...(formasPago?.data.map((formaPago) => ({
       value: String(formaPago.id_forma_pago),
-      label: formaPago.nombre,
+      label: formaPago.estado ? formaPago.nombre : `${formaPago.nombre} · Inactiva`,
+      colorClassName: formaPago.estado ? 'text-success' : 'text-error',
     })) ?? []),
   ]
 
