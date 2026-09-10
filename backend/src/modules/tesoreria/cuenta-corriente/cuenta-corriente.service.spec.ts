@@ -13,8 +13,9 @@ interface GroupByArgs {
 describe('CuentaCorrienteService', () => {
   let service: CuentaCorrienteService;
   let prisma: {
-    pROVEEDOR: { findMany: jest.Mock };
-    cOMPROBANTEPROVEEDOR: { groupBy: jest.Mock };
+    pROVEEDOR: { findMany: jest.Mock; findUnique: jest.Mock };
+    cOMPROBANTEPROVEEDOR: { groupBy: jest.Mock; findMany: jest.Mock };
+    pAGO: { findMany: jest.Mock };
   };
 
   /**
@@ -42,8 +43,15 @@ describe('CuentaCorrienteService', () => {
 
   beforeEach(async () => {
     prisma = {
-      pROVEEDOR: { findMany: jest.fn().mockResolvedValue([]) },
-      cOMPROBANTEPROVEEDOR: { groupBy: jest.fn().mockResolvedValue([]) },
+      pROVEEDOR: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      cOMPROBANTEPROVEEDOR: {
+        groupBy: jest.fn().mockResolvedValue([]),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      pAGO: { findMany: jest.fn().mockResolvedValue([]) },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -306,6 +314,187 @@ describe('CuentaCorrienteService', () => {
       });
 
       expect(resultado.data[0]).toMatchObject({ estado: false, saldo: 400 });
+    });
+  });
+
+  describe('obtenerMovimientos', () => {
+    const proveedorDetalle = {
+      id_proveedor: 5,
+      razon_social: 'Corralón Test SRL',
+      cuit: '30712345612',
+    };
+
+    /** Factura A del 10/01, aumenta_saldo=true → va a DEBE. */
+    const comprobanteDebe = {
+      id_comprobante_proveedor: 101,
+      fecha_emision: new Date('2026-01-10'),
+      fecha_vencimiento: new Date('2026-02-10'),
+      letra: 'A',
+      punto_de_venta: 1,
+      numero: 100,
+      importe_total: new Prisma.Decimal(1000),
+      tipoComprobante: { nombre: 'Factura A', aumenta_saldo: true },
+    };
+
+    /** Nota de crédito del 05/02, aumenta_saldo=false → va a HABER. */
+    const comprobanteHaber = {
+      id_comprobante_proveedor: 102,
+      fecha_emision: new Date('2026-02-05'),
+      fecha_vencimiento: new Date('2026-02-05'),
+      letra: 'A',
+      punto_de_venta: 1,
+      numero: 5,
+      importe_total: new Prisma.Decimal(200),
+      tipoComprobante: { nombre: 'Nota de Crédito A', aumenta_saldo: false },
+    };
+
+    /** Pago del 15/02 → siempre HABER. */
+    const pago = {
+      id_pago: 50,
+      fecha_pago: new Date('2026-02-15'),
+      importe_total: new Prisma.Decimal(500),
+      formaPago: { nombre: 'Transferencia' },
+    };
+
+    beforeEach(() => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue(proveedorDetalle);
+    });
+
+    it('tira 404 si el proveedor no existe', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue(null);
+
+      await expect(service.obtenerMovimientos(999, {})).rejects.toThrow(
+        'No existe un proveedor con id 999',
+      );
+    });
+
+    it('solo consulta comprobantes REGISTRADOS y pagos CONFIRMADOS', async () => {
+      await service.obtenerMovimientos(5, {});
+
+      const whereComprobante = (
+        prisma.cOMPROBANTEPROVEEDOR.findMany.mock.calls as [
+          { where: unknown },
+        ][]
+      )[0][0].where;
+      const wherePago = (
+        prisma.pAGO.findMany.mock.calls as [{ where: unknown }][]
+      )[0][0].where;
+
+      expect(whereComprobante).toMatchObject({
+        FK_proveedor: 5,
+        estado: 'REGISTRADO',
+      });
+      expect(wherePago).toMatchObject({
+        FK_proveedor: 5,
+        estado: 'CONFIRMADA',
+      });
+    });
+
+    it('arma el debe/haber por clase y acumula en orden cronológico', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+        comprobanteDebe,
+        comprobanteHaber,
+      ]);
+      prisma.pAGO.findMany.mockResolvedValue([pago]);
+
+      const resultado = await service.obtenerMovimientos(5, {});
+
+      expect(resultado.proveedor).toEqual(proveedorDetalle);
+      expect(resultado.movimientos).toEqual([
+        expect.objectContaining({
+          clase: 'COMPROBANTE',
+          id_referencia: 101,
+          debe: 1000,
+          haber: null,
+          saldo_acumulado: 1000,
+        }),
+        expect.objectContaining({
+          clase: 'COMPROBANTE',
+          id_referencia: 102,
+          debe: null,
+          haber: 200,
+          saldo_acumulado: 800,
+        }),
+        expect.objectContaining({
+          clase: 'PAGO',
+          id_referencia: 50,
+          tipo: 'Transferencia',
+          debe: null,
+          haber: 500,
+          saldo_acumulado: 300,
+        }),
+      ]);
+    });
+
+    it('desempata por id cuando dos movimientos caen el mismo día', async () => {
+      const comprobanteA = { ...comprobanteDebe, id_comprobante_proveedor: 9 };
+      const pagoMismoDia = {
+        ...pago,
+        id_pago: 3,
+        fecha_pago: comprobanteDebe.fecha_emision,
+      };
+      prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([comprobanteA]);
+      prisma.pAGO.findMany.mockResolvedValue([pagoMismoDia]);
+
+      const resultado = await service.obtenerMovimientos(5, {});
+
+      // Mismo día: pago (id 3) antes que el comprobante (id 9).
+      expect(resultado.movimientos.map((m) => m.id_referencia)).toEqual([3, 9]);
+    });
+
+    it('con fechaDesde antepone una fila de apertura y el acumulado sigue cerrando', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+        comprobanteDebe,
+        comprobanteHaber,
+      ]);
+      prisma.pAGO.findMany.mockResolvedValue([pago]);
+
+      const sinFiltro = await service.obtenerMovimientos(5, {});
+      const saldoFinalSinFiltro = sinFiltro.movimientos.at(-1)!.saldo_acumulado;
+
+      const conFiltro = await service.obtenerMovimientos(5, {
+        fechaDesde: new Date('2026-02-10'),
+      });
+
+      // Apertura = acumulado real justo antes del 10/02 (factura + NC, sin el
+      // pago del 15/02 todavía): 1000 - 200 = 800.
+      expect(conFiltro.movimientos[0]).toMatchObject({
+        clase: 'APERTURA',
+        id_referencia: null,
+        saldo_acumulado: 800,
+      });
+      // El acumulado sigue cerrando: la última fila da lo mismo que sin filtro.
+      expect(conFiltro.movimientos.at(-1)!.saldo_acumulado).toBe(
+        saldoFinalSinFiltro,
+      );
+    });
+
+    it('sin fechaDesde no hay fila de apertura', async () => {
+      const resultado = await service.obtenerMovimientos(5, {});
+
+      expect(resultado.movimientos.some((m) => m.clase === 'APERTURA')).toBe(
+        false,
+      );
+    });
+
+    it('clase filtra qué filas se muestran, pero no recalcula el saldo_acumulado', async () => {
+      prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+        comprobanteDebe,
+        comprobanteHaber,
+      ]);
+      prisma.pAGO.findMany.mockResolvedValue([pago]);
+
+      const resultado = await service.obtenerMovimientos(5, {
+        clase: 'PAGO',
+      });
+
+      expect(resultado.movimientos).toHaveLength(1);
+      // Sigue siendo 300 (real), no -500 (como si el pago fuera lo único
+      // que existió en la cuenta).
+      expect(resultado.movimientos[0]).toMatchObject({
+        clase: 'PAGO',
+        saldo_acumulado: 300,
+      });
     });
   });
 });

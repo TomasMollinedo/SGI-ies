@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
 import { EstadoComprobante } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { QueryCuentaCorrienteDto } from './dto/query-cuenta-corriente.dto';
+import { QueryMovimientosCuentaCorrienteDto } from './dto/query-movimientos-cuenta-corriente.dto';
 
 export interface FilaCuentaCorriente {
   id_proveedor: number;
@@ -13,6 +14,41 @@ export interface FilaCuentaCorriente {
   cantidad_comprobantes_pendientes: number;
   vencimiento_mas_antiguo: Date | null;
 }
+
+/** Una fila del extracto cronológico, sin el saldo acumulado todavía. */
+interface FilaMovimientoSinSaldo {
+  clase: 'COMPROBANTE' | 'PAGO';
+  id_referencia: number;
+  fecha: Date;
+  tipo: string;
+  letra: string | null;
+  punto_de_venta: number | null;
+  numero: number | null;
+  fecha_vencimiento: Date | null;
+  debe: number | null;
+  haber: number | null;
+}
+
+export interface FilaMovimientoCuentaCorriente extends FilaMovimientoSinSaldo {
+  saldo_acumulado: number;
+}
+
+/** La fila sintética de apertura, o cualquier fila real ya con su saldo. */
+export type FilaExtractoCuentaCorriente =
+  | FilaMovimientoCuentaCorriente
+  | {
+      clase: 'APERTURA';
+      id_referencia: null;
+      fecha: Date;
+      tipo: null;
+      letra: null;
+      punto_de_venta: null;
+      numero: null;
+      fecha_vencimiento: null;
+      debe: null;
+      haber: null;
+      saldo_acumulado: number;
+    };
 
 @Injectable()
 export class CuentaCorrienteService {
@@ -143,6 +179,150 @@ export class CuentaCorrienteService {
     const data = filas.slice((page - 1) * limit, (page - 1) * limit + limit);
 
     return { data, resumen, meta: { total, page, limit } };
+  }
+
+  /**
+   * Extracto cronológico de la cuenta de UN proveedor: comprobantes
+   * REGISTRADOS y pagos CONFIRMADOS mezclados en una sola línea de tiempo,
+   * con DEBE (facturas), HABER (notas de crédito y pagos) y saldo acumulado.
+   * No hay ninguna tabla de saldos: se recalcula todo acá, leyendo
+   * `importe_total` de cada comprobante/pago (no `saldo_pendiente`, que ya
+   * está neteado contra pagos) y acumulando en orden — así el saldo de la
+   * última fila coincide matemáticamente con `saldo` de `findAll` para el
+   * mismo proveedor.
+   *
+   * El orden y el acumulado se calculan sobre el historial COMPLETO antes de
+   * aplicar cualquier filtro: `clase` solo decide qué filas se muestran,
+   * nunca qué saldo se muestra en ellas (si no, el saldo dejaría de
+   * representar la realidad). Con `fechaDesde`, la fila de apertura es el
+   * saldo acumulado real hasta ese punto, no un saldo recalculado desde cero.
+   */
+  async obtenerMovimientos(
+    idProveedor: number,
+    query: QueryMovimientosCuentaCorrienteDto,
+  ) {
+    const proveedor = await this.prisma.pROVEEDOR.findUnique({
+      where: { id_proveedor: idProveedor },
+      select: { id_proveedor: true, razon_social: true, cuit: true },
+    });
+    if (!proveedor) {
+      throw new NotFoundException(
+        `No existe un proveedor con id ${idProveedor}`,
+      );
+    }
+
+    const { fechaDesde, fechaHasta, clase } = query;
+
+    const [comprobantes, pagos] = await Promise.all([
+      this.prisma.cOMPROBANTEPROVEEDOR.findMany({
+        where: {
+          FK_proveedor: idProveedor,
+          estado: EstadoComprobante.REGISTRADO,
+        },
+        select: {
+          id_comprobante_proveedor: true,
+          fecha_emision: true,
+          fecha_vencimiento: true,
+          letra: true,
+          punto_de_venta: true,
+          numero: true,
+          importe_total: true,
+          tipoComprobante: { select: { nombre: true, aumenta_saldo: true } },
+        },
+      }),
+      this.prisma.pAGO.findMany({
+        where: { FK_proveedor: idProveedor, estado: 'CONFIRMADA' },
+        select: {
+          id_pago: true,
+          fecha_pago: true,
+          importe_total: true,
+          formaPago: { select: { nombre: true } },
+        },
+      }),
+    ]);
+
+    const filasComprobante: FilaMovimientoSinSaldo[] = comprobantes.map(
+      (c) => ({
+        clase: 'COMPROBANTE',
+        id_referencia: c.id_comprobante_proveedor,
+        fecha: c.fecha_emision,
+        tipo: c.tipoComprobante.nombre,
+        letra: c.letra,
+        punto_de_venta: c.punto_de_venta,
+        numero: c.numero,
+        fecha_vencimiento: c.fecha_vencimiento,
+        debe: c.tipoComprobante.aumenta_saldo
+          ? c.importe_total.toNumber()
+          : null,
+        haber: c.tipoComprobante.aumenta_saldo
+          ? null
+          : c.importe_total.toNumber(),
+      }),
+    );
+
+    // Un pago siempre resta (HABER): es plata que ya salió, sea que haya
+    // imputado a facturas o a notas de crédito — ver el análisis en
+    // PagoService de por qué `importe_total` (neto) es exactamente lo que
+    // hace falta acá para que el acumulado cierre.
+    const filasPago: FilaMovimientoSinSaldo[] = pagos.map((p) => ({
+      clase: 'PAGO',
+      id_referencia: p.id_pago,
+      fecha: p.fecha_pago,
+      tipo: p.formaPago.nombre,
+      letra: null,
+      punto_de_venta: null,
+      numero: null,
+      fecha_vencimiento: null,
+      debe: null,
+      haber: p.importe_total.toNumber(),
+    }));
+
+    const historialCompleto = [...filasComprobante, ...filasPago].sort(
+      (a, b) =>
+        a.fecha.getTime() - b.fecha.getTime() ||
+        a.id_referencia - b.id_referencia,
+    );
+
+    let acumulado = 0;
+    const historialConSaldo: FilaMovimientoCuentaCorriente[] =
+      historialCompleto.map((fila) => {
+        acumulado += (fila.debe ?? 0) - (fila.haber ?? 0);
+        return { ...fila, saldo_acumulado: acumulado };
+      });
+
+    const movimientos: FilaExtractoCuentaCorriente[] = [];
+
+    if (fechaDesde) {
+      const filaAnterior = historialConSaldo
+        .filter((fila) => fila.fecha < fechaDesde)
+        .at(-1);
+
+      movimientos.push({
+        clase: 'APERTURA',
+        id_referencia: null,
+        fecha: fechaDesde,
+        tipo: null,
+        letra: null,
+        punto_de_venta: null,
+        numero: null,
+        fecha_vencimiento: null,
+        debe: null,
+        haber: null,
+        saldo_acumulado: filaAnterior?.saldo_acumulado ?? 0,
+      });
+    }
+
+    const enPeriodo = historialConSaldo.filter(
+      (fila) =>
+        (!fechaDesde || fila.fecha >= fechaDesde) &&
+        (!fechaHasta || fila.fecha <= fechaHasta),
+    );
+
+    movimientos.push(
+      ...(clase ? enPeriodo.filter((fila) => fila.clase === clase) : enPeriodo),
+    );
+
+    return { proveedor, movimientos };
   }
 
   private calcularResumen(filas: FilaCuentaCorriente[]) {

@@ -1,10 +1,12 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -12,6 +14,8 @@ import {
 import { CuentaCorrienteService } from './cuenta-corriente.service';
 import { QueryCuentaCorrienteDto } from './dto/query-cuenta-corriente.dto';
 import { CuentaCorrienteListResponseDto } from './dto/cuenta-corriente-response.dto';
+import { QueryMovimientosCuentaCorrienteDto } from './dto/query-movimientos-cuenta-corriente.dto';
+import { MovimientosCuentaCorrienteResponseDto } from './dto/movimientos-cuenta-corriente-response.dto';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { RolNombre } from '../../../common/enums/rol.enum';
 
@@ -79,5 +83,51 @@ export class CuentaCorrienteController {
   })
   findAll(@Query() query: QueryCuentaCorrienteDto) {
     return this.cuentaCorrienteService.findAll(query);
+  }
+
+  @Get(':id/movimientos')
+  @ApiOperation({
+    summary:
+      'Extracto cronológico de la cuenta de un proveedor: comprobantes REGISTRADOS y pagos CONFIRMADOS, con DEBE, HABER y saldo acumulado, ordenado por fecha ascendente',
+  })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_proveedor cuyo extracto se consulta',
+  })
+  @ApiQuery({
+    name: 'fechaDesde',
+    required: false,
+    type: String,
+    description:
+      'Filtra movimientos con fecha mayor o igual a esta (ISO 8601). Si se manda, la primera fila es una fila sintética de APERTURA con el saldo acumulado real hasta ese momento',
+    example: '2026-08-01',
+  })
+  @ApiQuery({
+    name: 'fechaHasta',
+    required: false,
+    type: String,
+    description: 'Filtra movimientos con fecha menor o igual a esta (ISO 8601)',
+    example: '2026-08-31',
+  })
+  @ApiQuery({
+    name: 'clase',
+    required: false,
+    enum: ['COMPROBANTE', 'PAGO'],
+    description:
+      'Filtra qué filas se muestran. No cambia el cálculo de saldo_acumulado: siempre refleja el saldo real (comprobantes + pagos)',
+  })
+  @ApiOkResponse({
+    description:
+      'Extracto de cuenta corriente del proveedor. Sin filtros, el saldo_acumulado de la última fila coincide con el saldo actual del proveedor en GET /cuentas-corrientes',
+    type: MovimientosCuentaCorrienteResponseDto,
+  })
+  @ApiBadRequestResponse({ description: 'Parámetros de filtro inválidos' })
+  @ApiNotFoundResponse({ description: 'No existe un proveedor con ese id' })
+  obtenerMovimientos(
+    @Param('id', ParseIntPipe) id: number,
+    @Query() query: QueryMovimientosCuentaCorrienteDto,
+  ) {
+    return this.cuentaCorrienteService.obtenerMovimientos(id, query);
   }
 }
