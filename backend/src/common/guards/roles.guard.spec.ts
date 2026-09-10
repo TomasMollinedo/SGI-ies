@@ -20,6 +20,7 @@ import { TipoComprobanteController } from '../../modules/tesoreria/tipo-comproba
 import { PagoController } from '../../modules/tesoreria/pago/pago.controller';
 import { CuentaCorrienteController } from '../../modules/tesoreria/cuenta-corriente/cuenta-corriente.controller';
 
+import { ComprobanteController } from '../../modules/tesoreria/comprobante/comprobante.controller';
 /**
  * Controller de mentira, dueño de un rol que no es ni Administrador ni
  * Gerente General: hoy todos los controllers reales son de Administrador
@@ -159,6 +160,7 @@ describe('RolesGuard', () => {
 
   describe('controllers de Tesorería', () => {
     const controllersDeTesoreria: [string, object][] = [
+      ['ComprobanteController', ComprobanteController],
       ['FormaPagoController', FormaPagoController],
       ['TipoComprobanteController', TipoComprobanteController],
       ['PagoController', PagoController],

@@ -10,6 +10,12 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateComprobanteDto } from './dto/create-comprobante.dto';
 import { UpdateComprobanteDto } from './dto/update-comprobante.dto';
 import { AnularComprobanteDto } from './dto/anular-comprobante.dto';
+import { QueryComprobanteDto } from './dto/query-comprobante.dto';
+import type {
+  ComprobanteDetalleResponse,
+  ComprobanteListItem,
+  ComprobanteResponse,
+} from './dto/comprobante-response.dto';
 
 /**
  * Escala de todos los importes del comprobante: 2 decimales, la misma que
@@ -42,31 +48,85 @@ interface LineaCalculable {
   precio_unitario: Prisma.Decimal | number | string;
 }
 
+/** Línea del detalle tal como sale de Prisma. */
+interface LineaComprobanteRow {
+  id_detalle_comprobante: number;
+  descripcion: string;
+  FK_articulo: number | null;
+  cantidad: Prisma.Decimal;
+  precio_unitario: Prisma.Decimal;
+  subtotal: Prisma.Decimal;
+}
+
 /**
- * HU-16 — Comprobantes de proveedor.
- *
- * T72 cubre solo el borrador y sus totales: alta en estado BORRADOR con
- * cabecera y detalle editables, con el subtotal de cada línea y los cuatro
- * importes de la cabecera calculados por el servidor.
- *
+ * Campos de cabecera que consumen los mappers de respuesta. La fila real de
+ * Prisma tiene más columnas; acá se listan solo las que viajan al contrato.
+ */
+interface CabeceraComprobanteRow {
+  id_comprobante_proveedor: number;
+  FK_tipo_comprobante: number;
+  letra: string;
+  punto_de_venta: number;
+  numero: number;
+  fecha_emision: Date;
+  fecha_vencimiento: Date;
+  FK_proveedor: number;
+  FK_orden_compra: number | null;
+  FK_comprobante_origen: number | null;
+  observaciones: string | null;
+  importe_neto: Prisma.Decimal;
+  alicuota_iva: Prisma.Decimal;
+  importe_iva: Prisma.Decimal;
+  importe_total: Prisma.Decimal;
+  saldo_pendiente: Prisma.Decimal | null;
+  saldo_cancelado: boolean | null;
+  estado: EstadoComprobante;
+  motivo_anulacion: string | null;
+  hora_creacion: Date;
+  hora_actualizacion: Date | null;
+  FK_usuario_creador: number;
+  FK_usuario_actualizador: number;
+}
+
+/** Cabecera + todas las relaciones que muestra el detalle en modo lectura. */
+interface ComprobanteLecturaRow extends CabeceraComprobanteRow {
+  detalles: LineaComprobanteRow[];
+  comprobante_origen: CabeceraComprobanteRow | null;
+  notas_aplicadas: CabeceraComprobanteRow[];
+  detallesPago: {
+    importe_imputado: Prisma.Decimal;
+    pago: { id_pago: number; fecha_pago: Date };
+  }[];
+  usuarioCreador: { nombre: string; apellido: string };
+  usuarioActualizador: { nombre: string; apellido: string };
+}
+
+/** Traducción del boolean `saldo_cancelado` (base) al enum del contrato. */
+function estadoSaldoDesde(
+  saldoCancelado: boolean | null,
+): 'PENDIENTE' | 'SALDADO' | null {
+  if (saldoCancelado === null) return null;
+  return saldoCancelado ? 'SALDADO' : 'PENDIENTE';
+}
+
+/**
+ * HU-16 — Comprobantes de proveedor: ciclo completo (borrador, edición,
+ * confirmación, anulación, listado y detalle).
  */
 @Injectable()
 export class ComprobanteService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Alta de un comprobante en estado BORRADOR.
-   *
-   * El cliente manda la cabecera y las líneas (descripción, artículo opcional,
-   * cantidad y precio unitario); el servidor calcula el subtotal de cada línea
-   * y los importes neto, IVA y total. El punto de
-   * venta y el número los ingresa el usuario: son los que imprime el proveedor,
-   * el sistema no los genera.
-   *
-   * El detalle puede venir vacío: recién al confirmar se exige al menos
-   * una línea.
+   * Alta de un comprobante en estado BORRADOR. El cliente manda la cabecera y
+   * las líneas; el servidor calcula el subtotal de cada línea y los importes
+   * neto, IVA y total. El detalle puede venir vacío: el mínimo de una línea se
+   * exige recién al confirmar.
    */
-  async create(dto: CreateComprobanteDto, usuarioId: number) {
+  async create(
+    dto: CreateComprobanteDto,
+    usuarioId: number,
+  ): Promise<ComprobanteResponse> {
     this.validarFechas(dto.fecha_emision, dto.fecha_vencimiento);
 
     await this.validarReferencias({
@@ -87,7 +147,7 @@ export class ComprobanteService {
 
     const totales = this.calcularTotales(dto.detalle, dto.alicuota_iva);
 
-    return this.prisma.cOMPROBANTEPROVEEDOR.create({
+    const creado = await this.prisma.cOMPROBANTEPROVEEDOR.create({
       data: {
         letra: dto.letra,
         punto_de_venta: dto.punto_de_venta,
@@ -118,37 +178,88 @@ export class ComprobanteService {
           })),
         },
       },
-      include: { detalles: { orderBy: { id_detalle_comprobante: 'asc' } } },
     });
+
+    return this.toResponse(creado);
   }
 
   /**
-   * Comprobante con sus líneas. Se usa internamente para editar y devolver el
-   * comprobante ya actualizado; el endpoint de detalle en modo lectura (con
-   * comprobante de origen, notas aplicadas y órdenes de pago) es de T77.
+   * Listado paginado, del más reciente al más antiguo (por fecha de emisión).
+   * Filtros combinables (HU-16): proveedor, tipo, efecto del tipo sobre el
+   * saldo, estado del comprobante, estado de saldo y período de emisión.
    */
-  async findOne(id: number) {
-    const comprobante = await this.prisma.cOMPROBANTEPROVEEDOR.findUnique({
-      where: { id_comprobante_proveedor: id },
-      include: { detalles: { orderBy: { id_detalle_comprobante: 'asc' } } },
-    });
+  async findAll(query: QueryComprobanteDto) {
+    const {
+      FK_proveedor,
+      FK_tipo_comprobante,
+      aumenta_saldo,
+      estado,
+      estado_saldo,
+      fechaDesde,
+      fechaHasta,
+      page,
+      limit,
+    } = query;
 
-    if (!comprobante) {
-      throw new NotFoundException(`No existe un comprobante con id ${id}`);
-    }
+    const where: Prisma.COMPROBANTEPROVEEDORWhereInput = {
+      ...(FK_proveedor !== undefined && { FK_proveedor }),
+      ...(FK_tipo_comprobante !== undefined && { FK_tipo_comprobante }),
+      // "Efecto sobre el saldo" es un atributo del tipo, no del comprobante:
+      // se filtra a través de la relación.
+      ...(aumenta_saldo !== undefined && {
+        tipoComprobante: { aumenta_saldo },
+      }),
+      ...(estado && { estado }),
+      // El contrato expone PENDIENTE/SALDADO; en la base es `saldo_cancelado`.
+      ...(estado_saldo && { saldo_cancelado: estado_saldo === 'SALDADO' }),
+      ...((fechaDesde || fechaHasta) && {
+        fecha_emision: {
+          ...(fechaDesde && { gte: fechaDesde }),
+          ...(fechaHasta && { lte: fechaHasta }),
+        },
+      }),
+    };
 
-    return comprobante;
+    const [filas, total] = await Promise.all([
+      this.prisma.cOMPROBANTEPROVEEDOR.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: [
+          { fecha_emision: 'desc' },
+          { id_comprobante_proveedor: 'desc' },
+        ],
+      }),
+      this.prisma.cOMPROBANTEPROVEEDOR.count({ where }),
+    ]);
+
+    return {
+      data: filas.map((fila) => this.toListItem(fila)),
+      meta: { total, page, limit },
+    };
+  }
+
+  /**
+   * Detalle en modo lectura (GET /comprobantes/:id): cabecera completa,
+   * líneas, el comprobante de origen si lo tuviera, los comprobantes que lo
+   * referencian como origen, y las órdenes de pago que lo imputaron (vacías
+   * hasta HU-18).
+   */
+  async findOne(id: number): Promise<ComprobanteDetalleResponse> {
+    return this.toDetalle(await this.cargarComprobante(id));
   }
 
   /**
    * Edición de un comprobante en BORRADOR: cabecera y/o detalle. Cualquier
    * cambio que afecte el detalle o la alícuota recalcula los cuatro importes.
-   *
-   * Solo se puede editar mientras está en BORRADOR: una vez REGISTRADO (T74) la
-   * cabecera y el detalle quedan congelados.
+   * Una vez REGISTRADO, la cabecera y el detalle quedan congelados.
    */
-  async update(id: number, dto: UpdateComprobanteDto, usuarioId: number) {
-    const comprobante = await this.findOne(id);
+  async update(
+    id: number,
+    dto: UpdateComprobanteDto,
+    usuarioId: number,
+  ): Promise<ComprobanteResponse> {
+    const comprobante = await this.cargarComprobante(id);
 
     if (comprobante.estado !== EstadoComprobante.BORRADOR) {
       throw new ConflictException(
@@ -200,7 +311,7 @@ export class ComprobanteService {
     const alicuotaEfectiva = alicuotaDto ?? comprobante.alicuota_iva;
     const totales = this.calcularTotales(detalleEfectivo, alicuotaEfectiva);
 
-    return this.prisma.$transaction(async (tx) => {
+    const actualizado = await this.prisma.$transaction(async (tx) => {
       // Reemplazo completo del detalle: se borran las líneas actuales y se
       // vuelven a crear con los subtotales recalculados. Solo si el dto trae un
       // detalle nuevo; si no, las líneas quedan como están.
@@ -232,27 +343,24 @@ export class ComprobanteService {
             },
           }),
         },
-        include: { detalles: { orderBy: { id_detalle_comprobante: 'asc' } } },
       });
     });
+
+    return this.toResponse(actualizado);
   }
 
   /**
-   * Confirma un comprobante: BORRADOR → REGISTRADO. A partir de acá la
-   * cabecera y el detalle quedan congelados y el comprobante entra en la cuenta
+   * Confirma un comprobante: BORRADOR → REGISTRADO. A partir de acá la cabecera
+   * y el detalle quedan congelados y el comprobante entra en la cuenta
    * corriente del proveedor.
    *
-   * Inicializa el saldo pendiente con el importe total y el estado de saldo
-   * en PENDIENTE para cualquier tipo de comprobante (HU-16): una factura y
-   * una nota arrancan igual. Lo que cambia es el signo con que ese saldo se
-   * interpreta en la cuenta corriente —deuda para los tipos que aumentan el
-   * saldo, crédito a favor para los que lo disminuyen—, no cómo se inicializa.
-   *
-   * Es una sola escritura sobre la misma fila (estado + saldo), sin efectos
-   * sobre otras entidades, así que no necesita un `$transaction` explícito.
+   * Inicializa el saldo pendiente con el importe total y el estado de saldo en
+   * PENDIENTE para cualquier tipo (HU-16): una factura y una nota arrancan
+   * igual. Es una sola escritura sobre la misma fila, sin efectos sobre otras
+   * entidades, así que no necesita `$transaction`.
    */
-  async confirmar(id: number, usuarioId: number) {
-    const comprobante = await this.findOne(id);
+  async confirmar(id: number, usuarioId: number): Promise<ComprobanteResponse> {
+    const comprobante = await this.cargarComprobante(id);
 
     if (comprobante.estado !== EstadoComprobante.BORRADOR) {
       throw new ConflictException(
@@ -266,7 +374,7 @@ export class ComprobanteService {
       );
     }
 
-    return this.prisma.cOMPROBANTEPROVEEDOR.update({
+    const confirmado = await this.prisma.cOMPROBANTEPROVEEDOR.update({
       where: { id_comprobante_proveedor: id },
       data: {
         estado: EstadoComprobante.REGISTRADO,
@@ -275,25 +383,26 @@ export class ComprobanteService {
         FK_usuario_actualizador: usuarioId,
         hora_actualizacion: new Date(),
       },
-      include: { detalles: { orderBy: { id_detalle_comprobante: 'asc' } } },
     });
+
+    return this.toResponse(confirmado);
   }
 
   /**
-   * Anula un comprobante REGISTRADO. El motivo es obligatorio y
-   * queda en `motivo_anulacion` para la trazabilidad de la cuenta corriente.
+   * Anula un comprobante REGISTRADO. El motivo es obligatorio y queda en
+   * `motivo_anulacion` para la trazabilidad de la cuenta corriente.
    *
-   * Solo se puede anular si el comprobante no tiene ninguna imputación de
-   * pago: se detecta comparando el saldo pendiente con el importe total
-   * Un comprobante con pagos aplicados no se anula desde acá — primero habría
-   * que revertir esos pagos.
-   *
-   * Al anularse queda sin saldo (fuera de la cuenta corriente) y deja de
-   * poder imputarse. Su combinación de numeración vuelve a quedar libre (ver
-   * `validarNumeracionUnica`, que ignora los ANULADOS).
+   * Solo se puede anular si el comprobante no tiene ninguna imputación de pago:
+   * se detecta comparando el saldo pendiente con el importe total. Al anularse
+   * queda sin saldo (fuera de la cuenta corriente) y deja de poder imputarse;
+   * su combinación de numeración vuelve a quedar libre.
    */
-  async anular(id: number, dto: AnularComprobanteDto, usuarioId: number) {
-    const comprobante = await this.findOne(id);
+  async anular(
+    id: number,
+    dto: AnularComprobanteDto,
+    usuarioId: number,
+  ): Promise<ComprobanteResponse> {
+    const comprobante = await this.cargarComprobante(id);
 
     if (comprobante.estado !== EstadoComprobante.REGISTRADO) {
       throw new ConflictException(
@@ -310,7 +419,7 @@ export class ComprobanteService {
       );
     }
 
-    return this.prisma.cOMPROBANTEPROVEEDOR.update({
+    const anulado = await this.prisma.cOMPROBANTEPROVEEDOR.update({
       where: { id_comprobante_proveedor: id },
       data: {
         estado: EstadoComprobante.ANULADO,
@@ -320,8 +429,122 @@ export class ComprobanteService {
         FK_usuario_actualizador: usuarioId,
         hora_actualizacion: new Date(),
       },
-      include: { detalles: { orderBy: { id_detalle_comprobante: 'asc' } } },
     });
+
+    return this.toResponse(anulado);
+  }
+
+  // --- Mappers: objeto de Prisma → forma del contrato (Swagger) -------------
+
+  private toResponse(c: CabeceraComprobanteRow): ComprobanteResponse {
+    return {
+      id_comprobante_proveedor: c.id_comprobante_proveedor,
+      FK_tipo_comprobante: c.FK_tipo_comprobante,
+      letra: c.letra,
+      punto_de_venta: c.punto_de_venta,
+      numero: c.numero,
+      fecha_emision: c.fecha_emision.toISOString(),
+      fecha_vencimiento: c.fecha_vencimiento.toISOString(),
+      FK_proveedor: c.FK_proveedor,
+      FK_orden_compra: c.FK_orden_compra,
+      FK_comprobante_origen: c.FK_comprobante_origen,
+      observaciones: c.observaciones,
+      importe_neto: c.importe_neto.toNumber(),
+      alicuota_iva: c.alicuota_iva.toNumber(),
+      importe_iva: c.importe_iva.toNumber(),
+      importe_total: c.importe_total.toNumber(),
+      saldo_pendiente:
+        c.saldo_pendiente === null ? null : c.saldo_pendiente.toNumber(),
+      estado: c.estado,
+      estado_saldo: estadoSaldoDesde(c.saldo_cancelado),
+      motivo_anulacion: c.motivo_anulacion,
+      hora_creacion: c.hora_creacion.toISOString(),
+      hora_actualizacion:
+        c.hora_actualizacion === null
+          ? null
+          : c.hora_actualizacion.toISOString(),
+      FK_usuario_creador: c.FK_usuario_creador,
+      FK_usuario_actualizador: c.FK_usuario_actualizador,
+    };
+  }
+
+  private toListItem(c: CabeceraComprobanteRow): ComprobanteListItem {
+    return {
+      id_comprobante_proveedor: c.id_comprobante_proveedor,
+      FK_tipo_comprobante: c.FK_tipo_comprobante,
+      letra: c.letra,
+      punto_de_venta: c.punto_de_venta,
+      numero: c.numero,
+      fecha_emision: c.fecha_emision.toISOString(),
+      fecha_vencimiento: c.fecha_vencimiento.toISOString(),
+      FK_proveedor: c.FK_proveedor,
+      importe_total: c.importe_total.toNumber(),
+      saldo_pendiente:
+        c.saldo_pendiente === null ? null : c.saldo_pendiente.toNumber(),
+      estado: c.estado,
+      estado_saldo: estadoSaldoDesde(c.saldo_cancelado),
+    };
+  }
+
+  private toDetalle(c: ComprobanteLecturaRow): ComprobanteDetalleResponse {
+    return {
+      ...this.toResponse(c),
+      detalle: c.detalles.map((l) => ({
+        id_detalle_comprobante: l.id_detalle_comprobante,
+        descripcion: l.descripcion,
+        FK_articulo: l.FK_articulo,
+        cantidad: l.cantidad.toNumber(),
+        precio_unitario: l.precio_unitario.toNumber(),
+        subtotal: l.subtotal.toNumber(),
+      })),
+      comprobanteOrigen: c.comprobante_origen
+        ? this.toListItem(c.comprobante_origen)
+        : null,
+      notasAplicadas: c.notas_aplicadas.map((n) => this.toListItem(n)),
+      pagos: c.detallesPago.map((d) => ({
+        id_pago: d.pago.id_pago,
+        fecha_pago: d.pago.fecha_pago.toISOString(),
+        importe_imputado: d.importe_imputado.toNumber(),
+      })),
+      usuarioCreador: {
+        nombre: c.usuarioCreador.nombre,
+        apellido: c.usuarioCreador.apellido,
+      },
+      usuarioActualizador: {
+        nombre: c.usuarioActualizador.nombre,
+        apellido: c.usuarioActualizador.apellido,
+      },
+    };
+  }
+
+  /**
+   * Trae el comprobante crudo con todas sus relaciones de lectura. Uso
+   * interno: `update` / `confirmar` / `anular` lo usan para sus chequeos
+   * previos, y `findOne` para el detalle en modo lectura.
+   */
+  private async cargarComprobante(id: number): Promise<ComprobanteLecturaRow> {
+    const comprobante = await this.prisma.cOMPROBANTEPROVEEDOR.findUnique({
+      where: { id_comprobante_proveedor: id },
+      include: {
+        detalles: { orderBy: { id_detalle_comprobante: 'asc' } },
+        comprobante_origen: true,
+        notas_aplicadas: { orderBy: { id_comprobante_proveedor: 'asc' } },
+        detallesPago: {
+          include: {
+            pago: { select: { id_pago: true, fecha_pago: true } },
+          },
+          orderBy: { id_detalle_pago: 'asc' },
+        },
+        usuarioCreador: { select: { nombre: true, apellido: true } },
+        usuarioActualizador: { select: { nombre: true, apellido: true } },
+      },
+    });
+
+    if (!comprobante) {
+      throw new NotFoundException(`No existe un comprobante con id ${id}`);
+    }
+
+    return comprobante;
   }
 
   /**
@@ -335,10 +558,6 @@ export class ComprobanteService {
    *
    * Todo el cálculo usa `Prisma.Decimal` (no `number`) para no arrastrar
    * errores de punto flotante, y redondea cada resultado a 2 decimales.
-   *
-   * Un detalle vacío da los cuatro importes en 0: es válido mientras el
-   * comprobante está en BORRADOR (el mínimo de una línea se exige al confirmar,
-   * ).
    */
   private calcularTotales(
     detalle: LineaCalculable[],
@@ -483,16 +702,13 @@ export class ComprobanteService {
       }
     }
   }
+
   /**
    * HU-16: no puede existir otro comprobante *vigente* — cualquier estado
    * menos ANULADO — con la misma combinación de proveedor + tipo + letra +
-   * punto de venta + número. Esa quíntupla es la identidad del documento tal
-   * como lo emitió el proveedor.
-   *
-   * A propósito NO es un `@@unique` de base (ver el comentario en
-   * `schema.prisma`): si un comprobante se cargó con el número mal tipeado y
-   * se anula, hay que poder volver a cargarlo con el número correcto. El
-   * chequeo corre acá y se apoya en el `@@index` por esa combinación.
+   * punto de venta + número. A propósito NO es un `@@unique` de base (ver el
+   * comentario en `schema.prisma`): si un comprobante se cargó con el número
+   * mal tipeado y se anula, hay que poder volver a cargarlo con el correcto.
    */
   private async validarNumeracionUnica(
     clave: {
