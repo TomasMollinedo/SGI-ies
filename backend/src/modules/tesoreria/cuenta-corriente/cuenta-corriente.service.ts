@@ -184,7 +184,10 @@ export class CuentaCorrienteService {
   /**
    * Extracto cronológico de la cuenta de UN proveedor: comprobantes
    * REGISTRADOS y pagos CONFIRMADOS mezclados en una sola línea de tiempo,
-   * con DEBE (facturas), HABER (notas de crédito y pagos) y saldo acumulado.
+   * con HABER (facturas y notas de débito), DEBE (notas de crédito y pagos)
+   * y saldo acumulado. La cuenta es un pasivo desde el punto de vista de la
+   * empresa (le debe al proveedor), así que sigue la convención contable de
+   * un pasivo: aumenta por el HABER y disminuye por el DEBE.
    * No hay ninguna tabla de saldos: se recalcula todo acá, leyendo
    * `importe_total` de cada comprobante/pago (no `saldo_pendiente`, que ya
    * está neteado contra pagos) y acumulando en orden — así el saldo de la
@@ -251,19 +254,21 @@ export class CuentaCorrienteService {
         punto_de_venta: c.punto_de_venta,
         numero: c.numero,
         fecha_vencimiento: c.fecha_vencimiento,
+        // aumenta_saldo=true (factura, nota de débito) → HABER: aumenta el
+        // pasivo. aumenta_saldo=false (nota de crédito) → DEBE: lo reduce.
         debe: c.tipoComprobante.aumenta_saldo
-          ? c.importe_total.toNumber()
-          : null,
-        haber: c.tipoComprobante.aumenta_saldo
           ? null
           : c.importe_total.toNumber(),
+        haber: c.tipoComprobante.aumenta_saldo
+          ? c.importe_total.toNumber()
+          : null,
       }),
     );
 
-    // Un pago siempre resta (HABER): es plata que ya salió, sea que haya
-    // imputado a facturas o a notas de crédito — ver el análisis en
-    // PagoService de por qué `importe_total` (neto) es exactamente lo que
-    // hace falta acá para que el acumulado cierre.
+    // Un pago siempre va al DEBE: es plata que ya salió, reduce el pasivo,
+    // sea que haya imputado a facturas o a notas de crédito — ver el
+    // análisis en PagoService de por qué `importe_total` (neto) es
+    // exactamente lo que hace falta acá para que el acumulado cierre.
     const filasPago: FilaMovimientoSinSaldo[] = pagos.map((p) => ({
       clase: 'PAGO',
       id_referencia: p.id_pago,
@@ -273,8 +278,8 @@ export class CuentaCorrienteService {
       punto_de_venta: null,
       numero: null,
       fecha_vencimiento: null,
-      debe: null,
-      haber: p.importe_total.toNumber(),
+      debe: p.importe_total.toNumber(),
+      haber: null,
     }));
 
     const historialCompleto = [...filasComprobante, ...filasPago].sort(
@@ -283,10 +288,11 @@ export class CuentaCorrienteService {
         a.id_referencia - b.id_referencia,
     );
 
+    // Pasivo: aumenta por el HABER, disminuye por el DEBE.
     let acumulado = 0;
     const historialConSaldo: FilaMovimientoCuentaCorriente[] =
       historialCompleto.map((fila) => {
-        acumulado += (fila.debe ?? 0) - (fila.haber ?? 0);
+        acumulado += (fila.haber ?? 0) - (fila.debe ?? 0);
         return { ...fila, saldo_acumulado: acumulado };
       });
 

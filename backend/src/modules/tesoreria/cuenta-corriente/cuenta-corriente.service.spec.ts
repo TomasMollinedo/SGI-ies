@@ -324,8 +324,8 @@ describe('CuentaCorrienteService', () => {
       cuit: '30712345612',
     };
 
-    /** Factura A del 10/01, aumenta_saldo=true → va a DEBE. */
-    const comprobanteDebe = {
+    /** Factura A del 10/01, aumenta_saldo=true → va a HABER. */
+    const comprobanteHaber = {
       id_comprobante_proveedor: 101,
       fecha_emision: new Date('2026-01-10'),
       fecha_vencimiento: new Date('2026-02-10'),
@@ -336,8 +336,8 @@ describe('CuentaCorrienteService', () => {
       tipoComprobante: { nombre: 'Factura A', aumenta_saldo: true },
     };
 
-    /** Nota de crédito del 05/02, aumenta_saldo=false → va a HABER. */
-    const comprobanteHaber = {
+    /** Nota de crédito del 05/02, aumenta_saldo=false → va a DEBE. */
+    const comprobanteDebe = {
       id_comprobante_proveedor: 102,
       fecha_emision: new Date('2026-02-05'),
       fecha_vencimiento: new Date('2026-02-05'),
@@ -348,7 +348,7 @@ describe('CuentaCorrienteService', () => {
       tipoComprobante: { nombre: 'Nota de Crédito A', aumenta_saldo: false },
     };
 
-    /** Pago del 15/02 → siempre HABER. */
+    /** Pago del 15/02 → siempre DEBE. */
     const pago = {
       id_pago: 50,
       fecha_pago: new Date('2026-02-15'),
@@ -404,23 +404,23 @@ describe('CuentaCorrienteService', () => {
         expect.objectContaining({
           clase: 'COMPROBANTE',
           id_referencia: 101,
-          debe: 1000,
-          haber: null,
+          debe: null,
+          haber: 1000,
           saldo_acumulado: 1000,
         }),
         expect.objectContaining({
           clase: 'COMPROBANTE',
           id_referencia: 102,
-          debe: null,
-          haber: 200,
+          debe: 200,
+          haber: null,
           saldo_acumulado: 800,
         }),
         expect.objectContaining({
           clase: 'PAGO',
           id_referencia: 50,
           tipo: 'Transferencia',
-          debe: null,
-          haber: 500,
+          debe: 500,
+          haber: null,
           saldo_acumulado: 300,
         }),
       ]);
@@ -456,8 +456,8 @@ describe('CuentaCorrienteService', () => {
         fechaDesde: new Date('2026-02-10'),
       });
 
-      // Apertura = acumulado real justo antes del 10/02 (factura + NC, sin el
-      // pago del 15/02 todavía): 1000 - 200 = 800.
+      // Apertura = acumulado real justo antes del 10/02 (factura en HABER +
+      // NC en DEBE, sin el pago del 15/02 todavía): 1000 - 200 = 800.
       expect(conFiltro.movimientos[0]).toMatchObject({
         clase: 'APERTURA',
         id_referencia: null,

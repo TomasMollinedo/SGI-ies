@@ -88,12 +88,13 @@ export const COLUMNAS_CARDEX_CUENTA_CORRIENTE: DataTableColumn<MovimientoCuentaC
   {
     key: 'debe',
     label: 'Debe',
-    headerTooltip: 'Factura registrada: aumenta lo que la empresa le debe al proveedor.',
-    // Suma al saldo (más deuda para la empresa): flecha para arriba, en rojo.
+    headerTooltip:
+      'Nota de crédito o pago registrado: reduce lo que la empresa le debe al proveedor.',
+    // Resta del saldo (menos deuda para la empresa): flecha para abajo, en verde.
     render: (movimiento) =>
       movimiento.debe ? (
-        <span className="text-error inline-flex items-center gap-1 font-medium">
-          <ArrowUp className="size-4" aria-hidden="true" />
+        <span className="text-success inline-flex items-center gap-1 font-medium">
+          <ArrowDown className="size-4" aria-hidden="true" />
           {formatearMoneda(movimiento.debe)}
         </span>
       ) : (
@@ -103,12 +104,13 @@ export const COLUMNAS_CARDEX_CUENTA_CORRIENTE: DataTableColumn<MovimientoCuentaC
   {
     key: 'haber',
     label: 'Haber',
-    headerTooltip: 'Nota de crédito registrada: reduce lo que la empresa le debe al proveedor.',
-    // Resta del saldo (menos deuda para la empresa): flecha para abajo, en verde.
+    headerTooltip:
+      'Factura o nota de débito registrada: aumenta lo que la empresa le debe al proveedor.',
+    // Suma al saldo (más deuda para la empresa): flecha para arriba, en rojo.
     render: (movimiento) =>
       movimiento.haber ? (
-        <span className="text-success inline-flex items-center gap-1 font-medium">
-          <ArrowDown className="size-4" aria-hidden="true" />
+        <span className="text-error inline-flex items-center gap-1 font-medium">
+          <ArrowUp className="size-4" aria-hidden="true" />
           {formatearMoneda(movimiento.haber)}
         </span>
       ) : (

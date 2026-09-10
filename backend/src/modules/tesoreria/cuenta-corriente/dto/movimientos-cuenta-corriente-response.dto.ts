@@ -27,6 +27,8 @@ export const movimientoCuentaCorrienteSchema = z.object({
   punto_de_venta: z.number().nullable(),
   numero: z.number().nullable(),
   fecha_vencimiento: z.iso.datetime().nullable(),
+  // Pasivo: factura/nota de débito → HABER (aumenta); nota de crédito/pago
+  // → DEBE (disminuye). null en la apertura.
   debe: z.number().nullable(),
   haber: z.number().nullable(),
   saldo_acumulado: z.number(),
