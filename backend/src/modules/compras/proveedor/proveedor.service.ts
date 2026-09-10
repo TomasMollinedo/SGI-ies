@@ -90,7 +90,9 @@ export class ProveedorService {
       this.prisma.pROVEEDOR.findMany({
         where,
         // Sin los datos de auditoría (quién ni cuándo): el listado no los
-        // expone, eso lo da el detalle (findOne).
+        // expone, eso lo da el detalle (findOne). Los datos bancarios sí
+        // van: el frontend arma el formulario de edición con la fila del
+        // listado, sin pedir el detalle.
         select: {
           id_proveedor: true,
           razon_social: true,
@@ -99,6 +101,10 @@ export class ProveedorService {
           domicilio: true,
           telefono: true,
           correo: true,
+          banco: true,
+          titular: true,
+          cbu: true,
+          alias: true,
           observaciones: true,
           estado: true,
         },

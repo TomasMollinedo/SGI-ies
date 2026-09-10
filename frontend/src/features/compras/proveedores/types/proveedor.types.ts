@@ -21,6 +21,10 @@ export interface Proveedor {
   domicilio: string | null
   telefono: string | null
   correo: string | null
+  banco: string | null
+  titular: string | null
+  cbu: string | null
+  alias: string | null
   observaciones: string | null
   estado: boolean
 }
@@ -74,5 +78,11 @@ export interface CrearProveedorPayload {
   domicilio?: string
   telefono?: string
   correo?: string
+  banco?: string
+  titular?: string
+  /** 22 dígitos, sin espacios ni guiones. */
+  cbu?: string
+  /** Entre 6 y 20 caracteres: letras, números, puntos o guiones. */
+  alias?: string
   observaciones?: string
 }

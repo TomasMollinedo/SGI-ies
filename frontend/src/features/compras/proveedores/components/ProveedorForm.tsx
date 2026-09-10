@@ -198,6 +198,47 @@ export function ProveedorForm({
             />
           </div>
 
+          <fieldset>
+            <legend className="text-content-muted text-xs font-medium uppercase">
+              Datos bancarios
+            </legend>
+
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input
+                label="Banco"
+                placeholder="Ej. Banco Macro"
+                disabled={loading}
+                error={errors.banco?.message}
+                {...register('banco')}
+              />
+
+              <Input
+                label="Titular"
+                placeholder="Ej. Farmacia Bermejo S.A."
+                disabled={loading}
+                error={errors.titular?.message}
+                {...register('titular')}
+              />
+
+              <Input
+                label="CBU"
+                inputMode="numeric"
+                placeholder="Ej. 0170099220000067797151"
+                disabled={loading}
+                error={errors.cbu?.message}
+                {...register('cbu')}
+              />
+
+              <Input
+                label="Alias"
+                placeholder="Ej. mi.alias.banco"
+                disabled={loading}
+                error={errors.alias?.message}
+                {...register('alias')}
+              />
+            </div>
+          </fieldset>
+
           <Input
             label="Observaciones"
             multiline
@@ -235,6 +276,10 @@ const CAMPOS = [
   'domicilio',
   'telefono',
   'correo',
+  'banco',
+  'titular',
+  'cbu',
+  'alias',
   'observaciones',
 ] as const
 type CampoDelFormulario = (typeof CAMPOS)[number]
@@ -278,6 +323,10 @@ function valoresIniciales(proveedor?: Proveedor): ProveedorFormValues {
     domicilio: proveedor?.domicilio ?? '',
     telefono: proveedor?.telefono ?? '',
     correo: proveedor?.correo ?? '',
+    banco: proveedor?.banco ?? '',
+    titular: proveedor?.titular ?? '',
+    cbu: proveedor?.cbu ?? '',
+    alias: proveedor?.alias ?? '',
     observaciones: proveedor?.observaciones ?? '',
   }
 }

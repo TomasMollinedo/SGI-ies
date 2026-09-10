@@ -421,8 +421,18 @@ model PROVEEDOR {
   domicilio     String?
   telefono      String?
   correo        String?
+
+  // Datos bancarios, todos opcionales. Son la fuente de la foto que guarda
+  // PAGO (banco_utilizado, titular_utilizado, etc.) al confirmar. El formato
+  // del CBU (22 dígitos) y del alias (6 a 20 caracteres) lo valida Zod en el
+  // service, no la base — mismo criterio que el CUIT.
+  banco   String?
+  titular String?
+  cbu     String?
+  alias   String?
+
   observaciones String?
-  estado        Boolean      @default(true)
+  estado        Boolean @default(true)
 
   hora_creacion      DateTime  @default(now())
   hora_actualizacion DateTime? @default(now())
@@ -667,7 +677,7 @@ model COMPROBANTEPROVEEDOR {
   comprobante_origen COMPROBANTEPROVEEDOR?  @relation("NotasAplicadas", fields: [FK_comprobante_origen], references: [id_comprobante_proveedor])
   notas_aplicadas    COMPROBANTEPROVEEDOR[] @relation("NotasAplicadas")
 
-  detalles          DETALLECOMPROBANTE[]
+  detalles     DETALLECOMPROBANTE[]
   detallesPago DETALLEPAGO[]
 
   // NO es @@unique a propósito, aunque la combinación identifique al
@@ -730,8 +740,8 @@ model PAGO {
   // confirmar, para que una edición posterior de la ficha del proveedor no
   // altere un documento ya emitido — mismo criterio que
   // DETALLEPAGO.saldo_anterior/saldo_posterior, pero de datos en vez de
-  // importes. Quedan en null hasta que PROVEEDOR tenga los campos fuente
-  // (banco/titular/cbu/alias no existen todavía en ese modelo).
+  // importes. Se copian de PROVEEDOR.banco/titular/cbu/alias; son nullable
+  // porque en el proveedor también son opcionales.
   banco_utilizado   String?
   titular_utilizado String?
   cbu_utilizado     String?
