@@ -326,6 +326,16 @@ export function OrdenCompraForm({
 
             {errorDetalle && <p className="text-error text-xs">{errorDetalle}</p>}
 
+            {/* Encabezados de la grilla: mismas columnas que `DetalleLineaOrdenCompraRow`.
+                Ocultos en mobile porque ahí la fila pasa a apilarse en una sola columna. */}
+            <div className="text-content-muted hidden gap-3 text-xs font-medium uppercase sm:grid sm:grid-cols-[1fr_7rem_9rem_9rem_auto]">
+              <span>Artículo</span>
+              <span>Cantidad</span>
+              <span>Precio unitario</span>
+              <span className="text-right">Subtotal</span>
+              <span aria-hidden="true" />
+            </div>
+
             <div className="flex flex-col gap-3">
               {fields.map((field, index) => (
                 <DetalleLineaOrdenCompraRow
