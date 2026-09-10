@@ -116,14 +116,20 @@ export function OrdenCompraForm({
   const { fields, append, remove } = useFieldArray({ control, name: 'detalle' })
   const detalle = watch('detalle')
 
+  // El componente nunca se desmonta (solo se oculta con `open`), así que las
+  // dos confirmaciones tienen que cerrarse solas apenas el formulario deja de
+  // estar visible — si no, un "Confirmar y emitir" exitoso deja al
+  // `ConfirmDialog` con su propio `open` interno en `true` para siempre,
+  // flotando sobre la página aunque el modal de atrás ya se haya cerrado.
   useEffect(() => {
+    setConfirmarEmision(false)
+    setPayloadAEmitir(null)
+    setConfirmarDescarte(false)
+
     if (!open) return
 
     reset(valoresIniciales())
     setErrorGeneral(null)
-    setConfirmarDescarte(false)
-    setConfirmarEmision(false)
-    setPayloadAEmitir(null)
     setBusquedaProveedor('')
     setBusquedaDeposito('')
   }, [open, reset])
