@@ -47,10 +47,13 @@ interface MovimientoFormProps {
 }
 
 /**
- * Modal de registro de un movimiento de stock. El flujo se revela en pasos: al
- * elegir el tipo de movimiento aparece el depósito, y al elegir el depósito
- * aparece la grilla de detalle (filtrada a las fichas de stock de ESE
- * depósito) junto con referencia y observaciones.
+ * Modal de registro de un movimiento de stock. Sigue la estructura del
+ * movimiento: primero la cabecera completa (fecha, tipo, depósito, referencia
+ * y observaciones) y después el detalle.
+ *
+ * El detalle es lo único que aparece de a poco, y por una dependencia real: sus
+ * líneas se eligen entre las fichas de stock de ESE depósito, así que hasta que
+ * no haya depósito no hay nada que ofrecer.
  *
  * Nota: no incluye ninguna lógica de Orden de Compra — "referencia" es un
  * campo de texto libre que sirve tanto para un N° de OC como de remito.
@@ -175,72 +178,68 @@ export function MovimientoForm({ open, onClose, onSubmit, loading = false }: Mov
           )}
         </div>
 
-        {tipoElegido && (
-          <Select
-            label="Depósito/obrador"
-            required
-            placeholder={cargandoDepositos ? 'Cargando depósitos…' : 'Seleccionar depósito'}
-            disabled={cargandoDepositos}
-            options={opcionesDeposito}
-            error={errors.FK_Deposito?.message}
-            {...register('FK_Deposito')}
-          />
-        )}
+        <Select
+          label="Depósito/obrador"
+          required
+          placeholder={cargandoDepositos ? 'Cargando depósitos…' : 'Seleccionar depósito'}
+          disabled={cargandoDepositos}
+          options={opcionesDeposito}
+          error={errors.FK_Deposito?.message}
+          {...register('FK_Deposito')}
+        />
+
+        <Input
+          label="Referencia"
+          placeholder="Ej: OC-0032, R-030 (opcional)"
+          helperText="N° de orden de compra, remito u otra referencia libre"
+          error={errors.referencia?.message}
+          {...register('referencia')}
+        />
+
+        <Input
+          label="Observaciones"
+          multiline
+          placeholder="Texto breve para identificar el registro"
+          error={errors.observaciones?.message}
+          {...register('observaciones')}
+        />
 
         {depositoElegido && (
-          <>
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="text-content text-sm font-medium">Detalle de movimiento</span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="primary"
-                  icon={<Plus />}
-                  onClick={() => append({ ...LINEA_VACIA })}
-                >
-                  Agregar artículo
-                </Button>
-              </div>
-
-              {errorDetalle && <p className="text-error text-xs">{errorDetalle}</p>}
-
-              <div className="flex flex-col gap-3">
-                {fields.map((field, index) => (
-                  <DetalleLineaRow
-                    key={field.id}
-                    index={index}
-                    control={control}
-                    register={register}
-                    onRemove={() => remove(index)}
-                    canRemove={fields.length > 1}
-                    FK_deposito={Number(FK_Deposito)}
-                    idsExcluidos={detalle
-                      .filter((_, i) => i !== index)
-                      .map((linea) => Number(linea.FK_Stock))
-                      .filter((id) => !Number.isNaN(id))}
-                    errors={errors.detalle?.[index]}
-                  />
-                ))}
-              </div>
+          <div className="border-subtle flex flex-col gap-2 border-t pt-4">
+            <div className="flex items-center justify-between">
+              <span className="text-content text-sm font-medium">Detalle de movimiento</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="primary"
+                icon={<Plus />}
+                onClick={() => append({ ...LINEA_VACIA })}
+              >
+                Agregar artículo
+              </Button>
             </div>
 
-            <Input
-              label="Referencia"
-              placeholder="Ej: OC-0032, R-030 (opcional)"
-              helperText="N° de orden de compra, remito u otra referencia libre"
-              error={errors.referencia?.message}
-              {...register('referencia')}
-            />
+            {errorDetalle && <p className="text-error text-xs">{errorDetalle}</p>}
 
-            <Input
-              label="Observaciones"
-              multiline
-              placeholder="Texto breve para identificar el registro"
-              error={errors.observaciones?.message}
-              {...register('observaciones')}
-            />
-          </>
+            <div className="flex flex-col gap-3">
+              {fields.map((field, index) => (
+                <DetalleLineaRow
+                  key={field.id}
+                  index={index}
+                  control={control}
+                  register={register}
+                  onRemove={() => remove(index)}
+                  canRemove={fields.length > 1}
+                  FK_deposito={Number(FK_Deposito)}
+                  idsExcluidos={detalle
+                    .filter((_, i) => i !== index)
+                    .map((linea) => Number(linea.FK_Stock))
+                    .filter((id) => !Number.isNaN(id))}
+                  errors={errors.detalle?.[index]}
+                />
+              ))}
+            </div>
+          </div>
         )}
       </form>
     </Modal>
