@@ -2,10 +2,11 @@ import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { Badge } from '@/shared/components/ui/Badge'
 import type { BadgeVariant } from '@/shared/components/ui/Badge'
 import type { SelectOption } from '@/shared/components/ui/Select'
-import { formatearFechaSinHora } from '@/shared/utils/fecha'
+import { formatearFechaHora, formatearFechaSinHora } from '@/shared/utils/fecha'
 import type {
   DetalleOrdenCompra,
   EstadoOrdenCompra,
+  HistorialEstadoOrdenCompra,
   OrdenCompraListItem,
 } from '../types/ordenCompra.types'
 import { formatearCodigoOrdenCompra } from '../utils/codigoOrdenCompra'
@@ -88,4 +89,30 @@ export const COLUMNAS_LINEAS: DataTableColumn<DetalleOrdenCompra>[] = [
     render: (linea) => formatearMoneda(linea.precio_unitario),
   },
   { key: 'subtotal', label: 'Subtotal', render: (linea) => formatearMoneda(linea.subtotal) },
+]
+
+/** Columnas del historial de cambios de estado dentro del detalle. Ya llega ordenado del más reciente al más viejo. */
+export const COLUMNAS_HISTORIAL_ESTADO: DataTableColumn<HistorialEstadoOrdenCompra>[] = [
+  { key: 'fecha', label: 'Fecha', render: (fila) => formatearFechaHora(fila.fecha) },
+  {
+    key: 'cambio',
+    label: 'Cambio',
+    render: (fila) => (
+      <div className="flex items-center gap-2">
+        {badgeEstadoOrdenCompra(fila.estado_anterior)}
+        <span className="text-content-muted">→</span>
+        {badgeEstadoOrdenCompra(fila.estado_nuevo)}
+      </div>
+    ),
+  },
+  {
+    key: 'usuario',
+    label: 'Usuario',
+    render: (fila) => `${fila.usuario.nombre} ${fila.usuario.apellido}`,
+  },
+  {
+    key: 'observacion',
+    label: 'Observación',
+    render: (fila) => fila.observacion?.trim() || '—',
+  },
 ]
