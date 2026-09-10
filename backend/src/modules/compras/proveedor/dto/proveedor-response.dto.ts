@@ -10,6 +10,24 @@ export const proveedorResponseSchema = z.object({
   domicilio: z.string().nullable(),
   telefono: z.string().nullable(),
   correo: z.string().nullable(),
+  // Datos bancarios: null si nunca se cargaron, string vacío si se cargaron y
+  // después se borraron desde la edición (mismo caso que domicilio o teléfono).
+  banco: z.string().nullable().meta({
+    description: 'Banco en el que el proveedor tiene la cuenta',
+    example: 'Banco Macro',
+  }),
+  titular: z.string().nullable().meta({
+    description: 'Titular de la cuenta bancaria, tal como figura en el banco',
+    example: 'Farmacia Bermejo S.A.',
+  }),
+  cbu: z.string().nullable().meta({
+    description: 'CBU de la cuenta: 22 dígitos, sin espacios ni guiones',
+    example: '0170099220000067797151',
+  }),
+  alias: z.string().nullable().meta({
+    description: 'Alias de la cuenta',
+    example: 'mi.alias.banco',
+  }),
   observaciones: z.string().nullable(),
   estado: z.boolean(),
   // Prisma devuelve Date, pero sobre HTTP viaja como string ISO 8601 —

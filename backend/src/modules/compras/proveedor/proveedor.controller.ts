@@ -71,7 +71,10 @@ export class ProveedorController {
     description: 'Proveedor creado',
     type: ProveedorResponseDto,
   })
-  @ApiBadRequestResponse({ description: 'Datos inválidos' })
+  @ApiBadRequestResponse({
+    description:
+      'Datos inválidos (por ejemplo, un CUIT, CBU o alias con formato incorrecto)',
+  })
   @ApiConflictResponse({
     description:
       'Ya existe un proveedor con ese CUIT (activo o dado de baja), o ya existe un proveedor activo con esa razón social',
@@ -167,7 +170,10 @@ export class ProveedorController {
     description: 'Proveedor actualizado',
     type: ProveedorResponseDto,
   })
-  @ApiBadRequestResponse({ description: 'Datos inválidos' })
+  @ApiBadRequestResponse({
+    description:
+      'Datos inválidos (por ejemplo, un CUIT, CBU o alias con formato incorrecto)',
+  })
   @ApiNotFoundResponse({ description: 'No existe un proveedor con ese id' })
   @ApiConflictResponse({
     description:

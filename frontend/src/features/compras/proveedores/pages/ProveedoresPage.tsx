@@ -40,6 +40,10 @@ type EstadoFormulario = { modo: 'crear' } | { modo: 'editar'; proveedor: Proveed
 type TipoConfirmacion = 'baja' | 'reactivar'
 type EstadoConfirmacion = { tipo: TipoConfirmacion; proveedor: Proveedor } | null
 
+/** Los campos opcionales de texto, que la edición manda solo si cambiaron. */
+type CampoOpcional =
+  'domicilio' | 'telefono' | 'correo' | 'banco' | 'titular' | 'cbu' | 'alias' | 'observaciones'
+
 export function ProveedoresPage() {
   const toast = useToast()
   const navigate = useNavigate()
@@ -206,6 +210,10 @@ export function ProveedoresPage() {
         ...(payload.domicilio ? { domicilio: payload.domicilio } : {}),
         ...(payload.telefono ? { telefono: payload.telefono } : {}),
         ...(payload.correo ? { correo: payload.correo } : {}),
+        ...(payload.banco ? { banco: payload.banco } : {}),
+        ...(payload.titular ? { titular: payload.titular } : {}),
+        ...(payload.cbu ? { cbu: payload.cbu } : {}),
+        ...(payload.alias ? { alias: payload.alias } : {}),
         ...(payload.observaciones ? { observaciones: payload.observaciones } : {}),
       },
       {
@@ -389,14 +397,22 @@ function soloCamposModificados(
   agregarSiCambio(cambios, 'domicilio', payload.domicilio, original.domicilio)
   agregarSiCambio(cambios, 'telefono', payload.telefono, original.telefono)
   agregarSiCambio(cambios, 'correo', payload.correo, original.correo)
+  agregarSiCambio(cambios, 'banco', payload.banco, original.banco)
+  agregarSiCambio(cambios, 'titular', payload.titular, original.titular)
+  agregarSiCambio(cambios, 'cbu', payload.cbu, original.cbu)
+  agregarSiCambio(cambios, 'alias', payload.alias, original.alias)
   agregarSiCambio(cambios, 'observaciones', payload.observaciones, original.observaciones)
 
   return cambios
 }
 
+/**
+ * Un campo que se borró viaja como string vacío. En CBU y alias eso no choca
+ * con su formato: tanto el backend como `proveedorFormSchema` aceptan ''.
+ */
 function agregarSiCambio(
   cambios: EditarProveedorPayload,
-  campo: 'domicilio' | 'telefono' | 'correo' | 'observaciones',
+  campo: CampoOpcional,
   nuevo: string | undefined,
   original: string | null
 ) {
