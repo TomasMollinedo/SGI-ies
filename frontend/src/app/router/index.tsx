@@ -18,7 +18,7 @@ import { ProveedoresPage } from '@/features/compras/proveedores/pages/Proveedore
 import { OrdenesCompraPage } from '@/features/compras/ordenes-compra/pages/OrdenesCompraPage'
 import { ComprobantesPage } from '@/features/tesoreria/comprobantes/pages/ComprobantesPage'
 import { TiposComprobantePage } from '@/features/tesoreria/tipos-comprobante/pages/TiposComprobantePage'
-import { OrdenesPagoPage } from '@/features/tesoreria/pagos/pages/OrdenesPagoPage'
+import { PagosPage } from '@/features/tesoreria/pagos/pages/PagosPage'
 import { FormasPagoPage } from '@/features/tesoreria/formas-pago/pages/FormasPagoPage'
 import { CardexCuentaCorrientePage } from '@/features/tesoreria/cuentas-corrientes/pages/CardexCuentaCorrientePage'
 import { CuentasCorrientesPage } from '@/features/tesoreria/cuentas-corrientes/pages/CuentasCorrientesPage'
@@ -139,8 +139,8 @@ export const router = createBrowserRouter([
 
               {
                 path: PATHS.TESORERIA.PAGOS.ROOT,
-                element: <OrdenesPagoPage />,
-                handle: { title: 'Órdenes de Pago' },
+                element: <PagosPage />,
+                handle: { title: 'Pagos' },
               },
               {
                 path: PATHS.TESORERIA.PAGOS.FORMAS,
