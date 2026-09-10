@@ -4,6 +4,7 @@ import {
   ORDENES_COMPRA_QUERY_KEYS,
   cambiarEstadoOrdenCompra,
   crearOrdenCompra,
+  editarOrdenCompra,
   listarOrdenesCompra,
   obtenerOrdenCompra,
 } from '../services/ordenesCompra.service'
@@ -49,6 +50,22 @@ export function useCrearOrdenCompra() {
 
   return useMutation<OrdenCompra, ApiErrorResponse, CrearOrdenCompraPayload>({
     mutationFn: crearOrdenCompra,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ordenes-compra'] })
+    },
+  })
+}
+
+/** No muestra toast — eso lo decide quien la use. */
+export function useEditarOrdenCompra() {
+  const queryClient = useQueryClient()
+
+  return useMutation<
+    OrdenCompra,
+    ApiErrorResponse,
+    { id: number; payload: CrearOrdenCompraPayload }
+  >({
+    mutationFn: ({ id, payload }) => editarOrdenCompra(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ordenes-compra'] })
     },

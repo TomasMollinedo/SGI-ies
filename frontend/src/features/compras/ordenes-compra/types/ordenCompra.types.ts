@@ -57,11 +57,17 @@ export interface CrearOrdenCompraPayload {
   detalle: LineaOrdenCompraPayload[]
 }
 
-/** Body de PATCH /ordenes-compra/:id/estado. */
+/**
+ * Body de PATCH /ordenes-compra/:id/estado.
+ *
+ * `observacion` (singular) es la nota de ESTE cambio puntual: queda en su
+ * propia fila del historial de estados, y es distinta de `observaciones`
+ * (plural) de `OrdenCompra`, que es la observación general de la orden.
+ */
 export interface CambiarEstadoOrdenCompraPayload {
   estado: EstadoOrdenCompra
   motivo_cancelacion?: string
-  observaciones?: string
+  observacion?: string
 }
 
 /** Fila del listado (GET /ordenes-compra): la orden sin su detalle línea por línea. */

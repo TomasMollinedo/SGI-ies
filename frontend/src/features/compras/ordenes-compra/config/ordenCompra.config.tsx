@@ -14,10 +14,10 @@ import { formatearMoneda } from '../utils/formatearMoneda'
 /** Resultados por página del listado. Fijo, igual que el resto de los listados. */
 export const LIMITE_PAGINA = 10
 
-const ESTADO_META: Record<EstadoOrdenCompra, { label: string; variant: BadgeVariant }> = {
+export const ESTADO_META: Record<EstadoOrdenCompra, { label: string; variant: BadgeVariant }> = {
   BORRADOR: { label: 'Borrador', variant: 'inactive' },
-  EMITIDA: { label: 'Emitida', variant: 'active' },
-  RECIBIDA_PARCIAL: { label: 'Recibida parcial', variant: 'active' },
+  EMITIDA: { label: 'Emitida', variant: 'info' },
+  RECIBIDA_PARCIAL: { label: 'Recibida parcial', variant: 'warning' },
   RECIBIDA: { label: 'Recibida', variant: 'active' },
   CANCELADA: { label: 'Cancelada', variant: 'error' },
 }
@@ -26,6 +26,22 @@ const ESTADO_META: Record<EstadoOrdenCompra, { label: string; variant: BadgeVari
 export function badgeEstadoOrdenCompra(estado: EstadoOrdenCompra) {
   const meta = ESTADO_META[estado]
   return <Badge variant={meta.variant}>{meta.label}</Badge>
+}
+
+/**
+ * Copia exacta de `TRANSICIONES_VALIDAS` en `orden-compra.service.ts`: desde
+ * cada estado, a qué estados se puede avanzar. BORRADOR solo emite; EMITIDA y
+ * RECIBIDA_PARCIAL pueden avanzar en la recepción o cancelarse; RECIBIDA y
+ * CANCELADA son finales. Determina qué botones de avance mostrar en el
+ * detalle — el backend vuelve a validar esto igual, esto es solo para no
+ * ofrecer en la UI una transición que el servidor va a rechazar.
+ */
+export const TRANSICIONES_VALIDAS: Record<EstadoOrdenCompra, EstadoOrdenCompra[]> = {
+  BORRADOR: ['EMITIDA'],
+  EMITIDA: ['RECIBIDA_PARCIAL', 'RECIBIDA', 'CANCELADA'],
+  RECIBIDA_PARCIAL: ['RECIBIDA', 'CANCELADA'],
+  RECIBIDA: [],
+  CANCELADA: [],
 }
 
 /** Opciones del `<Select>` de filtro por estado. `''` = todos los estados. */
