@@ -18,6 +18,8 @@ import { ProveedorController } from '../../modules/compras/proveedor/proveedor.c
 import { FormaPagoController } from '../../modules/tesoreria/forma-pago/forma-pago.controller';
 import { TipoComprobanteController } from '../../modules/tesoreria/tipo-comprobante/tipo-comprobante.controller';
 import { PagoController } from '../../modules/tesoreria/pago/pago.controller';
+import { CuentaCorrienteController } from '../../modules/tesoreria/cuenta-corriente/cuenta-corriente.controller';
+
 import { ComprobanteController } from '../../modules/tesoreria/comprobante/comprobante.controller';
 /**
  * Controller de mentira, dueño de un rol que no es ni Administrador ni
@@ -162,6 +164,7 @@ describe('RolesGuard', () => {
       ['FormaPagoController', FormaPagoController],
       ['TipoComprobanteController', TipoComprobanteController],
       ['PagoController', PagoController],
+      ['CuentaCorrienteController', CuentaCorrienteController],
     ];
 
     it.each(controllersDeTesoreria)(
