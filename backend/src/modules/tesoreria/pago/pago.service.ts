@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { condicionBusquedaPorPalabras } from '../../../common/validaciones/busqueda-por-palabras';
 import { CreatePagoDto } from './dto/create-pago.dto';
 import { AnularPagoDto } from './dto/anular-pago.dto';
 import { QueryPagoDto } from './dto/query-pago.dto';
@@ -549,7 +550,7 @@ export class PagoService {
    */
   async findAll(query: QueryPagoDto) {
     const {
-      FK_proveedor,
+      busquedaProveedor,
       FK_forma_pago,
       estado,
       fechaDesde,
@@ -559,7 +560,12 @@ export class PagoService {
     } = query;
 
     const where: Prisma.PAGOWhereInput = {
-      ...(FK_proveedor !== undefined && { FK_proveedor }),
+      ...(busquedaProveedor && {
+        proveedor: condicionBusquedaPorPalabras<Prisma.PROVEEDORWhereInput>(
+          'razon_social',
+          busquedaProveedor,
+        ),
+      }),
       ...(FK_forma_pago !== undefined && { FK_forma_pago }),
       ...(estado !== undefined && { estado }),
       ...((fechaDesde !== undefined || fechaHasta !== undefined) && {
@@ -608,8 +614,11 @@ export class PagoService {
     }
 
     const where: Prisma.PAGOWhereInput = {
-      ...(query.FK_proveedor !== undefined && {
-        FK_proveedor: query.FK_proveedor,
+      ...(query.busquedaProveedor && {
+        proveedor: condicionBusquedaPorPalabras<Prisma.PROVEEDORWhereInput>(
+          'razon_social',
+          query.busquedaProveedor,
+        ),
       }),
       ...(query.FK_forma_pago !== undefined && {
         FK_forma_pago: query.FK_forma_pago,

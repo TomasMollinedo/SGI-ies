@@ -1160,5 +1160,23 @@ describe('PagoService', () => {
       expect(llamada.take).toBe(5);
       expect(llamada.orderBy).toEqual({ fecha_pago: 'desc' });
     });
+
+    it('busquedaProveedor filtra por razón social del proveedor, palabra por palabra', async () => {
+      await service.findAll(query({ busquedaProveedor: 'san martin' }));
+
+      const llamada = (
+        prisma.pAGO.findMany.mock.calls as {
+          where?: {
+            proveedor?: {
+              AND?: { razon_social?: { contains?: string } }[];
+            };
+          };
+        }[][]
+      )[0][0];
+      expect(llamada.where?.proveedor?.AND).toEqual([
+        { razon_social: { contains: 'san', mode: 'insensitive' } },
+        { razon_social: { contains: 'martin', mode: 'insensitive' } },
+      ]);
+    });
   });
 });

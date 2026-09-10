@@ -104,11 +104,12 @@ export class PagoController {
       'Listar pagos, con filtros combinables por proveedor, forma de pago, estado y período. Si se filtra por período completo (fechaDesde y fechaHasta juntos), suma un resumen de control de egresos',
   })
   @ApiQuery({
-    name: 'FK_proveedor',
+    name: 'busquedaProveedor',
     required: false,
-    type: Number,
-    description: 'Filtra por el proveedor de la cabecera',
-    example: 1,
+    type: String,
+    description:
+      'Filtra por la razón social del proveedor de la cabecera (coincidencia parcial, palabra por palabra)',
+    example: 'corralon',
   })
   @ApiQuery({
     name: 'FK_forma_pago',
