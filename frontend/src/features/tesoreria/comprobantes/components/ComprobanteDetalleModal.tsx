@@ -29,9 +29,11 @@ interface ComprobanteDetalleModalProps {
   idComprobante: number | null
   onClose: () => void
   /** Abre el formulario de edición con este comprobante (solo disponible en BORRADOR). */
-  onEditar: (comprobante: ComprobanteDetalle) => void
+  onEditar?: (comprobante: ComprobanteDetalle) => void
   /** Abre el modal de anulación con este comprobante (solo disponible en REGISTRADO). */
-  onAnular: (comprobante: ComprobanteDetalle) => void
+  onAnular?: (comprobante: ComprobanteDetalle) => void
+  /** Oculta Editar/Anular aunque el comprobante los admita — para contextos de solo lectura (ej. cuenta corriente). */
+  readOnly?: boolean
 }
 
 /**
@@ -40,13 +42,16 @@ interface ComprobanteDetalleModalProps {
  * imputaron y su trazabilidad.
  *
  * Editar y anular se delegan: los botones del pie llaman a `onEditar` / `onAnular`
- * con el comprobante ya cargado.
+ * con el comprobante ya cargado. Con `readOnly`, esos botones no se muestran
+ * (se usa desde pantallas que no pueden modificar comprobantes, como cuenta
+ * corriente).
  */
 export function ComprobanteDetalleModal({
   idComprobante,
   onClose,
   onEditar,
   onAnular,
+  readOnly = false,
 }: ComprobanteDetalleModalProps) {
   const toast = useToast()
   const { data: comprobante, isPending, error, refetch } = useComprobanteDetalle(idComprobante)
@@ -73,12 +78,12 @@ export function ComprobanteDetalleModal({
           <Button variant="error" icon={<X />} onClick={onClose}>
             Cerrar
           </Button>
-          {comprobante?.estado === 'BORRADOR' && (
+          {!readOnly && onEditar && comprobante?.estado === 'BORRADOR' && (
             <Button variant="warning" icon={<Pencil />} onClick={() => onEditar(comprobante)}>
               Editar
             </Button>
           )}
-          {comprobante?.estado === 'REGISTRADO' && (
+          {!readOnly && onAnular && comprobante?.estado === 'REGISTRADO' && (
             <Button variant="error" icon={<Ban />} onClick={() => onAnular(comprobante)}>
               Anular
             </Button>

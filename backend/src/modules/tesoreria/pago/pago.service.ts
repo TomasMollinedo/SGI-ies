@@ -453,7 +453,7 @@ export class PagoService {
    * `MovimientoService.create` con el stock.
    */
   async create(dto: CreatePagoDto, usuarioId: number) {
-    await this.buscarProveedorActivo(dto.FK_proveedor);
+    const proveedor = await this.buscarProveedorActivo(dto.FK_proveedor);
     const formaPago = await this.buscarFormaPagoActiva(dto.FK_forma_pago);
     this.validarNumeroReferencia(dto.numero_referencia, formaPago);
     const fechaPago = this.resolverFechaPago(dto.fecha_pago);
@@ -483,7 +483,7 @@ export class PagoService {
           observaciones: dto.observaciones,
           importe_total: importeTotal,
           estado: 'CONFIRMADA',
-          ...this.obtenerDatosBancariosProveedor(),
+          ...this.obtenerDatosBancariosProveedor(proveedor),
           FK_proveedor: dto.FK_proveedor,
           FK_forma_pago: dto.FK_forma_pago,
           FK_usuario_creador: usuarioId,
@@ -721,17 +721,22 @@ export class PagoService {
   }
 
   /**
-   * Foto de los datos bancarios del proveedor al confirmar (HU-12, bloqueado
-   * hoy: ver Decisiones de la HU). Siempre `null` hasta que `PROVEEDOR` tenga
-   * banco/titular/cbu/alias — el día que existan, este método pasa a
-   * leerlos, sin tocar el resto del service.
+   * Foto de los datos bancarios del proveedor al confirmar (HU-12): se copian
+   * tal cual están en `PROVEEDOR` en este momento, para que una edición
+   * posterior de la ficha del proveedor no altere un documento ya emitido —
+   * mismo criterio que `DETALLEPAGO.saldo_anterior`/`saldo_posterior`.
    */
-  private obtenerDatosBancariosProveedor() {
+  private obtenerDatosBancariosProveedor(proveedor: {
+    banco: string | null;
+    titular: string | null;
+    cbu: string | null;
+    alias: string | null;
+  }) {
     return {
-      banco_utilizado: null,
-      titular_utilizado: null,
-      cbu_utilizado: null,
-      alias_utilizado: null,
+      banco_utilizado: proveedor.banco,
+      titular_utilizado: proveedor.titular,
+      cbu_utilizado: proveedor.cbu,
+      alias_utilizado: proveedor.alias,
     };
   }
 

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { FilterX } from 'lucide-react'
 import { useProveedores } from '@/features/compras/proveedores/hooks/useProveedores'
 import { useFormasPago } from '@/features/tesoreria/formas-pago/hooks/useFormasPago'
@@ -37,6 +38,8 @@ interface FiltrosPagosBarProps {
   errorRango?: string
   onLimpiar: () => void
   hayFiltros: boolean
+  /** Acciones de la pantalla (el botón de alta), alineadas a la derecha de la barra. */
+  acciones?: ReactNode
 }
 
 /**
@@ -65,6 +68,7 @@ export function FiltrosPagosBar({
   errorRango,
   onLimpiar,
   hayFiltros,
+  acciones,
 }: FiltrosPagosBarProps) {
   const [busquedaProveedor, setBusquedaProveedor] = useState('')
 
@@ -96,69 +100,73 @@ export function FiltrosPagosBar({
   const hayMasProveedores = (proveedores?.meta.total ?? 0) > opcionesProveedor.length
 
   return (
-    <div className="flex flex-wrap items-end gap-3">
-      <Combobox
-        size="sm"
-        label="Proveedor"
-        placeholder="Todos los proveedores"
-        minChars={1}
-        value={FK_proveedor}
-        onChange={onFKProveedorChange}
-        options={opcionesProveedor}
-        onSearch={setBusquedaProveedor}
-        loading={buscandoProveedores}
-        hasMoreResults={hayMasProveedores}
-        emptyText="No se encontraron proveedores"
-        className="w-70"
-      />
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <Combobox
+          size="sm"
+          label="Proveedor"
+          placeholder="Todos los proveedores"
+          minChars={1}
+          value={FK_proveedor}
+          onChange={onFKProveedorChange}
+          options={opcionesProveedor}
+          onSearch={setBusquedaProveedor}
+          loading={buscandoProveedores}
+          hasMoreResults={hayMasProveedores}
+          emptyText="No se encontraron proveedores"
+          className="w-70"
+        />
 
-      <Select
-        size="sm"
-        label="Forma de pago"
-        options={opcionesFormaPago}
-        value={FK_forma_pago}
-        onChange={(evento) => onFKFormaPagoChange(evento.target.value)}
-        className="w-60"
-      />
+        <Select
+          size="sm"
+          label="Forma de pago"
+          options={opcionesFormaPago}
+          value={FK_forma_pago}
+          onChange={(evento) => onFKFormaPagoChange(evento.target.value)}
+          className="w-60"
+        />
 
-      <Select
-        size="sm"
-        label="Estado"
-        options={OPCIONES_ESTADO}
-        value={estado}
-        onChange={(evento) => onEstadoChange(evento.target.value as FiltroEstadoPago)}
-        className="w-50"
-      />
+        <Select
+          size="sm"
+          label="Estado"
+          options={OPCIONES_ESTADO}
+          value={estado}
+          onChange={(evento) => onEstadoChange(evento.target.value as FiltroEstadoPago)}
+          className="w-50"
+        />
 
-      {/* El `<input type="date">` nativo ya trae el calendario del navegador y
+        {/* El `<input type="date">` nativo ya trae el calendario del navegador y
           devuelve el valor en ISO (YYYY-MM-DD). */}
-      <Input
-        size="sm"
-        type="date"
-        label="Fecha desde"
-        value={fechaDesde}
-        onChange={(evento) => onFechaDesdeChange(evento.target.value)}
-        className="w-40"
-      />
-      <Input
-        size="sm"
-        type="date"
-        label="Fecha hasta"
-        value={fechaHasta}
-        onChange={(evento) => onFechaHastaChange(evento.target.value)}
-        error={errorRango}
-        className="w-40"
-      />
+        <Input
+          size="sm"
+          type="date"
+          label="Fecha desde"
+          value={fechaDesde}
+          onChange={(evento) => onFechaDesdeChange(evento.target.value)}
+          className="w-40"
+        />
+        <Input
+          size="sm"
+          type="date"
+          label="Fecha hasta"
+          value={fechaHasta}
+          onChange={(evento) => onFechaHastaChange(evento.target.value)}
+          error={errorRango}
+          className="w-40"
+        />
 
-      <Button
-        size="sm"
-        icon={<FilterX />}
-        onClick={onLimpiar}
-        disabled={!hayFiltros}
-        title="Quitar todos los filtros aplicados"
-      >
-        Limpiar filtros
-      </Button>
+        <Button
+          size="sm"
+          icon={<FilterX />}
+          onClick={onLimpiar}
+          disabled={!hayFiltros}
+          title="Quitar todos los filtros aplicados"
+        >
+          Limpiar filtros
+        </Button>
+      </div>
+
+      {acciones}
     </div>
   )
 }

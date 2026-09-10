@@ -67,8 +67,8 @@ export const pagoResponseSchema = z.object({
   observaciones: z.string().nullable(),
   estado: estadoPagoSchema,
   motivo_anulacion: z.string().nullable(),
-  // Foto de los datos bancarios del proveedor al confirmar (HU-12). Viajan
-  // siempre null hasta que PROVEEDOR tenga banco/titular/cbu/alias — ver
+  // Foto de los datos bancarios del proveedor al confirmar (HU-12): quedan
+  // en null si el proveedor no los tenía cargados en ese momento — ver
   // PagoService.obtenerDatosBancariosProveedor.
   banco_utilizado: z.string().nullable(),
   titular_utilizado: z.string().nullable(),
