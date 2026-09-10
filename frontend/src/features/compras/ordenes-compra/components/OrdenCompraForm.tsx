@@ -303,6 +303,15 @@ export function OrdenCompraForm({
             />
           </div>
 
+          <Input
+            label="Observaciones"
+            multiline
+            placeholder="Texto breve para identificar la orden"
+            disabled={cargando}
+            error={errors.observaciones?.message}
+            {...register('observaciones')}
+          />
+
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-content text-sm font-medium">Detalle de la orden</span>
@@ -354,15 +363,6 @@ export function OrdenCompraForm({
               <span className="text-content text-lg font-semibold">{formatearMoneda(total)}</span>
             </div>
           </div>
-
-          <Input
-            label="Observaciones"
-            multiline
-            placeholder="Texto breve para identificar la orden"
-            disabled={cargando}
-            error={errors.observaciones?.message}
-            {...register('observaciones')}
-          />
         </form>
       </Modal>
 
