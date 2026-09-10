@@ -52,7 +52,17 @@ export const comprobanteResponseSchema = z.object({
 export class ComprobanteResponseDto extends createZodDto(
   comprobanteResponseSchema,
 ) {}
+/** Datos identificatorios del proveedor, para no devolver solo el `FK_proveedor` en listado/detalle. */
+const proveedorResumenSchema = z.object({
+  id_proveedor: z.number(),
+  razon_social: z.string(),
+});
 
+/** Datos identificatorios del tipo de comprobante (mismo criterio que `proveedor`). */
+const tipoComprobanteResumenSchema = z.object({
+  id_tipo_comprobante: z.number(),
+  nombre: z.string(),
+});
 /**
  * Listado (HU-16): tipo, letra, punto de venta, número, fechas, proveedor,
  * importe total, saldo pendiente, estado y estado de saldo — no el detalle
@@ -71,7 +81,11 @@ export const comprobanteListItemSchema = comprobanteResponseSchema.pick({
   saldo_pendiente: true,
   estado: true,
   estado_saldo: true,
-});
+})
+ .extend({
+    proveedor: proveedorResumenSchema,
+    tipoComprobante: tipoComprobanteResumenSchema,
+  });
 
 export const comprobanteListResponseSchema = z.object({
   data: z.array(comprobanteListItemSchema),
@@ -111,6 +125,8 @@ const ordenPagoResumenSchema = z.object({
 export const comprobanteDetalleResponseSchema =
   comprobanteResponseSchema.extend({
     detalle: z.array(lineaDetalleResponseSchema),
+    proveedor: proveedorResumenSchema,
+    tipoComprobante: tipoComprobanteResumenSchema,
     comprobanteOrigen: comprobanteListItemSchema.nullable(),
     notasAplicadas: z.array(comprobanteListItemSchema),
     pagos: z.array(ordenPagoResumenSchema),

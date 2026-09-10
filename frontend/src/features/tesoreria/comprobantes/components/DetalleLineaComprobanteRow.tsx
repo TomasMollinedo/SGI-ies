@@ -87,7 +87,7 @@ export function DetalleLineaComprobanteRow({
         step="any"
         placeholder="Cantidad"
         error={errors?.cantidad?.message}
-        {...register(`detalle.${index}.cantidad`, { valueAsNumber: true })}
+        {...register(`detalle.${index}.cantidad`)}
       />
 
       <Input
@@ -96,7 +96,7 @@ export function DetalleLineaComprobanteRow({
         step="0.01"
         placeholder="Precio unit."
         error={errors?.precio_unitario?.message}
-        {...register(`detalle.${index}.precio_unitario`, { valueAsNumber: true })}
+        {...register(`detalle.${index}.precio_unitario`)}
       />
 
       <p className="text-content pt-2.5 text-right text-sm font-medium">

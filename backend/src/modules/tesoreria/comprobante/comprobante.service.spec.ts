@@ -96,6 +96,8 @@ describe('ComprobanteService', () => {
     detallesPago: [],
     usuarioCreador: { nombre: 'Ada', apellido: 'Lovelace' },
     usuarioActualizador: { nombre: 'Ada', apellido: 'Lovelace' },
+    proveedor: { id_proveedor: 1, razon_social: 'Corralón San Martín S.A.' },
+    tipoComprobante: { id_tipo_comprobante: 1, nombre: 'Factura' },
     ...overrides,
   });
 

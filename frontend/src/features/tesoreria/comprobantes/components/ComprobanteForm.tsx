@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import type { UseFormSetError } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, Plus, Receipt, TrendingDown, TrendingUp, TriangleAlert, X } from 'lucide-react'
+import { Check, Pencil, Plus, Receipt, TrendingDown, TrendingUp, TriangleAlert, X } from 'lucide-react'
 import { useProveedores } from '@/features/compras/proveedores/hooks/useProveedores'
 import { useTiposComprobante } from '@/features/tesoreria/tipos-comprobante/hooks/useTiposComprobante'
 import { ConfirmDialog } from '@/shared/components/common/ConfirmDialog'
@@ -25,39 +25,63 @@ import type {
   ComprobanteFormValues,
   LineaComprobanteFormValues,
 } from '../types/comprobante.schema'
+import type { ComprobanteDetalle } from '../types/comprobante.types'
 import { formatearFechaSinHora, hoyIso } from '../utils/fechaComprobante'
 import { formatearMoneda } from '../utils/formatearMoneda'
 import { formatearNumeroComprobante } from '../utils/numeroComprobante'
 
 const ID_FORM = 'form-comprobante'
-
-/** Alícuota de IVA por defecto: la general en Argentina. */
 const ALICUOTA_IVA_DEFECTO = 21
-
-/** Cuántas órdenes de compra / comprobantes de origen ofrece el selector (los más recientes). */
 const LIMITE_VINCULABLES = 50
 
 const LINEA_VACIA: LineaComprobanteFormValues = {
   descripcion: '',
   FK_articulo: '',
-  cantidad: 1,
-  precio_unitario: 0,
+  cantidad: '',
+  precio_unitario: '',
 }
 
-function valoresIniciales(): ComprobanteFormValues {
+function valoresIniciales(comprobante?: ComprobanteDetalle): ComprobanteFormValues {
+  if (!comprobante) {
+    return {
+      FK_tipo_comprobante: '',
+      FK_proveedor: '',
+      FK_orden_compra: '',
+      FK_comprobante_origen: '',
+      letra: '',
+      punto_de_venta: '',
+      numero: '',
+      fecha_emision: hoyIso(),
+      fecha_vencimiento: '',
+      observaciones: '',
+      alicuota_iva: String(ALICUOTA_IVA_DEFECTO),
+      detalle: [LINEA_VACIA],
+    }
+  }
+
   return {
-    FK_tipo_comprobante: '',
-    FK_proveedor: '',
-    FK_orden_compra: '',
-    FK_comprobante_origen: '',
-    letra: '',
-    punto_de_venta: 0,
-    numero: 0,
-    fecha_emision: hoyIso(),
-    fecha_vencimiento: '',
-    observaciones: '',
-    alicuota_iva: ALICUOTA_IVA_DEFECTO,
-    detalle: [LINEA_VACIA],
+    FK_tipo_comprobante: String(comprobante.FK_tipo_comprobante),
+    FK_proveedor: String(comprobante.FK_proveedor),
+    FK_orden_compra: comprobante.FK_orden_compra ? String(comprobante.FK_orden_compra) : '',
+    FK_comprobante_origen: comprobante.FK_comprobante_origen
+      ? String(comprobante.FK_comprobante_origen)
+      : '',
+    letra: comprobante.letra,
+    punto_de_venta: String(comprobante.punto_de_venta),
+    numero: String(comprobante.numero),
+    fecha_emision: comprobante.fecha_emision.slice(0, 10),
+    fecha_vencimiento: comprobante.fecha_vencimiento.slice(0, 10),
+    observaciones: comprobante.observaciones ?? '',
+    alicuota_iva: String(comprobante.alicuota_iva),
+    detalle:
+      comprobante.detalle.length > 0
+        ? comprobante.detalle.map((linea) => ({
+            descripcion: linea.descripcion,
+            FK_articulo: linea.FK_articulo ? String(linea.FK_articulo) : '',
+            cantidad: String(linea.cantidad),
+            precio_unitario: String(linea.precio_unitario),
+          }))
+        : [LINEA_VACIA],
   }
 }
 
@@ -66,48 +90,56 @@ function redondear(valor: number): number {
   return Math.round(valor * 100) / 100
 }
 
-function subtotalLinea(linea: { cantidad: number; precio_unitario: number }): number {
-  if (!Number.isFinite(linea.cantidad) || !Number.isFinite(linea.precio_unitario)) return 0
-  return redondear(linea.cantidad * linea.precio_unitario)
+function subtotalLinea(linea: { cantidad: string; precio_unitario: string }): number {
+  const cantidad = Number(linea.cantidad)
+  const precioUnitario = Number(linea.precio_unitario)
+  if (!Number.isFinite(cantidad) || !Number.isFinite(precioUnitario)) return 0
+  return redondear(cantidad * precioUnitario)
 }
 
 interface ComprobanteFormProps {
   open: boolean
   onClose: () => void
-  onGuardarBorrador: (payload: ComprobanteFormOutput) => void
+  /** Sin este prop es alta; con un comprobante cargado, es edición de un BORRADOR. */
+  comprobante?: ComprobanteDetalle
+  /** Guardar (alta como BORRADOR o guardar los cambios de la edición). */
+  onGuardar: (payload: ComprobanteFormOutput) => void
+  /** Guardar y confirmar en un solo paso. */
   onConfirmar: (payload: ComprobanteFormOutput) => void
-  loadingBorrador?: boolean
+  loadingGuardar?: boolean
   loadingConfirmar?: boolean
-  /** Error del último intento (guardar borrador o confirmar) que la página no resolvió sola. */
   error?: ApiErrorResponse | null
 }
 
 /**
- * Modal de alta de un comprobante de proveedor: cabecera + grilla de detalle,
- * con el subtotal de cada línea y los cuatro importes recalculados en vivo con
- * la misma fórmula y redondeo que el backend.
+ * Modal de alta / edición de un comprobante de proveedor: cabecera + grilla de
+ * detalle, con el subtotal de cada línea y los cuatro importes recalculados en
+ * vivo con la misma fórmula y redondeo que el backend.
  *
  * Dos acciones, igual que el ciclo de vida del backend:
- * - "Guardar borrador": crea el comprobante en BORRADOR (puede no tener líneas).
+ * - "Guardar borrador" / "Guardar cambios": deja el comprobante en BORRADOR.
  * - "Confirmar y registrar": pide al menos una línea y muestra un `ConfirmDialog`
  *   con el resumen — al registrarse, la cabecera y el detalle dejan de editarse.
  */
 export function ComprobanteForm({
   open,
   onClose,
-  onGuardarBorrador,
+  comprobante,
+  onGuardar,
   onConfirmar,
-  loadingBorrador = false,
+  loadingGuardar = false,
   loadingConfirmar = false,
   error = null,
 }: ComprobanteFormProps) {
+  const esEdicion = comprobante !== undefined
+
   const [confirmarDescarte, setConfirmarDescarte] = useState(false)
   const [confirmarRegistro, setConfirmarRegistro] = useState(false)
   const [payloadAConfirmar, setPayloadAConfirmar] = useState<ComprobanteFormOutput | null>(null)
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
   const [busquedaProveedor, setBusquedaProveedor] = useState('')
 
-  const cargando = loadingBorrador || loadingConfirmar
+  const cargando = loadingGuardar || loadingConfirmar
 
   const { data: tipos, isFetching: cargandoTipos } = useTiposComprobante({
     estado: true,
@@ -129,7 +161,7 @@ export function ComprobanteForm({
     formState: { errors, isDirty, isValid },
   } = useForm<ComprobanteFormValues, unknown, ComprobanteFormOutput>({
     resolver: zodResolver(comprobanteFormSchema),
-    defaultValues: valoresIniciales(),
+    defaultValues: valoresIniciales(comprobante),
     mode: 'onChange',
   })
 
@@ -142,12 +174,13 @@ export function ComprobanteForm({
   const proveedorId = proveedorSeleccionado ? Number(proveedorSeleccionado) : undefined
   const hayProveedor = proveedorId !== undefined
 
-  const tipoElegido = (tipos?.data ?? []).find(
+  const tiposActivos = tipos?.data ?? []
+  const tipoElegido = tiposActivos.find(
     (tipo) => String(tipo.id_tipo_comprobante) === tipoSeleccionado
   )
   const nombresPorTipo = useMemo(
-    () => new Map((tipos?.data ?? []).map((tipo) => [tipo.id_tipo_comprobante, tipo.nombre])),
-    [tipos]
+    () => new Map(tiposActivos.map((tipo) => [tipo.id_tipo_comprobante, tipo.nombre])),
+    [tiposActivos]
   )
 
   const { data: ordenesCompra, isFetching: cargandoOrdenesCompra } = useOrdenesCompra(
@@ -159,10 +192,25 @@ export function ComprobanteForm({
     { enabled: hayProveedor }
   )
 
-  const opcionesTipo: SelectOption[] = (tipos?.data ?? []).map((tipo) => ({
-    value: String(tipo.id_tipo_comprobante),
-    label: tipo.nombre,
-  }))
+  // Tipo: solo activos, salvo que el comprobante que se edita apunte a uno
+  // dado de baja — en ese caso se agrega al principio para no perder el valor.
+  const tipoActualFueraDeLista =
+    comprobante !== undefined &&
+    !tiposActivos.some((t) => t.id_tipo_comprobante === comprobante.FK_tipo_comprobante)
+  const opcionesTipo: SelectOption[] = [
+    ...(tipoActualFueraDeLista
+      ? [
+          {
+            value: String(comprobante.FK_tipo_comprobante),
+            label: `${comprobante.tipoComprobante.nombre} (dado de baja)`,
+          },
+        ]
+      : []),
+    ...tiposActivos.map((tipo) => ({
+      value: String(tipo.id_tipo_comprobante),
+      label: tipo.nombre,
+    })),
+  ]
 
   const opcionesProveedor: ComboboxOption[] = (proveedores?.data ?? []).map((proveedor) => ({
     value: String(proveedor.id_proveedor),
@@ -170,43 +218,65 @@ export function ComprobanteForm({
   }))
   const hayMasProveedores = (proveedores?.meta.total ?? 0) > (proveedores?.data.length ?? 0)
 
+  const ocsBase: SelectOption[] = (ordenesCompra?.data ?? []).map((orden) => ({
+    value: String(orden.id_orden_compra),
+    label: `OC #${orden.id_orden_compra} · ${formatearFechaSinHora(orden.fecha_emision)}`,
+  }))
+  const ocVinculada = comprobante?.FK_orden_compra ?? null
+  const ocFueraDeLista =
+    ocVinculada !== null && !ocsBase.some((o) => o.value === String(ocVinculada))
   const opcionesOrdenCompra: SelectOption[] = [
     { value: '', label: '— Sin vincular —' },
-    ...(ordenesCompra?.data ?? []).map((orden) => ({
-      value: String(orden.id_orden_compra),
-      label: `OC #${orden.id_orden_compra} · ${formatearFechaSinHora(orden.fecha_emision)}`,
-    })),
+    ...(ocFueraDeLista ? [{ value: String(ocVinculada), label: `OC #${ocVinculada}` }] : []),
+    ...ocsBase,
   ]
 
+  const origenesBase: SelectOption[] = (comprobantesOrigen?.data ?? []).map((c) => ({
+    value: String(c.id_comprobante_proveedor),
+    label: `${nombresPorTipo.get(c.FK_tipo_comprobante) ?? 'Comprobante'} ${formatearNumeroComprobante(c)}`,
+  }))
+  const origenVinculado = comprobante?.comprobanteOrigen ?? null
+  const origenFueraDeLista =
+    origenVinculado !== null &&
+    !origenesBase.some((o) => o.value === String(origenVinculado.id_comprobante_proveedor))
   const opcionesOrigen: SelectOption[] = [
     { value: '', label: '— Sin comprobante de origen —' },
-    ...(comprobantesOrigen?.data ?? []).map((comprobante) => ({
-      value: String(comprobante.id_comprobante_proveedor),
-      label: `${nombresPorTipo.get(comprobante.FK_tipo_comprobante) ?? 'Comprobante'} ${formatearNumeroComprobante(comprobante)}`,
-    })),
+    ...(origenFueraDeLista
+      ? [
+          {
+            value: String(origenVinculado.id_comprobante_proveedor),
+            label: `${origenVinculado.tipoComprobante.nombre} ${formatearNumeroComprobante(origenVinculado)}`,
+          },
+        ]
+      : []),
+    ...origenesBase,
   ]
-
-  const alicuota = Number.isFinite(alicuotaSeleccionada) ? alicuotaSeleccionada : 0
+  const alicuotaNumero = Number(alicuotaSeleccionada)
+  const alicuota = Number.isFinite(alicuotaNumero) ? alicuotaNumero : 0
   const subtotalesPorLinea = detalle.map(subtotalLinea)
   const neto = redondear(subtotalesPorLinea.reduce((acumulado, valor) => acumulado + valor, 0))
   const iva = redondear((neto * alicuota) / 100)
   const total = redondear(neto + iva)
   const errorDetalle = errors.detalle?.message
 
-  // El proveedor anterior, para resetear la OC y el origen si cambia.
   const proveedorAnteriorRef = useRef(proveedorSeleccionado)
 
   useEffect(() => {
-    if (!open) return
-
-    reset(valoresIniciales())
+    // Los diálogos y el error se limpian también al cerrar, para que un
+    // ConfirmDialog abierto no quede pegado cuando el formulario se cierra
+    // solo tras guardar.
     setErrorGeneral(null)
     setConfirmarDescarte(false)
     setConfirmarRegistro(false)
     setPayloadAConfirmar(null)
+
+    if (!open) return
+
+    const iniciales = valoresIniciales(comprobante)
+    reset(iniciales)
     setBusquedaProveedor('')
-    proveedorAnteriorRef.current = ''
-  }, [open, reset])
+    proveedorAnteriorRef.current = iniciales.FK_proveedor
+  }, [open, comprobante, reset])
 
   useEffect(() => {
     if (proveedorAnteriorRef.current === proveedorSeleccionado) return
@@ -220,9 +290,9 @@ export function ComprobanteForm({
     setErrorGeneral(repartirErrorDelBackend(error, setError))
   }, [error, setError])
 
-  function guardarBorrador() {
+  function guardar() {
     setErrorGeneral(null)
-    void handleSubmit((payload) => onGuardarBorrador(payload))()
+    void handleSubmit((payload) => onGuardar(payload))()
   }
 
   function pedirConfirmacionDeRegistro() {
@@ -244,16 +314,12 @@ export function ComprobanteForm({
     onConfirmar(payloadAConfirmar)
   }
 
-  // Cerrar con datos a medio cargar pide confirmación; con un envío en curso no
-  // se cierra directamente.
   function intentarCerrar() {
     if (cargando) return
-
     if (isDirty) {
       setConfirmarDescarte(true)
       return
     }
-
     onClose()
   }
 
@@ -262,8 +328,8 @@ export function ComprobanteForm({
       <Modal
         open={open}
         onClose={intentarCerrar}
-        title="Nuevo comprobante"
-        icon={<Receipt />}
+        title={esEdicion ? 'Editar comprobante' : 'Nuevo comprobante'}
+        icon={esEdicion ? <Pencil /> : <Receipt />}
         size="lg"
         closeOnEscape={!cargando && !confirmarDescarte && !confirmarRegistro}
         closeOnOverlayClick={!cargando && !confirmarDescarte && !confirmarRegistro}
@@ -274,11 +340,11 @@ export function ComprobanteForm({
             </Button>
             <Button
               variant="primary"
-              onClick={guardarBorrador}
-              loading={loadingBorrador}
+              onClick={guardar}
+              loading={loadingGuardar}
               disabled={cargando || !isValid}
             >
-              Guardar borrador
+              {esEdicion ? 'Guardar cambios' : 'Guardar borrador'}
             </Button>
             <Button
               variant="success"
@@ -345,6 +411,7 @@ export function ComprobanteForm({
                   minChars={0}
                   value={field.value}
                   onChange={field.onChange}
+                  selectedLabel={comprobante?.proveedor.razon_social ?? ''}
                   options={opcionesProveedor}
                   onSearch={setBusquedaProveedor}
                   loading={cargandoProveedores}
@@ -374,7 +441,7 @@ export function ComprobanteForm({
                 min={1}
                 disabled={cargando}
                 error={errors.punto_de_venta?.message}
-                {...register('punto_de_venta', { valueAsNumber: true })}
+                {...register('punto_de_venta')}
               />
 
               <Input
@@ -384,7 +451,7 @@ export function ComprobanteForm({
                 min={1}
                 disabled={cargando}
                 error={errors.numero?.message}
-                {...register('numero', { valueAsNumber: true })}
+                {...register('numero')}
               />
             </div>
 
@@ -484,7 +551,7 @@ export function ComprobanteForm({
               className="w-40"
               disabled={cargando}
               error={errors.alicuota_iva?.message}
-              {...register('alicuota_iva', { valueAsNumber: true })}
+              {...register('alicuota_iva')}
             />
 
             <dl className="flex flex-col gap-1 text-sm">
@@ -550,7 +617,7 @@ export function ComprobanteForm({
         }}
         eyebrow="Cambios sin guardar"
         eyebrowIcon={<TriangleAlert />}
-        title="¿Descartar este comprobante?"
+        title={esEdicion ? '¿Descartar los cambios?' : '¿Descartar este comprobante?'}
         note="Lo que cargaste en el formulario se va a perder."
         confirmLabel="Descartar"
         cancelLabel="Seguir editando"
@@ -559,7 +626,6 @@ export function ComprobanteForm({
   )
 }
 
-/** Los campos de la cabecera, para saber qué issues del backend son de campo. */
 const CAMPOS = [
   'FK_tipo_comprobante',
   'FK_proveedor',
@@ -580,7 +646,6 @@ function esCampoDelFormulario(campo: string): campo is CampoDelFormulario {
   return CAMPOS.includes(campo as CampoDelFormulario)
 }
 
-/** Manda cada error del backend a donde corresponda y devuelve lo que quedó sin dueño, para el banner. */
 function repartirErrorDelBackend(
   error: ApiErrorResponse,
   setError: UseFormSetError<ComprobanteFormValues>

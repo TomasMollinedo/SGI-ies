@@ -88,11 +88,16 @@ interface CabeceraComprobanteRow {
   FK_usuario_actualizador: number;
 }
 
+/** Cabecera + proveedor y tipo resueltos, para el listado y el detalle. */
+interface ComprobanteConResumenRow extends CabeceraComprobanteRow {
+  proveedor: { id_proveedor: number; razon_social: string };
+  tipoComprobante: { id_tipo_comprobante: number; nombre: string };
+}
 /** Cabecera + todas las relaciones que muestra el detalle en modo lectura. */
-interface ComprobanteLecturaRow extends CabeceraComprobanteRow {
+interface ComprobanteLecturaRow extends ComprobanteConResumenRow {
   detalles: LineaComprobanteRow[];
-  comprobante_origen: CabeceraComprobanteRow | null;
-  notas_aplicadas: CabeceraComprobanteRow[];
+  comprobante_origen: ComprobanteConResumenRow | null;
+  notas_aplicadas: ComprobanteConResumenRow[];
   detallesPago: {
     importe_imputado: Prisma.Decimal;
     pago: { id_pago: number; fecha_pago: Date };
@@ -223,6 +228,12 @@ export class ComprobanteService {
     const [filas, total] = await Promise.all([
       this.prisma.cOMPROBANTEPROVEEDOR.findMany({
         where,
+        include: {
+          proveedor: { select: { id_proveedor: true, razon_social: true } },
+          tipoComprobante: {
+            select: { id_tipo_comprobante: true, nombre: true },
+          },
+        },
         skip: (page - 1) * limit,
         take: limit,
         orderBy: [
@@ -468,7 +479,7 @@ export class ComprobanteService {
     };
   }
 
-  private toListItem(c: CabeceraComprobanteRow): ComprobanteListItem {
+  private toListItem(c: ComprobanteConResumenRow): ComprobanteListItem {
     return {
       id_comprobante_proveedor: c.id_comprobante_proveedor,
       FK_tipo_comprobante: c.FK_tipo_comprobante,
@@ -483,12 +494,28 @@ export class ComprobanteService {
         c.saldo_pendiente === null ? null : c.saldo_pendiente.toNumber(),
       estado: c.estado,
       estado_saldo: estadoSaldoDesde(c.saldo_cancelado),
+      proveedor: {
+        id_proveedor: c.proveedor.id_proveedor,
+        razon_social: c.proveedor.razon_social,
+      },
+      tipoComprobante: {
+        id_tipo_comprobante: c.tipoComprobante.id_tipo_comprobante,
+        nombre: c.tipoComprobante.nombre,
+      },
     };
   }
 
   private toDetalle(c: ComprobanteLecturaRow): ComprobanteDetalleResponse {
     return {
       ...this.toResponse(c),
+      proveedor: {
+        id_proveedor: c.proveedor.id_proveedor,
+        razon_social: c.proveedor.razon_social,
+      },
+      tipoComprobante: {
+        id_tipo_comprobante: c.tipoComprobante.id_tipo_comprobante,
+        nombre: c.tipoComprobante.nombre,
+      },
       detalle: c.detalles.map((l) => ({
         id_detalle_comprobante: l.id_detalle_comprobante,
         descripcion: l.descripcion,
@@ -526,9 +553,28 @@ export class ComprobanteService {
     const comprobante = await this.prisma.cOMPROBANTEPROVEEDOR.findUnique({
       where: { id_comprobante_proveedor: id },
       include: {
+        proveedor: { select: { id_proveedor: true, razon_social: true } },
+        tipoComprobante: {
+          select: { id_tipo_comprobante: true, nombre: true },
+        },
         detalles: { orderBy: { id_detalle_comprobante: 'asc' } },
-        comprobante_origen: true,
-        notas_aplicadas: { orderBy: { id_comprobante_proveedor: 'asc' } },
+        comprobante_origen: {
+          include: {
+            proveedor: { select: { id_proveedor: true, razon_social: true } },
+            tipoComprobante: {
+              select: { id_tipo_comprobante: true, nombre: true },
+            },
+          },
+        },
+        notas_aplicadas: {
+          include: {
+            proveedor: { select: { id_proveedor: true, razon_social: true } },
+            tipoComprobante: {
+              select: { id_tipo_comprobante: true, nombre: true },
+            },
+          },
+          orderBy: { id_comprobante_proveedor: 'asc' },
+        },
         detallesPago: {
           include: {
             pago: { select: { id_pago: true, fecha_pago: true } },

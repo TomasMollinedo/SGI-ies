@@ -1,14 +1,18 @@
 import { httpClient } from '@/shared/api/httpClient'
 import type { PaginatedResponse } from '@/shared/types/api.types'
 import type {
+  AnularComprobantePayload,
   Comprobante,
+  ComprobanteDetalle,
   ComprobanteListItem,
   ComprobantesQuery,
   CrearComprobantePayload,
+  EditarComprobantePayload,
 } from '../types/comprobante.types'
 
 export const COMPROBANTES_QUERY_KEYS = {
   LISTA: (filtros: ComprobantesQuery) => ['comprobantes', 'lista', filtros] as const,
+  DETALLE: (id: number | null) => ['comprobantes', 'detalle', id] as const,
 }
 
 /**
@@ -51,5 +55,32 @@ export async function crearComprobante(payload: CrearComprobantePayload): Promis
 /** PATCH /comprobantes/:id/confirmar — BORRADOR → REGISTRADO. Devuelve el comprobante ya registrado. */
 export async function confirmarComprobante(id: number): Promise<Comprobante> {
   const { data } = await httpClient.patch<Comprobante>(`/comprobantes/${id}/confirmar`)
+  return data
+}
+
+/** GET /comprobantes/:id — el comprobante con sus líneas y su trazabilidad, para el modal de detalle. */
+export async function obtenerComprobante(
+  id: number,
+  signal?: AbortSignal
+): Promise<ComprobanteDetalle> {
+  const { data } = await httpClient.get<ComprobanteDetalle>(`/comprobantes/${id}`, { signal })
+  return data
+}
+
+/** PATCH /comprobantes/:id — edita cabecera y/o detalle de un comprobante en BORRADOR. */
+export async function editarComprobante(
+  id: number,
+  payload: EditarComprobantePayload
+): Promise<Comprobante> {
+  const { data } = await httpClient.patch<Comprobante>(`/comprobantes/${id}`, payload)
+  return data
+}
+
+/** PATCH /comprobantes/:id/anular — anula un comprobante REGISTRADO, con motivo obligatorio. */
+export async function anularComprobante(
+  id: number,
+  payload: AnularComprobantePayload
+): Promise<Comprobante> {
+  const { data } = await httpClient.patch<Comprobante>(`/comprobantes/${id}/anular`, payload)
   return data
 }
