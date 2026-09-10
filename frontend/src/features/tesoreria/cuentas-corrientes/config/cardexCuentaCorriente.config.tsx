@@ -56,12 +56,15 @@ export const COLUMNAS_CARDEX_CUENTA_CORRIENTE: DataTableColumn<MovimientoCuentaC
   {
     key: 'comprobante',
     label: 'Comprobante',
-    render: (movimiento) =>
-      movimiento.clase === 'APERTURA' ? (
-        <span className="text-content-muted">Saldo de apertura</span>
-      ) : (
-        formatearNumeroComprobante(movimiento)
-      ),
+    render: (movimiento) => {
+      if (movimiento.clase === 'APERTURA') {
+        return <span className="text-content-muted">Saldo de apertura</span>
+      }
+      if (movimiento.clase === 'PAGO') {
+        return movimiento.tipo
+      }
+      return formatearNumeroComprobante(movimiento)
+    },
   },
   {
     key: 'vencimiento',
