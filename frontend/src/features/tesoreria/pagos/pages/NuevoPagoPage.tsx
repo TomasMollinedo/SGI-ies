@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useEffect, useRef, useState } from 'react'
+import { useBlocker, useNavigate } from 'react-router'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Check, TrendingDown, TrendingUp, TriangleAlert } from 'lucide-react'
@@ -60,7 +60,6 @@ export function NuevoPagoPage() {
   const toast = useToast()
   const crear = useCrearPago()
 
-  const [confirmarDescarte, setConfirmarDescarte] = useState(false)
   const [confirmarEmision, setConfirmarEmision] = useState(false)
   const [payloadAConfirmar, setPayloadAConfirmar] = useState<CrearPagoPayload | null>(null)
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
@@ -75,6 +74,13 @@ export function NuevoPagoPage() {
   } | null>(null)
 
   const loading = crear.isPending
+
+  // Ref y no `useState`: cuando se confirma el pago, `navigate()` se llama en
+  // el mismo tick que lo marca emitido. `useBlocker` recién se resincroniza
+  // en un efecto (después del próximo render), así que si esto fuera estado
+  // todavía leería el valor viejo y bloquearía esa navegación por error — la
+  // ref, en cambio, se lee al vuelo dentro del predicado del blocker.
+  const emitidoRef = useRef(false)
 
   const {
     control,
@@ -100,7 +106,12 @@ export function NuevoPagoPage() {
   const proveedorId = proveedorSeleccionado ? Number(proveedorSeleccionado) : null
   const hayProveedor = proveedorId !== null
 
-  const { data: comprobantesImputables, isFetching: cargandoComprobantes } =
+  // `isLoading` (sin datos todavía) y no `isFetching`: al volver a elegir un
+  // proveedor ya consultado antes, los comprobantes quedan en caché y se
+  // muestran al toque, pero `isFetching` sigue en `true` mientras React Query
+  // revalida en segundo plano — usarlo acá tapaba esa tabla con el skeleton
+  // un instante de más, el parpadeo raro al buscar proveedor.
+  const { data: comprobantesImputables, isLoading: cargandoComprobantes } =
     useComprobantesImputables(proveedorId)
   const { data: proveedorSeleccionadoDetalle } = useProveedorDetalle(proveedorId)
 
@@ -147,10 +158,39 @@ export function NuevoPagoPage() {
     hayLineasSeleccionadas && !hayImportesInvalidos && hayLineaDebe && importeNeto >= 0
   const mostrarErrorDetalle = intentoEnvio && !detalleValido
 
+  const hayCambiosSinGuardar = isDirty || hayLineasSeleccionadas
+
+  /**
+   * Bloquea la navegación interna (sidebar, breadcrumbs, botón "Volver") con
+   * cambios sin guardar, mostrando el mismo `ConfirmDialog` que el resto de
+   * la app usa para descartar. `useBlocker` requiere el data router del
+   * proyecto (`createBrowserRouter`), que ya está en uso.
+   */
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      hayCambiosSinGuardar &&
+      !emitidoRef.current &&
+      currentLocation.pathname !== nextLocation.pathname
+  )
+
   useEffect(() => {
     if (!crear.error) return
     setErrorGeneral(formatearMensajeError(crear.error.message))
   }, [crear.error])
+
+  // Cerrar la pestaña o refrescar no pasa por el router: el aviso nativo del
+  // navegador es la única forma de interceptar eso.
+  useEffect(() => {
+    if (!hayCambiosSinGuardar) return
+
+    function avisarAntesDeSalir(evento: BeforeUnloadEvent) {
+      if (emitidoRef.current) return
+      evento.preventDefault()
+    }
+
+    window.addEventListener('beforeunload', avisarAntesDeSalir)
+    return () => window.removeEventListener('beforeunload', avisarAntesDeSalir)
+  }, [hayCambiosSinGuardar])
 
   /**
    * Si ya había comprobantes seleccionados para el proveedor anterior, el
@@ -228,6 +268,7 @@ export function NuevoPagoPage() {
     setErrorGeneral(null)
     crear.mutate(payloadAConfirmar, {
       onSuccess: (pago) => {
+        emitidoRef.current = true
         toast.success(`Pago ${formatearCodigoPago(pago.id_pago)} confirmado.`)
         navigate(PATHS.TESORERIA.PAGOS.ROOT)
       },
@@ -248,10 +289,6 @@ export function NuevoPagoPage() {
 
   function volver() {
     if (loading) return
-    if (isDirty || hayLineasSeleccionadas) {
-      setConfirmarDescarte(true)
-      return
-    }
     navigate(PATHS.TESORERIA.PAGOS.ROOT)
   }
 
@@ -574,17 +611,14 @@ export function NuevoPagoPage() {
       />
 
       <ConfirmDialog
-        open={confirmarDescarte}
-        onCancel={() => setConfirmarDescarte(false)}
-        onConfirm={() => {
-          setConfirmarDescarte(false)
-          navigate(PATHS.TESORERIA.PAGOS.ROOT)
-        }}
+        open={blocker.state === 'blocked'}
+        onCancel={() => blocker.reset?.()}
+        onConfirm={() => blocker.proceed?.()}
         eyebrow="Cambios sin guardar"
         eyebrowIcon={<TriangleAlert />}
-        title="¿Descartar este pago?"
+        title="¿Salir sin guardar los cambios?"
         note="Lo que cargaste en el formulario se va a perder."
-        confirmLabel="Descartar"
+        confirmLabel="Salir"
         cancelLabel="Seguir editando"
       />
 

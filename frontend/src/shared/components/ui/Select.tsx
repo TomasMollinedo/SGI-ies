@@ -13,6 +13,8 @@ import { cn } from '@/shared/utils/cn'
 export interface SelectOption {
   value: string
   label: string
+  /** Clase de color opcional para esta opción puntual (ej. distinguir activa/inactiva en un catálogo con bajas). */
+  colorClassName?: string
 }
 
 interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
@@ -38,7 +40,8 @@ interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'siz
  *   requerido y `size='md'`.
  *
  * Props:
- * - `options`: las opciones, como `{ value, label }[]`.
+ * - `options`: las opciones, como `{ value, label }[]`. `colorClassName` es
+ *   opcional, para pintar el texto de una opción puntual (ej. una de baja).
  * - `placeholder`: opción inicial no seleccionable. Mientras esté elegida, el
  *   texto se ve atenuado, igual que el placeholder de un input.
  * - `label`, `required`, `helperText`, `error`, `size`, `disabled`: se comportan
@@ -113,7 +116,11 @@ export function Select({
             </option>
           )}
           {options.map((option) => (
-            <option key={option.value} value={option.value} className="text-content">
+            <option
+              key={option.value}
+              value={option.value}
+              className={cn('text-content', option.colorClassName)}
+            >
               {option.label}
             </option>
           ))}

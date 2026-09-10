@@ -1,3 +1,4 @@
+import { TrendingDown, TrendingUp } from 'lucide-react'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { formatearNumeroComprobante } from '@/features/tesoreria/comprobantes/utils/numeroComprobante'
 import { Badge } from '@/shared/components/ui/Badge'
@@ -65,26 +66,63 @@ export const COLUMNAS_PAGOS: DataTableColumn<Pago>[] = [
   { key: 'estado', label: 'Estado', render: (item) => badgeEstadoPago(item.estado) },
 ]
 
-/** Columnas de la grilla de imputaciones dentro del detalle de un pago. */
-export const COLUMNAS_DETALLE_PAGO: DataTableColumn<LineaPago>[] = [
-  {
-    key: 'comprobante',
-    label: 'Comprobante',
-    render: (linea) => formatearNumeroComprobante(linea.comprobante),
-  },
-  {
-    key: 'importeImputado',
-    label: 'Importe imputado',
-    render: (linea) => formatearImporte(linea.importe_imputado),
-  },
-  {
-    key: 'saldoAnterior',
-    label: 'Saldo anterior',
-    render: (linea) => formatearImporte(linea.saldo_anterior),
-  },
-  {
-    key: 'saldoPosterior',
-    label: 'Saldo posterior',
-    render: (linea) => formatearImporte(linea.saldo_posterior),
-  },
-]
+/**
+ * Pastilla Debe/Haber de una línea de imputación: si el tipo de comprobante
+ * aumenta el saldo (factura) o lo disminuye (nota de crédito) — mismo
+ * criterio y estilo que la tabla de comprobantes imputables al emitir un
+ * pago (ver `NuevoPagoPage`). `undefined` es "no se pudo determinar" (el
+ * tipo de comprobante no está en el catálogo cargado).
+ */
+export function badgeEfectoSaldo(aumentaSaldo: boolean | undefined) {
+  if (aumentaSaldo === undefined) return SIN_DATO
+
+  return (
+    <Badge variant={aumentaSaldo ? 'active' : 'error'} dot={false}>
+      {aumentaSaldo ? (
+        <TrendingUp className="size-3.5" aria-hidden="true" />
+      ) : (
+        <TrendingDown className="size-3.5" aria-hidden="true" />
+      )}
+      {aumentaSaldo ? 'Debe' : 'Haber'}
+    </Badge>
+  )
+}
+
+/**
+ * Columnas de la grilla de imputaciones dentro del detalle de un pago.
+ * `aumentaSaldoPorTipo` viene del catálogo de tipos de comprobante (no
+ * incluido en la respuesta de un comprobante imputado): se arma una sola vez
+ * en `PagoDetalleModal` y se cruza acá por `FK_tipo_comprobante`.
+ */
+export function columnasDetallePago(
+  aumentaSaldoPorTipo: Map<number, boolean>
+): DataTableColumn<LineaPago>[] {
+  return [
+    {
+      key: 'efecto',
+      label: 'Efecto',
+      render: (linea) =>
+        badgeEfectoSaldo(aumentaSaldoPorTipo.get(linea.comprobante.FK_tipo_comprobante)),
+    },
+    {
+      key: 'comprobante',
+      label: 'Comprobante',
+      render: (linea) => formatearNumeroComprobante(linea.comprobante),
+    },
+    {
+      key: 'importeImputado',
+      label: 'Importe imputado',
+      render: (linea) => formatearImporte(linea.importe_imputado),
+    },
+    {
+      key: 'saldoAnterior',
+      label: 'Saldo anterior',
+      render: (linea) => formatearImporte(linea.saldo_anterior),
+    },
+    {
+      key: 'saldoPosterior',
+      label: 'Saldo posterior',
+      render: (linea) => formatearImporte(linea.saldo_posterior),
+    },
+  ]
+}
