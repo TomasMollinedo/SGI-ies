@@ -51,6 +51,15 @@ export async function obtenerOrdenCompra(id: number, signal?: AbortSignal): Prom
   return data
 }
 
+/** PATCH /ordenes-compra/:id — edita cabecera y/o detalle. Solo funciona si la orden está en BORRADOR. */
+export async function editarOrdenCompra(
+  id: number,
+  payload: CrearOrdenCompraPayload
+): Promise<OrdenCompra> {
+  const { data } = await httpClient.patch<OrdenCompra>(`/ordenes-compra/${id}`, payload)
+  return data
+}
+
 /** PATCH /ordenes-compra/:id/estado — avanza el estado (ej. BORRADOR → EMITIDA al confirmar). */
 export async function cambiarEstadoOrdenCompra(
   id: number,
