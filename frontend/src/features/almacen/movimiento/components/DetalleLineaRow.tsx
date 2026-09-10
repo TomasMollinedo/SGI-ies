@@ -134,21 +134,28 @@ export function DetalleLineaRow({
       />
 
       <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[7rem_1fr_auto]">
+        {/* La cantidad arranca en 1, así que su placeholder nunca llegaba a
+            verse y el campo quedaba sin nombre. Los dos van con label. */}
         <Input
+          label="Cantidad"
+          required
           type="number"
           min={1}
-          placeholder="Cantidad"
           error={errors?.cantidad?.message}
           {...register(`detalle.${index}.cantidad`, { valueAsNumber: true })}
         />
 
         <Input
-          placeholder="Observación (opcional)"
+          label="Observación"
+          placeholder="Opcional"
           error={errors?.observacion?.message}
           {...register(`detalle.${index}.observacion`)}
         />
 
+        {/* Nudge para alinear el botón con los inputs y no con sus labels: la
+            altura del label (16px) más el gap del campo (6px). */}
         <IconButton
+          className="mt-5.5"
           icon={<Trash2 />}
           ariaLabel="Quitar línea"
           variant="soft"
