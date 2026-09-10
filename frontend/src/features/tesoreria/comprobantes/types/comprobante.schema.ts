@@ -1,6 +1,20 @@
 import { z } from 'zod'
 import { hoyIso } from '../utils/fechaComprobante'
 
+
+
+/**
+ * Un `<input type="number">` entrega un string (`''` cuando está vacío).
+ * `valueAsNumber` de RHF lo convierte a `NaN` y `z.number()` lo rechaza con un
+ * mensaje feo, así que estos campos se validan como texto y se transforman a
+ * número al final — mismo criterio que los `FK_*`.
+ */
+const numeroDesdeInput = (mensajeObligatorio: string) =>
+  z
+    .string()
+    .trim()
+    .min(1, mensajeObligatorio)
+    .refine((valor) => Number.isFinite(Number(valor)), 'Ingresá un número válido')
 /** Límites calcados de `lineaComprobanteSchema` (create-comprobante.dto.ts). */
 export const lineaComprobanteFormSchema = z.object({
   descripcion: z
@@ -11,8 +25,12 @@ export const lineaComprobanteFormSchema = z.object({
   // Opcional: una línea puede no corresponder a un artículo del catálogo
   // (flete, servicios). El `<select>` maneja strings; '' significa "sin artículo".
   FK_articulo: z.string().optional().or(z.literal('')),
-  cantidad: z.number().positive('La cantidad debe ser mayor a 0'),
-  precio_unitario: z.number().positive('El precio unitario debe ser mayor a 0'),
+  cantidad: numeroDesdeInput('La cantidad es obligatoria')
+      .refine((valor) => Number(valor) > 0, 'La cantidad debe ser mayor a 0')
+      .transform((valor) => Number(valor)),
+    precio_unitario: numeroDesdeInput('El precio unitario es obligatorio')
+      .refine((valor) => Number(valor) > 0, 'El precio unitario debe ser mayor a 0')
+      .transform((valor) => Number(valor)),
 })
 
 /**
@@ -43,14 +61,17 @@ export const comprobanteFormSchema = z
       .trim()
       .length(1, 'La letra debe ser un solo carácter')
       .transform((valor) => valor.toUpperCase()),
-    punto_de_venta: z
-      .number()
-      .int('El punto de venta debe ser un número entero')
-      .positive('El punto de venta debe ser mayor a 0'),
-    numero: z
-      .number()
-      .int('El número debe ser un número entero')
-      .positive('El número debe ser mayor a 0'),
+    punto_de_venta: numeroDesdeInput('El punto de venta es obligatorio')
+      .refine(
+        (valor) => Number.isInteger(Number(valor)),
+        'El punto de venta debe ser un número entero'
+      )
+      .refine((valor) => Number(valor) > 0, 'El punto de venta debe ser mayor a 0')
+      .transform((valor) => Number(valor)),
+    numero: numeroDesdeInput('El número es obligatorio')
+      .refine((valor) => Number.isInteger(Number(valor)), 'El número debe ser un número entero')
+      .refine((valor) => Number(valor) > 0, 'El número debe ser mayor a 0')
+      .transform((valor) => Number(valor)),
     fecha_emision: z
       .string()
       .min(1, 'La fecha de emisión es obligatoria')
@@ -62,10 +83,12 @@ export const comprobanteFormSchema = z
       .max(500, 'Las observaciones no pueden superar los 500 caracteres')
       .optional()
       .or(z.literal('')),
-    alicuota_iva: z
-      .number()
-      .min(0, 'La alícuota no puede ser negativa')
-      .max(100, 'La alícuota no puede superar 100'),
+    alicuota_iva: numeroDesdeInput('La alícuota de IVA es obligatoria')
+      .refine(
+        (valor) => Number(valor) >= 0 && Number(valor) <= 100,
+        'La alícuota debe estar entre 0 y 100'
+      )
+      .transform((valor) => Number(valor)),
     detalle: z.array(lineaComprobanteFormSchema),
   })
   // Misma regla que valida el backend: comparar strings ISO (`YYYY-MM-DD`) alcanza.
