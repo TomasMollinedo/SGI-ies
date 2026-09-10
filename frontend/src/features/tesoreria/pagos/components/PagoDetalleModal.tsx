@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { Ban, Banknote, Printer, X } from 'lucide-react'
 import { useTiposComprobante } from '@/features/tesoreria/tipos-comprobante/hooks/useTiposComprobante'
+import type { TipoComprobante } from '@/features/tesoreria/tipos-comprobante/types/tipoComprobante.types'
 import { AuditInfo } from '@/shared/components/common/AuditInfo'
 import { DataTable } from '@/shared/components/common/DataTable'
 import { DetailRow } from '@/shared/components/common/DetailRow'
@@ -51,15 +52,15 @@ export function PagoDetalleModal({ idPago, onClose, onAnular }: PagoDetalleModal
   const { data: tiposComprobante } = useTiposComprobante({ limit: LIMITE_TIPOS_COMPROBANTE })
 
   /**
-   * `FK_tipo_comprobante → aumenta_saldo`, para saber si cada línea imputada
-   * es Debe o Haber: la línea del detalle no trae ese dato (ver
-   * `columnasDetallePago` en `pago.config.tsx`), pero el catálogo de tipos
-   * de comprobante sí.
+   * `FK_tipo_comprobante → tipo`, para mostrar el nombre del tipo de
+   * comprobante y saber si cada línea imputada es Debe o Haber: la línea del
+   * detalle no trae esos datos (ver `columnasDetallePago` en
+   * `pago.config.tsx`), pero el catálogo de tipos de comprobante sí.
    */
-  const aumentaSaldoPorTipo = useMemo(
+  const tiposComprobantePorId = useMemo(
     () =>
-      new Map(
-        (tiposComprobante?.data ?? []).map((tipo) => [tipo.id_tipo_comprobante, tipo.aumenta_saldo])
+      new Map<number, TipoComprobante>(
+        (tiposComprobante?.data ?? []).map((tipo) => [tipo.id_tipo_comprobante, tipo])
       ),
     [tiposComprobante]
   )
@@ -82,14 +83,14 @@ export function PagoDetalleModal({ idPago, onClose, onAnular }: PagoDetalleModal
       onClose={onClose}
       title="Detalle del pago"
       icon={<Banknote />}
-      size="lg"
+      size="xl"
       footer={
         <>
           <Button variant="error" icon={<X />} onClick={onClose}>
             Cerrar
           </Button>
           {pago && (
-            <Button variant="primary" icon={<Printer />} onClick={() => window.print()}>
+            <Button variant="success" icon={<Printer />} onClick={() => window.print()}>
               Imprimir
             </Button>
           )}
@@ -109,7 +110,7 @@ export function PagoDetalleModal({ idPago, onClose, onAnular }: PagoDetalleModal
         <ErrorState mensaje={formatearMensajeError(error.message)} onReintentar={() => refetch()} />
       ) : pago ? (
         <div className="flex flex-col gap-6">
-          <ComprobantePagoImpresion pago={pago} aumentaSaldoPorTipo={aumentaSaldoPorTipo} />
+          <ComprobantePagoImpresion pago={pago} tiposComprobantePorId={tiposComprobantePorId} />
 
           <div className="flex flex-col">
             <DetailRow label="Pago" value={formatearCodigoPago(pago.id_pago)} />
@@ -140,7 +141,7 @@ export function PagoDetalleModal({ idPago, onClose, onAnular }: PagoDetalleModal
             <span className="text-content text-sm font-medium">Comprobantes imputados</span>
             <DataTable
               data={pago.detalle}
-              columns={columnasDetallePago(aumentaSaldoPorTipo)}
+              columns={columnasDetallePago(tiposComprobantePorId)}
               obtenerId={(linea) => String(linea.id_detalle_pago)}
               ariaLabel="Comprobantes imputados"
               emptyState={

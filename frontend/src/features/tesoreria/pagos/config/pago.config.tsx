@@ -1,6 +1,7 @@
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { formatearNumeroComprobante } from '@/features/tesoreria/comprobantes/utils/numeroComprobante'
+import type { TipoComprobante } from '@/features/tesoreria/tipos-comprobante/types/tipoComprobante.types'
 import { Badge } from '@/shared/components/ui/Badge'
 import { formatearFecha } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
@@ -90,21 +91,36 @@ export function badgeEfectoSaldo(aumentaSaldo: boolean | undefined) {
   )
 }
 
+/** Nombre del tipo + letra del comprobante (ej. "Factura A"), para no tener que cruzar con la columna del número para saber la letra. */
+export function formatearTipoComprobante(nombreTipo: string, letra: string): string {
+  return `${nombreTipo} ${letra}`
+}
+
 /**
  * Columnas de la grilla de imputaciones dentro del detalle de un pago.
- * `aumentaSaldoPorTipo` viene del catálogo de tipos de comprobante (no
+ * `tiposComprobantePorId` viene del catálogo de tipos de comprobante (no
  * incluido en la respuesta de un comprobante imputado): se arma una sola vez
  * en `PagoDetalleModal` y se cruza acá por `FK_tipo_comprobante`.
  */
 export function columnasDetallePago(
-  aumentaSaldoPorTipo: Map<number, boolean>
+  tiposComprobantePorId: Map<number, TipoComprobante>
 ): DataTableColumn<LineaPago>[] {
   return [
     {
       key: 'efecto',
       label: 'Efecto',
       render: (linea) =>
-        badgeEfectoSaldo(aumentaSaldoPorTipo.get(linea.comprobante.FK_tipo_comprobante)),
+        badgeEfectoSaldo(
+          tiposComprobantePorId.get(linea.comprobante.FK_tipo_comprobante)?.aumenta_saldo
+        ),
+    },
+    {
+      key: 'tipo',
+      label: 'Tipo',
+      render: (linea) => {
+        const tipo = tiposComprobantePorId.get(linea.comprobante.FK_tipo_comprobante)
+        return tipo ? formatearTipoComprobante(tipo.nombre, linea.comprobante.letra) : SIN_DATO
+      },
     },
     {
       key: 'comprobante',

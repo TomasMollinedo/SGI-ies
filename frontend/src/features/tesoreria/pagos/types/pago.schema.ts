@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { hoyIso } from '../utils/fechaPago'
+import { hoyIso } from '@/shared/utils/fecha'
 
 /**
  * Cabecera del formulario de emisión de un pago. El detalle (comprobantes

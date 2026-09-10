@@ -6,7 +6,7 @@ import { IconButton } from '@/shared/components/ui/IconButton'
 import { useDialogBehavior } from '@/shared/hooks/useDialogBehavior'
 import { cn } from '@/shared/utils/cn'
 
-export type ModalSize = 'sm' | 'md' | 'lg'
+export type ModalSize = 'sm' | 'md' | 'lg' | 'xl'
 
 interface ModalProps {
   open: boolean
@@ -35,7 +35,7 @@ interface ModalProps {
  * - `icon`: ícono opcional a la izquierda del título.
  * - `children`: el contenido del body. Es la única zona que scrollea.
  * - `footer`: los botones. Si no viene, la franja no se renderiza.
- * - `size`: ancho máximo de la tarjeta. `'sm'`, `'md'` (default) o `'lg'`.
+ * - `size`: ancho máximo de la tarjeta. `'sm'`, `'md'` (default), `'lg'` o `'xl'`.
  *   La altura máxima es siempre 85vh.
  * - `closeOnOverlayClick`: default `true`. El click solo cierra si el gesto
  *   empezó en el overlay: arrastrar desde adentro de la tarjeta hacia afuera
@@ -126,4 +126,5 @@ const CLASES_TAMANIO: Record<ModalSize, string> = {
   sm: 'max-w-md',
   md: 'max-w-2xl',
   lg: 'max-w-4xl',
+  xl: 'max-w-6xl',
 }
