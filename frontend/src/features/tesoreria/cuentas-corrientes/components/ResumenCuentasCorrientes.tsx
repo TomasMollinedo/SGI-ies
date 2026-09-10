@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react'
-import { cn } from '@/shared/utils/cn'
+import { StatTile } from '@/shared/components/common/StatTile'
 import { formatearMoneda } from '../config/cuentaCorriente.config'
 import type { ResumenCuentasCorrientes as ResumenCuentasCorrientesData } from '../types/cuentaCorriente.types'
 
@@ -21,19 +20,19 @@ export function ResumenCuentasCorrientes({ resumen }: ResumenCuentasCorrientesPr
       aria-label="Resumen de cuentas corrientes"
       className="grid grid-cols-2 gap-4 lg:grid-cols-4"
     >
-      <Tarjeta etiqueta="Deudores" valor={resumen.deudores} nota="proveedores con saldo a pagar" />
-      <Tarjeta
-        etiqueta="A favor"
-        valor={resumen.a_favor}
-        nota="con crédito a favor nuestro"
-        valorClassName="text-success"
+      <StatTile label="Deudores" value={resumen.deudores} note="proveedores con saldo a pagar" />
+      <StatTile
+        label="A favor"
+        value={resumen.a_favor}
+        note="con crédito a favor nuestro"
+        valueClassName="text-success"
       />
-      <Tarjeta etiqueta="Sin saldo" valor={resumen.sin_saldo} nota="cuentas saldadas" />
-      <Tarjeta
-        etiqueta="Balance neto"
-        valor={formatearMoneda(Math.abs(resumen.saldo_total))}
-        nota={etiquetaBalance(resumen.saldo_total)}
-        valorClassName={claseBalance(resumen.saldo_total)}
+      <StatTile label="Sin saldo" value={resumen.sin_saldo} note="cuentas saldadas" />
+      <StatTile
+        label="Balance neto"
+        value={formatearMoneda(Math.abs(resumen.saldo_total))}
+        note={etiquetaBalance(resumen.saldo_total)}
+        valueClassName={claseBalance(resumen.saldo_total)}
       />
     </section>
   )
@@ -49,26 +48,4 @@ function claseBalance(saldoTotal: number): string | undefined {
   if (saldoTotal > 0) return 'text-error'
   if (saldoTotal < 0) return 'text-success'
   return undefined
-}
-
-function Tarjeta({
-  etiqueta,
-  valor,
-  nota,
-  valorClassName,
-}: {
-  etiqueta: string
-  valor: ReactNode
-  nota: string
-  valorClassName?: string
-}) {
-  return (
-    <div className="bg-fondotabla border-subtle rounded-lg border p-4 shadow-md">
-      <dl>
-        <dt className="text-content-muted text-xs font-medium uppercase">{etiqueta}</dt>
-        <dd className={cn('text-content mt-1 text-2xl font-semibold', valorClassName)}>{valor}</dd>
-      </dl>
-      <p className="text-content-muted mt-1 text-xs">{nota}</p>
-    </div>
-  )
 }

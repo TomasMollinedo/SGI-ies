@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { TriangleAlert } from 'lucide-react'
+import { StatTile } from '@/shared/components/common/StatTile'
 import { Badge } from '@/shared/components/ui/Badge'
 import { cn } from '@/shared/utils/cn'
 import { stockBajoUmbral } from '../config/stock.config'
@@ -48,9 +49,10 @@ export function CardexFichaResumen({ ficha, hayPeriodoAplicado }: CardexFichaRes
         </div>
       </Tarjeta>
 
-      <TarjetaKpi
-        etiqueta="Stock actual"
-        valor={
+      <StatTile
+        className="flex flex-col justify-center"
+        label="Stock actual"
+        value={
           <span className="flex items-center gap-2">
             {ficha.cantidad}
             {bajoUmbral && (
@@ -61,10 +63,14 @@ export function CardexFichaResumen({ ficha, hayPeriodoAplicado }: CardexFichaRes
             )}
           </span>
         }
-        nota={hayPeriodoAplicado ? 'Total de la ficha, no del período filtrado' : undefined}
+        note={hayPeriodoAplicado ? 'Total de la ficha, no del período filtrado' : undefined}
       />
 
-      <TarjetaKpi etiqueta="Umbral mínimo" valor={ficha.umbral_minimo} />
+      <StatTile
+        className="flex flex-col justify-center"
+        label="Umbral mínimo"
+        value={ficha.umbral_minimo}
+      />
     </section>
   )
 }
@@ -74,26 +80,5 @@ function Tarjeta({ className, children }: { className?: string; children: ReactN
     <div className={cn('bg-fondotabla border-subtle rounded-lg border p-4 shadow-md', className)}>
       {children}
     </div>
-  )
-}
-
-/** Tarjeta de un solo número, con su etiqueta arriba y una nota opcional abajo. */
-function TarjetaKpi({
-  etiqueta,
-  valor,
-  nota,
-}: {
-  etiqueta: string
-  valor: ReactNode
-  nota?: string
-}) {
-  return (
-    <Tarjeta className="flex flex-col justify-center">
-      <dl>
-        <dt className="text-content-muted text-xs font-medium uppercase">{etiqueta}</dt>
-        <dd className="text-content mt-1 text-3xl font-semibold">{valor}</dd>
-      </dl>
-      {nota && <p className="text-content-muted mt-1 text-xs">{nota}</p>}
-    </Tarjeta>
   )
 }
