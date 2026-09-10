@@ -7,17 +7,16 @@ import { Pagination } from '@/shared/components/common/Pagination'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
 import { Spinner } from '@/shared/components/ui/Spinner'
-import { useDebounce } from '@/shared/hooks/useDebounce'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { FiltrosPagosBar } from '../components/FiltrosPagosBar'
 import { ResumenPeriodoPago } from '../components/ResumenPeriodoPago'
-import { COLUMNAS_PAGOS, DEBOUNCE_BUSQUEDA, LIMITE_PAGINA } from '../config/pago.config'
+import { COLUMNAS_PAGOS, LIMITE_PAGINA } from '../config/pago.config'
 import { usePagos } from '../hooks/usePagos'
 import type { FiltroEstadoPago } from '../types/pago.types'
 import { finDelDiaIso, inicioDelDiaIso } from '@/shared/utils/fechaIso'
 
 const FILTROS_VACIOS = {
-  busquedaProveedor: '',
+  FK_proveedor: '',
   FK_forma_pago: '',
   estado: '' as FiltroEstadoPago,
   fechaDesde: '',
@@ -37,14 +36,12 @@ export function PagosPage() {
   const [filtros, setFiltros] = useState(FILTROS_VACIOS)
   const [page, setPage] = useState(1)
 
-  const { busquedaProveedor, FK_forma_pago, estado, fechaDesde, fechaHasta } = filtros
+  const { FK_proveedor, FK_forma_pago, estado, fechaDesde, fechaHasta } = filtros
 
   // Las dos fechas son ISO `YYYY-MM-DD`, así que alcanza con compararlas como
   // texto: no hace falta parsearlas para saber cuál es anterior.
   const rangoInvalido = fechaDesde !== '' && fechaHasta !== '' && fechaDesde > fechaHasta
   const hayFiltros = Object.values(filtros).some((valor) => valor !== '')
-
-  const busquedaProveedorDebounced = useDebounce(busquedaProveedor.trim(), DEBOUNCE_BUSQUEDA)
 
   function cambiarFiltro<K extends keyof typeof FILTROS_VACIOS>(
     campo: K,
@@ -54,14 +51,13 @@ export function PagosPage() {
   }
 
   // Con otros filtros, la página en la que estaba parado el usuario puede no
-  // existir más: siempre se vuelve a la primera. La búsqueda de proveedor usa
-  // el valor debounced acá, para no resetear la página en cada tecla.
+  // existir más: siempre se vuelve a la primera.
   useEffect(() => {
     setPage(1)
-  }, [busquedaProveedorDebounced, FK_forma_pago, estado, fechaDesde, fechaHasta])
+  }, [filtros])
 
   const { data, isLoading, isFetching, error, refetch } = usePagos({
-    busquedaProveedor: busquedaProveedorDebounced || undefined,
+    FK_proveedor: FK_proveedor === '' ? undefined : Number(FK_proveedor),
     FK_forma_pago: FK_forma_pago === '' ? undefined : Number(FK_forma_pago),
     estado: estado === '' ? undefined : estado,
     // Un rango al revés no se manda: el listado sigue mostrando el resto de
@@ -104,8 +100,8 @@ export function PagosPage() {
   return (
     <div className="space-y-4">
       <FiltrosPagosBar
-        busquedaProveedor={busquedaProveedor}
-        onBusquedaProveedorChange={(valor) => cambiarFiltro('busquedaProveedor', valor)}
+        FK_proveedor={FK_proveedor}
+        onFKProveedorChange={(valor) => cambiarFiltro('FK_proveedor', valor)}
         FK_forma_pago={FK_forma_pago}
         onFKFormaPagoChange={(valor) => cambiarFiltro('FK_forma_pago', valor)}
         estado={estado}

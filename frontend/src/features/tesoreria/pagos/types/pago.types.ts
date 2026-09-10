@@ -48,8 +48,7 @@ export type FiltroEstadoPago = '' | EstadoPago
 
 /** Query params de GET /pagos. Los que van `undefined` no se envían. */
 export interface PagosQuery {
-  /** Filtra por la razón social del proveedor (coincidencia parcial), no por su id. */
-  busquedaProveedor?: string
+  FK_proveedor?: number
   FK_forma_pago?: number
   estado?: EstadoPago
   fechaDesde?: string

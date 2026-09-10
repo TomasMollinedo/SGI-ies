@@ -8,9 +8,6 @@ import { formatearCodigoPago } from '../utils/codigoPago'
 /** Resultados por página del listado. Fijo por ahora, igual que en el resto de los listados. */
 export const LIMITE_PAGINA = 10
 
-/** Cuánto espera el buscador de proveedor antes de pegarle al backend. */
-export const DEBOUNCE_BUSQUEDA = 400
-
 /** Texto de los campos opcionales que el backend devuelve en `null`. */
 export const SIN_DATO = '—'
 

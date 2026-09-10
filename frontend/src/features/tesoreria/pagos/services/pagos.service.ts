@@ -20,7 +20,7 @@ export async function listarPagos(
 ): Promise<PagosListResponse> {
   const { data } = await httpClient.get<PagosListResponse>('/pagos', {
     params: {
-      busquedaProveedor: filtros.busquedaProveedor,
+      FK_proveedor: filtros.FK_proveedor,
       FK_forma_pago: filtros.FK_forma_pago,
       estado: filtros.estado,
       fechaDesde: filtros.fechaDesde,
