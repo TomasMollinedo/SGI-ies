@@ -21,6 +21,8 @@ import type {
   OrdenCompraFormOutput,
   OrdenCompraFormValues,
 } from '../types/ordenCompra.schema'
+import type { OrdenCompra } from '../types/ordenCompra.types'
+import { formatearCodigoOrdenCompra } from '../utils/codigoOrdenCompra'
 import { hoyIso } from '../utils/fechaOrdenCompra'
 import { formatearMoneda } from '../utils/formatearMoneda'
 
@@ -39,6 +41,22 @@ function valoresIniciales(): OrdenCompraFormValues {
   }
 }
 
+/** Precarga el formulario con una orden existente, para "Editar" (solo posible en BORRADOR). */
+function valoresDesdeOrden(orden: OrdenCompra): OrdenCompraFormValues {
+  return {
+    fecha_emision: orden.fecha_emision.slice(0, 10),
+    fecha_entrega_solicitada: orden.fecha_entrega_solicitada?.slice(0, 10) ?? '',
+    FK_proveedor: String(orden.proveedor.id_proveedor),
+    FK_deposito: String(orden.deposito.id_deposito),
+    observaciones: orden.observaciones ?? '',
+    detalle: orden.detalles.map((linea) => ({
+      FK_articulo: String(linea.articulo.id_articulo),
+      cantidad: linea.cantidad,
+      precio_unitario: linea.precio_unitario,
+    })),
+  }
+}
+
 /** Redondeo a 2 decimales, igual que `OrdenCompraService.redondear` en el backend. */
 function redondear(valor: number): number {
   return Math.round(valor * 100) / 100
@@ -52,6 +70,8 @@ function subtotalLinea(linea: { cantidad: number; precio_unitario: number }): nu
 interface OrdenCompraFormProps {
   open: boolean
   onClose: () => void
+  /** Orden a editar. Con `undefined`/`null` el formulario es de alta ("Nueva orden de compra"). */
+  orden?: OrdenCompra | null
   onGuardarBorrador: (payload: OrdenCompraFormOutput) => void
   onConfirmarYEmitir: (payload: OrdenCompraFormOutput) => void
   loadingBorrador?: boolean
@@ -61,12 +81,14 @@ interface OrdenCompraFormProps {
 }
 
 /**
- * Modal de alta de una orden de compra: cabecera (proveedor, depósito y
- * fechas) + grilla de detalle, con subtotales y total recalculados en vivo.
+ * Modal de alta y edición de una orden de compra: cabecera (proveedor,
+ * depósito y fechas) + grilla de detalle, con subtotales y total
+ * recalculados en vivo. La edición solo es posible en BORRADOR (lo exige el
+ * backend); este componente no lo valida, solo precarga lo que reciba.
  *
  * Dos acciones de guardado, igual que el ciclo de vida del backend:
- * - "Guardar borrador": crea la orden en BORRADOR: puede no tener líneas
- *   todavía, se puede seguir editando después.
+ * - "Guardar borrador" / "Guardar cambios": crea o actualiza la orden en
+ *   BORRADOR: puede no tener líneas todavía, se puede seguir editando después.
  * - "Confirmar y emitir": pide al menos una línea y, antes de mandar nada,
  *   muestra un `ConfirmDialog` con el resumen —al emitirse, la orden deja de
  *   ser editable.
@@ -74,6 +96,7 @@ interface OrdenCompraFormProps {
 export function OrdenCompraForm({
   open,
   onClose,
+  orden = null,
   onGuardarBorrador,
   onConfirmarYEmitir,
   loadingBorrador = false,
@@ -106,7 +129,7 @@ export function OrdenCompraForm({
     reset,
     watch,
     setError,
-    formState: { errors, isValid },
+    formState: { errors, isValid, isDirty },
   } = useForm<OrdenCompraFormValues, unknown, OrdenCompraFormOutput>({
     resolver: zodResolver(ordenCompraFormSchema),
     defaultValues: valoresIniciales(),
@@ -128,11 +151,11 @@ export function OrdenCompraForm({
 
     if (!open) return
 
-    reset(valoresIniciales())
+    reset(orden ? valoresDesdeOrden(orden) : valoresIniciales())
     setErrorGeneral(null)
     setBusquedaProveedor('')
     setBusquedaDeposito('')
-  }, [open, reset])
+  }, [open, orden, reset])
 
   useEffect(() => {
     if (!error) return
@@ -184,13 +207,7 @@ export function OrdenCompraForm({
   function intentarCerrar() {
     if (cargando) return
 
-    const huboCambios =
-      detalle.some((linea) => linea.FK_articulo !== '') ||
-      watch('FK_proveedor') !== '' ||
-      watch('FK_deposito') !== '' ||
-      watch('observaciones') !== ''
-
-    if (huboCambios) {
+    if (isDirty) {
       setConfirmarDescarte(true)
       return
     }
@@ -203,7 +220,7 @@ export function OrdenCompraForm({
       <Modal
         open={open}
         onClose={intentarCerrar}
-        title="Nueva orden de compra"
+        title={orden ? `Editar orden ${formatearCodigoOrdenCompra(orden.id_orden_compra)}` : 'Nueva orden de compra'}
         icon={<ClipboardList />}
         size="lg"
         closeOnEscape={!cargando && !confirmarDescarte && !confirmarEmision}
@@ -219,7 +236,7 @@ export function OrdenCompraForm({
               loading={loadingBorrador}
               disabled={cargando || !isValid}
             >
-              Guardar borrador
+              {orden ? 'Guardar cambios' : 'Guardar borrador'}
             </Button>
             <Button
               variant="success"
@@ -394,8 +411,12 @@ export function OrdenCompraForm({
         }}
         eyebrow="Cambios sin guardar"
         eyebrowIcon={<TriangleAlert />}
-        title="¿Descartar esta orden de compra?"
-        note="Lo que cargaste en el formulario se va a perder."
+        title={orden ? '¿Descartar los cambios de esta orden?' : '¿Descartar esta orden de compra?'}
+        note={
+          orden
+            ? 'Los cambios que hiciste se van a perder.'
+            : 'Lo que cargaste en el formulario se va a perder.'
+        }
         confirmLabel="Descartar"
         cancelLabel="Seguir editando"
       />
