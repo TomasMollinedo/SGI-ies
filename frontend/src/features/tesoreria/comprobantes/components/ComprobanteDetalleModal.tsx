@@ -29,9 +29,11 @@ interface ComprobanteDetalleModalProps {
   idComprobante: number | null
   onClose: () => void
   /** Abre el formulario de edición con este comprobante (solo disponible en BORRADOR). */
-  onEditar: (comprobante: ComprobanteDetalle) => void
+  onEditar?: (comprobante: ComprobanteDetalle) => void
   /** Abre el modal de anulación con este comprobante (solo disponible en REGISTRADO). */
-  onAnular: (comprobante: ComprobanteDetalle) => void
+  onAnular?: (comprobante: ComprobanteDetalle) => void
+  /** Oculta Editar/Anular aunque el comprobante los admita — para contextos de solo lectura (ej. cuenta corriente). */
+  readOnly?: boolean
 }
 
 /**
@@ -40,13 +42,16 @@ interface ComprobanteDetalleModalProps {
  * imputaron y su trazabilidad.
  *
  * Editar y anular se delegan: los botones del pie llaman a `onEditar` / `onAnular`
- * con el comprobante ya cargado.
+ * con el comprobante ya cargado. Con `readOnly`, esos botones no se muestran
+ * (se usa desde pantallas que no pueden modificar comprobantes, como cuenta
+ * corriente).
  */
 export function ComprobanteDetalleModal({
   idComprobante,
   onClose,
   onEditar,
   onAnular,
+  readOnly = false,
 }: ComprobanteDetalleModalProps) {
   const toast = useToast()
   const { data: comprobante, isPending, error, refetch } = useComprobanteDetalle(idComprobante)
@@ -73,12 +78,12 @@ export function ComprobanteDetalleModal({
           <Button variant="error" icon={<X />} onClick={onClose}>
             Cerrar
           </Button>
-          {comprobante?.estado === 'BORRADOR' && (
+          {!readOnly && onEditar && comprobante?.estado === 'BORRADOR' && (
             <Button variant="warning" icon={<Pencil />} onClick={() => onEditar(comprobante)}>
               Editar
             </Button>
           )}
-          {comprobante?.estado === 'REGISTRADO' && (
+          {!readOnly && onAnular && comprobante?.estado === 'REGISTRADO' && (
             <Button variant="error" icon={<Ban />} onClick={() => onAnular(comprobante)}>
               Anular
             </Button>
@@ -108,9 +113,7 @@ export function ComprobanteDetalleModal({
             />
             <DetailRow
               label="Orden de compra vinculada"
-              value={
-                comprobante.FK_orden_compra ? `OC #${comprobante.FK_orden_compra}` : SIN_DATO
-              }
+              value={comprobante.FK_orden_compra ? `OC #${comprobante.FK_orden_compra}` : SIN_DATO}
             />
             <DetailRow
               label="Comprobante de origen"
@@ -120,10 +123,7 @@ export function ComprobanteDetalleModal({
                   : SIN_DATO
               }
             />
-            <DetailRow
-              label="Observaciones"
-              value={textoOSinDato(comprobante.observaciones)}
-            />
+            <DetailRow label="Observaciones" value={textoOSinDato(comprobante.observaciones)} />
             <DetailRow label="Estado" value={badgeEstadoComprobante(comprobante.estado)} />
             <DetailRow label="Estado de saldo" value={badgeEstadoSaldo(comprobante.estado_saldo)} />
             {comprobante.estado === 'ANULADO' && (
@@ -173,9 +173,7 @@ export function ComprobanteDetalleModal({
 
           {comprobante.comprobanteOrigen && (
             <div className="flex flex-col gap-2">
-              <span className="text-content text-sm font-medium">
-                Comprobante de origen
-              </span>
+              <span className="text-content text-sm font-medium">Comprobante de origen</span>
               <p className="text-content-muted text-xs">
                 {comprobante.comprobanteOrigen.tipoComprobante.nombre}{' '}
                 {formatearNumeroComprobante(comprobante.comprobanteOrigen)} ·{' '}
@@ -245,13 +243,7 @@ function FilaImporte({
   return (
     <div className="flex justify-between gap-8">
       <dt className={destacado ? 'text-content font-medium' : 'text-content-muted'}>{label}</dt>
-      <dd
-        className={
-          destacado
-            ? 'text-content text-lg font-semibold'
-            : 'text-content font-medium'
-        }
-      >
+      <dd className={destacado ? 'text-content text-lg font-semibold' : 'text-content font-medium'}>
         {valor}
       </dd>
     </div>

@@ -37,6 +37,7 @@ export const PATHS = {
     },
     PAGOS: {
       ROOT: '/tesoreria/pagos',
+      NUEVO: '/tesoreria/pagos/nuevo',
       FORMAS: '/tesoreria/pagos/formas',
     },
     CUENTAS_CORRIENTES: '/tesoreria/cuentas-corrientes',

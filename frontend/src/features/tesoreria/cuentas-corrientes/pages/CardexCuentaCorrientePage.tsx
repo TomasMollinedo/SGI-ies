@@ -1,18 +1,25 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { ArrowLeft, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, Eye, ShieldAlert } from 'lucide-react'
 import { PATHS } from '@/app/router/paths'
+import { ComprobanteDetalleModal } from '@/features/tesoreria/comprobantes/components/ComprobanteDetalleModal'
+import { PagoDetalleModal } from '@/features/tesoreria/pagos/components/PagoDetalleModal'
 import { finDelDiaIso, inicioDelDiaIso } from '@/features/almacen/movimiento/utils/fechaIso'
+import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { DataTable } from '@/shared/components/common/DataTable'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
 import { Button } from '@/shared/components/ui/Button'
+import { IconButton } from '@/shared/components/ui/IconButton'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { CardexCuentaCorrienteResumen } from '../components/CardexCuentaCorrienteResumen'
 import { FiltrosCardexCuentaCorrienteBar } from '../components/FiltrosCardexCuentaCorrienteBar'
 import { COLUMNAS_CARDEX_CUENTA_CORRIENTE } from '../config/cardexCuentaCorriente.config'
 import { useCardexCuentaCorriente } from '../hooks/useCuentasCorrientes'
-import type { ClaseFiltroCardex } from '../types/cardexCuentaCorriente.types'
+import type {
+  ClaseFiltroCardex,
+  MovimientoCuentaCorriente,
+} from '../types/cardexCuentaCorriente.types'
 
 const FILTROS_VACIOS = { fechaDesde: '', fechaHasta: '', clase: '' }
 
@@ -33,6 +40,8 @@ export function CardexCuentaCorrientePage() {
   const { idProveedor } = useParams()
 
   const [filtros, setFiltros] = useState(FILTROS_VACIOS)
+  const [detalleComprobanteId, setDetalleComprobanteId] = useState<number | null>(null)
+  const [detallePagoId, setDetallePagoId] = useState<number | null>(null)
 
   const { fechaDesde, fechaHasta, clase } = filtros
 
@@ -105,6 +114,34 @@ export function CardexCuentaCorrientePage() {
 
   const movimientos = data?.movimientos ?? []
 
+  const columnas: DataTableColumn<MovimientoCuentaCorriente>[] = [
+    ...COLUMNAS_CARDEX_CUENTA_CORRIENTE,
+    {
+      key: 'acciones',
+      label: '',
+      render: (movimiento) =>
+        movimiento.clase === 'APERTURA' ? null : (
+          <IconButton
+            icon={<Eye />}
+            ariaLabel={
+              movimiento.clase === 'COMPROBANTE'
+                ? 'Ver detalle del comprobante'
+                : 'Ver detalle del pago'
+            }
+            variant="soft"
+            size="sm"
+            bgColor="fondo-ver"
+            iconColor="info"
+            onClick={() =>
+              movimiento.clase === 'COMPROBANTE'
+                ? setDetalleComprobanteId(movimiento.id_referencia)
+                : setDetallePagoId(movimiento.id_referencia)
+            }
+          />
+        ),
+    },
+  ]
+
   return (
     <div className="space-y-4">
       {volverACuentasCorrientes}
@@ -161,7 +198,7 @@ export function CardexCuentaCorrientePage() {
             <div className="overflow-x-auto">
               <DataTable
                 data={movimientos}
-                columns={COLUMNAS_CARDEX_CUENTA_CORRIENTE}
+                columns={columnas}
                 obtenerId={(movimiento) => `${movimiento.clase}-${movimiento.id_referencia}`}
                 loading={isLoading}
                 ariaLabel="Movimientos de la cuenta corriente"
@@ -170,6 +207,14 @@ export function CardexCuentaCorrientePage() {
           )}
         </>
       )}
+
+      <ComprobanteDetalleModal
+        idComprobante={detalleComprobanteId}
+        onClose={() => setDetalleComprobanteId(null)}
+        readOnly
+      />
+
+      <PagoDetalleModal idPago={detallePagoId} onClose={() => setDetallePagoId(null)} />
     </div>
   )
 }

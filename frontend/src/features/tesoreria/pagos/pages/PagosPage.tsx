@@ -1,18 +1,26 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ShieldAlert } from 'lucide-react'
+import { Ban, Eye, Plus, ShieldAlert } from 'lucide-react'
 import { PATHS } from '@/app/router/paths'
+import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { DataTable } from '@/shared/components/common/DataTable'
 import { Pagination } from '@/shared/components/common/Pagination'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
+import { Button } from '@/shared/components/ui/Button'
+import { IconButton } from '@/shared/components/ui/IconButton'
 import { Spinner } from '@/shared/components/ui/Spinner'
+import { useToast } from '@/shared/hooks/useToast'
+import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { formatearMensajeError } from '@/shared/utils/apiError'
+import { AnularPagoModal } from '../components/AnularPagoModal'
 import { FiltrosPagosBar } from '../components/FiltrosPagosBar'
+import { PagoDetalleModal } from '../components/PagoDetalleModal'
 import { ResumenPeriodoPago } from '../components/ResumenPeriodoPago'
 import { COLUMNAS_PAGOS, LIMITE_PAGINA } from '../config/pago.config'
-import { usePagos } from '../hooks/usePagos'
-import type { FiltroEstadoPago } from '../types/pago.types'
+import { useAnularPago, usePagos } from '../hooks/usePagos'
+import type { FiltroEstadoPago, Pago, PagoDetalle } from '../types/pago.types'
+import { formatearCodigoPago } from '../utils/codigoPago'
 import { finDelDiaIso, inicioDelDiaIso } from '@/shared/utils/fechaIso'
 
 const FILTROS_VACIOS = {
@@ -26,15 +34,18 @@ const FILTROS_VACIOS = {
 /**
  * Listado de pagos: filtros combinables por proveedor, forma de pago, estado
  * y período, con el resumen de egresos cuando el período viene completo (ver
- * `ResumenPeriodoPago`).
- *
- * Solo listado — ver el detalle de un pago o anularlo quedan para otra tarea.
+ * `ResumenPeriodoPago`). El alta de un pago nuevo es su propia pantalla
+ * (`NuevoPagoPage`), no un modal.
  */
 export function PagosPage() {
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [filtros, setFiltros] = useState(FILTROS_VACIOS)
   const [page, setPage] = useState(1)
+  const [detalleId, setDetalleId] = useState<number | null>(null)
+  const [anular, setAnular] = useState<Pago | PagoDetalle | null>(null)
+  const [errorAnular, setErrorAnular] = useState<ApiErrorResponse | null>(null)
 
   const { FK_proveedor, FK_forma_pago, estado, fechaDesde, fechaHasta } = filtros
 
@@ -83,6 +94,46 @@ export function PagosPage() {
     if (statusCode === 400) setPage(1)
   }, [statusCode])
 
+  const anularMutation = useAnularPago()
+
+  /** Errores que no dependen de lo cargado: se avisan y se cierra lo que estuviera abierto. */
+  function manejarErrorComun(errorOperacion: ApiErrorResponse, cerrar: () => void): boolean {
+    switch (errorOperacion.statusCode) {
+      case 401:
+        navigate(PATHS.LOGIN, { replace: true })
+        return true
+      case 403:
+        toast.error('No tenés permisos para realizar esta acción')
+        cerrar()
+        return true
+      case 404:
+        toast.error('El pago ya no existe')
+        cerrar()
+        refetch()
+        return true
+      default:
+        return false
+    }
+  }
+
+  function ejecutarAnular(motivo: string) {
+    if (!anular) return
+    setErrorAnular(null)
+    anularMutation.mutate(
+      { id: anular.id_pago, payload: { motivo_anulacion: motivo } },
+      {
+        onSuccess: (anulado) => {
+          toast.success(`Pago ${formatearCodigoPago(anulado.id_pago)} anulado.`)
+          setAnular(null)
+        },
+        onError: (errorAnulacion) => {
+          if (manejarErrorComun(errorAnulacion, () => setAnular(null))) return
+          setErrorAnular(errorAnulacion)
+        },
+      }
+    )
+  }
+
   if (statusCode === 403) {
     return (
       <EmptyState
@@ -96,6 +147,42 @@ export function PagosPage() {
   const pagos = data?.data ?? []
   const meta = data?.meta
   const totalPaginas = meta ? Math.ceil(meta.total / meta.limit) : 0
+
+  const columnas: DataTableColumn<Pago>[] = [
+    ...COLUMNAS_PAGOS,
+    {
+      key: 'acciones',
+      label: '',
+      render: (item) => (
+        <div className="inline-flex items-center gap-1">
+          <IconButton
+            icon={<Eye />}
+            ariaLabel="Ver detalle"
+            variant="soft"
+            size="sm"
+            bgColor="fondo-ver"
+            iconColor="info"
+            onClick={() => setDetalleId(item.id_pago)}
+          />
+          {item.estado === 'CONFIRMADA' && (
+            <IconButton
+              icon={<Ban />}
+              ariaLabel="Anular pago"
+              variant="soft"
+              size="sm"
+              bgColor="fondo-eliminar"
+              iconColor="error"
+              disabled={anularMutation.isPending}
+              onClick={() => {
+                setErrorAnular(null)
+                setAnular(item)
+              }}
+            />
+          )}
+        </div>
+      ),
+    },
+  ]
 
   return (
     <div className="space-y-4">
@@ -115,6 +202,11 @@ export function PagosPage() {
         }
         onLimpiar={() => setFiltros(FILTROS_VACIOS)}
         hayFiltros={hayFiltros}
+        acciones={
+          <Button icon={<Plus />} onClick={() => navigate(PATHS.TESORERIA.PAGOS.NUEVO)}>
+            Nuevo pago
+          </Button>
+        }
       />
 
       {data?.resumenPeriodo && <ResumenPeriodoPago resumen={data.resumenPeriodo} />}
@@ -155,7 +247,7 @@ export function PagosPage() {
         <>
           <DataTable
             data={pagos}
-            columns={COLUMNAS_PAGOS}
+            columns={columnas}
             obtenerId={(item) => String(item.id_pago)}
             ariaLabel="Pagos"
           />
@@ -172,6 +264,28 @@ export function PagosPage() {
           )}
         </>
       )}
+
+      <PagoDetalleModal
+        idPago={detalleId}
+        onClose={() => setDetalleId(null)}
+        onAnular={(pago) => {
+          setDetalleId(null)
+          setErrorAnular(null)
+          setAnular(pago)
+        }}
+      />
+
+      <AnularPagoModal
+        open={anular !== null}
+        codigo={anular ? formatearCodigoPago(anular.id_pago) : ''}
+        onCancel={() => {
+          setAnular(null)
+          setErrorAnular(null)
+        }}
+        onConfirm={ejecutarAnular}
+        loading={anularMutation.isPending}
+        error={errorAnular}
+      />
     </div>
   )
 }
