@@ -182,10 +182,11 @@ export function OrdenCompraDetalleModal({ idOrdenCompra, onClose }: OrdenCompraD
                 </span>
               </div>
             </div>
-            </div>
 
             <div className="flex flex-col gap-2">
-              <span className="text-content text-sm font-medium">Historial de cambios de estado</span>
+              <span className="text-content text-sm font-medium">
+                Historial de cambios de estado
+              </span>
               <DataTable
                 data={orden.historialEstados}
                 columns={COLUMNAS_HISTORIAL_ESTADO}
