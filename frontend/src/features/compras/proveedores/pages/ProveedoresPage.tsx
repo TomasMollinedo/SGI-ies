@@ -34,6 +34,7 @@ import {
 } from '../hooks/useProveedores'
 import type { ProveedorFormOutput } from '../types/proveedor.schema'
 import type { EditarProveedorPayload, FiltroEstado, Proveedor } from '../types/proveedor.types'
+import { formatearCodigoProveedor } from '../utils/codigoProveedor'
 
 type EstadoFormulario = { modo: 'crear' } | { modo: 'editar'; proveedor: Proveedor } | null
 
@@ -369,12 +370,26 @@ export function ProveedoresPage() {
             ? `¿Confirmás que querés ${confirmacion.tipo === 'baja' ? 'dar de baja al' : 'reactivar al'} proveedor «${confirmacion.proveedor.razon_social}»?`
             : ''
         }
+        details={confirmacion ? detallesConfirmacion(confirmacion.proveedor) : undefined}
+        note={
+          confirmacion?.tipo === 'baja'
+            ? 'La baja es lógica: el proveedor se desactiva sin eliminar su historial. No se permite si tiene una orden de compra emitida o parcialmente recibida, o un comprobante asociado que todavía no esté saldado.'
+            : undefined
+        }
         error={errorConfirmacion ? formatearMensajeError(errorConfirmacion.message) : null}
         confirmLabel={confirmacion?.tipo === 'baja' ? 'Dar de baja' : 'Reactivar'}
         loading={operacionEnCurso}
       />
     </div>
   )
+}
+
+function detallesConfirmacion(proveedor: Proveedor) {
+  return [
+    { label: 'Código', value: formatearCodigoProveedor(proveedor.id_proveedor) },
+    { label: 'Razón Social', value: proveedor.razon_social },
+    { label: 'CUIT', value: proveedor.cuit },
+  ]
 }
 
 /**

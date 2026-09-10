@@ -2,6 +2,7 @@ import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import type { SelectOption } from '@/shared/components/ui/Select'
 import { Badge } from '@/shared/components/ui/Badge'
 import type { FiltroEstado, Proveedor } from '../types/proveedor.types'
+import { formatearCodigoProveedor } from '../utils/codigoProveedor'
 
 /** Resultados por página del listado. Fijo por ahora, igual que en el resto de los listados. */
 export const LIMITE_PAGINA = 10
@@ -28,6 +29,11 @@ export function crearColumnasProveedores(
   obtenerCodigoCondicionIva: (id: string) => string
 ): DataTableColumn<Proveedor>[] {
   return [
+    {
+      key: 'codigo',
+      label: 'Código',
+      render: (item) => formatearCodigoProveedor(item.id_proveedor),
+    },
     { key: 'razonSocial', label: 'Razón Social', render: (item) => item.razon_social },
     { key: 'cuit', label: 'CUIT', render: (item) => item.cuit },
     {
