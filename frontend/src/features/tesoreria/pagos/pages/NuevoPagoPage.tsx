@@ -135,7 +135,8 @@ export function NuevoPagoPage() {
     (c) => seleccion[c.id_comprobante_proveedor] !== undefined
   )
   const hayLineasSeleccionadas = comprobantesSeleccionados.length > 0
-  const hayLineaDebe = comprobantesSeleccionados.some((c) => c.efecto_saldo === 'DEBE')
+  // Factura → HABER: tiene que haber al menos una para no pagar únicamente con notas de crédito.
+  const hayLineaHaber = comprobantesSeleccionados.some((c) => c.efecto_saldo === 'HABER')
 
   const sumaPorEfecto = (efecto: 'DEBE' | 'HABER') =>
     comprobantesSeleccionados
@@ -143,7 +144,8 @@ export function NuevoPagoPage() {
       .reduce((acumulado, c) => acumulado + (Number(seleccion[c.id_comprobante_proveedor]) || 0), 0)
   const sumaDebe = sumaPorEfecto('DEBE')
   const sumaHaber = sumaPorEfecto('HABER')
-  const importeNeto = sumaDebe - sumaHaber
+  // Plata que sale: Σ facturas (HABER) − Σ notas de crédito (DEBE).
+  const importeNeto = sumaHaber - sumaDebe
 
   // Un importe inválido (vacío, <= 0 o mayor al saldo pendiente) en cualquier línea seleccionada.
   const hayImportesInvalidos = comprobantesSeleccionados.some((c) => {
@@ -155,7 +157,7 @@ export function NuevoPagoPage() {
   // notas de crédito, sin salida de dinero real (mismo criterio que valida el
   // backend en `validarImporteNetoValido`).
   const detalleValido =
-    hayLineasSeleccionadas && !hayImportesInvalidos && hayLineaDebe && importeNeto >= 0
+    hayLineasSeleccionadas && !hayImportesInvalidos && hayLineaHaber && importeNeto >= 0
   const mostrarErrorDetalle = intentoEnvio && !detalleValido
 
   const hayCambiosSinGuardar = isDirty || hayLineasSeleccionadas
@@ -312,13 +314,13 @@ export function NuevoPagoPage() {
       render: (item) => (
         <div className="flex items-center gap-2">
           <span>{item.tipo_comprobante_nombre}</span>
-          <Badge variant={item.efecto_saldo === 'DEBE' ? 'active' : 'error'} dot={false}>
-            {item.efecto_saldo === 'DEBE' ? (
+          <Badge variant={item.efecto_saldo === 'HABER' ? 'error' : 'active'} dot={false}>
+            {item.efecto_saldo === 'HABER' ? (
               <TrendingUp className="size-3.5" aria-hidden="true" />
             ) : (
               <TrendingDown className="size-3.5" aria-hidden="true" />
             )}
-            {item.efecto_saldo === 'DEBE' ? 'Debe' : 'Haber'}
+            {item.efecto_saldo === 'HABER' ? 'Haber' : 'Debe'}
           </Badge>
         </div>
       ),
@@ -541,7 +543,7 @@ export function NuevoPagoPage() {
                 ? 'Seleccioná al menos un comprobante para imputar.'
                 : hayImportesInvalidos
                   ? 'Revisá los importes marcados: deben ser mayores a 0 y no superar el saldo pendiente.'
-                  : !hayLineaDebe
+                  : !hayLineaHaber
                     ? 'El pago debe imputar al menos un comprobante que aumente el saldo (factura); no se puede pagar únicamente con notas de crédito.'
                     : 'Las notas de crédito imputadas superan la deuda seleccionada.'}
             </p>

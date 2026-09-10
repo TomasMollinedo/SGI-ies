@@ -123,7 +123,7 @@ type ComprobanteAImputar = {
   tipoComprobante: { aumenta_saldo: boolean };
 };
 
-/** Comprobante listo para imputar: proveedor 1, REGISTRADO, DEBE, saldo 1000. */
+/** Comprobante listo para imputar: proveedor 1, REGISTRADO, HABER (factura), saldo 1000. */
 const comprobanteAImputar = (
   id: number,
   extra: Partial<ComprobanteAImputar> = {},
@@ -168,7 +168,7 @@ describe('PagoService', () => {
   const ID_PAGO = 100;
   const USUARIO_ID = 7;
 
-  /** Comprobante DEBE (factura) o HABER (nota de crédito), ambos con saldo propio. */
+  /** Comprobante HABER (factura) o DEBE (nota de crédito), ambos con saldo propio. */
   const comprobante = (
     id: number,
     extra: Partial<Record<string, unknown>> = {},
@@ -323,7 +323,7 @@ describe('PagoService', () => {
       expect(argumento.orderBy).toEqual({ fecha_vencimiento: 'asc' });
     });
 
-    it('lista un comprobante DEBE (factura) con efecto_saldo DEBE', async () => {
+    it('lista un comprobante HABER (factura) con efecto_saldo HABER', async () => {
       prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
         comprobante(1, {
           tipoComprobante: { nombre: 'Factura', aumenta_saldo: true },
@@ -334,12 +334,12 @@ describe('PagoService', () => {
         await service.listarComprobantesImputables(ID_PROVEEDOR);
 
       expect(resultado.data[0]).toMatchObject({
-        efecto_saldo: 'DEBE',
+        efecto_saldo: 'HABER',
         tipo_comprobante_nombre: 'Factura',
       });
     });
 
-    it('lista un comprobante HABER (nota de crédito) con saldo propio y efecto_saldo HABER', async () => {
+    it('lista un comprobante DEBE (nota de crédito) con saldo propio y efecto_saldo DEBE', async () => {
       prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
         comprobante(2, {
           tipoComprobante: { nombre: 'Nota de Crédito', aumenta_saldo: false },
@@ -350,7 +350,7 @@ describe('PagoService', () => {
         await service.listarComprobantesImputables(ID_PROVEEDOR);
 
       expect(resultado.data[0]).toMatchObject({
-        efecto_saldo: 'HABER',
+        efecto_saldo: 'DEBE',
         tipo_comprobante_nombre: 'Nota de Crédito',
       });
     });
@@ -565,7 +565,7 @@ describe('PagoService', () => {
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
-    it('acepta comprobantes DEBE y HABER del proveedor, REGISTRADOS y con saldo', async () => {
+    it('acepta comprobantes HABER y DEBE del proveedor, REGISTRADOS y con saldo', async () => {
       prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
         comprobanteAImputar(1, { tipoComprobante: { aumenta_saldo: true } }),
         comprobanteAImputar(2, { tipoComprobante: { aumenta_saldo: false } }),
@@ -686,7 +686,7 @@ describe('PagoService', () => {
   });
 
   describe('calcularImporteNeto y validarImporteNetoValido', () => {
-    it('neto positivo cuando solo hay comprobantes DEBE', () => {
+    it('neto positivo cuando solo hay comprobantes HABER (facturas)', () => {
       const comprobantePorId = new Map([
         [
           1,
@@ -705,7 +705,7 @@ describe('PagoService', () => {
       ).not.toThrow();
     });
 
-    it('neto positivo parcialmente compensado con HABER', () => {
+    it('neto positivo parcialmente compensado con DEBE (nota de crédito)', () => {
       const comprobantePorId = new Map([
         [
           1,
@@ -775,7 +775,7 @@ describe('PagoService', () => {
       }
     });
 
-    it('rechaza si no hay ningún comprobante DEBE imputado', () => {
+    it('rechaza si no hay ningún comprobante HABER imputado', () => {
       const comprobantePorId = new Map([
         [
           1,
@@ -852,7 +852,7 @@ describe('PagoService', () => {
       expect(prisma.pAGO.findUnique).not.toHaveBeenCalled();
     });
 
-    it('importe_total es el neto exacto DEBE - HABER, con decimales', async () => {
+    it('importe_total es el neto exacto HABER - DEBE, con decimales', async () => {
       prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
         comprobanteAImputar(1, {
           tipoComprobante: { aumenta_saldo: true },
@@ -873,7 +873,7 @@ describe('PagoService', () => {
       expect(argCreate.data.importe_total).toEqual(new Prisma.Decimal(700.25));
     });
 
-    it('compensación total: DEBE == HABER da importe_total 0 y ambos comprobantes quedan cancelados', async () => {
+    it('compensación total: HABER == DEBE da importe_total 0 y ambos comprobantes quedan cancelados', async () => {
       prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
         comprobanteAImputar(1, {
           tipoComprobante: { aumenta_saldo: true },

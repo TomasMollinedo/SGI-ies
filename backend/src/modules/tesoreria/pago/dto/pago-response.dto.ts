@@ -158,11 +158,12 @@ export class PagoDetalleResponseDto extends createZodDto(
 ) {}
 
 /**
- * DEBE = comprobante cuyo tipo aumenta el saldo (factura); HABER = lo
- * disminuye (nota de crédito). Ambos se listan como imputables por igual
- * (ver `PagoService.listarComprobantesImputables`); esto es lo que le
- * permite al frontend sumar o restar cada línea en la previsualización del
- * importe neto del pago.
+ * HABER = comprobante cuyo tipo aumenta el saldo (factura); DEBE = lo
+ * disminuye (nota de crédito) — la cuenta es un pasivo, mismo criterio que
+ * `CuentaCorrienteService.obtenerMovimientos`. Ambos se listan como
+ * imputables por igual (ver `PagoService.listarComprobantesImputables`);
+ * esto es lo que le permite al frontend sumar o restar cada línea en la
+ * previsualización del importe neto del pago.
  */
 export const EFECTO_SALDO = ['DEBE', 'HABER'] as const;
 export const efectoSaldoSchema = z.enum(EFECTO_SALDO);

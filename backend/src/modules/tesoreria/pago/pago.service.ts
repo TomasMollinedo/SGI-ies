@@ -93,8 +93,8 @@ export class PagoService {
    * emisión de un pago, sin paginar (el usuario necesita verlos todos de una
    * vez para decidir cuáles marcar).
    *
-   * Lista DEBE (facturas) y HABER (notas de crédito) ambos tipos llevan saldo
-   * propio, así que el único filtro real es `saldo_pendiente > 0`.
+   * Lista HABER (facturas) y DEBE (notas de crédito): ambos tipos llevan
+   * saldo propio, así que el único filtro real es `saldo_pendiente > 0`.
    *
    */
   async listarComprobantesImputables(FK_proveedor: number) {
@@ -124,8 +124,8 @@ export class PagoService {
           FK_tipo_comprobante: comprobante.FK_tipo_comprobante,
           tipo_comprobante_nombre: comprobante.tipoComprobante.nombre,
           efecto_saldo: comprobante.tipoComprobante.aumenta_saldo
-            ? 'DEBE'
-            : 'HABER',
+            ? 'HABER'
+            : 'DEBE',
           letra: comprobante.letra,
           punto_de_venta: comprobante.punto_de_venta,
           numero: comprobante.numero,
@@ -359,8 +359,8 @@ export class PagoService {
   }
 
   /**
-   * Suma por separado lo imputado a comprobantes DEBE (aumentan el saldo,
-   * facturas) y HABER (lo disminuyen, notas de crédito), con `Prisma.Decimal`
+   * Suma por separado lo imputado a comprobantes HABER (aumentan el saldo,
+   * facturas) y DEBE (lo disminuyen, notas de crédito), con `Prisma.Decimal`
    * para no perder precisión con floats de JS.
    */
   private totalesPorEfecto(
@@ -375,16 +375,16 @@ export class PagoService {
       const importe = new Prisma.Decimal(linea.importe_imputado);
 
       if (comprobante.tipoComprobante.aumenta_saldo) {
-        totalDebe = totalDebe.plus(importe);
-      } else {
         totalHaber = totalHaber.plus(importe);
+      } else {
+        totalDebe = totalDebe.plus(importe);
       }
     }
 
     return { totalDebe, totalHaber };
   }
 
-  /** Importe total del pago: Σ imputado a DEBE − Σ imputado a HABER. */
+  /** Importe total del pago: Σ imputado a HABER − Σ imputado a DEBE. */
   private calcularImporteNeto(
     detalle: LineaImputacion[],
     comprobantePorId: Map<number, ComprobanteAImputar>,
@@ -394,11 +394,11 @@ export class PagoService {
       comprobantePorId,
     );
 
-    return totalDebe.minus(totalHaber);
+    return totalHaber.minus(totalDebe);
   }
 
   /**
-   * Tiene que haber al menos un comprobante DEBE imputado (no se puede pagar
+   * Tiene que haber al menos un comprobante HABER imputado (no se puede pagar
    * únicamente con notas de crédito) y el neto no puede dar negativo (las
    * notas de crédito seleccionadas no pueden superar la deuda seleccionada).
    * Un neto en 0 es válido a propósito: representa una deuda liquidada 100%
@@ -413,16 +413,16 @@ export class PagoService {
       comprobantePorId,
     );
 
-    if (totalDebe.isZero()) {
+    if (totalHaber.isZero()) {
       throw new BadRequestException(
         'El pago debe imputar al menos un comprobante que aumente el saldo (factura); no se puede pagar únicamente con notas de crédito',
       );
     }
 
-    const neto = totalDebe.minus(totalHaber);
+    const neto = totalHaber.minus(totalDebe);
     if (neto.isNegative()) {
       throw new BadRequestException(
-        `Las notas de crédito imputadas ($${totalHaber.toFixed(2)}) superan la deuda seleccionada ($${totalDebe.toFixed(2)})`,
+        `Las notas de crédito imputadas ($${totalDebe.toFixed(2)}) superan la deuda seleccionada ($${totalHaber.toFixed(2)})`,
       );
     }
   }

@@ -57,7 +57,7 @@ export interface PagosQuery {
   limit?: number
 }
 
-/** DEBE = comprobante cuyo tipo aumenta el saldo (factura); HABER = lo disminuye (nota de crédito). */
+/** HABER = comprobante cuyo tipo aumenta el saldo (factura); DEBE = lo disminuye (nota de crédito). */
 export type EfectoSaldo = 'DEBE' | 'HABER'
 
 /**

@@ -68,22 +68,24 @@ export const COLUMNAS_PAGOS: DataTableColumn<Pago>[] = [
 
 /**
  * Pastilla Debe/Haber de una línea de imputación: si el tipo de comprobante
- * aumenta el saldo (factura) o lo disminuye (nota de crédito) — mismo
- * criterio y estilo que la tabla de comprobantes imputables al emitir un
- * pago (ver `NuevoPagoPage`). `undefined` es "no se pudo determinar" (el
- * tipo de comprobante no está en el catálogo cargado).
+ * aumenta el saldo (factura, va al HABER) o lo disminuye (nota de crédito,
+ * va al DEBE) — mismo criterio y estilo que la tabla de comprobantes
+ * imputables al emitir un pago (ver `NuevoPagoPage`) y que el cardex de
+ * cuenta corriente: la cuenta es un pasivo, aumenta por el HABER (en rojo,
+ * de alerta) y disminuye por el DEBE (en verde). `undefined` es "no se pudo
+ * determinar" (el tipo de comprobante no está en el catálogo cargado).
  */
 export function badgeEfectoSaldo(aumentaSaldo: boolean | undefined) {
   if (aumentaSaldo === undefined) return SIN_DATO
 
   return (
-    <Badge variant={aumentaSaldo ? 'active' : 'error'} dot={false}>
+    <Badge variant={aumentaSaldo ? 'error' : 'active'} dot={false}>
       {aumentaSaldo ? (
         <TrendingUp className="size-3.5" aria-hidden="true" />
       ) : (
         <TrendingDown className="size-3.5" aria-hidden="true" />
       )}
-      {aumentaSaldo ? 'Debe' : 'Haber'}
+      {aumentaSaldo ? 'Haber' : 'Debe'}
     </Badge>
   )
 }
