@@ -101,7 +101,7 @@ export const NAV_ITEMS: NavNode[] = [
         to: PATHS.TESORERIA.PAGOS.ROOT,
         icon: CreditCard,
         children: [
-          { label: 'Órdenes de Pago', to: PATHS.TESORERIA.PAGOS.ROOT, icon: Banknote },
+          { label: 'Pagos', to: PATHS.TESORERIA.PAGOS.ROOT, icon: Banknote },
           { label: 'Formas de Pago', to: PATHS.TESORERIA.PAGOS.FORMAS, icon: Coins },
         ],
       },
