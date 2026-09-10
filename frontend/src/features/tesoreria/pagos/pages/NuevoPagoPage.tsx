@@ -5,10 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Check, TrendingDown, TrendingUp, TriangleAlert } from 'lucide-react'
 import { PATHS } from '@/app/router/paths'
 import { formatearNumeroComprobante } from '@/features/tesoreria/comprobantes/utils/numeroComprobante'
-import {
-  useProveedorDetalle,
-  useProveedores,
-} from '@/features/compras/proveedores/hooks/useProveedores'
+import { useProveedores } from '@/features/compras/proveedores/hooks/useProveedores'
 import { useFormasPago } from '@/features/tesoreria/formas-pago/hooks/useFormasPago'
 import { ConfirmDialog } from '@/shared/components/common/ConfirmDialog'
 import { DataTable } from '@/shared/components/common/DataTable'
@@ -22,13 +19,14 @@ import { Select } from '@/shared/components/ui/Select'
 import type { SelectOption } from '@/shared/components/ui/Select'
 import { useToast } from '@/shared/hooks/useToast'
 import { formatearMensajeError } from '@/shared/utils/apiError'
+import { formatearFechaSinHora, hoyIso } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
+import { DatosBancariosProveedor } from '../components/DatosBancariosProveedor'
 import { useComprobantesImputables, useCrearPago } from '../hooks/usePagos'
 import { pagoFormSchema } from '../types/pago.schema'
 import type { PagoFormOutput, PagoFormValues } from '../types/pago.schema'
 import type { ComprobanteImputable, CrearPagoPayload } from '../types/pago.types'
 import { formatearCodigoPago } from '../utils/codigoPago'
-import { formatearFechaSinHora, hoyIso } from '../utils/fechaPago'
 
 /** Importe que el usuario editó para cada comprobante seleccionado, como string (input controlado). Ausente = no seleccionado. */
 type Seleccion = Record<number, string>
@@ -113,7 +111,6 @@ export function NuevoPagoPage() {
   // un instante de más, el parpadeo raro al buscar proveedor.
   const { data: comprobantesImputables, isLoading: cargandoComprobantes } =
     useComprobantesImputables(proveedorId)
-  const { data: proveedorSeleccionadoDetalle } = useProveedorDetalle(proveedorId)
 
   const opcionesProveedor: ComboboxOption[] = (proveedores?.data ?? []).map((proveedor) => ({
     value: String(proveedor.id_proveedor),
@@ -475,30 +472,8 @@ export function NuevoPagoPage() {
           />
         </div>
 
-        {hayProveedor && (
-          <div className="border-subtle bg-white rounded-md border p-3">
-            <span className="text-content-muted text-xs font-medium uppercase">
-              Datos bancarios del proveedor
-            </span>
-            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
-              <div>
-                <dt className="text-content-muted text-xs">Banco</dt>
-                <dd className="text-content">{proveedorSeleccionadoDetalle?.banco ?? '—'}</dd>
-              </div>
-              <div>
-                <dt className="text-content-muted text-xs">Titular</dt>
-                <dd className="text-content">{proveedorSeleccionadoDetalle?.titular ?? '—'}</dd>
-              </div>
-              <div>
-                <dt className="text-content-muted text-xs">CBU</dt>
-                <dd className="text-content">{proveedorSeleccionadoDetalle?.cbu ?? '—'}</dd>
-              </div>
-              <div>
-                <dt className="text-content-muted text-xs">Alias</dt>
-                <dd className="text-content">{proveedorSeleccionadoDetalle?.alias ?? '—'}</dd>
-              </div>
-            </dl>
-          </div>
+        {hayProveedor && proveedorId !== null && (
+          <DatosBancariosProveedor proveedorId={proveedorId} disabled={loading} />
         )}
 
         <Input
