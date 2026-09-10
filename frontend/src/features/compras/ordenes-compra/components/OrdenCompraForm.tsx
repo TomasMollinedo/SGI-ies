@@ -14,6 +14,7 @@ import type { ComboboxOption } from '@/shared/components/ui/Combobox'
 import { Input } from '@/shared/components/ui/Input'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { esArrayDeValidationIssues, formatearMensajeError } from '@/shared/utils/apiError'
+import { hoyIso } from '@/shared/utils/fecha'
 import { DetalleLineaOrdenCompraRow } from './DetalleLineaOrdenCompraRow'
 import { ordenCompraFormSchema } from '../types/ordenCompra.schema'
 import type {
@@ -326,6 +327,15 @@ export function OrdenCompraForm({
             />
           </div>
 
+          <Input
+            label="Observaciones"
+            multiline
+            placeholder="Texto breve para identificar la orden"
+            disabled={cargando}
+            error={errors.observaciones?.message}
+            {...register('observaciones')}
+          />
+
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-content text-sm font-medium">Detalle de la orden</span>
@@ -342,6 +352,16 @@ export function OrdenCompraForm({
             </div>
 
             {errorDetalle && <p className="text-error text-xs">{errorDetalle}</p>}
+
+            {/* Encabezados de la grilla: mismas columnas que `DetalleLineaOrdenCompraRow`.
+                Ocultos en mobile porque ahí la fila pasa a apilarse en una sola columna. */}
+            <div className="text-content-muted hidden gap-3 text-xs font-medium uppercase sm:grid sm:grid-cols-[1fr_7rem_9rem_9rem_auto]">
+              <span>Artículo</span>
+              <span>Cantidad</span>
+              <span>Precio unitario</span>
+              <span className="text-right">Subtotal</span>
+              <span aria-hidden="true" />
+            </div>
 
             <div className="flex flex-col gap-3">
               {fields.map((field, index) => (
@@ -367,15 +387,6 @@ export function OrdenCompraForm({
               <span className="text-content text-lg font-semibold">{formatearMoneda(total)}</span>
             </div>
           </div>
-
-          <Input
-            label="Observaciones"
-            multiline
-            placeholder="Texto breve para identificar la orden"
-            disabled={cargando}
-            error={errors.observaciones?.message}
-            {...register('observaciones')}
-          />
         </form>
       </Modal>
 

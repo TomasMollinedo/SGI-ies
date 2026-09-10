@@ -25,6 +25,20 @@ const lineaDetalleResponseSchema = z.object({
   articulo: articuloResumenSchema,
 });
 
+const usuarioResumenSchema = z.object({
+  nombre: z.string(),
+  apellido: z.string(),
+});
+
+const historialEstadoResponseSchema = z.object({
+  id_historial: z.number(),
+  estado_anterior: z.enum(EstadoOrdenCompra),
+  estado_nuevo: z.enum(EstadoOrdenCompra),
+  observacion: z.string().nullable(),
+  fecha: z.iso.datetime(),
+  usuario: usuarioResumenSchema,
+});
+
 /**
  * Shape completo de una orden de compra: lo que devuelven `create`, `update`,
  * `cambiarEstado` y `findOne` (todos pasan por `OrdenCompraService.findOne`
@@ -43,17 +57,20 @@ export const ordenCompraResponseSchema = z.object({
   proveedor: proveedorResumenSchema,
   deposito: depositoResumenSchema,
   detalles: z.array(lineaDetalleResponseSchema),
+  historialEstados: z.array(historialEstadoResponseSchema),
 });
 
 export class OrdenCompraResponseDto extends createZodDto(
   ordenCompraResponseSchema,
 ) {}
 
-// El listado no trae el detalle línea por línea (eso es carga innecesaria
-// para una tabla) — mismo criterio que ProveedorListResponseDto, que
-// tampoco expone lo que solo hace falta en el detalle.
+// El listado no trae el detalle línea por línea ni el historial de estados
+// (son carga innecesaria para una tabla) — mismo criterio que
+// ProveedorListResponseDto, que tampoco expone lo que solo hace falta en el
+// detalle.
 export const ordenCompraListItemSchema = ordenCompraResponseSchema.omit({
   detalles: true,
+  historialEstados: true,
 });
 
 export const ordenCompraListResponseSchema = z.object({

@@ -1,10 +1,8 @@
 import { useState } from 'react'
 import type { Control, UseFormRegister } from 'react-hook-form'
 import { Controller } from 'react-hook-form'
-import { Trash2 } from 'lucide-react'
-import { useArticulos } from '@/features/almacen/artículos/hooks/useArticulos'
-import { Combobox } from '@/shared/components/ui/Combobox'
-import type { ComboboxOption } from '@/shared/components/ui/Combobox'
+import { Search, Trash2, X } from 'lucide-react'
+import { SelectorArticuloModal } from '@/features/almacen/artículos/components/SelectorArticuloModal'
 import { IconButton } from '@/shared/components/ui/IconButton'
 import { Input } from '@/shared/components/ui/Input'
 import type { ComprobanteFormOutput, ComprobanteFormValues } from '../types/comprobante.schema'
@@ -40,23 +38,11 @@ export function DetalleLineaComprobanteRow({
   subtotal,
   errors,
 }: DetalleLineaComprobanteRowProps) {
-  const [busqueda, setBusqueda] = useState('')
-
-  const { data: articulos, isFetching } = useArticulos({
-    busqueda: busqueda || undefined,
-    estado: true,
-    limit: 20,
-  })
-
-  const opciones: ComboboxOption[] = (articulos?.data ?? []).map((articulo) => ({
-    value: String(articulo.id_articulo),
-    label: articulo.nombre,
-  }))
-
-  const hayMasArticulos = (articulos?.meta.total ?? 0) > (articulos?.data.length ?? 0)
+  const [modalAbierto, setModalAbierto] = useState(false)
+  const [nombreArticulo, setNombreArticulo] = useState('')
 
   return (
-    <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[1fr_1fr_5rem_7rem_7rem_auto]">
+    <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[1fr_1fr_7rem_8rem_7rem_auto]">
       <Input
         placeholder="Descripción"
         error={errors?.descripcion?.message}
@@ -67,17 +53,49 @@ export function DetalleLineaComprobanteRow({
         name={`detalle.${index}.FK_articulo`}
         control={control}
         render={({ field }) => (
-          <Combobox
-            placeholder="Artículo (opcional)"
-            minChars={0}
-            value={field.value ?? ''}
-            onChange={field.onChange}
-            options={opciones}
-            onSearch={setBusqueda}
-            loading={isFetching}
-            hasMoreResults={hayMasArticulos}
-            error={errors?.FK_articulo?.message}
-          />
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1">
+              <Input
+                readOnly
+                placeholder="Sin artículo"
+                value={nombreArticulo || (field.value ? `Artículo #${field.value}` : '')}
+                className="flex-1"
+              />
+              <IconButton
+                icon={<Search />}
+                ariaLabel="Buscar artículo"
+                variant="soft"
+                size="sm"
+                bgColor="fondo-ver"
+                iconColor="info"
+                onClick={() => setModalAbierto(true)}
+              />
+              {field.value ? (
+                <IconButton
+                  icon={<X />}
+                  ariaLabel="Quitar artículo"
+                  variant="soft"
+                  size="sm"
+                  bgColor="fondo-eliminar"
+                  iconColor="error"
+                  onClick={() => {
+                    field.onChange('')
+                    setNombreArticulo('')
+                  }}
+                />
+              ) : null}
+            </div>
+
+            <SelectorArticuloModal
+              open={modalAbierto}
+              onClose={() => setModalAbierto(false)}
+              onSeleccionar={(articulo) => {
+                field.onChange(String(articulo.id_articulo))
+                setNombreArticulo(articulo.nombre)
+                setModalAbierto(false)
+              }}
+            />
+          </div>
         )}
       />
 

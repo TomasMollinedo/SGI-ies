@@ -1,8 +1,7 @@
 /**
  * Hoy en formato `YYYY-MM-DD` — lo que devuelve y acepta un `<input type="date">`
- * y lo que el backend espera para `fecha_emision` / `fecha_vencimiento`
- * (`fechaIsoSchema` acepta la fecha sola, sin hora). Mismo criterio que
- * `hoyIso` en la feature de órdenes de compra.
+ * y lo que el backend espera para `fecha_pago`. Mismo criterio que `hoyIso` en
+ * comprobantes y órdenes de compra.
  */
 export function hoyIso(): string {
   const hoy = new Date()
@@ -16,11 +15,10 @@ export function hoyIso(): string {
  * Formatea una fecha "de negocio" (sin hora) como `dd/MM/yyyy`, tomando la
  * parte de fecha del string ISO tal cual, sin conversión de zona horaria.
  *
- * `formatearFecha` de `shared/utils` está pensada para timestamps reales
- * (`hora_creacion`, etc.) y los pasa a horario de Argentina — pero
- * `fecha_emision` / `fecha_vencimiento` (y la `fecha_emision` de una orden de
- * compra) viajan como medianoche UTC de la fecha elegida, y esa conversión les
- * resta un día.
+ * `fecha_emision` / `fecha_vencimiento` de un comprobante imputable viajan
+ * como medianoche UTC de la fecha elegida: convertirlas a horario de
+ * Argentina les restaría un día. Mismo criterio que `formatearFechaSinHora`
+ * en comprobantes.
  */
 export function formatearFechaSinHora(fechaIso: string): string {
   const [anio, mes, dia] = fechaIso.slice(0, 10).split('-')

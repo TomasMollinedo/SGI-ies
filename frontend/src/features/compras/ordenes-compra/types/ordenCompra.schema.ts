@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { hoyIso } from '../utils/fechaOrdenCompra'
+import { hoyIso } from '@/shared/utils/fecha'
 
 /** Límites calcados de `lineaOrdenCompraSchema` (create-orden-compra.dto.ts). */
 export const lineaOrdenCompraFormSchema = z.object({
@@ -7,8 +7,17 @@ export const lineaOrdenCompraFormSchema = z.object({
     .string()
     .min(1, 'Elegí un artículo')
     .transform((valor) => Number(valor)),
-  cantidad: z.number().positive('La cantidad debe ser mayor a 0'),
-  precio_unitario: z.number().positive('El precio unitario debe ser mayor a 0'),
+  // El mensaje en el constructor cubre el campo vacío: un input numérico
+  // vacío llega como `NaN` (vía `valueAsNumber` de RHF), que ni siquiera pasa
+  // el chequeo de tipo de `z.number()` — sin este mensaje, Zod muestra el
+  // suyo en inglés ("Invalid input: expected number, received NaN") en vez
+  // de fallar recién en `.positive()`.
+  cantidad: z
+    .number({ message: 'La cantidad es obligatoria' })
+    .positive('La cantidad debe ser mayor a 0'),
+  precio_unitario: z
+    .number({ message: 'El precio unitario es obligatorio' })
+    .positive('El precio unitario debe ser mayor a 0'),
 })
 
 /**

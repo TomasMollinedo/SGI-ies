@@ -2,7 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import type { UseFormSetError } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, Pencil, Plus, Receipt, TrendingDown, TrendingUp, TriangleAlert, X } from 'lucide-react'
+import {
+  Check,
+  Pencil,
+  Plus,
+  Receipt,
+  TrendingDown,
+  TrendingUp,
+  TriangleAlert,
+  X,
+} from 'lucide-react'
 import { useProveedores } from '@/features/compras/proveedores/hooks/useProveedores'
 import { useTiposComprobante } from '@/features/tesoreria/tipos-comprobante/hooks/useTiposComprobante'
 import { ConfirmDialog } from '@/shared/components/common/ConfirmDialog'
@@ -16,6 +25,7 @@ import { Select } from '@/shared/components/ui/Select'
 import type { SelectOption } from '@/shared/components/ui/Select'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { esArrayDeValidationIssues, formatearMensajeError } from '@/shared/utils/apiError'
+import { formatearFechaSinHora, hoyIso } from '@/shared/utils/fecha'
 import { DetalleLineaComprobanteRow } from './DetalleLineaComprobanteRow'
 import { useComprobantes } from '../hooks/useComprobantes'
 import { useOrdenesCompra } from '../hooks/useOrdenesCompra'
@@ -26,7 +36,6 @@ import type {
   LineaComprobanteFormValues,
 } from '../types/comprobante.schema'
 import type { ComprobanteDetalle } from '../types/comprobante.types'
-import { formatearFechaSinHora, hoyIso } from '../utils/fechaComprobante'
 import { formatearMoneda } from '../utils/formatearMoneda'
 import { formatearNumeroComprobante } from '../utils/numeroComprobante'
 
@@ -374,9 +383,7 @@ export function ComprobanteForm({
               <Select
                 label="Tipo de comprobante"
                 required
-                placeholder={
-                  cargandoTipos ? 'Cargando tipos…' : 'Seleccionar tipo de comprobante'
-                }
+                placeholder={cargandoTipos ? 'Cargando tipos…' : 'Seleccionar tipo de comprobante'}
                 disabled={cargandoTipos}
                 options={opcionesTipo}
                 error={errors.FK_tipo_comprobante?.message}
@@ -506,6 +513,14 @@ export function ComprobanteForm({
               {...register('FK_comprobante_origen')}
             />
           </div>
+          <Input
+            label="Observaciones"
+            multiline
+            placeholder="Texto breve para identificar el comprobante"
+            disabled={cargando}
+            error={errors.observaciones?.message}
+            {...register('observaciones')}
+          />
 
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -574,14 +589,7 @@ export function ComprobanteForm({
             </dl>
           </div>
 
-          <Input
-            label="Observaciones"
-            multiline
-            placeholder="Texto breve para identificar el comprobante"
-            disabled={cargando}
-            error={errors.observaciones?.message}
-            {...register('observaciones')}
-          />
+          
         </form>
       </Modal>
 

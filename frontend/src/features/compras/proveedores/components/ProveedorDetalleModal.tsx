@@ -91,6 +91,10 @@ export function ProveedorDetalleModal({
           <DetailRow label="Domicilio" value={textoOSinDato(proveedor.domicilio)} />
           <DetailRow label="Teléfono" value={textoOSinDato(proveedor.telefono)} />
           <DetailRow label="Correo" value={textoOSinDato(proveedor.correo)} />
+          <DetailRow label="Banco" value={textoOSinDato(proveedor.banco)} />
+          <DetailRow label="Titular" value={textoOSinDato(proveedor.titular)} />
+          <DetailRow label="CBU" value={textoOSinDato(proveedor.cbu)} />
+          <DetailRow label="Alias" value={textoOSinDato(proveedor.alias)} />
           <DetailRow label="Observaciones" value={textoOSinDato(proveedor.observaciones)} />
           <DetailRow
             label="Estado"

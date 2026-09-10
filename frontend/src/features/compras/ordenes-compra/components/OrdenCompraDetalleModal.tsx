@@ -11,7 +11,6 @@ import type { ButtonVariant } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/hooks/useToast'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { formatearMensajeError } from '@/shared/utils/apiError'
-import { formatearFechaHora } from '@/shared/utils/fecha'
 import { AvanzarEstadoOrdenCompraModal } from './AvanzarEstadoOrdenCompraModal'
 import {
   badgeEstadoOrdenCompra,
@@ -21,8 +20,8 @@ import {
 } from '../config/ordenCompra.config'
 import { useCambiarEstadoOrdenCompra, useOrdenCompraDetalle } from '../hooks/useOrdenesCompra'
 import type { EstadoOrdenCompra } from '../types/ordenCompra.types'
+import { formatearFechaHora, formatearFechaSinHora } from '@/shared/utils/fecha'
 import { formatearCodigoOrdenCompra } from '../utils/codigoOrdenCompra'
-import { formatearFechaSinHora } from '../utils/fechaOrdenCompra'
 import { formatearMoneda } from '../utils/formatearMoneda'
 
 interface OrdenCompraDetalleModalProps {

@@ -2,11 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { ProveedorService } from './proveedor.service';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { createProveedorSchema } from './dto/create-proveedor.dto';
+import { updateProveedorSchema } from './dto/update-proveedor.dto';
 
 /** Primer argumento con el que se llamó a un mock de Prisma, ya tipado. */
 type ArgumentoPrisma = {
   data?: Record<string, unknown>;
   where?: Record<string, unknown>;
+  select?: Record<string, unknown>;
 };
 
 const primerArgumento = (mock: jest.Mock): ArgumentoPrisma =>
@@ -27,6 +30,8 @@ describe('ProveedorService', () => {
 
   const USUARIO_ID = 7;
   const CUIT_VALIDO = '30500010912';
+  const CBU_VALIDO = '0170099220000067797151';
+  const ALIAS_VALIDO = 'mi.alias.banco';
 
   const proveedorMock = {
     id_proveedor: 1,
@@ -36,6 +41,10 @@ describe('ProveedorService', () => {
     domicilio: null,
     telefono: null,
     correo: null,
+    banco: null,
+    titular: null,
+    cbu: null,
+    alias: null,
     observaciones: null,
     estado: true,
   };
@@ -128,6 +137,22 @@ describe('ProveedorService', () => {
         },
       });
     });
+
+    it('guarda los datos bancarios que vienen en el body', async () => {
+      prisma.pROVEEDOR.create.mockResolvedValue(proveedorMock);
+      const datosBancarios = {
+        banco: 'Banco Macro',
+        titular: 'Acme SA',
+        cbu: CBU_VALIDO,
+        alias: ALIAS_VALIDO,
+      };
+
+      await service.create({ ...dto, ...datosBancarios }, USUARIO_ID);
+
+      expect(primerArgumento(prisma.pROVEEDOR.create).data).toMatchObject(
+        datosBancarios,
+      );
+    });
   });
 
   describe('findAll', () => {
@@ -202,6 +227,20 @@ describe('ProveedorService', () => {
         ],
       });
     });
+
+    it('trae los datos bancarios, porque la edición se arma con la fila del listado', async () => {
+      prisma.pROVEEDOR.findMany.mockResolvedValue([]);
+      prisma.pROVEEDOR.count.mockResolvedValue(0);
+
+      await service.findAll({ page: 1, limit: 10 });
+
+      expect(primerArgumento(prisma.pROVEEDOR.findMany).select).toMatchObject({
+        banco: true,
+        titular: true,
+        cbu: true,
+        alias: true,
+      });
+    });
   });
 
   describe('update', () => {
@@ -221,6 +260,33 @@ describe('ProveedorService', () => {
 
       expect(prisma.pROVEEDOR.findFirst).not.toHaveBeenCalled();
       expect(prisma.pROVEEDOR.update).toHaveBeenCalled();
+    });
+
+    it('actualiza los datos bancarios, y un string vacío borra el dato cargado', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue({
+        ...proveedorMock,
+        cbu: CBU_VALIDO,
+        alias: ALIAS_VALIDO,
+      });
+      prisma.pROVEEDOR.update.mockResolvedValue(proveedorMock);
+
+      // Pasa por el schema como en un request real: el ZodValidationPipe
+      // global valida el body antes de que llegue al service.
+      const dto = updateProveedorSchema.parse({
+        banco: 'Banco Galicia',
+        cbu: '',
+        alias: '',
+      });
+
+      await service.update(1, dto, USUARIO_ID);
+
+      const dataEnviada = primerArgumento(prisma.pROVEEDOR.update).data;
+      expect(dataEnviada).toMatchObject({
+        banco: 'Banco Galicia',
+        cbu: '',
+        alias: '',
+      });
+      expect(dataEnviada?.FK_usuario_actualizador).toBe(USUARIO_ID);
     });
   });
 
@@ -296,6 +362,98 @@ describe('ProveedorService', () => {
         ConflictException,
       );
       expect(prisma.pROVEEDOR.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('validación de datos bancarios (DTO)', () => {
+    // Solo los obligatorios del alta: así el único motivo de rechazo posible
+    // es el dato bancario que prueba cada caso.
+    const DTO_BASE = {
+      razon_social: 'Acme SA',
+      cuit: CUIT_VALIDO,
+      condicion_iva: 'RESPONSABLE_INSCRIPTO',
+    };
+
+    const validarAlta = (campos: Record<string, unknown>) =>
+      createProveedorSchema.safeParse({ ...DTO_BASE, ...campos });
+
+    it('los cuatro son opcionales: un alta sin datos bancarios es válida', () => {
+      expect(validarAlta({}).success).toBe(true);
+    });
+
+    describe('cbu', () => {
+      it('acepta 22 dígitos', () => {
+        expect(validarAlta({ cbu: CBU_VALIDO }).success).toBe(true);
+      });
+
+      it('acepta el string vacío (así borra el CBU la edición)', () => {
+        expect(validarAlta({ cbu: '' }).success).toBe(true);
+      });
+
+      it('recorta los espacios de los extremos antes de validar', () => {
+        expect(validarAlta({ cbu: ` ${CBU_VALIDO} ` }).data?.cbu).toBe(
+          CBU_VALIDO,
+        );
+      });
+
+      it.each([
+        ['21 dígitos', CBU_VALIDO.slice(0, 21)],
+        ['23 dígitos', `${CBU_VALIDO}0`],
+        ['una letra', `${CBU_VALIDO.slice(0, 21)}A`],
+        ['guiones', `${CBU_VALIDO.slice(0, 8)}-${CBU_VALIDO.slice(8)}`],
+        [
+          'espacios intermedios',
+          `${CBU_VALIDO.slice(0, 8)} ${CBU_VALIDO.slice(8)}`,
+        ],
+      ])('rechaza un CBU con %s', (_caso, cbu) => {
+        const resultado = validarAlta({ cbu });
+
+        expect(resultado.success).toBe(false);
+        expect(resultado.error?.issues[0].path).toEqual(['cbu']);
+        expect(resultado.error?.issues[0].message).toMatch(/22 dígitos/);
+      });
+    });
+
+    describe('alias', () => {
+      it.each([
+        ['con puntos', ALIAS_VALIDO],
+        ['con guiones', 'proveedor-acme-01'],
+        ['de 6 caracteres (el mínimo)', 'abc123'],
+        ['de 20 caracteres (el máximo)', 'a'.repeat(20)],
+      ])('acepta un alias %s', (_caso, alias) => {
+        expect(validarAlta({ alias }).success).toBe(true);
+      });
+
+      it('acepta el string vacío (así borra el alias la edición)', () => {
+        expect(validarAlta({ alias: '' }).success).toBe(true);
+      });
+
+      it.each([
+        ['de 5 caracteres', 'abc12'],
+        ['de 21 caracteres', 'a'.repeat(21)],
+        ['con espacios', 'mi alias banco'],
+        ['con guion bajo', 'mi_alias_banco'],
+        ['con ñ', 'mañana.banco'],
+      ])('rechaza un alias %s', (_caso, alias) => {
+        const resultado = validarAlta({ alias });
+
+        expect(resultado.success).toBe(false);
+        expect(resultado.error?.issues[0].path).toEqual(['alias']);
+        expect(resultado.error?.issues[0].message).toMatch(/entre 6 y 20/);
+      });
+    });
+
+    it('rechaza un banco de más de 100 caracteres', () => {
+      expect(validarAlta({ banco: 'B'.repeat(101) }).success).toBe(false);
+    });
+
+    it('la edición aplica las mismas reglas de CBU y alias', () => {
+      expect(updateProveedorSchema.safeParse({ cbu: '123' }).success).toBe(
+        false,
+      );
+      expect(updateProveedorSchema.safeParse({ alias: 'abc' }).success).toBe(
+        false,
+      );
     });
   });
 });
