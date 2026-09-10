@@ -265,6 +265,10 @@ describe('PagoService', () => {
           id_proveedor: ID_PROVEEDOR,
           razon_social: 'Proveedor SA',
           estado: true,
+          banco: null,
+          titular: null,
+          cbu: null,
+          alias: null,
         }),
       },
       fORMAPAGO: {
@@ -895,7 +899,7 @@ describe('PagoService', () => {
       expect(cancelados).toEqual([true, true]);
     });
 
-    it('los 4 campos de datos bancarios viajan null (bloqueados hasta HU-12)', async () => {
+    it('los datos bancarios viajan null cuando el proveedor no los tiene cargados', async () => {
       prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
         comprobanteAImputar(1),
       ]);
@@ -908,6 +912,31 @@ describe('PagoService', () => {
         titular_utilizado: null,
         cbu_utilizado: null,
         alias_utilizado: null,
+      });
+    });
+
+    it('los datos bancarios utilizados son una foto de los del proveedor al momento de confirmar', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue({
+        id_proveedor: ID_PROVEEDOR,
+        razon_social: 'Proveedor SA',
+        estado: true,
+        banco: 'Banco Nación',
+        titular: 'Proveedor SA',
+        cbu: '0110599520000001234567',
+        alias: 'proveedor.sa.cuenta',
+      });
+      prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+        comprobanteAImputar(1),
+      ]);
+
+      await service.create(crearPagoDto([lineaImputacion(1, 100)]), USUARIO_ID);
+
+      const argCreate = argumentoTx(tx.pAGO.create).data;
+      expect(argCreate).toMatchObject({
+        banco_utilizado: 'Banco Nación',
+        titular_utilizado: 'Proveedor SA',
+        cbu_utilizado: '0110599520000001234567',
+        alias_utilizado: 'proveedor.sa.cuenta',
       });
     });
 
