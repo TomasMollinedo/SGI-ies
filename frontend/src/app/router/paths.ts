@@ -40,6 +40,9 @@ export const PATHS = {
       FORMAS: '/tesoreria/pagos/formas',
     },
     CUENTAS_CORRIENTES: '/tesoreria/cuentas-corrientes',
+    // Patrón de ruta, no una URL navegable: para armar la de un proveedor
+    // concreto está `rutaCardexCuentaCorriente`.
+    CUENTAS_CORRIENTES_CARDEX: '/tesoreria/cuentas-corrientes/:idProveedor/cardex',
   },
   ALERTAS: { ROOT: '/alertas' },
 
@@ -50,4 +53,9 @@ export const PATHS = {
 /** La ruta del cardex de una ficha puntual (ej. 42 → /almacen/deposito/stock/42/cardex). */
 export function rutaCardexStock(idStock: number): string {
   return PATHS.ALMACEN.DEPOSITO.STOCK_CARDEX.replace(':idStock', String(idStock))
+}
+
+/** La ruta del extracto de un proveedor puntual (ej. 42 → /tesoreria/cuentas-corrientes/42/cardex). */
+export function rutaCardexCuentaCorriente(idProveedor: number): string {
+  return PATHS.TESORERIA.CUENTAS_CORRIENTES_CARDEX.replace(':idProveedor', String(idProveedor))
 }

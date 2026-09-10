@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ShieldAlert } from 'lucide-react'
-import { PATHS } from '@/app/router/paths'
+import { History, ShieldAlert } from 'lucide-react'
+import { PATHS, rutaCardexCuentaCorriente } from '@/app/router/paths'
+import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { DataTable } from '@/shared/components/common/DataTable'
 import { Pagination } from '@/shared/components/common/Pagination'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
+import { IconButton } from '@/shared/components/ui/IconButton'
 import { Spinner } from '@/shared/components/ui/Spinner'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { FiltrosCuentasCorrientesBar } from '../components/FiltrosCuentasCorrientesBar'
 import { ResumenCuentasCorrientes } from '../components/ResumenCuentasCorrientes'
 import { COLUMNAS_CUENTAS_CORRIENTES, LIMITE_PAGINA } from '../config/cuentaCorriente.config'
 import { useCuentasCorrientes } from '../hooks/useCuentasCorrientes'
-import type { CondicionSaldo } from '../types/cuentaCorriente.types'
+import type { CondicionSaldo, CuentaCorrienteProveedor } from '../types/cuentaCorriente.types'
 
 /**
  * Posición de la empresa frente a cada proveedor: una sola llamada trae la
@@ -79,6 +81,28 @@ export function CuentasCorrientesPage() {
   const meta = data?.meta
   const totalPaginas = meta ? Math.ceil(meta.total / meta.limit) : 0
 
+  const columnas: DataTableColumn<CuentaCorrienteProveedor>[] = [
+    ...COLUMNAS_CUENTAS_CORRIENTES,
+    {
+      key: 'acciones',
+      label: 'Acciones',
+      // No hay alta, edición ni baja/reactivación acá: es un cálculo sobre
+      // comprobantes, no una entidad propia. La única acción es ver el extracto.
+      render: (item) => (
+        <IconButton
+          icon={<History />}
+          ariaLabel={`Ver cardex de ${item.razon_social}`}
+          title="Ver cardex"
+          variant="soft"
+          size="sm"
+          bgColor="secondary-soft"
+          iconColor="content"
+          onClick={() => navigate(rutaCardexCuentaCorriente(item.id_proveedor))}
+        />
+      ),
+    },
+  ]
+
   return (
     <div className="space-y-4">
       {data && <ResumenCuentasCorrientes resumen={data.resumen} />}
@@ -122,7 +146,7 @@ export function CuentasCorrientesPage() {
         <>
           <DataTable
             data={cuentas}
-            columns={COLUMNAS_CUENTAS_CORRIENTES}
+            columns={columnas}
             obtenerId={(item) => String(item.id_proveedor)}
             ariaLabel="Cuentas corrientes de proveedores"
           />
