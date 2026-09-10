@@ -1,14 +1,45 @@
-import { useState } from 'react'
-import { ClipboardList, Plus } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router'
+import { Plus, ShieldAlert } from 'lucide-react'
+import { PATHS } from '@/app/router/paths'
+import type { DataTableColumn } from '@/shared/components/common/DataTable'
+import { DataTable } from '@/shared/components/common/DataTable'
+import { Pagination } from '@/shared/components/common/Pagination'
+import { RowActions } from '@/shared/components/common/RowActions'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
+import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
 import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/hooks/useToast'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
+import { formatearMensajeError } from '@/shared/utils/apiError'
+import { FiltrosOrdenesCompraBar } from '../components/FiltrosOrdenesCompraBar'
+import { OrdenCompraDetalleModal } from '../components/OrdenCompraDetalleModal'
 import { OrdenCompraForm } from '../components/OrdenCompraForm'
-import { useCambiarEstadoOrdenCompra, useCrearOrdenCompra } from '../hooks/useOrdenesCompra'
+import { COLUMNAS_ORDENES_COMPRA, LIMITE_PAGINA } from '../config/ordenCompra.config'
+import {
+  useCambiarEstadoOrdenCompra,
+  useCrearOrdenCompra,
+  useOrdenesCompra,
+} from '../hooks/useOrdenesCompra'
 import type { OrdenCompraFormOutput } from '../types/ordenCompra.schema'
-import type { CrearOrdenCompraPayload } from '../types/ordenCompra.types'
+import type {
+  CrearOrdenCompraPayload,
+  EstadoOrdenCompra,
+  OrdenCompraListItem,
+} from '../types/ordenCompra.types'
 import { formatearCodigoOrdenCompra } from '../utils/codigoOrdenCompra'
+
+const ESTADOS_VALIDOS: EstadoOrdenCompra[] = [
+  'BORRADOR',
+  'EMITIDA',
+  'RECIBIDA_PARCIAL',
+  'RECIBIDA',
+  'CANCELADA',
+]
+
+function esEstadoValido(valor: string): valor is EstadoOrdenCompra {
+  return ESTADOS_VALIDOS.includes(valor as EstadoOrdenCompra)
+}
 
 function construirPayload(payload: OrdenCompraFormOutput): CrearOrdenCompraPayload {
   return {
@@ -22,34 +53,92 @@ function construirPayload(payload: OrdenCompraFormOutput): CrearOrdenCompraPaylo
 }
 
 /**
- * Alta de una orden de compra (T68): la modal "Nueva orden" con su cabecera y
- * grilla de detalle. El listado, el detalle y el cambio manual de estado
- * desde la tabla son alcance de otras historias — acá solo se puede cargar
- * una orden y confirmarla.
+ * Listado de órdenes de compra (T69): columnas, filtros combinables por
+ * proveedor/estado/período y acceso al detalle de cada fila. Sumado al alta
+ * de T68 (la modal "Nueva orden de compra").
+ *
+ * Los filtros viven en la URL (`useSearchParams`) y no en `useState`: es la
+ * única forma de que sobrevivan a un F5, que es justo lo que pide el "Listo
+ * cuando" de la HU. La página, sin recibirlos, no se entera de nada especial.
  */
 export function OrdenesCompraPage() {
+  const navigate = useNavigate()
   const toast = useToast()
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  const FK_proveedor = searchParams.get('proveedor') ?? ''
+  const estadoParam = searchParams.get('estado') ?? ''
+  const estado = esEstadoValido(estadoParam) ? estadoParam : ''
+  const fechaDesde = searchParams.get('desde') ?? ''
+  const fechaHasta = searchParams.get('hasta') ?? ''
+
+  const [page, setPage] = useState(1)
+  const [detalleId, setDetalleId] = useState<number | null>(null)
   const [formularioAbierto, setFormularioAbierto] = useState(false)
-  const [error, setError] = useState<ApiErrorResponse | null>(null)
+  const [errorFormulario, setErrorFormulario] = useState<ApiErrorResponse | null>(null)
+
+  const rangoInvalido = fechaDesde !== '' && fechaHasta !== '' && fechaDesde > fechaHasta
+  const hayFiltros = FK_proveedor !== '' || estado !== '' || fechaDesde !== '' || fechaHasta !== ''
+
+  /** Pisa solo los campos que cambiaron; el resto de la URL queda igual. `''` borra el parámetro. */
+  function actualizarFiltros(cambios: Record<string, string>) {
+    setSearchParams(
+      (actuales) => {
+        const siguientes = new URLSearchParams(actuales)
+        for (const [clave, valor] of Object.entries(cambios)) {
+          if (valor === '') siguientes.delete(clave)
+          else siguientes.set(clave, valor)
+        }
+        return siguientes
+      },
+      { replace: true }
+    )
+  }
+
+  // Con otros filtros, la página en la que estaba parado el usuario puede no
+  // existir más: siempre se vuelve a la primera.
+  useEffect(() => {
+    setPage(1)
+  }, [FK_proveedor, estado, fechaDesde, fechaHasta])
+
+  const { data, isLoading, isFetching, error, refetch } = useOrdenesCompra({
+    FK_proveedor: FK_proveedor === '' ? undefined : Number(FK_proveedor),
+    estado: estado === '' ? undefined : estado,
+    fechaDesde: rangoInvalido || fechaDesde === '' ? undefined : fechaDesde,
+    fechaHasta: rangoInvalido || fechaHasta === '' ? undefined : fechaHasta,
+    page,
+    limit: LIMITE_PAGINA,
+  })
+
+  const statusCode = error?.statusCode
+
+  useEffect(() => {
+    if (statusCode === 401) navigate(PATHS.LOGIN, { replace: true })
+  }, [statusCode, navigate])
+
+  useEffect(() => {
+    if (statusCode === 400) setPage(1)
+  }, [statusCode])
 
   const crear = useCrearOrdenCompra()
   const cambiarEstado = useCambiarEstadoOrdenCompra()
 
   function cerrarFormulario() {
     setFormularioAbierto(false)
-    setError(null)
+    setErrorFormulario(null)
   }
 
   function manejarGuardarBorrador(payload: OrdenCompraFormOutput) {
-    setError(null)
+    setErrorFormulario(null)
     crear.mutate(construirPayload(payload), {
       onSuccess: (orden) => {
         toast.success(
           `Orden de compra ${formatearCodigoOrdenCompra(orden.id_orden_compra)} guardada como borrador.`
         )
         cerrarFormulario()
+        setPage(1)
       },
-      onError: (error) => setError(error),
+      onError: (error) => setErrorFormulario(error),
     })
   }
 
@@ -57,7 +146,7 @@ export function OrdenesCompraPage() {
   // estado a EMITIDA: son las dos llamadas que ya expone el backend, no un
   // endpoint nuevo.
   function manejarConfirmarYEmitir(payload: OrdenCompraFormOutput) {
-    setError(null)
+    setErrorFormulario(null)
     crear.mutate(construirPayload(payload), {
       onSuccess: (orden) => {
         cambiarEstado.mutate(
@@ -68,28 +157,112 @@ export function OrdenesCompraPage() {
                 `Orden de compra ${formatearCodigoOrdenCompra(orden.id_orden_compra)} confirmada y emitida.`
               )
               cerrarFormulario()
+              setPage(1)
             },
-            onError: (error) => setError(error),
+            onError: (error) => setErrorFormulario(error),
           }
         )
       },
-      onError: (error) => setError(error),
+      onError: (error) => setErrorFormulario(error),
     })
   }
 
+  const columnas: DataTableColumn<OrdenCompraListItem>[] = [
+    ...COLUMNAS_ORDENES_COMPRA,
+    {
+      key: 'acciones',
+      label: 'Acciones',
+      render: (item) => <RowActions isActive onView={() => setDetalleId(item.id_orden_compra)} />,
+    },
+  ]
+
+  if (statusCode === 403) {
+    return (
+      <EmptyState
+        icono={ShieldAlert}
+        titulo="No tenés permisos para acceder a esta sección"
+        descripcion="Se requiere el rol Administrador."
+      />
+    )
+  }
+
+  const ordenes = data?.data ?? []
+  const meta = data?.meta
+  const totalPaginas = meta ? Math.ceil(meta.total / meta.limit) : 0
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button icon={<Plus />} onClick={() => setFormularioAbierto(true)}>
-          Nueva orden de compra
-        </Button>
-      </div>
-
-      <EmptyState
-        icono={ClipboardList}
-        titulo="Cargá tu primera orden de compra"
-        descripcion="Usá «Nueva orden de compra» para armar la cabecera y el detalle."
+      <FiltrosOrdenesCompraBar
+        FK_proveedor={FK_proveedor}
+        onFKProveedorChange={(valor) => actualizarFiltros({ proveedor: valor })}
+        estado={estado}
+        onEstadoChange={(valor) => actualizarFiltros({ estado: valor })}
+        fechaDesde={fechaDesde}
+        onFechaDesdeChange={(valor) => actualizarFiltros({ desde: valor })}
+        fechaHasta={fechaHasta}
+        onFechaHastaChange={(valor) => actualizarFiltros({ hasta: valor })}
+        errorRango={
+          rangoInvalido ? 'La fecha desde no puede ser posterior a la fecha hasta' : undefined
+        }
+        onLimpiar={() => actualizarFiltros({ proveedor: '', estado: '', desde: '', hasta: '' })}
+        hayFiltros={hayFiltros}
+        acciones={
+          <Button icon={<Plus />} onClick={() => setFormularioAbierto(true)}>
+            Nueva orden de compra
+          </Button>
+        }
       />
+
+      {error && statusCode !== 401 ? (
+        <ErrorState
+          mensaje={
+            statusCode === 400
+              ? 'Los filtros aplicados no son válidos. Se reinició la paginación.'
+              : formatearMensajeError(error.message)
+          }
+          onReintentar={() => refetch()}
+        />
+      ) : (
+        <>
+          {!isLoading && ordenes.length === 0 && (
+            <EmptyState
+              titulo={
+                hayFiltros
+                  ? 'No se encontraron órdenes de compra con esos filtros'
+                  : 'Todavía no hay órdenes de compra cargadas'
+              }
+              descripcion={
+                hayFiltros
+                  ? 'Probá ajustar el proveedor, el estado o el período.'
+                  : 'Cargá la primera con «Nueva orden de compra».'
+              }
+            />
+          )}
+
+          {(isLoading || ordenes.length > 0) && (
+            <>
+              <DataTable
+                data={ordenes}
+                columns={columnas}
+                obtenerId={(item) => String(item.id_orden_compra)}
+                loading={isLoading}
+                ariaLabel="Órdenes de compra"
+              />
+
+              {meta && (
+                <Pagination
+                  currentPage={meta.page}
+                  totalPages={totalPaginas}
+                  totalItems={meta.total}
+                  pageSize={meta.limit}
+                  onPageChange={setPage}
+                  disabled={isFetching}
+                />
+              )}
+            </>
+          )}
+        </>
+      )}
 
       <OrdenCompraForm
         open={formularioAbierto}
@@ -98,8 +271,10 @@ export function OrdenesCompraPage() {
         onConfirmarYEmitir={manejarConfirmarYEmitir}
         loadingBorrador={crear.isPending}
         loadingConfirmar={crear.isPending || cambiarEstado.isPending}
-        error={error}
+        error={errorFormulario}
       />
+
+      <OrdenCompraDetalleModal idOrdenCompra={detalleId} onClose={() => setDetalleId(null)} />
     </div>
   )
 }

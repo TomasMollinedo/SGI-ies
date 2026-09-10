@@ -63,3 +63,19 @@ export interface CambiarEstadoOrdenCompraPayload {
   motivo_cancelacion?: string
   observaciones?: string
 }
+
+/** Fila del listado (GET /ordenes-compra): la orden sin su detalle línea por línea. */
+export type OrdenCompraListItem = Omit<OrdenCompra, 'detalles'>
+
+/**
+ * Query params de GET /ordenes-compra. Los que van `undefined` no se envían.
+ * `fechaDesde`/`fechaHasta` filtran por `fecha_emision` (la fecha de negocio).
+ */
+export interface OrdenesCompraQuery {
+  FK_proveedor?: number
+  estado?: EstadoOrdenCompra
+  fechaDesde?: string
+  fechaHasta?: string
+  page?: number
+  limit?: number
+}
