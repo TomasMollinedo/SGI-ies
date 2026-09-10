@@ -83,6 +83,7 @@ export const COLUMNAS_CARDEX_CUENTA_CORRIENTE: DataTableColumn<MovimientoCuentaC
   {
     key: 'debe',
     label: 'Debe',
+    headerTooltip: 'Factura registrada: aumenta lo que la empresa le debe al proveedor.',
     // Suma al saldo (más deuda para la empresa): flecha para arriba, en rojo.
     render: (movimiento) =>
       movimiento.debe ? (
@@ -97,6 +98,7 @@ export const COLUMNAS_CARDEX_CUENTA_CORRIENTE: DataTableColumn<MovimientoCuentaC
   {
     key: 'haber',
     label: 'Haber',
+    headerTooltip: 'Nota de crédito registrada: reduce lo que la empresa le debe al proveedor.',
     // Resta del saldo (menos deuda para la empresa): flecha para abajo, en verde.
     render: (movimiento) =>
       movimiento.haber ? (

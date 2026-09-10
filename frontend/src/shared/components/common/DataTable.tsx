@@ -14,6 +14,8 @@ interface DataTableProps<T> {
 export interface DataTableColumn<T> {
   key: string
   label: string
+  /** Tooltip nativo del navegador sobre el encabezado, para aclarar una columna sin ocupar espacio. */
+  headerTooltip?: string
   render: (item: T) => ReactNode
 }
 
@@ -22,7 +24,8 @@ export interface DataTableColumn<T> {
  *
  * Props:
  * - `data`: las filas.
- * - `columns`: las columnas, con su `label` de encabezado y su `render`.
+ * - `columns`: las columnas, con su `label` de encabezado, un `headerTooltip`
+ *   opcional (nativo del navegador, para aclarar sin ocupar espacio) y su `render`.
  * - `obtenerId`: devuelve la key de cada fila.
  * - `loading`: en vez de las filas muestra barras grises animadas, manteniendo
  *   los encabezados visibles. Es a propósito un skeleton dentro de la tabla y
@@ -50,7 +53,12 @@ export function DataTable<T>({
       <thead>
         <tr className="bg-secondary text-left">
           {columns.map((column) => (
-            <th key={column.key} scope="col" className="text-content px-6 py-2 font-semibold">
+            <th
+              key={column.key}
+              scope="col"
+              title={column.headerTooltip}
+              className="text-content px-6 py-2 font-semibold"
+            >
               {column.label}
             </th>
           ))}
