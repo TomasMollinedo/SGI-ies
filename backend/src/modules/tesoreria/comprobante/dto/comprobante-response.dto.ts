@@ -42,6 +42,7 @@ export const comprobanteResponseSchema = z.object({
   saldo_pendiente: z.number().nullable(),
   estado: z.enum(EstadoComprobante),
   estado_saldo: estadoSaldoSchema.nullable(),
+  motivo_anulacion: z.string().nullable(),
   hora_creacion: z.iso.datetime(),
   hora_actualizacion: z.iso.datetime().nullable(),
   FK_usuario_creador: z.number(),
@@ -97,7 +98,7 @@ const usuarioResumenSchema = z.object({
  * esa HU.
  */
 const ordenPagoResumenSchema = z.object({
-  id_orden_pago: z.number(),
+  id_pago: z.number(),
   fecha_pago: z.iso.datetime(),
   importe_imputado: z.number(),
 });
@@ -112,7 +113,7 @@ export const comprobanteDetalleResponseSchema =
     detalle: z.array(lineaDetalleResponseSchema),
     comprobanteOrigen: comprobanteListItemSchema.nullable(),
     notasAplicadas: z.array(comprobanteListItemSchema),
-    ordenesPago: z.array(ordenPagoResumenSchema),
+    pagos: z.array(ordenPagoResumenSchema),
     usuarioCreador: usuarioResumenSchema,
     usuarioActualizador: usuarioResumenSchema,
   });
@@ -120,3 +121,9 @@ export const comprobanteDetalleResponseSchema =
 export class ComprobanteDetalleResponseDto extends createZodDto(
   comprobanteDetalleResponseSchema,
 ) {}
+
+export type ComprobanteResponse = z.infer<typeof comprobanteResponseSchema>;
+export type ComprobanteListItem = z.infer<typeof comprobanteListItemSchema>;
+export type ComprobanteDetalleResponse = z.infer<
+  typeof comprobanteDetalleResponseSchema
+>;
