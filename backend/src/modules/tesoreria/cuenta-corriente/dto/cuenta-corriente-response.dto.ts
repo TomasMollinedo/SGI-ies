@@ -11,6 +11,9 @@ export const cuentaCorrienteItemSchema = z.object({
   id_proveedor: z.number(),
   razon_social: z.string(),
   cuit: z.string(),
+  // Del proveedor, no del comprobante: sin filtro `estado` la lista trae
+  // activos e inactivos mezclados, esto permite distinguirlos.
+  estado: z.boolean(),
   saldo: z.number(),
   // Cuenta comprobantes REGISTRADOS con saldo_cancelado=false, sean DEBE o
   // HABER: cualquier comprobante que todavía tiene saldo por imputar.
@@ -22,7 +25,7 @@ export const cuentaCorrienteItemSchema = z.object({
 
 /**
  * Cantidad de proveedores en cada condición de saldo, sobre el total de
- * proveedores activos que matchean `FK_proveedor` — SIN aplicar el filtro
+ * proveedores que matchean `FK_proveedor` y `estado` — SIN aplicar el filtro
  * `condicion_saldo`, para que la card de resumen no cambie según qué
  * pestaña/filtro esté mirando la tabla.
  */

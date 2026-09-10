@@ -32,7 +32,7 @@ export class CuentaCorrienteController {
   @Get()
   @ApiOperation({
     summary:
-      'Listar la cuenta corriente de proveedores activos: saldo actual (DEBE − HABER de comprobantes REGISTRADOS), cantidad de comprobantes con saldo pendiente y vencimiento más antiguo impago, ordenado por saldo descendente',
+      'Listar la cuenta corriente de proveedores: saldo actual (DEBE − HABER de comprobantes REGISTRADOS), cantidad de comprobantes con saldo pendiente y vencimiento más antiguo impago, ordenado por saldo descendente. Sin filtro estado, trae activos e inactivos',
   })
   @ApiQuery({
     name: 'FK_proveedor',
@@ -47,6 +47,13 @@ export class CuentaCorrienteController {
     enum: ['DEUDOR', 'A_FAVOR', 'SIN_SALDO'],
     description:
       'Filtra por condición de saldo: DEUDOR (saldo > 0), A_FAVOR (saldo < 0) o SIN_SALDO (saldo = 0)',
+  })
+  @ApiQuery({
+    name: 'estado',
+    required: false,
+    enum: ['true', 'false'],
+    description:
+      'Filtra por proveedores activos (true) o dados de baja (false). Sin este parámetro, trae ambos: un proveedor dado de baja puede seguir teniendo saldo pendiente.',
   })
   @ApiQuery({
     name: 'page',
@@ -64,7 +71,7 @@ export class CuentaCorrienteController {
   })
   @ApiOkResponse({
     description:
-      'Cuenta corriente de proveedores, paginada. `resumen` cuenta deudores/a favor/sin saldo sobre el total de proveedores que matchean FK_proveedor, sin aplicar el filtro condicion_saldo — para poblar una card de resumen que no cambie según la pestaña activa de la tabla',
+      'Cuenta corriente de proveedores, paginada. `resumen` cuenta deudores/a favor/sin saldo sobre el total de proveedores que matchean FK_proveedor y estado, sin aplicar el filtro condicion_saldo — para poblar una card de resumen que no cambie según la pestaña activa de la tabla',
     type: CuentaCorrienteListResponseDto,
   })
   @ApiBadRequestResponse({

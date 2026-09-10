@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
 import { EstadoComprobante } from '../../../../../generated/prisma/enums';
 import { fechaIsoSchema } from '../../../../common/validaciones/fecha-iso.schema';
+import { booleanQuerySchema } from '../../../../common/validaciones/boolean-query.schema';
 import { estadoSaldoSchema } from './comprobante-response.dto';
 
 /**
@@ -17,10 +18,7 @@ export const queryComprobanteSchema = z.object({
   // (`true`) o disminuye (`false`) el saldo del proveedor
   // (`TIPOCOMPROBANTE.aumenta_saldo`). El service lo traduce a un filtro
   // sobre la relación con el tipo de comprobante.
-  aumenta_saldo: z
-    .enum(['true', 'false'])
-    .transform((valor) => valor === 'true')
-    .optional(),
+  aumenta_saldo: booleanQuerySchema.optional(),
   estado: z.enum(EstadoComprobante).optional(),
   estado_saldo: estadoSaldoSchema.optional(),
   fechaDesde: fechaIsoSchema.optional(),

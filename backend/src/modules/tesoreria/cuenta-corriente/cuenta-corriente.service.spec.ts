@@ -56,10 +56,11 @@ describe('CuentaCorrienteService', () => {
     service = module.get(CuentaCorrienteService);
   });
 
-  const proveedor = (id: number, razon_social: string) => ({
+  const proveedor = (id: number, razon_social: string, estado = true) => ({
     id_proveedor: id,
     razon_social,
     cuit: `2030405060${id}`,
+    estado,
   });
 
   it('un proveedor con solo notas de crédito (HABER) arroja saldo negativo', async () => {
@@ -84,6 +85,7 @@ describe('CuentaCorrienteService', () => {
         id_proveedor: 1,
         razon_social: 'Acme SA',
         cuit: '20304050601',
+        estado: true,
         saldo: -500,
         cantidad_comprobantes_pendientes: 1,
         vencimiento_mas_antiguo: new Date('2026-01-10'),
@@ -203,5 +205,51 @@ describe('CuentaCorrienteService', () => {
 
     expect(resultado.meta).toEqual({ total: 3, page: 2, limit: 2 });
     expect(resultado.data.map((f) => f.id_proveedor)).toEqual([1]);
+  });
+
+  describe('filtro por estado del proveedor', () => {
+    const whereDeLaUltimaLlamada = () =>
+      (prisma.pROVEEDOR.findMany.mock.calls.at(-1) as [{ where: unknown }])[0]
+        .where;
+
+    it('sin filtro, trae activos e inactivos (no filtra por estado)', async () => {
+      await service.findAll({ page: 1, limit: 10 });
+
+      expect(whereDeLaUltimaLlamada()).not.toHaveProperty('estado');
+    });
+
+    it('estado=true trae solo proveedores activos', async () => {
+      await service.findAll({ estado: true, page: 1, limit: 10 });
+
+      expect(whereDeLaUltimaLlamada()).toMatchObject({ estado: true });
+    });
+
+    it('estado=false trae solo proveedores dados de baja', async () => {
+      await service.findAll({ estado: false, page: 1, limit: 10 });
+
+      expect(whereDeLaUltimaLlamada()).toMatchObject({ estado: false });
+    });
+
+    it('un proveedor dado de baja puede aparecer con saldo pendiente', async () => {
+      prisma.pROVEEDOR.findMany.mockResolvedValue([
+        proveedor(1, 'Ex Proveedor SA', false),
+      ]);
+      prisma.cOMPROBANTEPROVEEDOR.groupBy = mockearGroupBy({
+        debe: [
+          {
+            FK_proveedor: 1,
+            _sum: { saldo_pendiente: new Prisma.Decimal(400) },
+          },
+        ],
+      });
+
+      const resultado = await service.findAll({
+        estado: false,
+        page: 1,
+        limit: 10,
+      });
+
+      expect(resultado.data[0]).toMatchObject({ estado: false, saldo: 400 });
+    });
   });
 });

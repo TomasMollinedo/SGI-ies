@@ -8,6 +8,7 @@ export interface FilaCuentaCorriente {
   id_proveedor: number;
   razon_social: string;
   cuit: string;
+  estado: boolean;
   saldo: number;
   cantidad_comprobantes_pendientes: number;
   vencimiento_mas_antiguo: Date | null;
@@ -20,7 +21,9 @@ export class CuentaCorrienteService {
   /**
    * Cuenta corriente de proveedores: saldo actual (Σ DEBE − Σ HABER de
    * comprobantes REGISTRADOS), cantidad de comprobantes con saldo pendiente
-   * y vencimiento más antiguo impago, por proveedor activo.
+   * y vencimiento más antiguo impago. Sin filtro `estado`, trae TODOS los
+   * proveedores (activos e inactivos): es un reporte financiero, no un ABM,
+   * y un proveedor dado de baja puede seguir teniendo saldo pendiente.
    *
    * `aumenta_saldo` vive en TIPOCOMPROBANTE, no en COMPROBANTEPROVEEDOR, así
    * que Prisma no puede sumar con signo en un solo `groupBy`. Se resuelve con
@@ -32,14 +35,19 @@ export class CuentaCorrienteService {
    * saldo es un valor calculado y no una columna de la base.
    */
   async findAll(query: QueryCuentaCorrienteDto) {
-    const { FK_proveedor, condicion_saldo, page, limit } = query;
+    const { FK_proveedor, condicion_saldo, estado, page, limit } = query;
 
     const proveedores = await this.prisma.pROVEEDOR.findMany({
       where: {
-        estado: true,
+        ...(estado !== undefined && { estado }),
         ...(FK_proveedor && { id_proveedor: FK_proveedor }),
       },
-      select: { id_proveedor: true, razon_social: true, cuit: true },
+      select: {
+        id_proveedor: true,
+        razon_social: true,
+        cuit: true,
+        estado: true,
+      },
     });
     const idsProveedor = proveedores.map((p) => p.id_proveedor);
 
@@ -108,6 +116,7 @@ export class CuentaCorrienteService {
           id_proveedor: proveedor.id_proveedor,
           razon_social: proveedor.razon_social,
           cuit: proveedor.cuit,
+          estado: proveedor.estado,
           saldo: debe.minus(haber).toNumber(),
           cantidad_comprobantes_pendientes: pendiente?.cantidad ?? 0,
           vencimiento_mas_antiguo: pendiente?.vencimiento ?? null,
