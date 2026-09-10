@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
-import { Ban, Banknote, X } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
+import { Ban, Banknote, Printer, X } from 'lucide-react'
+import { useTiposComprobante } from '@/features/tesoreria/tipos-comprobante/hooks/useTiposComprobante'
 import { AuditInfo } from '@/shared/components/common/AuditInfo'
 import { DataTable } from '@/shared/components/common/DataTable'
 import { DetailRow } from '@/shared/components/common/DetailRow'
@@ -12,15 +13,19 @@ import { useToast } from '@/shared/hooks/useToast'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { formatearFecha } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
+import { ComprobantePagoImpresion } from './ComprobantePagoImpresion'
 import {
-  COLUMNAS_DETALLE_PAGO,
   badgeEstadoPago,
+  columnasDetallePago,
   nombreCompleto,
   textoOSinDato,
 } from '../config/pago.config'
 import { usePagoDetalle } from '../hooks/usePagos'
 import type { PagoDetalle } from '../types/pago.types'
 import { formatearCodigoPago } from '../utils/codigoPago'
+
+/** Tipos de comprobante que puede haber usado algún pago histórico, dados de baja o no. */
+const LIMITE_TIPOS_COMPROBANTE = 100
 
 interface PagoDetalleModalProps {
   /** Pago a mostrar. Con `null` el modal está cerrado y no se pide nada. */
@@ -43,6 +48,21 @@ interface PagoDetalleModalProps {
 export function PagoDetalleModal({ idPago, onClose, onAnular }: PagoDetalleModalProps) {
   const toast = useToast()
   const { data: pago, isPending, error, refetch } = usePagoDetalle(idPago)
+  const { data: tiposComprobante } = useTiposComprobante({ limit: LIMITE_TIPOS_COMPROBANTE })
+
+  /**
+   * `FK_tipo_comprobante → aumenta_saldo`, para saber si cada línea imputada
+   * es Debe o Haber: la línea del detalle no trae ese dato (ver
+   * `columnasDetallePago` en `pago.config.tsx`), pero el catálogo de tipos
+   * de comprobante sí.
+   */
+  const aumentaSaldoPorTipo = useMemo(
+    () =>
+      new Map(
+        (tiposComprobante?.data ?? []).map((tipo) => [tipo.id_tipo_comprobante, tipo.aumenta_saldo])
+      ),
+    [tiposComprobante]
+  )
 
   const esInexistente = error?.statusCode === 404
 
@@ -68,6 +88,11 @@ export function PagoDetalleModal({ idPago, onClose, onAnular }: PagoDetalleModal
           <Button variant="error" icon={<X />} onClick={onClose}>
             Cerrar
           </Button>
+          {pago && (
+            <Button variant="primary" icon={<Printer />} onClick={() => window.print()}>
+              Imprimir
+            </Button>
+          )}
           {onAnular && pago?.estado === 'CONFIRMADA' && (
             <Button variant="error" icon={<Ban />} onClick={() => onAnular(pago)}>
               Anular
@@ -84,6 +109,8 @@ export function PagoDetalleModal({ idPago, onClose, onAnular }: PagoDetalleModal
         <ErrorState mensaje={formatearMensajeError(error.message)} onReintentar={() => refetch()} />
       ) : pago ? (
         <div className="flex flex-col gap-6">
+          <ComprobantePagoImpresion pago={pago} aumentaSaldoPorTipo={aumentaSaldoPorTipo} />
+
           <div className="flex flex-col">
             <DetailRow label="Pago" value={formatearCodigoPago(pago.id_pago)} />
             <DetailRow label="Proveedor" value={pago.proveedor.razon_social} />
@@ -113,7 +140,7 @@ export function PagoDetalleModal({ idPago, onClose, onAnular }: PagoDetalleModal
             <span className="text-content text-sm font-medium">Comprobantes imputados</span>
             <DataTable
               data={pago.detalle}
-              columns={COLUMNAS_DETALLE_PAGO}
+              columns={columnasDetallePago(aumentaSaldoPorTipo)}
               obtenerId={(linea) => String(linea.id_detalle_pago)}
               ariaLabel="Comprobantes imputados"
               emptyState={
