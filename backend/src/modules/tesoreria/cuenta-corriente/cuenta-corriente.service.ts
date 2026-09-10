@@ -151,9 +151,10 @@ export class CuentaCorrienteService {
         if (fila.saldo > 0) resumen.deudores++;
         else if (fila.saldo < 0) resumen.a_favor++;
         else resumen.sin_saldo++;
+        resumen.saldo_total += fila.saldo;
         return resumen;
       },
-      { deudores: 0, a_favor: 0, sin_saldo: 0 },
+      { deudores: 0, a_favor: 0, sin_saldo: 0, saldo_total: 0 },
     );
   }
 }

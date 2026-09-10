@@ -149,7 +149,12 @@ describe('CuentaCorrienteService', () => {
 
     // El resumen es el mismo sin importar qué pestaña/filtro esté mirando la
     // tabla: siempre cuenta sobre el universo completo de proveedores.
-    const resumenEsperado = { deudores: 1, a_favor: 1, sin_saldo: 1 };
+    const resumenEsperado = {
+      deudores: 1,
+      a_favor: 1,
+      sin_saldo: 1,
+      saldo_total: 50, // 100 (proveedor 1) − 50 (proveedor 2) + 0
+    };
     expect(deudores.resumen).toEqual(resumenEsperado);
     expect(aFavor.resumen).toEqual(resumenEsperado);
     expect(sinSaldo.resumen).toEqual(resumenEsperado);
@@ -205,6 +210,57 @@ describe('CuentaCorrienteService', () => {
 
     expect(resultado.meta).toEqual({ total: 3, page: 2, limit: 2 });
     expect(resultado.data.map((f) => f.id_proveedor)).toEqual([1]);
+  });
+
+  describe('saldo_total (balance neto del resumen)', () => {
+    it('da positivo cuando el conjunto de proveedores es deudor neto', async () => {
+      prisma.pROVEEDOR.findMany.mockResolvedValue([
+        proveedor(1, 'A'),
+        proveedor(2, 'B'),
+      ]);
+      prisma.cOMPROBANTEPROVEEDOR.groupBy = mockearGroupBy({
+        debe: [
+          {
+            FK_proveedor: 1,
+            _sum: { saldo_pendiente: new Prisma.Decimal(1000) },
+          },
+        ],
+        haber: [
+          {
+            FK_proveedor: 2,
+            _sum: { saldo_pendiente: new Prisma.Decimal(300) },
+          },
+        ],
+      });
+
+      const resultado = await service.findAll({ page: 1, limit: 10 });
+
+      expect(resultado.resumen.saldo_total).toBe(700);
+    });
+
+    it('da negativo cuando el conjunto de proveedores es acreedor neto', async () => {
+      prisma.pROVEEDOR.findMany.mockResolvedValue([proveedor(1, 'A')]);
+      prisma.cOMPROBANTEPROVEEDOR.groupBy = mockearGroupBy({
+        haber: [
+          {
+            FK_proveedor: 1,
+            _sum: { saldo_pendiente: new Prisma.Decimal(200) },
+          },
+        ],
+      });
+
+      const resultado = await service.findAll({ page: 1, limit: 10 });
+
+      expect(resultado.resumen.saldo_total).toBe(-200);
+    });
+
+    it('da cero sin proveedores o sin comprobantes con saldo', async () => {
+      prisma.pROVEEDOR.findMany.mockResolvedValue([proveedor(1, 'A')]);
+
+      const resultado = await service.findAll({ page: 1, limit: 10 });
+
+      expect(resultado.resumen.saldo_total).toBe(0);
+    });
   });
 
   describe('filtro por estado del proveedor', () => {

@@ -71,7 +71,7 @@ export class CuentaCorrienteController {
   })
   @ApiOkResponse({
     description:
-      'Cuenta corriente de proveedores, paginada. `resumen` cuenta deudores/a favor/sin saldo sobre el total de proveedores que matchean FK_proveedor y estado, sin aplicar el filtro condicion_saldo — para poblar una card de resumen que no cambie según la pestaña activa de la tabla',
+      'Cuenta corriente de proveedores, paginada. `resumen` cuenta deudores/a favor/sin saldo y el balance neto (saldo_total: Σ saldo de todos) sobre el total de proveedores que matchean FK_proveedor y estado, sin aplicar el filtro condicion_saldo — para poblar una card de resumen que no cambie según la pestaña activa de la tabla',
     type: CuentaCorrienteListResponseDto,
   })
   @ApiBadRequestResponse({

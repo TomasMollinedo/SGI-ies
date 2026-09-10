@@ -24,8 +24,10 @@ export const cuentaCorrienteItemSchema = z.object({
 });
 
 /**
- * Cantidad de proveedores en cada condición de saldo, sobre el total de
- * proveedores que matchean `FK_proveedor` y `estado` — SIN aplicar el filtro
+ * Cantidad de proveedores en cada condición de saldo y balance neto (Σ saldo
+ * de TODOS los proveedores, positivo = la empresa es deudora en conjunto,
+ * negativo = acreedora, cero = saldado), sobre el total de proveedores que
+ * matchean `FK_proveedor` y `estado` — SIN aplicar el filtro
  * `condicion_saldo`, para que la card de resumen no cambie según qué
  * pestaña/filtro esté mirando la tabla.
  */
@@ -33,6 +35,7 @@ export const resumenCuentaCorrienteSchema = z.object({
   deudores: z.number(),
   a_favor: z.number(),
   sin_saldo: z.number(),
+  saldo_total: z.number(),
 });
 
 export const cuentaCorrienteListResponseSchema = z.object({
