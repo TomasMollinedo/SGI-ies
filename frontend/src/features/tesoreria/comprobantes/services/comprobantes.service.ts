@@ -1,6 +1,11 @@
 import { httpClient } from '@/shared/api/httpClient'
 import type { PaginatedResponse } from '@/shared/types/api.types'
-import type { ComprobanteListItem, ComprobantesQuery } from '../types/comprobante.types'
+import type {
+  Comprobante,
+  ComprobanteListItem,
+  ComprobantesQuery,
+  CrearComprobantePayload,
+} from '../types/comprobante.types'
 
 export const COMPROBANTES_QUERY_KEYS = {
   LISTA: (filtros: ComprobantesQuery) => ['comprobantes', 'lista', filtros] as const,
@@ -34,5 +39,17 @@ export async function listarComprobantes(
     signal,
   })
 
+  return data
+}
+
+/** POST /comprobantes — crea el comprobante en estado BORRADOR. */
+export async function crearComprobante(payload: CrearComprobantePayload): Promise<Comprobante> {
+  const { data } = await httpClient.post<Comprobante>('/comprobantes', payload)
+  return data
+}
+
+/** PATCH /comprobantes/:id/confirmar — BORRADOR → REGISTRADO. Devuelve el comprobante ya registrado. */
+export async function confirmarComprobante(id: number): Promise<Comprobante> {
+  const { data } = await httpClient.patch<Comprobante>(`/comprobantes/${id}/confirmar`)
   return data
 }

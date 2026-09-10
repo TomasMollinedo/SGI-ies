@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import type { UseFormSetError } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, Receipt, TrendingDown, TrendingUp, TriangleAlert, X } from 'lucide-react'
+import { Check, Plus, Receipt, TrendingDown, TrendingUp, TriangleAlert, X } from 'lucide-react'
 import { useProveedores } from '@/features/compras/proveedores/hooks/useProveedores'
 import { useTiposComprobante } from '@/features/tesoreria/tipos-comprobante/hooks/useTiposComprobante'
 import { ConfirmDialog } from '@/shared/components/common/ConfirmDialog'
@@ -16,21 +16,33 @@ import { Select } from '@/shared/components/ui/Select'
 import type { SelectOption } from '@/shared/components/ui/Select'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { esArrayDeValidationIssues, formatearMensajeError } from '@/shared/utils/apiError'
-import { formatearFecha } from '@/shared/utils/fecha'
+import { DetalleLineaComprobanteRow } from './DetalleLineaComprobanteRow'
 import { useComprobantes } from '../hooks/useComprobantes'
 import { useOrdenesCompra } from '../hooks/useOrdenesCompra'
 import { comprobanteFormSchema } from '../types/comprobante.schema'
-import type { ComprobanteFormOutput, ComprobanteFormValues } from '../types/comprobante.schema'
-import { hoyIso } from '../utils/fechaComprobante'
+import type {
+  ComprobanteFormOutput,
+  ComprobanteFormValues,
+  LineaComprobanteFormValues,
+} from '../types/comprobante.schema'
+import { formatearFechaSinHora, hoyIso } from '../utils/fechaComprobante'
+import { formatearMoneda } from '../utils/formatearMoneda'
 import { formatearNumeroComprobante } from '../utils/numeroComprobante'
 
 const ID_FORM = 'form-comprobante'
 
-/** Alícuota de IVA por defecto: la general en Argentina. El campo lo edita el usuario (T79). */
+/** Alícuota de IVA por defecto: la general en Argentina. */
 const ALICUOTA_IVA_DEFECTO = 21
 
 /** Cuántas órdenes de compra / comprobantes de origen ofrece el selector (los más recientes). */
 const LIMITE_VINCULABLES = 50
+
+const LINEA_VACIA: LineaComprobanteFormValues = {
+  descripcion: '',
+  FK_articulo: '',
+  cantidad: 1,
+  precio_unitario: 0,
+}
 
 function valoresIniciales(): ComprobanteFormValues {
   return {
@@ -45,42 +57,57 @@ function valoresIniciales(): ComprobanteFormValues {
     fecha_vencimiento: '',
     observaciones: '',
     alicuota_iva: ALICUOTA_IVA_DEFECTO,
-    detalle: [],
+    detalle: [LINEA_VACIA],
   }
+}
+
+/** Redondeo a 2 decimales, igual que `redondear` del backend (`Math.round(x*100)/100`). */
+function redondear(valor: number): number {
+  return Math.round(valor * 100) / 100
+}
+
+function subtotalLinea(linea: { cantidad: number; precio_unitario: number }): number {
+  if (!Number.isFinite(linea.cantidad) || !Number.isFinite(linea.precio_unitario)) return 0
+  return redondear(linea.cantidad * linea.precio_unitario)
 }
 
 interface ComprobanteFormProps {
   open: boolean
   onClose: () => void
-  /** Alta como BORRADOR. Sin este prop el botón queda deshabilitado (se conecta en T79). */
-  onGuardarBorrador?: (payload: ComprobanteFormOutput) => void
-  /** Alta + confirmación. Sin este prop el botón queda deshabilitado (se conecta en T79). */
-  onConfirmar?: (payload: ComprobanteFormOutput) => void
-  loading?: boolean
-  /** Error del backend que la página decidió no resolver sola. */
+  onGuardarBorrador: (payload: ComprobanteFormOutput) => void
+  onConfirmar: (payload: ComprobanteFormOutput) => void
+  loadingBorrador?: boolean
+  loadingConfirmar?: boolean
+  /** Error del último intento (guardar borrador o confirmar) que la página no resolvió sola. */
   error?: ApiErrorResponse | null
 }
 
 /**
- * Modal de alta de un comprobante de proveedor.
+ * Modal de alta de un comprobante de proveedor: cabecera + grilla de detalle,
+ * con el subtotal de cada línea y los cuatro importes recalculados en vivo con
+ * la misma fórmula y redondeo que el backend.
  *
- * T78 cubre solo la cabecera: tipo de comprobante (con un indicador de si
- * aumenta o disminuye el saldo), proveedor, orden de compra vinculada y
- * comprobante de origen (ambos opcionales y filtrados por el proveedor), letra,
- * punto de venta, número, fechas y observaciones. El detalle, la alícuota de
- * IVA, los totales en vivo y las acciones de guardado se agregan en T79.
+ * Dos acciones, igual que el ciclo de vida del backend:
+ * - "Guardar borrador": crea el comprobante en BORRADOR (puede no tener líneas).
+ * - "Confirmar y registrar": pide al menos una línea y muestra un `ConfirmDialog`
+ *   con el resumen — al registrarse, la cabecera y el detalle dejan de editarse.
  */
 export function ComprobanteForm({
   open,
   onClose,
   onGuardarBorrador,
   onConfirmar,
-  loading = false,
+  loadingBorrador = false,
+  loadingConfirmar = false,
   error = null,
 }: ComprobanteFormProps) {
   const [confirmarDescarte, setConfirmarDescarte] = useState(false)
+  const [confirmarRegistro, setConfirmarRegistro] = useState(false)
+  const [payloadAConfirmar, setPayloadAConfirmar] = useState<ComprobanteFormOutput | null>(null)
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
   const [busquedaProveedor, setBusquedaProveedor] = useState('')
+
+  const cargando = loadingBorrador || loadingConfirmar
 
   const { data: tipos, isFetching: cargandoTipos } = useTiposComprobante({
     estado: true,
@@ -106,9 +133,14 @@ export function ComprobanteForm({
     mode: 'onChange',
   })
 
+  const { fields, append, remove } = useFieldArray({ control, name: 'detalle' })
+  const detalle = watch('detalle')
+
   const proveedorSeleccionado = watch('FK_proveedor')
   const tipoSeleccionado = watch('FK_tipo_comprobante')
+  const alicuotaSeleccionada = watch('alicuota_iva')
   const proveedorId = proveedorSeleccionado ? Number(proveedorSeleccionado) : undefined
+  const hayProveedor = proveedorId !== undefined
 
   const tipoElegido = (tipos?.data ?? []).find(
     (tipo) => String(tipo.id_tipo_comprobante) === tipoSeleccionado
@@ -118,8 +150,6 @@ export function ComprobanteForm({
     [tipos]
   )
 
-  const hayProveedor = proveedorId !== undefined
-
   const { data: ordenesCompra, isFetching: cargandoOrdenesCompra } = useOrdenesCompra(
     { FK_proveedor: proveedorId, limit: LIMITE_VINCULABLES },
     { enabled: hayProveedor }
@@ -128,8 +158,6 @@ export function ComprobanteForm({
     { FK_proveedor: proveedorId, estado: 'REGISTRADO', limit: LIMITE_VINCULABLES },
     { enabled: hayProveedor }
   )
-
-  const cargando = loading
 
   const opcionesTipo: SelectOption[] = (tipos?.data ?? []).map((tipo) => ({
     value: String(tipo.id_tipo_comprobante),
@@ -146,7 +174,7 @@ export function ComprobanteForm({
     { value: '', label: '— Sin vincular —' },
     ...(ordenesCompra?.data ?? []).map((orden) => ({
       value: String(orden.id_orden_compra),
-      label: `OC #${orden.id_orden_compra} · ${formatearFecha(orden.fecha_emision)}`,
+      label: `OC #${orden.id_orden_compra} · ${formatearFechaSinHora(orden.fecha_emision)}`,
     })),
   ]
 
@@ -158,8 +186,14 @@ export function ComprobanteForm({
     })),
   ]
 
-  // El proveedor anterior, para resetear la OC y el origen si cambia: los que
-  // había elegido pertenecían a otro proveedor.
+  const alicuota = Number.isFinite(alicuotaSeleccionada) ? alicuotaSeleccionada : 0
+  const subtotalesPorLinea = detalle.map(subtotalLinea)
+  const neto = redondear(subtotalesPorLinea.reduce((acumulado, valor) => acumulado + valor, 0))
+  const iva = redondear((neto * alicuota) / 100)
+  const total = redondear(neto + iva)
+  const errorDetalle = errors.detalle?.message
+
+  // El proveedor anterior, para resetear la OC y el origen si cambia.
   const proveedorAnteriorRef = useRef(proveedorSeleccionado)
 
   useEffect(() => {
@@ -168,6 +202,8 @@ export function ComprobanteForm({
     reset(valoresIniciales())
     setErrorGeneral(null)
     setConfirmarDescarte(false)
+    setConfirmarRegistro(false)
+    setPayloadAConfirmar(null)
     setBusquedaProveedor('')
     proveedorAnteriorRef.current = ''
   }, [open, reset])
@@ -185,15 +221,27 @@ export function ComprobanteForm({
   }, [error, setError])
 
   function guardarBorrador() {
-    if (!onGuardarBorrador) return
     setErrorGeneral(null)
     void handleSubmit((payload) => onGuardarBorrador(payload))()
   }
 
-  function confirmar() {
-    if (!onConfirmar) return
+  function pedirConfirmacionDeRegistro() {
     setErrorGeneral(null)
-    void handleSubmit((payload) => onConfirmar(payload))()
+    void handleSubmit((payload) => {
+      if (payload.detalle.length === 0) {
+        setError('detalle', {
+          message: 'Agregá al menos una línea para poder confirmar y registrar el comprobante',
+        })
+        return
+      }
+      setPayloadAConfirmar(payload)
+      setConfirmarRegistro(true)
+    })()
+  }
+
+  function confirmarRegistrar() {
+    if (!payloadAConfirmar) return
+    onConfirmar(payloadAConfirmar)
   }
 
   // Cerrar con datos a medio cargar pide confirmación; con un envío en curso no
@@ -217,8 +265,8 @@ export function ComprobanteForm({
         title="Nuevo comprobante"
         icon={<Receipt />}
         size="lg"
-        closeOnEscape={!cargando && !confirmarDescarte}
-        closeOnOverlayClick={!cargando && !confirmarDescarte}
+        closeOnEscape={!cargando && !confirmarDescarte && !confirmarRegistro}
+        closeOnOverlayClick={!cargando && !confirmarDescarte && !confirmarRegistro}
         footer={
           <>
             <Button variant="error" icon={<X />} onClick={intentarCerrar} disabled={cargando}>
@@ -227,17 +275,17 @@ export function ComprobanteForm({
             <Button
               variant="primary"
               onClick={guardarBorrador}
-              loading={cargando}
-              disabled={!onGuardarBorrador || cargando || !isValid}
+              loading={loadingBorrador}
+              disabled={cargando || !isValid}
             >
               Guardar borrador
             </Button>
             <Button
               variant="success"
               icon={<Check />}
-              onClick={confirmar}
-              loading={cargando}
-              disabled={!onConfirmar || cargando || !isValid}
+              onClick={pedirConfirmacionDeRegistro}
+              loading={loadingConfirmar}
+              disabled={cargando || !isValid}
             >
               Confirmar y registrar
             </Button>
@@ -392,6 +440,73 @@ export function ComprobanteForm({
             />
           </div>
 
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-content text-sm font-medium">Detalle del comprobante</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="primary"
+                icon={<Plus />}
+                onClick={() => append({ ...LINEA_VACIA })}
+                disabled={cargando}
+              >
+                Agregar línea
+              </Button>
+            </div>
+
+            {errorDetalle && <p className="text-error text-xs">{errorDetalle}</p>}
+
+            <div className="flex flex-col gap-3">
+              {fields.map((field, index) => (
+                <DetalleLineaComprobanteRow
+                  key={field.id}
+                  index={index}
+                  control={control}
+                  register={register}
+                  onRemove={() => remove(index)}
+                  canRemove={!cargando}
+                  subtotal={subtotalesPorLinea[index] ?? 0}
+                  errors={errors.detalle?.[index]}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="border-subtle flex flex-col items-end gap-3 border-t pt-3">
+            <Input
+              label="Alícuota de IVA (%)"
+              required
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              className="w-40"
+              disabled={cargando}
+              error={errors.alicuota_iva?.message}
+              {...register('alicuota_iva', { valueAsNumber: true })}
+            />
+
+            <dl className="flex flex-col gap-1 text-sm">
+              <div className="flex justify-between gap-8">
+                <dt className="text-content-muted">Importe neto</dt>
+                <dd className="text-content w-32 text-right font-medium">
+                  {formatearMoneda(neto)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-8">
+                <dt className="text-content-muted">IVA ({alicuota}%)</dt>
+                <dd className="text-content w-32 text-right font-medium">{formatearMoneda(iva)}</dd>
+              </div>
+              <div className="flex justify-between gap-8">
+                <dt className="text-content font-medium">Importe total</dt>
+                <dd className="text-content w-32 text-right text-lg font-semibold">
+                  {formatearMoneda(total)}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
           <Input
             label="Observaciones"
             multiline
@@ -400,13 +515,31 @@ export function ComprobanteForm({
             error={errors.observaciones?.message}
             {...register('observaciones')}
           />
-
-          <p className="border-subtle text-content-muted flex items-center gap-2 rounded-md border border-dashed px-4 py-3 text-xs">
-            <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
-            El detalle, la alícuota de IVA y los totales se cargan en el siguiente paso.
-          </p>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={confirmarRegistro}
+        onCancel={() => setConfirmarRegistro(false)}
+        onConfirm={confirmarRegistrar}
+        variant="reactivar"
+        eyebrow="Confirmar y registrar"
+        eyebrowIcon={<Check />}
+        title="¿Confirmar y registrar este comprobante?"
+        details={
+          payloadAConfirmar
+            ? [
+                { label: 'Líneas', value: String(payloadAConfirmar.detalle.length) },
+                { label: 'Importe total', value: formatearMoneda(total) },
+              ]
+            : []
+        }
+        note="Una vez registrado, la cabecera y el detalle dejan de poder editarse."
+        confirmLabel="Confirmar y registrar"
+        confirmIcon={<Check />}
+        loading={loadingConfirmar}
+        error={confirmarRegistro && error ? formatearMensajeError(error.message) : null}
+      />
 
       <ConfirmDialog
         open={confirmarDescarte}

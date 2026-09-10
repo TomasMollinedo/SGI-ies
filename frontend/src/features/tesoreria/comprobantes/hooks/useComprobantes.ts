@@ -1,7 +1,17 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ApiErrorResponse, PaginatedResponse } from '@/shared/types/api.types'
-import { COMPROBANTES_QUERY_KEYS, listarComprobantes } from '../services/comprobantes.service'
-import type { ComprobanteListItem, ComprobantesQuery } from '../types/comprobante.types'
+import {
+  COMPROBANTES_QUERY_KEYS,
+  confirmarComprobante,
+  crearComprobante,
+  listarComprobantes,
+} from '../services/comprobantes.service'
+import type {
+  Comprobante,
+  ComprobanteListItem,
+  ComprobantesQuery,
+  CrearComprobantePayload,
+} from '../types/comprobante.types'
 
 /**
  * Listado paginado de comprobantes. Cada combinación de filtros es su propia
@@ -18,5 +28,29 @@ export function useComprobantes(filtros: ComprobantesQuery, opciones?: { enabled
     queryFn: ({ signal }) => listarComprobantes(filtros, signal),
     placeholderData: keepPreviousData,
     enabled: opciones?.enabled,
+  })
+}
+
+/** Alta de un comprobante como BORRADOR. No muestra toast — eso lo decide quien la use. */
+export function useCrearComprobante() {
+  const queryClient = useQueryClient()
+
+  return useMutation<Comprobante, ApiErrorResponse, CrearComprobantePayload>({
+    mutationFn: crearComprobante,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comprobantes', 'lista'] })
+    },
+  })
+}
+
+/** Confirmación de un comprobante (BORRADOR → REGISTRADO). */
+export function useConfirmarComprobante() {
+  const queryClient = useQueryClient()
+
+  return useMutation<Comprobante, ApiErrorResponse, number>({
+    mutationFn: confirmarComprobante,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comprobantes', 'lista'] })
+    },
   })
 }
