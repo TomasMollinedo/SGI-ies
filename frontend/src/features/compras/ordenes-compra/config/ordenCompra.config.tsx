@@ -2,13 +2,13 @@ import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { Badge } from '@/shared/components/ui/Badge'
 import type { BadgeVariant } from '@/shared/components/ui/Badge'
 import type { SelectOption } from '@/shared/components/ui/Select'
+import { formatearFechaSinHora } from '@/shared/utils/fecha'
 import type {
   DetalleOrdenCompra,
   EstadoOrdenCompra,
   OrdenCompraListItem,
 } from '../types/ordenCompra.types'
 import { formatearCodigoOrdenCompra } from '../utils/codigoOrdenCompra'
-import { formatearFechaSinHora } from '../utils/fechaOrdenCompra'
 import { formatearMoneda } from '../utils/formatearMoneda'
 
 /** Resultados por página del listado. Fijo, igual que el resto de los listados. */

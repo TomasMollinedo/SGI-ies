@@ -1,6 +1,7 @@
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { Badge } from '@/shared/components/ui/Badge'
 import type { SelectOption } from '@/shared/components/ui/Select'
+import { formatearFechaSinHora } from '@/shared/utils/fecha'
 import type {
   ComprobanteListItem,
   EstadoComprobante,
@@ -8,7 +9,6 @@ import type {
   LineaComprobante,
   UsuarioResumen,
 } from '../types/comprobante.types'
-import { formatearFechaSinHora } from '../utils/fechaComprobante'
 import { formatearMoneda } from '../utils/formatearMoneda'
 import { formatearNumeroComprobante } from '../utils/numeroComprobante'
 
@@ -83,9 +83,7 @@ export const COLUMNAS_COMPROBANTES: DataTableColumn<ComprobanteListItem>[] = [
   {
     key: 'numero',
     label: 'Comprobante',
-    render: (item) => (
-      <span className="whitespace-nowrap">{formatearNumeroComprobante(item)}</span>
-    ),
+    render: (item) => <span className="whitespace-nowrap">{formatearNumeroComprobante(item)}</span>,
   },
   {
     key: 'fechaEmision',

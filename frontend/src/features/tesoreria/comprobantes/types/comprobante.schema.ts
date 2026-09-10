@@ -1,7 +1,5 @@
 import { z } from 'zod'
-import { hoyIso } from '../utils/fechaComprobante'
-
-
+import { hoyIso } from '@/shared/utils/fecha'
 
 /**
  * Un `<input type="number">` entrega un string (`''` cuando está vacío).
@@ -26,11 +24,11 @@ export const lineaComprobanteFormSchema = z.object({
   // (flete, servicios). El `<select>` maneja strings; '' significa "sin artículo".
   FK_articulo: z.string().optional().or(z.literal('')),
   cantidad: numeroDesdeInput('La cantidad es obligatoria')
-      .refine((valor) => Number(valor) > 0, 'La cantidad debe ser mayor a 0')
-      .transform((valor) => Number(valor)),
-    precio_unitario: numeroDesdeInput('El precio unitario es obligatorio')
-      .refine((valor) => Number(valor) > 0, 'El precio unitario debe ser mayor a 0')
-      .transform((valor) => Number(valor)),
+    .refine((valor) => Number(valor) > 0, 'La cantidad debe ser mayor a 0')
+    .transform((valor) => Number(valor)),
+  precio_unitario: numeroDesdeInput('El precio unitario es obligatorio')
+    .refine((valor) => Number(valor) > 0, 'El precio unitario debe ser mayor a 0')
+    .transform((valor) => Number(valor)),
 })
 
 /**

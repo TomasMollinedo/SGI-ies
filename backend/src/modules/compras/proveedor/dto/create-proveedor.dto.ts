@@ -1,4 +1,4 @@
-import { z } from 'zod';
+es import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
 import { CondicionIVA } from '../../../../../generated/prisma/enums';
 import { esCuitValido } from '../validaciones/cuit';
