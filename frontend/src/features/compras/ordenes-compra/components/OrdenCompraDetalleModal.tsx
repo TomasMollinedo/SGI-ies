@@ -14,6 +14,7 @@ import { formatearMensajeError } from '@/shared/utils/apiError'
 import { AvanzarEstadoOrdenCompraModal } from './AvanzarEstadoOrdenCompraModal'
 import {
   badgeEstadoOrdenCompra,
+  COLUMNAS_HISTORIAL_ESTADO,
   COLUMNAS_LINEAS,
   ESTADO_META,
   TRANSICIONES_VALIDAS,
@@ -33,10 +34,12 @@ interface OrdenCompraDetalleModalProps {
 const SIN_DATO = '—'
 
 /**
- * Modal de solo lectura con la cabecera de una orden de compra y su detalle
- * línea por línea (T69), sumado al avance de estado (T70): un botón por cada
- * transición válida desde el estado actual, que abre
- * `AvanzarEstadoOrdenCompraModal` para confirmar con una observación.
+ * Modal de solo lectura con la cabecera de una orden de compra, su detalle
+ * línea por línea y su historial de cambios de estado (T69), sumado al avance
+ * de estado (T70): un botón por cada transición válida desde el estado
+ * actual, que abre `AvanzarEstadoOrdenCompraModal` para confirmar con una
+ * observación — esa observación es la que después aparece en la fila nueva
+ * del historial.
  *
  * La carga y el error viven acá adentro: la tabla de atrás no se entera y
  * sigue mostrando el listado que ya tenía.
@@ -179,12 +182,29 @@ export function OrdenCompraDetalleModal({ idOrdenCompra, onClose }: OrdenCompraD
                 </span>
               </div>
             </div>
+            </div>
 
-            {/* Sin trazabilidad de usuario: la respuesta de la API no expone
-                quién creó ni quién modificó la orden (a diferencia de
-                Movimiento/Proveedor/Comprobante), solo las fechas. Tampoco
-                expone todavía el historial de cambios de estado (pendiente
-                de que el backend lo sume a este mismo endpoint). */}
+            <div className="flex flex-col gap-2">
+              <span className="text-content text-sm font-medium">Historial de cambios de estado</span>
+              <DataTable
+                data={orden.historialEstados}
+                columns={COLUMNAS_HISTORIAL_ESTADO}
+                obtenerId={(fila) => String(fila.id_historial)}
+                ariaLabel="Historial de cambios de estado"
+                emptyState={
+                  <EmptyState
+                    titulo="Todavía no hubo cambios de estado"
+                    descripcion="Los avances que se confirmen van a quedar registrados acá."
+                  />
+                }
+              />
+            </div>
+
+            {/* Sin trazabilidad de usuario en la cabecera: la respuesta de la
+                API no expone quién creó ni quién modificó la orden (a
+                diferencia de Movimiento/Proveedor/Comprobante), solo las
+                fechas. Quién hizo cada cambio de estado sí se ve arriba, en
+                el historial. */}
             <div className="border-subtle grid gap-6 border-t pt-4 sm:grid-cols-2">
               <div className="flex flex-col gap-1">
                 <span className="text-content-muted text-xs font-medium uppercase">Creada</span>

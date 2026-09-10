@@ -16,6 +16,11 @@ interface ArticuloResumen {
   nombre: string
 }
 
+interface UsuarioResumen {
+  nombre: string
+  apellido: string
+}
+
 /** Una línea del detalle tal como la devuelve el backend, con el artículo resuelto. */
 export interface DetalleOrdenCompra {
   id_detalle_orden_compra: number
@@ -23,6 +28,16 @@ export interface DetalleOrdenCompra {
   precio_unitario: number
   subtotal: number
   articulo: ArticuloResumen
+}
+
+/** Una fila del historial de cambios de estado, más reciente primero. */
+export interface HistorialEstadoOrdenCompra {
+  id_historial: number
+  estado_anterior: EstadoOrdenCompra
+  estado_nuevo: EstadoOrdenCompra
+  observacion: string | null
+  fecha: string
+  usuario: UsuarioResumen
 }
 
 /** Shape exacto de POST/PATCH/GET /ordenes-compra/:id: la orden completa con su detalle. */
@@ -39,6 +54,7 @@ export interface OrdenCompra {
   proveedor: ProveedorResumen
   deposito: DepositoResumen
   detalles: DetalleOrdenCompra[]
+  historialEstados: HistorialEstadoOrdenCompra[]
 }
 
 export interface LineaOrdenCompraPayload {
@@ -70,8 +86,8 @@ export interface CambiarEstadoOrdenCompraPayload {
   observacion?: string
 }
 
-/** Fila del listado (GET /ordenes-compra): la orden sin su detalle línea por línea. */
-export type OrdenCompraListItem = Omit<OrdenCompra, 'detalles'>
+/** Fila del listado (GET /ordenes-compra): la orden sin el detalle ni el historial de estados. */
+export type OrdenCompraListItem = Omit<OrdenCompra, 'detalles' | 'historialEstados'>
 
 /**
  * Query params de GET /ordenes-compra. Los que van `undefined` no se envían.
