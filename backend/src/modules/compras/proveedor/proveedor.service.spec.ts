@@ -367,14 +367,24 @@ describe('ProveedorService', () => {
       );
     });
 
-    it('una OC en BORRADOR, RECIBIDA o CANCELADA no bloquea la baja', async () => {
+    it('rechaza con una OC en BORRADOR', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue(proveedorMock);
+      prisma.oRDENCOMPRA.findFirst.mockResolvedValue({ id_orden_compra: 3 });
+
+      await expect(service.baja(1, USUARIO_ID)).rejects.toThrow(
+        /órdenes de compra en curso/,
+      );
+      expect(prisma.pROVEEDOR.update).not.toHaveBeenCalled();
+    });
+
+    it('una OC en RECIBIDA o CANCELADA (estados finales) no bloquea la baja', async () => {
       prisma.pROVEEDOR.findUnique.mockResolvedValue(proveedorMock);
       prisma.pROVEEDOR.update.mockResolvedValue({
         ...proveedorMock,
         estado: false,
       });
-      // BORRADOR/RECIBIDA/CANCELADA no matchean el `where` real (que solo
-      // busca EMITIDA/RECIBIDA_PARCIAL), así que el mock devuelve null.
+      // RECIBIDA/CANCELADA no matchean el `where` real (que solo busca
+      // BORRADOR/EMITIDA/RECIBIDA_PARCIAL), así que el mock devuelve null.
       prisma.oRDENCOMPRA.findFirst.mockResolvedValue(null);
 
       await expect(service.baja(1, USUARIO_ID)).resolves.toBeDefined();
