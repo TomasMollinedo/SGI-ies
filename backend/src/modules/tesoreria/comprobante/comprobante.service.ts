@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
-import { EstadoComprobante } from '../../../../generated/prisma/enums';
+import { EstadoComprobante, EstadoOrdenCompra } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateComprobanteDto } from './dto/create-comprobante.dto';
 import { UpdateComprobanteDto } from './dto/update-comprobante.dto';
@@ -23,6 +23,17 @@ import type {
  */
 const DECIMALES = 2;
 
+/**
+ * Estados de una orden de compra a los que se puede vincular un comprobante:
+ * la orden ya se emitió al proveedor (no está en BORRADOR) y no fue cancelada.
+ * Es la "última línea de defensa": el `<select>` del formulario ya filtra por
+ * estos estados, pero un request directo o un cambio de estado concurrente no.
+ */
+const ESTADOS_OC_VINCULABLES: EstadoOrdenCompra[] = [
+  EstadoOrdenCompra.EMITIDA,
+  EstadoOrdenCompra.RECIBIDA_PARCIAL,
+  EstadoOrdenCompra.RECIBIDA,
+];
 /** Línea del detalle con su subtotal ya calculado por el servidor. */
 interface LineaConSubtotal {
   descripcion: string;
@@ -694,14 +705,27 @@ export class ComprobanteService {
       }
     }
 
-    if (refs.FK_orden_compra !== undefined) {
+if (refs.FK_orden_compra !== undefined) {
       const ordenCompra = await this.prisma.oRDENCOMPRA.findUnique({
         where: { id_orden_compra: refs.FK_orden_compra },
-        select: { id_orden_compra: true },
+        select: { id_orden_compra: true, estado: true, FK_proveedor: true },
       });
       if (!ordenCompra) {
         throw new NotFoundException(
           `No existe una orden de compra con id ${refs.FK_orden_compra}`,
+        );
+      }
+      if (
+        refs.FK_proveedor !== undefined &&
+        ordenCompra.FK_proveedor !== refs.FK_proveedor
+      ) {
+        throw new BadRequestException(
+          'La orden de compra vinculada pertenece a otro proveedor',
+        );
+      }
+      if (!ESTADOS_OC_VINCULABLES.includes(ordenCompra.estado)) {
+        throw new ConflictException(
+          `La orden de compra con id ${refs.FK_orden_compra} está en estado ${ordenCompra.estado} y no puede vincularse a un comprobante`,
         );
       }
     }

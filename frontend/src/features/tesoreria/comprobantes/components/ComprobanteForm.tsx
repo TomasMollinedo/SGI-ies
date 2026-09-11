@@ -29,6 +29,7 @@ import { formatearFechaSinHora, hoyIso } from '@/shared/utils/fecha'
 import { DetalleLineaComprobanteRow } from './DetalleLineaComprobanteRow'
 import { useComprobantes } from '../hooks/useComprobantes'
 import { useOrdenesCompra } from '@/features/compras/ordenes-compra/hooks/useOrdenesCompra'
+import type { EstadoOrdenCompra } from '@/features/compras/ordenes-compra/types/ordenCompra.types'
 import { comprobanteFormSchema } from '../types/comprobante.schema'
 import type {
   ComprobanteFormOutput,
@@ -42,7 +43,11 @@ import { formatearNumeroComprobante } from '../utils/numeroComprobante'
 const ID_FORM = 'form-comprobante'
 const ALICUOTA_IVA_DEFECTO = 21
 const LIMITE_VINCULABLES = 50
-
+/**
+ * Estados de OC a los que tiene sentido vincular un comprobante: la orden ya
+ * se emitió al proveedor y no fue cancelada. El backend lo revalida.
+ */
+const ESTADOS_OC_VINCULABLES: EstadoOrdenCompra[] = ['EMITIDA', 'RECIBIDA_PARCIAL', 'RECIBIDA']
 const LINEA_VACIA: LineaComprobanteFormValues = {
   descripcion: '',
   FK_articulo: '',
@@ -227,10 +232,12 @@ export function ComprobanteForm({
   }))
   const hayMasProveedores = (proveedores?.meta.total ?? 0) > (proveedores?.data.length ?? 0)
 
-  const ocsBase: SelectOption[] = (ordenesCompra?.data ?? []).map((orden) => ({
-    value: String(orden.id_orden_compra),
-    label: `OC #${orden.id_orden_compra} · ${formatearFechaSinHora(orden.fecha_emision)}`,
-  }))
+ const ocsBase: SelectOption[] = (ordenesCompra?.data ?? [])
+    .filter((orden) => ESTADOS_OC_VINCULABLES.includes(orden.estado))
+    .map((orden) => ({
+      value: String(orden.id_orden_compra),
+      label: `OC #${orden.id_orden_compra} · ${formatearFechaSinHora(orden.fecha_emision)}`,
+    }))
   const ocVinculada = comprobante?.FK_orden_compra ?? null
   const ocFueraDeLista =
     ocVinculada !== null && !ocsBase.some((o) => o.value === String(ocVinculada))
