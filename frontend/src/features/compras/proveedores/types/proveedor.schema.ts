@@ -11,7 +11,12 @@ const ALIAS_REGEX = /^([A-Za-z0-9.-]{6,20})?$/
 /** Razón social, CUIT y condición IVA son obligatorios; el resto, opcional. */
 export const proveedorFormSchema = z.object({
   razon_social: z.string().trim().min(1, 'La razón social es obligatoria'),
-  cuit: z.string().trim().min(1, 'El CUIT es obligatorio'),
+  // Mismo formato que valida el backend: once dígitos, sin guiones.
+  cuit: z
+    .string()
+    .trim()
+    .min(1, 'El CUIT es obligatorio')
+    .regex(/^\d{11}$/, 'El CUIT debe tener exactamente 11 dígitos, sin guiones'),
   // El <select> nativo solo maneja strings: se valida que haya una opción
   // elegida, con el `id` del catálogo de condiciones frente al IVA.
   condicion_iva: z.string().min(1, 'La condición frente al IVA es obligatoria'),
