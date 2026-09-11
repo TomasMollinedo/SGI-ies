@@ -371,10 +371,6 @@ export function OrdenCompraForm({
                   register={register}
                   onRemove={() => remove(index)}
                   canRemove={!cargando}
-                  idsExcluidos={detalle
-                    .filter((_, i) => i !== index)
-                    .map((linea) => Number(linea.FK_articulo))
-                    .filter((id) => !Number.isNaN(id))}
                   subtotal={subtotalesPorLinea[index] ?? 0}
                   errors={errors.detalle?.[index]}
                 />
