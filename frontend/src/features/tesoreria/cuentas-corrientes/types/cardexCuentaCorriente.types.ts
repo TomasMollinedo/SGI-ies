@@ -25,6 +25,12 @@ export interface MovimientoCuentaCorriente {
   punto_de_venta: number
   numero: number
   fecha_vencimiento: string | null
+  /**
+   * Lo calcula el backend: ya tiene en cuenta que esté saldado, no solo la
+   * fecha. No se recalcula acá — un comprobante pago no es "vencido" aunque su
+   * `fecha_vencimiento` haya pasado.
+   */
+  vencido: boolean
   debe: number
   haber: number
   saldo_acumulado: number

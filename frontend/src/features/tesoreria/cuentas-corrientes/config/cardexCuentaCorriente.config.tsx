@@ -3,7 +3,7 @@ import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import type { SelectOption } from '@/shared/components/ui/Select'
 import { Badge } from '@/shared/components/ui/Badge'
 import { formatearFechaSinHora } from '@/shared/utils/fecha'
-import { claseSaldo, esVencido, formatearMoneda } from './cuentaCorriente.config'
+import { claseSaldo, formatearMoneda } from './cuentaCorriente.config'
 import type {
   ClaseFiltroCardex,
   ClaseMovimientoCardex,
@@ -69,13 +69,15 @@ export const COLUMNAS_CARDEX_CUENTA_CORRIENTE: DataTableColumn<MovimientoCuentaC
   {
     key: 'vencimiento',
     label: 'Vencimiento',
+    // El flag lo manda el backend: ya tiene en cuenta si está saldado, no solo
+    // si la fecha pasó — un comprobante pago no se marca como vencido.
     render: (movimiento) =>
       movimiento.fecha_vencimiento ? (
         <div className="flex flex-wrap items-center gap-2">
           <span className="whitespace-nowrap">
             {formatearFechaSinHora(movimiento.fecha_vencimiento)}
           </span>
-          {esVencido(movimiento.fecha_vencimiento) && (
+          {movimiento.vencido && (
             <Badge variant="error" dot={false}>
               Vencido
             </Badge>
