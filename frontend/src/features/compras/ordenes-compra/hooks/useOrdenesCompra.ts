@@ -22,11 +22,12 @@ import type {
  * actual. `keepPreviousData` mantiene el paginador en pantalla mientras llega
  * la página siguiente.
  */
-export function useOrdenesCompra(filtros: OrdenesCompraQuery) {
+export function useOrdenesCompra(filtros: OrdenesCompraQuery, opciones?: { enabled?: boolean }) {
   return useQuery<PaginatedResponse<OrdenCompraListItem>, ApiErrorResponse>({
     queryKey: ORDENES_COMPRA_QUERY_KEYS.LISTA(filtros),
     queryFn: ({ signal }) => listarOrdenesCompra(filtros, signal),
     placeholderData: keepPreviousData,
+    enabled: opciones?.enabled ?? true,
   })
 }
 

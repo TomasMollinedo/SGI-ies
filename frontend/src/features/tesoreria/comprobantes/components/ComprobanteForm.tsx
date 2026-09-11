@@ -28,7 +28,7 @@ import { esArrayDeValidationIssues, formatearMensajeError } from '@/shared/utils
 import { formatearFechaSinHora, hoyIso } from '@/shared/utils/fecha'
 import { DetalleLineaComprobanteRow } from './DetalleLineaComprobanteRow'
 import { useComprobantes } from '../hooks/useComprobantes'
-import { useOrdenesCompra } from '../hooks/useOrdenesCompra'
+import { useOrdenesCompra } from '@/features/compras/ordenes-compra/hooks/useOrdenesCompra'
 import { comprobanteFormSchema } from '../types/comprobante.schema'
 import type {
   ComprobanteFormOutput,
