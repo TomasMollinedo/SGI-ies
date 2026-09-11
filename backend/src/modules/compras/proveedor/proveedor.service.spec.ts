@@ -26,6 +26,8 @@ describe('ProveedorService', () => {
       update: jest.Mock;
       count: jest.Mock;
     };
+    oRDENCOMPRA: { findFirst: jest.Mock };
+    cOMPROBANTEPROVEEDOR: { findFirst: jest.Mock };
   };
 
   const USUARIO_ID = 7;
@@ -59,6 +61,8 @@ describe('ProveedorService', () => {
         update: jest.fn(),
         count: jest.fn(),
       },
+      oRDENCOMPRA: { findFirst: jest.fn().mockResolvedValue(null) },
+      cOMPROBANTEPROVEEDOR: { findFirst: jest.fn().mockResolvedValue(null) },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -290,14 +294,8 @@ describe('ProveedorService', () => {
     });
   });
 
-  describe('puedeDarseDeBaja', () => {
-    it('devuelve true (la regla real se completa en T51)', async () => {
-      await expect(service.puedeDarseDeBaja(1)).resolves.toBe(true);
-    });
-  });
-
   describe('baja', () => {
-    it('da de baja un proveedor activo', async () => {
+    it('da de baja un proveedor activo sin operaciones vigentes', async () => {
       prisma.pROVEEDOR.findUnique.mockResolvedValue(proveedorMock);
       prisma.pROVEEDOR.update.mockResolvedValue({
         ...proveedorMock,
@@ -321,6 +319,77 @@ describe('ProveedorService', () => {
         ConflictException,
       );
       expect(prisma.pROVEEDOR.update).not.toHaveBeenCalled();
+    });
+
+    it('rechaza con una OC EMITIDA', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue(proveedorMock);
+      prisma.oRDENCOMPRA.findFirst.mockResolvedValue({ id_orden_compra: 1 });
+
+      await expect(service.baja(1, USUARIO_ID)).rejects.toThrow(
+        /órdenes de compra en curso/,
+      );
+      expect(prisma.pROVEEDOR.update).not.toHaveBeenCalled();
+    });
+
+    it('rechaza con una OC RECIBIDA_PARCIAL', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue(proveedorMock);
+      // El mock no filtra por `where`, así que alcanza con simular "existe
+      // una coincidencia" para el estado bajo prueba.
+      prisma.oRDENCOMPRA.findFirst.mockResolvedValue({ id_orden_compra: 2 });
+
+      await expect(service.baja(1, USUARIO_ID)).rejects.toThrow(
+        /órdenes de compra en curso/,
+      );
+    });
+
+    it('una OC en BORRADOR, RECIBIDA o CANCELADA no bloquea la baja', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue(proveedorMock);
+      prisma.pROVEEDOR.update.mockResolvedValue({
+        ...proveedorMock,
+        estado: false,
+      });
+      // BORRADOR/RECIBIDA/CANCELADA no matchean el `where` real (que solo
+      // busca EMITIDA/RECIBIDA_PARCIAL), así que el mock devuelve null.
+      prisma.oRDENCOMPRA.findFirst.mockResolvedValue(null);
+
+      await expect(service.baja(1, USUARIO_ID)).resolves.toBeDefined();
+    });
+
+    it('rechaza con un comprobante REGISTRADO con saldo pendiente', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue(proveedorMock);
+      prisma.cOMPROBANTEPROVEEDOR.findFirst.mockResolvedValue({
+        id_comprobante_proveedor: 1,
+      });
+
+      await expect(service.baja(1, USUARIO_ID)).rejects.toThrow(
+        /comprobantes con saldo pendiente/,
+      );
+      expect(prisma.pROVEEDOR.update).not.toHaveBeenCalled();
+    });
+
+    it('un comprobante ANULADO o con saldo ya cancelado no bloquea la baja', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue(proveedorMock);
+      prisma.pROVEEDOR.update.mockResolvedValue({
+        ...proveedorMock,
+        estado: false,
+      });
+      // ANULADO/saldo_cancelado=true no matchean el `where` real (que exige
+      // REGISTRADO + saldo_cancelado=false), así que el mock devuelve null.
+      prisma.cOMPROBANTEPROVEEDOR.findFirst.mockResolvedValue(null);
+
+      await expect(service.baja(1, USUARIO_ID)).resolves.toBeDefined();
+    });
+
+    it('combina los dos motivos en un solo mensaje si fallan ambas condiciones', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue(proveedorMock);
+      prisma.oRDENCOMPRA.findFirst.mockResolvedValue({ id_orden_compra: 1 });
+      prisma.cOMPROBANTEPROVEEDOR.findFirst.mockResolvedValue({
+        id_comprobante_proveedor: 1,
+      });
+
+      await expect(service.baja(1, USUARIO_ID)).rejects.toThrow(
+        /órdenes de compra en curso.*comprobantes con saldo pendiente/,
+      );
     });
   });
 

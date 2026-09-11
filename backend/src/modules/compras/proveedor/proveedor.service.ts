@@ -4,7 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
-import { CondicionIVA } from '../../../../generated/prisma/enums';
+import {
+  CondicionIVA,
+  EstadoComprobante,
+  EstadoOrdenCompra,
+} from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { validarNombreUnicoEntreActivos } from '../../../common/validaciones/nombre-unico-entre-activos';
 import { reactivarEntidad } from '../../../common/validaciones/reactivar-entidad';
@@ -159,16 +163,11 @@ export class ProveedorService {
   }
 
   /**
-   * Si el proveedor puede darse de baja. Hoy siempre devuelve `true`: la
-   * regla real (por ejemplo, que no tenga órdenes de compra o comprobantes
-   * pendientes) se completa en T51.
+   * Baja lógica: no se permite si el proveedor ya está inactivo, ni si tiene
+   * operaciones vigentes (órdenes de compra en curso o comprobantes con
+   * saldo pendiente) — el mensaje indica cuál de las dos condiciones se
+   * incumple, o las dos juntas si fallan ambas.
    */
-  puedeDarseDeBaja(id: number): Promise<boolean> {
-    void id;
-    return Promise.resolve(true);
-  }
-
-  /** Baja lógica: no se permite si el proveedor ya está inactivo. */
   async baja(id: number, usuarioId: number) {
     const proveedor = await this.findOne(id);
 
@@ -176,9 +175,18 @@ export class ProveedorService {
       throw new ConflictException('El proveedor ya está dado de baja');
     }
 
-    if (!(await this.puedeDarseDeBaja(id))) {
+    const motivos: string[] = [];
+    if (await this.tieneOrdenesCompraEnCurso(id)) {
+      motivos.push(
+        'tiene órdenes de compra en curso (emitidas o en recepción parcial)',
+      );
+    }
+    if (await this.tieneComprobantesConSaldoPendiente(id)) {
+      motivos.push('tiene comprobantes con saldo pendiente');
+    }
+    if (motivos.length > 0) {
       throw new ConflictException(
-        'El proveedor no puede darse de baja en este momento',
+        `El proveedor no puede darse de baja: ${motivos.join(' y ')}.`,
       );
     }
 
@@ -263,5 +271,34 @@ export class ProveedorService {
           : `Ya existe un proveedor dado de baja con el CUIT ${cuit}`,
       );
     }
+  }
+
+  /**
+   * BORRADOR queda afuera a propósito: mientras no se emite, la orden
+   * todavía se puede editar para cambiarle el proveedor, no representa un
+   * compromiso vigente. RECIBIDA y CANCELADA son finales (ver
+   * OrdenCompraService), tampoco bloquean.
+   */
+  private async tieneOrdenesCompraEnCurso(id: number) {
+    const orden = await this.prisma.oRDENCOMPRA.findFirst({
+      where: {
+        FK_proveedor: id,
+        estado: {
+          in: [EstadoOrdenCompra.EMITIDA, EstadoOrdenCompra.RECIBIDA_PARCIAL],
+        },
+      },
+    });
+    return orden !== null;
+  }
+
+  private async tieneComprobantesConSaldoPendiente(id: number) {
+    const comprobante = await this.prisma.cOMPROBANTEPROVEEDOR.findFirst({
+      where: {
+        FK_proveedor: id,
+        estado: EstadoComprobante.REGISTRADO,
+        saldo_cancelado: false,
+      },
+    });
+    return comprobante !== null;
   }
 }

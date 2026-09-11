@@ -201,7 +201,7 @@ export class ProveedorController {
   @ApiNotFoundResponse({ description: 'No existe un proveedor con ese id' })
   @ApiConflictResponse({
     description:
-      'El proveedor ya está dado de baja, o no puede darse de baja en este momento',
+      'El proveedor ya está dado de baja, tiene órdenes de compra en curso (EMITIDA o RECIBIDA_PARCIAL), y/o tiene comprobantes con saldo pendiente',
   })
   baja(
     @Param('id', ParseIntPipe) id: number,
