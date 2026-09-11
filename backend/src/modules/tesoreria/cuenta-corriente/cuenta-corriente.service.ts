@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
 import { EstadoComprobante } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { calcularDiasVencido } from '../../../common/validaciones/dias-vencido';
 import { QueryCuentaCorrienteDto } from './dto/query-cuenta-corriente.dto';
 import { QueryMovimientosCuentaCorrienteDto } from './dto/query-movimientos-cuenta-corriente.dto';
 
@@ -25,6 +26,10 @@ interface FilaMovimientoSinSaldo {
   punto_de_venta: number | null;
   numero: number | null;
   fecha_vencimiento: Date | null;
+  // Solo tiene sentido en un comprobante con saldo pendiente: null en pagos
+  // (no tienen vencimiento) y siempre `false` si el comprobante ya está
+  // saldado, sin importar qué tan vieja sea su fecha_vencimiento.
+  vencido: boolean | null;
   debe: number | null;
   haber: number | null;
 }
@@ -55,6 +60,7 @@ export type FilaExtractoCuentaCorriente =
       punto_de_venta: null;
       numero: null;
       fecha_vencimiento: null;
+      vencido: null;
       debe: null;
       haber: null;
       saldo_acumulado: number;
@@ -240,6 +246,7 @@ export class CuentaCorrienteService {
           punto_de_venta: true,
           numero: true,
           importe_total: true,
+          saldo_cancelado: true,
           hora_creacion: true,
           tipoComprobante: { select: { nombre: true, aumenta_saldo: true } },
         },
@@ -256,6 +263,8 @@ export class CuentaCorrienteService {
       }),
     ]);
 
+    const hoy = new Date();
+
     const filasComprobante: FilaOrdenable[] = comprobantes.map((c) => ({
       clase: 'COMPROBANTE',
       id_referencia: c.id_comprobante_proveedor,
@@ -266,6 +275,12 @@ export class CuentaCorrienteService {
       punto_de_venta: c.punto_de_venta,
       numero: c.numero,
       fecha_vencimiento: c.fecha_vencimiento,
+      // Un comprobante ya saldado nunca es "vencido", sin importar qué tan
+      // vieja sea su fecha_vencimiento: eso es lo que el frontend no podía
+      // distinguir mirando solo la fecha.
+      vencido: c.saldo_cancelado
+        ? false
+        : calcularDiasVencido(c.fecha_vencimiento, hoy).vencido,
       // aumenta_saldo=true (factura, nota de débito) → HABER: aumenta el
       // pasivo. aumenta_saldo=false (nota de crédito) → DEBE: lo reduce.
       debe: c.tipoComprobante.aumenta_saldo ? null : c.importe_total.toNumber(),
@@ -288,6 +303,7 @@ export class CuentaCorrienteService {
       punto_de_venta: null,
       numero: null,
       fecha_vencimiento: null,
+      vencido: null,
       debe: p.importe_total.toNumber(),
       haber: null,
     }));
@@ -320,6 +336,7 @@ export class CuentaCorrienteService {
         punto_de_venta: fila.punto_de_venta,
         numero: fila.numero,
         fecha_vencimiento: fila.fecha_vencimiento,
+        vencido: fila.vencido,
         debe: fila.debe,
         haber: fila.haber,
       }));
@@ -348,6 +365,7 @@ export class CuentaCorrienteService {
         punto_de_venta: null,
         numero: null,
         fecha_vencimiento: null,
+        vencido: null,
         debe: null,
         haber: null,
         saldo_acumulado: filaAnterior?.saldo_acumulado ?? 0,

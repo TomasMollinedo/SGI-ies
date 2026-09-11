@@ -64,6 +64,10 @@ describe('CuentaCorrienteService', () => {
     service = module.get(CuentaCorrienteService);
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   const proveedor = (id: number, razon_social: string, estado = true) => ({
     id_proveedor: id,
     razon_social,
@@ -333,6 +337,7 @@ describe('CuentaCorrienteService', () => {
       punto_de_venta: 1,
       numero: 100,
       importe_total: new Prisma.Decimal(1000),
+      saldo_cancelado: false,
       hora_creacion: new Date('2026-01-10T09:00:00Z'),
       tipoComprobante: { nombre: 'Factura A', aumenta_saldo: true },
     };
@@ -346,6 +351,7 @@ describe('CuentaCorrienteService', () => {
       punto_de_venta: 1,
       numero: 5,
       importe_total: new Prisma.Decimal(200),
+      saldo_cancelado: false,
       hora_creacion: new Date('2026-02-05T09:00:00Z'),
       tipoComprobante: { nombre: 'Nota de Crédito A', aumenta_saldo: false },
     };
@@ -526,6 +532,63 @@ describe('CuentaCorrienteService', () => {
       expect(resultado.movimientos[0]).toMatchObject({
         clase: 'PAGO',
         saldo_acumulado: 300,
+      });
+    });
+
+    describe('vencido', () => {
+      it('es true en un comprobante pendiente con vencimiento pasado', async () => {
+        jest.useFakeTimers().setSystemTime(new Date('2026-09-09T12:00:00Z'));
+        prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+          { ...comprobanteHaber, fecha_vencimiento: new Date('2026-09-01') },
+        ]);
+
+        const resultado = await service.obtenerMovimientos(5, {});
+
+        expect(resultado.movimientos[0]).toMatchObject({ vencido: true });
+      });
+
+      it('es false — no null — en un comprobante saldado, aunque el vencimiento ya pasó', async () => {
+        jest.useFakeTimers().setSystemTime(new Date('2026-09-09T12:00:00Z'));
+        prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+          {
+            ...comprobanteHaber,
+            fecha_vencimiento: new Date('2026-09-01'), // muy vencido...
+            saldo_cancelado: true, // ...pero ya está pagado
+          },
+        ]);
+
+        const resultado = await service.obtenerMovimientos(5, {});
+
+        expect(resultado.movimientos[0]).toMatchObject({ vencido: false });
+      });
+
+      it('es false en un comprobante pendiente que todavía no vence', async () => {
+        jest.useFakeTimers().setSystemTime(new Date('2026-09-09T12:00:00Z'));
+        prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([
+          { ...comprobanteHaber, fecha_vencimiento: new Date('2026-09-09') },
+        ]);
+
+        const resultado = await service.obtenerMovimientos(5, {});
+
+        // Vence hoy: todavía no es "vencido" (recién al día siguiente).
+        expect(resultado.movimientos[0]).toMatchObject({ vencido: false });
+      });
+
+      it('es null en un pago y en la fila de apertura', async () => {
+        prisma.pAGO.findMany.mockResolvedValue([pago]);
+
+        const resultado = await service.obtenerMovimientos(5, {
+          fechaDesde: new Date('2026-02-10'),
+        });
+
+        expect(resultado.movimientos[0]).toMatchObject({
+          clase: 'APERTURA',
+          vencido: null,
+        });
+        expect(resultado.movimientos[1]).toMatchObject({
+          clase: 'PAGO',
+          vencido: null,
+        });
       });
     });
   });

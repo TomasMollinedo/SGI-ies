@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { calcularDiasVencido } from '../../../common/validaciones/dias-vencido';
 import { CreatePagoDto } from './dto/create-pago.dto';
 import { AnularPagoDto } from './dto/anular-pago.dto';
 import { QueryPagoDto } from './dto/query-pago.dto';
@@ -82,8 +83,6 @@ const COMPROBANTE_RESUMEN_SELECT = {
 
 type LineaImputacion = CreatePagoDto['detalle'][number];
 
-const MS_POR_DIA = 1000 * 60 * 60 * 24;
-
 @Injectable()
 export class PagoService {
   constructor(private readonly prisma: PrismaService) {}
@@ -114,7 +113,7 @@ export class PagoService {
 
     return {
       data: comprobantes.map((comprobante) => {
-        const { vencido, dias_vencido } = this.calcularDiasVencido(
+        const { vencido, dias_vencido } = calcularDiasVencido(
           comprobante.fecha_vencimiento,
           hoy,
         );
@@ -151,32 +150,6 @@ export class PagoService {
     }
 
     return proveedor;
-  }
-
-  /**
-   * Días de calendario entre "hoy" y el vencimiento, normalizando ambas
-   * fechas a medianoche UTC antes de restar (para contar días completos, no
-   * fracciones de horas). No vencido da `dias_vencido: 0`. Método privado
-   * puro para poder testearlo sin base de datos.
-   */
-  private calcularDiasVencido(fechaVencimiento: Date, hoy: Date) {
-    const vencimientoUTC = Date.UTC(
-      fechaVencimiento.getUTCFullYear(),
-      fechaVencimiento.getUTCMonth(),
-      fechaVencimiento.getUTCDate(),
-    );
-    const hoyUTC = Date.UTC(
-      hoy.getUTCFullYear(),
-      hoy.getUTCMonth(),
-      hoy.getUTCDate(),
-    );
-
-    const dias = Math.round((hoyUTC - vencimientoUTC) / MS_POR_DIA);
-
-    return {
-      vencido: dias > 0,
-      dias_vencido: dias > 0 ? dias : 0,
-    };
   }
 
   /**
