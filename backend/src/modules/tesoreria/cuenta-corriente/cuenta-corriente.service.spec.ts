@@ -333,6 +333,7 @@ describe('CuentaCorrienteService', () => {
       punto_de_venta: 1,
       numero: 100,
       importe_total: new Prisma.Decimal(1000),
+      hora_creacion: new Date('2026-01-10T09:00:00Z'),
       tipoComprobante: { nombre: 'Factura A', aumenta_saldo: true },
     };
 
@@ -345,6 +346,7 @@ describe('CuentaCorrienteService', () => {
       punto_de_venta: 1,
       numero: 5,
       importe_total: new Prisma.Decimal(200),
+      hora_creacion: new Date('2026-02-05T09:00:00Z'),
       tipoComprobante: { nombre: 'Nota de Crédito A', aumenta_saldo: false },
     };
 
@@ -353,6 +355,7 @@ describe('CuentaCorrienteService', () => {
       id_pago: 50,
       fecha_pago: new Date('2026-02-15'),
       importe_total: new Prisma.Decimal(500),
+      hora_creacion: new Date('2026-02-15T09:00:00Z'),
       formaPago: { nombre: 'Transferencia' },
     };
 
@@ -426,19 +429,48 @@ describe('CuentaCorrienteService', () => {
       ]);
     });
 
-    it('desempata por id cuando dos movimientos caen el mismo día', async () => {
-      const comprobanteA = { ...comprobanteDebe, id_comprobante_proveedor: 9 };
+    it('desempata por hora_creacion (no por id) cuando dos movimientos caen el mismo día', async () => {
+      // fecha_emision y fecha_pago caen el mismo día (típico: se cargan sin
+      // hora). El comprobante se creó antes en el sistema aunque tenga un id
+      // más alto que el pago — hora_creacion tiene que ganarle al id.
+      const comprobanteA = {
+        ...comprobanteDebe,
+        id_comprobante_proveedor: 9,
+        hora_creacion: new Date('2026-02-05T09:00:00Z'),
+      };
       const pagoMismoDia = {
         ...pago,
         id_pago: 3,
         fecha_pago: comprobanteDebe.fecha_emision,
+        hora_creacion: new Date('2026-02-05T16:00:00Z'),
       };
       prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([comprobanteA]);
       prisma.pAGO.findMany.mockResolvedValue([pagoMismoDia]);
 
       const resultado = await service.obtenerMovimientos(5, {});
 
-      // Mismo día: pago (id 3) antes que el comprobante (id 9).
+      // El comprobante (id 9, creado primero) va antes que el pago (id 3,
+      // creado después) — si desempatara por id solo, el orden sería [3, 9].
+      expect(resultado.movimientos.map((m) => m.id_referencia)).toEqual([9, 3]);
+    });
+
+    it('cae al id como último recurso si hora_creacion también empata', async () => {
+      const comprobanteA = {
+        ...comprobanteDebe,
+        id_comprobante_proveedor: 9,
+        hora_creacion: new Date('2026-02-05T09:00:00Z'),
+      };
+      const pagoMismoInstante = {
+        ...pago,
+        id_pago: 3,
+        fecha_pago: comprobanteDebe.fecha_emision,
+        hora_creacion: comprobanteA.hora_creacion,
+      };
+      prisma.cOMPROBANTEPROVEEDOR.findMany.mockResolvedValue([comprobanteA]);
+      prisma.pAGO.findMany.mockResolvedValue([pagoMismoInstante]);
+
+      const resultado = await service.obtenerMovimientos(5, {});
+
       expect(resultado.movimientos.map((m) => m.id_referencia)).toEqual([3, 9]);
     });
 
