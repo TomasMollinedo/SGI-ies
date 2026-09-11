@@ -12,7 +12,7 @@ import { Spinner } from '@/shared/components/estados-pantalla/Spinner'
 import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/hooks/useToast'
 import { formatearMensajeError } from '@/shared/utils/apiError'
-import { formatearFecha } from '@/shared/utils/fecha'
+import { formatearFechaSinHora } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
 import { ComprobantePagoImpresion } from './ComprobantePagoImpresion'
 import {
@@ -116,7 +116,7 @@ export function PagoDetalleModal({ idPago, onClose, onAnular }: PagoDetalleModal
             <DetailRow label="Pago" value={formatearCodigoPago(pago.id_pago)} />
             <DetailRow label="Proveedor" value={pago.proveedor.razon_social} />
             <DetailRow label="Forma de pago" value={pago.formaPago.nombre} />
-            <DetailRow label="Fecha de pago" value={formatearFecha(pago.fecha_pago)} />
+            <DetailRow label="Fecha de pago" value={formatearFechaSinHora(pago.fecha_pago)} />
             <DetailRow label="N.º de referencia" value={textoOSinDato(pago.numero_referencia)} />
             <DetailRow label="Observaciones" value={textoOSinDato(pago.observaciones)} />
             <DetailRow label="Estado" value={badgeEstadoPago(pago.estado)} />

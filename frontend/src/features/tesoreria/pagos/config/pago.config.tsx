@@ -3,7 +3,7 @@ import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { formatearNumeroComprobante } from '@/features/tesoreria/comprobantes/utils/numeroComprobante'
 import type { TipoComprobante } from '@/features/tesoreria/tipos-comprobante/types/tipoComprobante.types'
 import { Badge } from '@/shared/components/ui/Badge'
-import { formatearFecha } from '@/shared/utils/fecha'
+import { formatearFechaSinHora } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
 import type { EstadoPago, LineaPago, Pago, UsuarioResumen } from '../types/pago.types'
 import { formatearCodigoPago } from '../utils/codigoPago'
@@ -47,8 +47,9 @@ export const COLUMNAS_PAGOS: DataTableColumn<Pago>[] = [
   {
     key: 'fecha',
     label: 'Fecha',
-    // Fecha de negocio (cuándo se pagó), no la hora de carga del registro.
-    render: (item) => formatearFecha(item.fecha_pago),
+    // Fecha de negocio (cuándo se pagó): viaja como medianoche UTC, así que
+    // no se convierte de zona horaria (ver `formatearFechaSinHora`).
+    render: (item) => formatearFechaSinHora(item.fecha_pago),
   },
   { key: 'proveedor', label: 'Proveedor', render: (item) => item.proveedor.razon_social },
   { key: 'formaPago', label: 'Forma de pago', render: (item) => item.formaPago.nombre },
