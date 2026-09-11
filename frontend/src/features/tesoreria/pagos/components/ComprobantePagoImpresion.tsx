@@ -1,6 +1,6 @@
 import { formatearNumeroComprobante } from '@/features/tesoreria/comprobantes/utils/numeroComprobante'
 import type { TipoComprobante } from '@/features/tesoreria/tipos-comprobante/types/tipoComprobante.types'
-import { formatearFecha } from '@/shared/utils/fecha'
+import { formatearFechaSinHora } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
 import {
   badgeEfectoSaldo,
@@ -32,7 +32,7 @@ export function ComprobantePagoImpresion({
       <h1 className="text-lg font-semibold">Orden de pago {formatearCodigoPago(pago.id_pago)}</h1>
 
       <dl className="mt-4 grid grid-cols-2 gap-x-8 gap-y-1.5 text-sm">
-        <CampoImpresion label="Fecha" value={formatearFecha(pago.fecha_pago)} />
+        <CampoImpresion label="Fecha" value={formatearFechaSinHora(pago.fecha_pago)} />
         <CampoImpresion label="Proveedor" value={pago.proveedor.razon_social} />
         <CampoImpresion label="Forma de pago" value={pago.formaPago.nombre} />
         <CampoImpresion label="N.º de referencia" value={textoOSinDato(pago.numero_referencia)} />
