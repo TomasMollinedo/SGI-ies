@@ -119,7 +119,7 @@ export class CuentaCorrienteController {
   })
   @ApiOkResponse({
     description:
-      'Extracto de cuenta corriente del proveedor. Sin filtros, el saldo_acumulado de la última fila coincide con el saldo actual del proveedor en GET /cuentas-corrientes',
+      'Extracto de cuenta corriente del proveedor. Sin filtros, el saldo_acumulado de la última fila coincide con el saldo actual del proveedor en GET /cuentas-corrientes. `vencido` ya considera si el comprobante está saldado — es `false` en un comprobante saldado aunque su fecha_vencimiento sea pasada, y `null` en pagos/apertura',
     type: MovimientosCuentaCorrienteResponseDto,
   })
   @ApiBadRequestResponse({ description: 'Parámetros de filtro inválidos' })

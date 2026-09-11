@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
 import { EstadoComprobante } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { calcularDiasVencido } from '../../../common/validaciones/dias-vencido';
 import { QueryCuentaCorrienteDto } from './dto/query-cuenta-corriente.dto';
 import { QueryMovimientosCuentaCorrienteDto } from './dto/query-movimientos-cuenta-corriente.dto';
 
@@ -25,8 +26,22 @@ interface FilaMovimientoSinSaldo {
   punto_de_venta: number | null;
   numero: number | null;
   fecha_vencimiento: Date | null;
+  // Solo tiene sentido en un comprobante con saldo pendiente: null en pagos
+  // (no tienen vencimiento) y siempre `false` si el comprobante ya está
+  // saldado, sin importar qué tan vieja sea su fecha_vencimiento.
+  vencido: boolean | null;
   debe: number | null;
   haber: number | null;
+}
+
+/**
+ * `FilaMovimientoSinSaldo` + `hora_creacion`, solo para poder ordenar: un
+ * comprobante y su pago pueden compartir `fecha` exacta (fecha sola, sin
+ * hora, es lo habitual) sin que eso diga nada de cuál fue primero. No viaja
+ * en la respuesta — se descarta al armar `FilaMovimientoSinSaldo` final.
+ */
+interface FilaOrdenable extends FilaMovimientoSinSaldo {
+  hora_creacion: Date;
 }
 
 export interface FilaMovimientoCuentaCorriente extends FilaMovimientoSinSaldo {
@@ -45,6 +60,7 @@ export type FilaExtractoCuentaCorriente =
       punto_de_venta: null;
       numero: null;
       fecha_vencimiento: null;
+      vencido: null;
       debe: null;
       haber: null;
       saldo_acumulado: number;
@@ -230,6 +246,8 @@ export class CuentaCorrienteService {
           punto_de_venta: true,
           numero: true,
           importe_total: true,
+          saldo_cancelado: true,
+          hora_creacion: true,
           tipoComprobante: { select: { nombre: true, aumenta_saldo: true } },
         },
       }),
@@ -239,54 +257,89 @@ export class CuentaCorrienteService {
           id_pago: true,
           fecha_pago: true,
           importe_total: true,
+          hora_creacion: true,
           formaPago: { select: { nombre: true } },
         },
       }),
     ]);
 
-    const filasComprobante: FilaMovimientoSinSaldo[] = comprobantes.map(
-      (c) => ({
-        clase: 'COMPROBANTE',
-        id_referencia: c.id_comprobante_proveedor,
-        fecha: c.fecha_emision,
-        tipo: c.tipoComprobante.nombre,
-        letra: c.letra,
-        punto_de_venta: c.punto_de_venta,
-        numero: c.numero,
-        fecha_vencimiento: c.fecha_vencimiento,
-        // aumenta_saldo=true (factura, nota de débito) → HABER: aumenta el
-        // pasivo. aumenta_saldo=false (nota de crédito) → DEBE: lo reduce.
-        debe: c.tipoComprobante.aumenta_saldo
-          ? null
-          : c.importe_total.toNumber(),
-        haber: c.tipoComprobante.aumenta_saldo
-          ? c.importe_total.toNumber()
-          : null,
-      }),
-    );
+    const hoy = new Date();
+
+    const filasComprobante: FilaOrdenable[] = comprobantes.map((c) => ({
+      clase: 'COMPROBANTE',
+      id_referencia: c.id_comprobante_proveedor,
+      fecha: c.fecha_emision,
+      hora_creacion: c.hora_creacion,
+      tipo: c.tipoComprobante.nombre,
+      letra: c.letra,
+      punto_de_venta: c.punto_de_venta,
+      numero: c.numero,
+      fecha_vencimiento: c.fecha_vencimiento,
+      // Un comprobante ya saldado nunca es "vencido", sin importar qué tan
+      // vieja sea su fecha_vencimiento: eso es lo que el frontend no podía
+      // distinguir mirando solo la fecha.
+      vencido: c.saldo_cancelado
+        ? false
+        : calcularDiasVencido(c.fecha_vencimiento, hoy).vencido,
+      // aumenta_saldo=true (factura, nota de débito) → HABER: aumenta el
+      // pasivo. aumenta_saldo=false (nota de crédito) → DEBE: lo reduce.
+      debe: c.tipoComprobante.aumenta_saldo ? null : c.importe_total.toNumber(),
+      haber: c.tipoComprobante.aumenta_saldo
+        ? c.importe_total.toNumber()
+        : null,
+    }));
 
     // Un pago siempre va al DEBE: es plata que ya salió, reduce el pasivo,
     // sea que haya imputado a facturas o a notas de crédito — ver el
     // análisis en PagoService de por qué `importe_total` (neto) es
     // exactamente lo que hace falta acá para que el acumulado cierre.
-    const filasPago: FilaMovimientoSinSaldo[] = pagos.map((p) => ({
+    const filasPago: FilaOrdenable[] = pagos.map((p) => ({
       clase: 'PAGO',
       id_referencia: p.id_pago,
       fecha: p.fecha_pago,
+      hora_creacion: p.hora_creacion,
       tipo: p.formaPago.nombre,
       letra: null,
       punto_de_venta: null,
       numero: null,
       fecha_vencimiento: null,
+      vencido: null,
       debe: p.importe_total.toNumber(),
       haber: null,
     }));
 
-    const historialCompleto = [...filasComprobante, ...filasPago].sort(
-      (a, b) =>
-        a.fecha.getTime() - b.fecha.getTime() ||
-        a.id_referencia - b.id_referencia,
-    );
+    // Desempate en dos pasos: `fecha` es la fecha "de negocio" (fecha_emision
+    // / fecha_pago) y normalmente viaja sin hora, así que un comprobante y su
+    // pago pueden caer el mismo día y empatar ahí. `hora_creacion` sí tiene
+    // el instante real en que se cargó cada uno, y como un pago siempre se
+    // crea después del comprobante que paga (PagoService lo exige), alcanza
+    // para resolver ese empate correctamente. `id_referencia` queda como
+    // último recurso, pero son dos secuencias independientes (comprobante y
+    // pago no comparten autoincremental) así que no es un desempate confiable
+    // por sí solo.
+    const historialCompleto: FilaMovimientoSinSaldo[] = [
+      ...filasComprobante,
+      ...filasPago,
+    ]
+      .sort(
+        (a, b) =>
+          a.fecha.getTime() - b.fecha.getTime() ||
+          a.hora_creacion.getTime() - b.hora_creacion.getTime() ||
+          a.id_referencia - b.id_referencia,
+      )
+      .map((fila) => ({
+        clase: fila.clase,
+        id_referencia: fila.id_referencia,
+        fecha: fila.fecha,
+        tipo: fila.tipo,
+        letra: fila.letra,
+        punto_de_venta: fila.punto_de_venta,
+        numero: fila.numero,
+        fecha_vencimiento: fila.fecha_vencimiento,
+        vencido: fila.vencido,
+        debe: fila.debe,
+        haber: fila.haber,
+      }));
 
     // Pasivo: aumenta por el HABER, disminuye por el DEBE.
     let acumulado = 0;
@@ -312,6 +365,7 @@ export class CuentaCorrienteService {
         punto_de_venta: null,
         numero: null,
         fecha_vencimiento: null,
+        vencido: null,
         debe: null,
         haber: null,
         saldo_acumulado: filaAnterior?.saldo_acumulado ?? 0,

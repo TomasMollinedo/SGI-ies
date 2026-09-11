@@ -27,6 +27,11 @@ export const movimientoCuentaCorrienteSchema = z.object({
   punto_de_venta: z.number().nullable(),
   numero: z.number().nullable(),
   fecha_vencimiento: z.iso.datetime().nullable(),
+  // null en pagos y en la apertura (no tienen vencimiento). En un
+  // comprobante, siempre `false` si ya está saldado — sin importar qué tan
+  // vieja sea fecha_vencimiento — para que el frontend no lo marque vencido
+  // por error.
+  vencido: z.boolean().nullable(),
   // Pasivo: factura/nota de débito → HABER (aumenta); nota de crédito/pago
   // → DEBE (disminuye). null en la apertura.
   debe: z.number().nullable(),
