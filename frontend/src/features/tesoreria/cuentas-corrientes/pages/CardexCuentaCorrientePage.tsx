@@ -118,7 +118,7 @@ export function CardexCuentaCorrientePage() {
     ...COLUMNAS_CARDEX_CUENTA_CORRIENTE,
     {
       key: 'acciones',
-      label: '',
+      label: 'Acciones',
       render: (movimiento) =>
         movimiento.clase === 'APERTURA' ? null : (
           <IconButton

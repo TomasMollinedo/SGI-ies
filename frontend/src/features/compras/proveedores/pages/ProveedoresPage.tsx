@@ -422,8 +422,8 @@ function soloCamposModificados(
 }
 
 /**
- * Un campo que se borró viaja como string vacío. En CBU y alias eso no choca
- * con su formato: tanto el backend como `proveedorFormSchema` aceptan ''.
+ * Un campo que se borró viaja como string vacío. En correo, CBU y alias eso no
+ * choca con su formato: tanto el backend como `proveedorFormSchema` aceptan ''.
  */
 function agregarSiCambio(
   cambios: EditarProveedorPayload,

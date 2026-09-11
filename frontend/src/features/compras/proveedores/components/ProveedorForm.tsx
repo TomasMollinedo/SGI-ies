@@ -156,7 +156,8 @@ export function ProveedorForm({
             <Input
               label="CUIT"
               required
-              placeholder="Ej. 30-12345678-9"
+              inputMode="numeric"
+              placeholder="Ej. 30712345678"
               disabled={loading}
               error={errors.cuit?.message}
               {...register('cuit')}

@@ -51,6 +51,17 @@ describe('ProveedorService', () => {
     estado: true,
   };
 
+  // Para las validaciones de DTO: solo los obligatorios del alta, así el único
+  // motivo de rechazo posible es el campo que prueba cada caso.
+  const DTO_BASE = {
+    razon_social: 'Acme SA',
+    cuit: CUIT_VALIDO,
+    condicion_iva: 'RESPONSABLE_INSCRIPTO',
+  };
+
+  const validarAlta = (campos: Record<string, unknown>) =>
+    createProveedorSchema.safeParse({ ...DTO_BASE, ...campos });
+
   beforeEach(async () => {
     prisma = {
       pROVEEDOR: {
@@ -292,6 +303,20 @@ describe('ProveedorService', () => {
       });
       expect(dataEnviada?.FK_usuario_actualizador).toBe(USUARIO_ID);
     });
+
+    it('un string vacío en correo borra el correo cargado', async () => {
+      prisma.pROVEEDOR.findUnique.mockResolvedValue({
+        ...proveedorMock,
+        correo: 'contacto@proveedor.com',
+      });
+      prisma.pROVEEDOR.update.mockResolvedValue(proveedorMock);
+
+      const dto = updateProveedorSchema.parse({ correo: '' });
+
+      await service.update(1, dto, USUARIO_ID);
+
+      expect(primerArgumento(prisma.pROVEEDOR.update).data?.correo).toBe('');
+    });
   });
 
   describe('baja', () => {
@@ -434,18 +459,74 @@ describe('ProveedorService', () => {
     });
   });
 
+  describe('validación del CUIT (DTO)', () => {
+    // Solo se valida el formato: cualquier combinación de once dígitos pasa,
+    // aunque su último dígito no cierre con el algoritmo de AFIP.
+    it.each(['30712345678', '20123456789', CUIT_VALIDO])(
+      'acepta %s',
+      (cuit) => {
+        expect(validarAlta({ cuit }).success).toBe(true);
+      },
+    );
+
+    it('recorta los espacios de los extremos antes de validar', () => {
+      expect(validarAlta({ cuit: ` ${CUIT_VALIDO} ` }).data?.cuit).toBe(
+        CUIT_VALIDO,
+      );
+    });
+
+    it.each([
+      ['vacío', ''],
+      ['de 10 dígitos', '3071234567'],
+      ['de 12 dígitos', '307123456789'],
+      ['con guiones', '30-71234567-8'],
+      ['con letras', '3071234567a'],
+      ['con espacios intermedios', '30712 345678'],
+    ])('rechaza un CUIT %s', (_caso, cuit) => {
+      const resultado = validarAlta({ cuit });
+
+      expect(resultado.success).toBe(false);
+      expect(resultado.error?.issues[0].path).toEqual(['cuit']);
+      expect(resultado.error?.issues[0].message).toMatch(/11 dígitos/);
+    });
+
+    it('la edición aplica la misma regla', () => {
+      expect(
+        updateProveedorSchema.safeParse({ cuit: '30712345678' }).success,
+      ).toBe(true);
+      expect(
+        updateProveedorSchema.safeParse({ cuit: '3071234567' }).success,
+      ).toBe(false);
+    });
+  });
+
+  describe('validación del correo (DTO)', () => {
+    it('acepta un correo válido, y le recorta los espacios de los extremos', () => {
+      expect(
+        validarAlta({ correo: ' contacto@proveedor.com ' }).data?.correo,
+      ).toBe('contacto@proveedor.com');
+    });
+
+    it('la edición acepta el string vacío: así se borra el correo cargado', () => {
+      expect(updateProveedorSchema.safeParse({ correo: '' }).success).toBe(
+        true,
+      );
+    });
+
+    it.each([
+      ['sin arroba', 'contacto.proveedor.com'],
+      ['sin dominio', 'contacto@'],
+      ['con espacios intermedios', 'contacto @proveedor.com'],
+    ])('rechaza un correo %s', (_caso, correo) => {
+      const resultado = validarAlta({ correo });
+
+      expect(resultado.success).toBe(false);
+      expect(resultado.error?.issues[0].path).toEqual(['correo']);
+      expect(resultado.error?.issues[0].message).toBe('El correo no es válido');
+    });
+  });
+
   describe('validación de datos bancarios (DTO)', () => {
-    // Solo los obligatorios del alta: así el único motivo de rechazo posible
-    // es el dato bancario que prueba cada caso.
-    const DTO_BASE = {
-      razon_social: 'Acme SA',
-      cuit: CUIT_VALIDO,
-      condicion_iva: 'RESPONSABLE_INSCRIPTO',
-    };
-
-    const validarAlta = (campos: Record<string, unknown>) =>
-      createProveedorSchema.safeParse({ ...DTO_BASE, ...campos });
-
     it('los cuatro son opcionales: un alta sin datos bancarios es válida', () => {
       expect(validarAlta({}).success).toBe(true);
     });

@@ -152,7 +152,7 @@ export function PagosPage() {
     ...COLUMNAS_PAGOS,
     {
       key: 'acciones',
-      label: '',
+      label: 'Acciones',
       render: (item) => (
         <div className="inline-flex items-center gap-1">
           <IconButton
