@@ -113,8 +113,12 @@ describe('ComprobanteService', () => {
           .fn()
           .mockResolvedValue({ id_tipo_comprobante: 1, estado: true }),
       },
-      oRDENCOMPRA: {
-        findUnique: jest.fn().mockResolvedValue({ id_orden_compra: 1 }),
+    oRDENCOMPRA: {
+        findUnique: jest.fn().mockResolvedValue({
+          id_orden_compra: 1,
+          estado: 'EMITIDA',
+          FK_proveedor: 1,
+        }),
       },
       aRTICULO: { findMany: jest.fn().mockResolvedValue([]) },
       cOMPROBANTEPROVEEDOR: {
@@ -368,6 +372,43 @@ describe('ComprobanteService', () => {
     it('acepta una nota de crédito/débito sin comprobante de origen', async () => {
       await expect(
         service.create(dtoCrear(), USUARIO_ID),
+      ).resolves.toBeDefined();
+    });
+        it('rechaza vincular una orden de compra en un estado no vinculable (ej. BORRADOR)', async () => {
+      prisma.oRDENCOMPRA.findUnique.mockResolvedValue({
+        id_orden_compra: 9,
+        estado: 'BORRADOR',
+        FK_proveedor: 1,
+      });
+
+      await expect(
+        service.create({ ...dtoCrear(), FK_orden_compra: 9 }, USUARIO_ID),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.cOMPROBANTEPROVEEDOR.create).not.toHaveBeenCalled();
+    });
+
+    it('rechaza vincular una orden de compra de otro proveedor', async () => {
+      prisma.oRDENCOMPRA.findUnique.mockResolvedValue({
+        id_orden_compra: 9,
+        estado: 'EMITIDA',
+        FK_proveedor: 2,
+      });
+
+      await expect(
+        service.create({ ...dtoCrear(), FK_orden_compra: 9 }, USUARIO_ID),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.cOMPROBANTEPROVEEDOR.create).not.toHaveBeenCalled();
+    });
+
+    it('acepta una orden de compra EMITIDA del mismo proveedor', async () => {
+      prisma.oRDENCOMPRA.findUnique.mockResolvedValue({
+        id_orden_compra: 9,
+        estado: 'EMITIDA',
+        FK_proveedor: 1,
+      });
+
+      await expect(
+        service.create({ ...dtoCrear(), FK_orden_compra: 9 }, USUARIO_ID),
       ).resolves.toBeDefined();
     });
 

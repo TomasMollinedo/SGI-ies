@@ -84,10 +84,7 @@ export interface TipoComprobanteResumen {
   nombre: string
 }
 
-/**
- * Un pago que imputó este comprobante (HU-18). Llega vacío hasta que exista la
- * pantalla de pagos.
- */
+/** Un pago que imputó este comprobante (HU-18), como lo devuelve GET /comprobantes/:id. */
 export interface PagoImputado {
   id_pago: number
   fecha_pago: string
