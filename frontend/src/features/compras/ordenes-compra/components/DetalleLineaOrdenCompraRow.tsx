@@ -1,10 +1,8 @@
 import { useState } from 'react'
 import type { Control, UseFormRegister } from 'react-hook-form'
 import { Controller } from 'react-hook-form'
-import { Trash2 } from 'lucide-react'
-import { useArticulos } from '@/features/almacen/artículos/hooks/useArticulos'
-import { Combobox } from '@/shared/components/ui/Combobox'
-import type { ComboboxOption } from '@/shared/components/ui/Combobox'
+import { Search, Trash2, X } from 'lucide-react'
+import { SelectorArticuloModal } from '@/features/almacen/artículos/components/SelectorArticuloModal'
 import { IconButton } from '@/shared/components/ui/IconButton'
 import { Input } from '@/shared/components/ui/Input'
 import type { OrdenCompraFormOutput, OrdenCompraFormValues } from '../types/ordenCompra.schema'
@@ -16,8 +14,6 @@ interface DetalleLineaOrdenCompraRowProps {
   register: UseFormRegister<OrdenCompraFormValues>
   onRemove: () => void
   canRemove: boolean
-  /** FK_articulo ya elegidos en otras líneas, para no ofrecerlos de nuevo (la misma regla que valida el backend). */
-  idsExcluidos: number[]
   subtotal: number
   errors?: {
     FK_articulo?: { message?: string }
@@ -26,33 +22,23 @@ interface DetalleLineaOrdenCompraRowProps {
   }
 }
 
-/** Una línea de la grilla de detalle: artículo (activo, buscado por nombre), cantidad, precio unitario y subtotal calculado. */
+/**
+ * Una línea de la grilla de detalle: artículo (activo, elegido con el mismo
+ * buscador en modal que Comprobantes), cantidad, precio unitario y subtotal
+ * calculado. No repetir artículo entre líneas ya lo valida el formulario
+ * completo (`ordenCompraFormSchema`), así que acá no hace falta excluir nada.
+ */
 export function DetalleLineaOrdenCompraRow({
   index,
   control,
   register,
   onRemove,
   canRemove,
-  idsExcluidos,
   subtotal,
   errors,
 }: DetalleLineaOrdenCompraRowProps) {
-  const [busqueda, setBusqueda] = useState('')
-
-  const { data: articulos, isFetching } = useArticulos({
-    busqueda: busqueda || undefined,
-    estado: true,
-    limit: 20,
-  })
-
-  const opciones: ComboboxOption[] = (articulos?.data ?? [])
-    .filter((articulo) => !idsExcluidos.includes(articulo.id_articulo))
-    .map((articulo) => ({
-      value: String(articulo.id_articulo),
-      label: articulo.nombre,
-    }))
-
-  const hayMasArticulos = (articulos?.meta.total ?? 0) > (articulos?.data.length ?? 0)
+  const [modalAbierto, setModalAbierto] = useState(false)
+  const [nombreArticulo, setNombreArticulo] = useState('')
 
   return (
     <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[1fr_7rem_9rem_9rem_auto]">
@@ -60,17 +46,50 @@ export function DetalleLineaOrdenCompraRow({
         name={`detalle.${index}.FK_articulo`}
         control={control}
         render={({ field }) => (
-          <Combobox
-            placeholder="Buscar artículo activo"
-            minChars={0}
-            value={field.value}
-            onChange={field.onChange}
-            options={opciones}
-            onSearch={setBusqueda}
-            loading={isFetching}
-            hasMoreResults={hayMasArticulos}
-            error={errors?.FK_articulo?.message}
-          />
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1">
+              <Input
+                readOnly
+                placeholder="Buscar artículo activo"
+                value={nombreArticulo || (field.value ? `Artículo #${field.value}` : '')}
+                error={errors?.FK_articulo?.message}
+                className="flex-1"
+              />
+              <IconButton
+                icon={<Search />}
+                ariaLabel="Buscar artículo"
+                variant="soft"
+                size="sm"
+                bgColor="fondo-ver"
+                iconColor="info"
+                onClick={() => setModalAbierto(true)}
+              />
+              {field.value ? (
+                <IconButton
+                  icon={<X />}
+                  ariaLabel="Quitar artículo"
+                  variant="soft"
+                  size="sm"
+                  bgColor="fondo-eliminar"
+                  iconColor="error"
+                  onClick={() => {
+                    field.onChange('')
+                    setNombreArticulo('')
+                  }}
+                />
+              ) : null}
+            </div>
+
+            <SelectorArticuloModal
+              open={modalAbierto}
+              onClose={() => setModalAbierto(false)}
+              onSeleccionar={(articulo) => {
+                field.onChange(String(articulo.id_articulo))
+                setNombreArticulo(articulo.nombre)
+                setModalAbierto(false)
+              }}
+            />
+          </div>
         )}
       />
 

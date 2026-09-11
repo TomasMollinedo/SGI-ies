@@ -134,7 +134,7 @@ export function SelectorArticuloModal({
             options={opcionesCategoria}
             value={categoria}
             onChange={(evento) => setCategoria(evento.target.value)}
-            className="w-44"
+            className="w-56"
           />
           <Select
             size="sm"
@@ -142,7 +142,7 @@ export function SelectorArticuloModal({
             options={opcionesMarca}
             value={marca}
             onChange={(evento) => setMarca(evento.target.value)}
-            className="w-44"
+            className="w-56"
           />
           <Select
             size="sm"
