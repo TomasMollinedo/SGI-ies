@@ -74,6 +74,27 @@ model USUARIO {
 
   pagosCreados      PAGO[] @relation("PagoCreador")
   pagosActualizados PAGO[] @relation("PagoActualizador")
+
+  // Comercialización / Ecommerce (Sprint 3)
+  proyectosCreados      PROYECTO[] @relation("ProyectoCreador")
+  proyectosActualizados PROYECTO[] @relation("ProyectoActualizador")
+
+  unidadesFuncionalesCreadas      UNIDADFUNCIONAL[] @relation("UnidadFuncionalCreador")
+  unidadesFuncionalesActualizadas UNIDADFUNCIONAL[] @relation("UnidadFuncionalActualizador")
+
+  publicacionesCreadas      PUBLICACIONUNIDAD[] @relation("PublicacionCreador")
+  publicacionesActualizadas PUBLICACIONUNIDAD[] @relation("PublicacionActualizador")
+
+  planesPagoCreados      PLANPAGO[]          @relation("PlanPagoCreador")
+  planesPagoActualizados PLANPAGO[]          @relation("PlanPagoActualizador")
+  planesPagoHistorial    PLANPAGOHISTORIAL[] @relation("PlanPagoHistorialUsuario")
+
+  consultasRespondidas CONSULTAUNIDAD[] @relation("ConsultaUnidadRespuesta")
+
+  cobrosCreados      COBRO[] @relation("CobroCreador")
+  cobrosActualizados COBRO[] @relation("CobroActualizador")
+
+  declaracionesPagoValidadas DECLARACIONPAGO[] @relation("DeclaracionPagoValidador")
 }
 
 model ROL {
@@ -299,13 +320,55 @@ model DEPOSITO {
   ordenesCompra ORDENCOMPRA[] @relation("OrdenCompraDeposito")
 }
 
-// Stub provisorio hasta que exista el módulo de Proyectos: solo el id, para
-// poder vincular (opcionalmente) un depósito/obrador a un proyecto. Cuando
-// se implemente el módulo real, este model se completa con sus campos.
+// Hasta Sprint 2 era un stub con solo el id, para poder vincular
+// (opcionalmente) un depósito/obrador a un proyecto. Sprint 3 lo completa con
+// los campos que Comercialización necesita para publicar unidades. Sigue sin
+// ABM propio en este sprint: se carga por seed (ver prisma/seed.ts), mismo
+// criterio que ROL o TIPOALERTA — el ABM completo de Proyecto queda para un
+// sprint futuro.
 model PROYECTO {
   id_proyecto Int @id @default(autoincrement())
 
-  depositos DEPOSITO[]
+  codigo String @unique
+
+  nombre    String
+  localidad String
+  // Nullable a propósito: un proyecto en planificación puede no tener
+  // dirección todavía.
+  direccion String?
+
+  // Null → la ficha pública de la unidad muestra "A entregar, fecha a
+  // confirmar" en vez de una fecha (HU-21).
+  fecha_fin_estimada DateTime?
+
+  estado EstadoProyecto @default(EN_PLANIFICACION)
+
+  // Informativo: no bloquea ni se valida contra la cantidad de unidades
+  // cargadas.
+  cantidad_unidades_planificadas Int?
+
+  // Única pieza de contenido de la landing (HU-24) que no puede vivir
+  // hardcodeada en el frontend: depende de qué proyecto salga como
+  // destacado, así que tiene que salir de acá.
+  imagen_portada_url String?
+
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
+
+  FK_usuario_creador      Int
+  FK_usuario_actualizador Int
+
+  usuarioCreador      USUARIO @relation("ProyectoCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("ProyectoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+
+  depositos           DEPOSITO[]
+  unidadesFuncionales UNIDADFUNCIONAL[]
+
+  // No existe columna `presupuesto`: se deriva como SUM(costo) de las
+  // unidades funcionales activas del proyecto, se calcula al leer (ver DER
+  // Sprint 3).
+
+  @@index([estado])
 }
 
 // Tabla de referencia de los tipos de alerta que puede generar el sistema.
@@ -599,6 +662,12 @@ model FORMAPAGO {
   // forma permanente por el service.
   requiere_referencia Boolean
 
+  // Sprint 3 (HU-29): subconjunto de las formas activas que se ofrecen al
+  // cliente para autogestión de pagos online. Se administra desde este mismo
+  // ABM, sin pantalla nueva. Si estado = false, no se ofrece aunque esté
+  // habilitada.
+  habilitada_autogestion Boolean @default(false)
+
   estado Boolean @default(true)
 
   hora_creacion      DateTime  @default(now())
@@ -610,7 +679,9 @@ model FORMAPAGO {
   usuarioCreador      USUARIO @relation("FormaPagoCreador", fields: [FK_usuario_creador], references: [id_usuario])
   usuarioActualizador USUARIO @relation("FormaPagoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
-  pagos PAGO[]
+  pagos         PAGO[]
+  cobros        COBRO[]
+  declaraciones DECLARACIONPAGO[]
 
   @@index([estado])
 }
@@ -792,4 +863,576 @@ model DETALLEPAGO {
 
   // Un mismo comprobante no puede imputarse dos veces en el mismo pago.
   @@unique([FK_pago, FK_comprobante_proveedor])
+}
+
+// ============================================================================
+// COMERCIALIZACIÓN / ECOMMERCE (Sprint 3) — HU-19 a HU-30
+// ============================================================================
+// Cadena principal: PROYECTO → UNIDADFUNCIONAL → PUBLICACIONUNIDAD →
+// PLANPAGO → VENTA → CUOTA → DETALLECOBRO. Ver el DER del sprint para el
+// diagrama completo, los valores derivados que a propósito no son columna
+// (presupuesto, costo congelado, precio "desde", saldo pendiente, cuota
+// vencida, condición de entrega, proyectos destacados) y las 8 decisiones de
+// diseño cerradas con el equipo.
+
+enum EstadoProyecto {
+  EN_PLANIFICACION
+  EN_EJECUCION
+  FINALIZADO
+  CANCELADO
+}
+
+enum TipologiaUnidad {
+  MONOAMBIENTE
+  UN_DORMITORIO
+  DOS_DORMITORIOS
+  TRES_DORMITORIOS
+  LOCAL_COMERCIAL
+  COCHERA
+  OTRO
+}
+
+enum EstadoComercial {
+  EN_PREPARACION
+  DISPONIBLE
+  EN_PLAN_DE_PAGO
+  VENDIDA
+}
+
+enum TipoPlanPago {
+  CONTADO
+  FINANCIADO
+}
+
+enum Periodicidad {
+  MENSUAL
+  BIMESTRAL
+  TRIMESTRAL
+  SEMESTRAL
+  ANUAL
+}
+
+enum EstadoVenta {
+  VIGENTE
+  CANCELADA
+}
+
+enum EstadoCuota {
+  PENDIENTE
+  PARCIAL
+  PAGADA
+  ANULADA
+}
+
+enum EstadoConsulta {
+  PENDIENTE
+  RESPONDIDA
+}
+
+enum EstadoDeclaracionPago {
+  PENDIENTE
+  VALIDADA
+  RECHAZADA
+}
+
+enum OrigenCobro {
+  PRESENCIAL
+  ECOMMERCE
+}
+
+// Simétrico a EstadoPago. BORRADOR solo lo usa el flujo PRESENCIAL de HU-30
+// (Tesorería arma el cobro en varios pasos sin tocar saldos); el origen
+// ECOMMERCE (HU-29) nace CONFIRMADO directo.
+enum EstadoCobro {
+  BORRADOR
+  CONFIRMADO
+  ANULADO
+}
+
+// --------------------------------------------------------------------------
+// HU-20 — Unidades funcionales
+// --------------------------------------------------------------------------
+model UNIDADFUNCIONAL {
+  id_unidad_funcional Int @id @default(autoincrement())
+
+  FK_proyecto Int
+  proyecto    PROYECTO @relation(fields: [FK_proyecto], references: [id_proyecto])
+
+  // Único solo entre unidades activas del mismo proyecto (se valida a nivel
+  // service, no acá) — mismo criterio que FORMAPAGO.nombre.
+  identificador String
+
+  tipologia TipologiaUnidad
+
+  superficie_cubierta    Decimal  @db.Decimal(10, 2)
+  superficie_descubierta Decimal? @db.Decimal(10, 2)
+  // String y no Int: existe "PB".
+  piso                   String?
+  comodidades            String?
+  observaciones          String?
+
+  // Editable por Proyectos solo mientras la unidad nunca fue publicada.
+  // Congelado desde la primera publicación (HU-20/HU-21): el service bloquea
+  // la edición si ya existe al menos una fila histórica en PUBLICACIONUNIDAD
+  // para esta unidad, aunque hoy no esté vigente. No hay columna
+  // `costo_congelado`: se deriva de esa existencia, no se guarda.
+  costo Decimal @db.Decimal(14, 2)
+
+  // Baja lógica. No se puede dar de baja una unidad con publicación vigente
+  // (regla de service).
+  estado Boolean @default(true)
+
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
+
+  FK_usuario_creador      Int
+  FK_usuario_actualizador Int
+
+  usuarioCreador      USUARIO @relation("UnidadFuncionalCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("UnidadFuncionalActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+
+  imagenes      IMAGENUNIDAD[]
+  publicaciones PUBLICACIONUNIDAD[]
+
+  @@index([FK_proyecto])
+  @@index([estado])
+}
+
+model IMAGENUNIDAD {
+  id_imagen_unidad Int @id @default(autoincrement())
+
+  FK_unidad_funcional Int
+  unidadFuncional     UNIDADFUNCIONAL @relation(fields: [FK_unidad_funcional], references: [id_unidad_funcional], onDelete: Cascade)
+
+  // Pública, sin versionado ni permisos: vive en el object storage del
+  // sistema, acá solo se guarda la URL.
+  url   String
+  orden Int    @default(0)
+
+  // Sin auditoría completa ni baja lógica: una imagen se borra físicamente,
+  // no constituye historial financiero ni contractual.
+  hora_creacion DateTime @default(now())
+
+  @@index([FK_unidad_funcional])
+}
+
+// --------------------------------------------------------------------------
+// HU-21 — Publicación de unidades en el ecommerce
+// --------------------------------------------------------------------------
+model PUBLICACIONUNIDAD {
+  id_publicacion Int @id @default(autoincrement())
+
+  // Varias filas por unidad: es el historial de publicaciones.
+  FK_unidad_funcional Int
+  unidadFuncional     UNIDADFUNCIONAL @relation(fields: [FK_unidad_funcional], references: [id_unidad_funcional])
+
+  estado_comercial EstadoComercial @default(EN_PREPARACION)
+
+  fecha_publicacion DateTime @default(now())
+
+  // Solo una publicación vigente por unidad. Postgres lo resolvería con un
+  // índice único parcial (WHERE vigente = true), que Prisma no expone en el
+  // schema — agregar a mano en la migración generada. Mientras tanto lo
+  // valida el service. No significa "se ve en el catálogo": el catálogo
+  // filtra además por estado_comercial = DISPONIBLE (dos condiciones, no
+  // una).
+  vigente Boolean @default(true)
+
+  fecha_despublicacion  DateTime?
+  // Obligatorio a nivel de service al despublicar. Despublicar solo se
+  // permite en EN_PREPARACION o DISPONIBLE (no en EN_PLAN_DE_PAGO ni VENDIDA).
+  motivo_despublicacion String?
+
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
+
+  FK_usuario_creador      Int
+  FK_usuario_actualizador Int
+
+  usuarioCreador      USUARIO @relation("PublicacionCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("PublicacionActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+
+  planes    PLANPAGO[]
+  consultas CONSULTAUNIDAD[]
+  ventas    VENTA[]
+
+  @@index([FK_unidad_funcional])
+  @@index([vigente, estado_comercial])
+}
+
+// --------------------------------------------------------------------------
+// HU-22 — Planes de pago y margen de ganancia
+// --------------------------------------------------------------------------
+model PLANPAGO {
+  id_plan_pago Int @id @default(autoincrement())
+
+  // Cuelga de la publicación, no de la unidad: si colgara de la unidad,
+  // VENTA tendría dos caminos paralelos hacia la misma unidad (FK_publicacion
+  // y FK_plan_pago → FK_unidad_funcional) — un rombo que habría que validar a
+  // mano para siempre.
+  FK_publicacion Int
+  publicacion    PUBLICACIONUNIDAD @relation(fields: [FK_publicacion], references: [id_publicacion])
+
+  nombre String
+  tipo   TipoPlanPago
+
+  // Fuente de verdad del precio del plan: no está obligado a coincidir con
+  // costo + costo*porcentaje_ganancia + margen. Esa fórmula es solo una
+  // ayuda de cálculo que ofrece el formulario; Comercialización puede
+  // escribir directamente el precio final que negoció.
+  precio Decimal @db.Decimal(14, 2)
+
+  porcentaje_ganancia Decimal @default(0) @db.Decimal(5, 2)
+  margen              Decimal @default(0) @db.Decimal(14, 2)
+
+  // Uno de los dos, nunca ambos — lo valida el service. En CONTADO el
+  // anticipo equivale al 100% del precio.
+  anticipo_porcentaje Decimal? @db.Decimal(5, 2)
+  anticipo_monto      Decimal? @db.Decimal(14, 2)
+
+  // Solo aplican a FINANCIADO.
+  cantidad_cuotas Int?
+  periodicidad    Periodicidad?
+
+  // Activo/inactivo. Sin ningún plan activo, la publicación vuelve a
+  // EN_PREPARACION (regla de service).
+  //
+  // Condiciones estructurales inmutables una vez creado el plan: tipo,
+  // anticipo_porcentaje/anticipo_monto, cantidad_cuotas y periodicidad no se
+  // editan — para ofrecer condiciones distintas se inactiva este plan y se
+  // crea uno nuevo. Sí son editables mientras el plan esté activo: precio,
+  // porcentaje_ganancia, margen y este mismo estado.
+  estado Boolean @default(true)
+
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
+
+  FK_usuario_creador      Int
+  FK_usuario_actualizador Int
+
+  usuarioCreador      USUARIO @relation("PlanPagoCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("PlanPagoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+
+  historial PLANPAGOHISTORIAL[]
+  ventas    VENTA[]
+
+  @@index([FK_publicacion])
+  @@index([estado])
+}
+
+// Una fila por cada edición del plan, con el antes y el después de las
+// cuatro cosas que importan (no trackea campo por campo: cada edición genera
+// una sola fila con la foto completa). La creación de un plan nuevo no
+// genera fila acá (no hay "antes" que registrar) — queda cubierta por la
+// auditoría estándar de PLANPAGO.
+model PLANPAGOHISTORIAL {
+  id_historial Int @id @default(autoincrement())
+
+  FK_plan_pago Int
+  // Restrict, no Cascade: es historial de auditoría, nunca se borra en
+  // cascada aunque el plan se elimine.
+  planPago     PLANPAGO @relation(fields: [FK_plan_pago], references: [id_plan_pago], onDelete: Restrict)
+
+  precio_anterior Decimal @db.Decimal(14, 2)
+  precio_nuevo    Decimal @db.Decimal(14, 2)
+
+  porcentaje_ganancia_anterior Decimal @db.Decimal(5, 2)
+  porcentaje_ganancia_nuevo    Decimal @db.Decimal(5, 2)
+
+  margen_anterior Decimal @db.Decimal(14, 2)
+  margen_nuevo    Decimal @db.Decimal(14, 2)
+
+  // Activo/inactivo, también queda en el historial.
+  estado_anterior Boolean
+  estado_nuevo    Boolean
+
+  FK_usuario Int
+  usuario    USUARIO @relation("PlanPagoHistorialUsuario", fields: [FK_usuario], references: [id_usuario])
+
+  // Append-only: cada fila es un evento cerrado, sin hora_actualizacion ni
+  // FK_usuario_actualizador (mismo criterio que ORDENCOMPRAHISTORIALESTADO).
+  hora_creacion DateTime @default(now())
+
+  @@index([FK_plan_pago])
+}
+
+// --------------------------------------------------------------------------
+// HU-27 — Adhesión del cliente a un plan de pago
+// --------------------------------------------------------------------------
+model VENTA {
+  id_venta Int @id @default(autoincrement())
+
+  FK_cliente Int
+  cliente    CLIENTE @relation(fields: [FK_cliente], references: [id_cliente])
+
+  // Una sola venta VIGENTE por publicación (se valida a nivel service).
+  FK_publicacion Int
+  publicacion    PUBLICACIONUNIDAD @relation(fields: [FK_publicacion], references: [id_publicacion])
+
+  // Regla de integridad crítica, validada dentro de la misma transacción de
+  // adhesión: FK_plan_pago tiene que pertenecer a esta misma FK_publicacion
+  // (PLANPAGO.FK_publicacion == VENTA.FK_publicacion). Prisma no expone un
+  // constraint que cruce dos FK de la misma fila, así que la transacción
+  // valida en orden: 1) publicación vigente · 2) estado_comercial =
+  // DISPONIBLE · 3) plan activo · 4) esta coherencia · recién ahí 5) crea la
+  // venta · 6) genera las cuotas · 7) pasa estado_comercial a
+  // EN_PLAN_DE_PAGO. Si cualquier paso falla, se revierte todo.
+  FK_plan_pago Int
+  planPago     PLANPAGO @relation(fields: [FK_plan_pago], references: [id_plan_pago])
+
+  fecha_adhesion DateTime @default(now())
+
+  // Condiciones congeladas al momento de la adhesión: si el plan se edita o
+  // inactiva después, esta operación no se entera.
+  precio_congelado          Decimal       @db.Decimal(14, 2)
+  anticipo_congelado        Decimal       @db.Decimal(14, 2)
+  tipo_plan_congelado       TipoPlanPago
+  cantidad_cuotas_congelada Int
+  periodicidad_congelada    Periodicidad?
+
+  estado EstadoVenta @default(VIGENTE)
+
+  // Obligatorio a nivel de service al cancelar. Al cancelar, las cuotas
+  // generadas quedan ANULADA (sin eliminarse físicamente) y la unidad vuelve
+  // a DISPONIBLE.
+  motivo_cancelacion String?
+  fecha_cancelacion  DateTime?
+
+  // El autor lógico es el CLIENTE, no un USUARIO: no hay FK_usuario_creador.
+  hora_creacion DateTime @default(now())
+
+  cuotas CUOTA[]
+
+  @@index([FK_cliente])
+  @@index([FK_publicacion])
+  @@index([FK_plan_pago])
+  @@index([estado])
+}
+
+// El cronograma que se genera al confirmar una adhesión. Es el único lugar
+// donde vive el saldo: el saldo total pendiente de la venta es la suma de
+// estas filas.
+model CUOTA {
+  id_cuota Int @id @default(autoincrement())
+
+  FK_venta Int
+  // Restrict, no Cascade: es historial financiero, nunca se borra en
+  // cascada aunque la venta se elimine.
+  venta    VENTA @relation(fields: [FK_venta], references: [id_venta], onDelete: Restrict)
+
+  // 0 = anticipo, o el 100% del precio en un plan CONTADO.
+  numero Int
+
+  // La diferencia de redondeo del reparto en partes iguales se ajusta en la
+  // última cuota.
+  importe Decimal @db.Decimal(14, 2)
+
+  // Si el día no existe en el mes de destino, vence el último día de ese mes.
+  fecha_vencimiento DateTime
+
+  // Baja con cada imputación de COBRO/DETALLECOBRO.
+  saldo_pendiente Decimal @db.Decimal(14, 2)
+
+  estado EstadoCuota @default(PENDIENTE)
+
+  detallesCobro     DETALLECOBRO[]
+  declaracionesPago DECLARACIONPAGO[]
+
+  @@unique([FK_venta, numero])
+  // Lo pide la consulta de cuotas vencidas de HU-30.
+  @@index([fecha_vencimiento, estado])
+}
+
+// --------------------------------------------------------------------------
+// HU-26 — Consultas de clientes sobre unidades publicadas
+// --------------------------------------------------------------------------
+// Pregunta del cliente y respuesta de Comercialización en la misma fila: a
+// lo sumo una respuesta y, una vez enviada, no se edita. No se borran nunca,
+// ni siquiera si la unidad se despublica.
+model CONSULTAUNIDAD {
+  id_consulta Int @id @default(autoincrement())
+
+  FK_cliente Int
+  cliente    CLIENTE @relation(fields: [FK_cliente], references: [id_cliente])
+
+  FK_publicacion Int
+  publicacion    PUBLICACIONUNIDAD @relation(fields: [FK_publicacion], references: [id_publicacion])
+
+  // Largo máximo validado en el DTO Zod, no en la base.
+  texto String
+
+  // PENDIENTE → RESPONDIDA, sin vuelta atrás.
+  estado EstadoConsulta @default(PENDIENTE)
+
+  respuesta       String?
+  fecha_respuesta DateTime?
+
+  FK_usuario_respuesta Int?
+  usuarioRespuesta     USUARIO? @relation("ConsultaUnidadRespuesta", fields: [FK_usuario_respuesta], references: [id_usuario])
+
+  hora_creacion DateTime @default(now())
+
+  @@index([FK_publicacion])
+  @@index([FK_cliente])
+  @@index([estado])
+}
+
+// --------------------------------------------------------------------------
+// HU-23 — Registro e inicio de sesión de clientes
+// --------------------------------------------------------------------------
+// Entidad separada de USUARIO a propósito: un cliente no tiene rol, no tiene
+// contraseña y nunca entra a una pantalla interna. Se autocrea en el primer
+// login con Google.
+model CLIENTE {
+  id_cliente Int @id @default(autoincrement())
+
+  // Id estable de la cuenta de Google — el mail puede cambiar, esto no.
+  google_sub String @unique
+  // Identifica al cliente de forma unívoca; evita duplicados.
+  email      String @unique
+
+  nombre   String
+  // Google no siempre lo manda separado del nombre.
+  apellido String?
+
+  // Null hasta que el cliente lo completa; obligatorio antes de adherirse a
+  // un plan (HU-27) o declarar un pago (HU-29). Único entre clientes.
+  dni_cuil String? @unique
+  telefono String?
+
+  // Mismo esquema de doble token que USUARIO. Sin columna `password`: no hay
+  // recuperación de contraseña porque no hay contraseña.
+  refreshTokenHash String?
+
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
+
+  consultas     CONSULTAUNIDAD[]
+  ventas        VENTA[]
+  declaraciones DECLARACIONPAGO[]
+  cobros        COBRO[]
+}
+
+// --------------------------------------------------------------------------
+// HU-30 — Registro de cobranzas a clientes
+// --------------------------------------------------------------------------
+// Espejo de PAGO, del otro lado del mostrador: una sola entidad para el
+// cobro presencial (HU-30) y para el pago validado del ecommerce (HU-29),
+// distinguidos por `origen`.
+model COBRO {
+  // El número de recibo que ve el usuario es esta PK, mismo criterio que PAGO.
+  id_cobro Int @id @default(autoincrement())
+
+  fecha_cobro DateTime
+
+  FK_cliente Int
+  cliente    CLIENTE @relation(fields: [FK_cliente], references: [id_cliente])
+
+  FK_forma_pago Int
+  formaPago     FORMAPAGO @relation(fields: [FK_forma_pago], references: [id_forma_pago])
+
+  // Obligatorio a nivel de service si la forma de pago lo requiere.
+  numero_referencia String?
+
+  // Debe coincidir exacto con la suma del detalle (validación de service).
+  importe_total Decimal @db.Decimal(14, 2)
+  observaciones String?
+
+  origen OrigenCobro
+  estado EstadoCobro @default(BORRADOR)
+
+  // Obligatorio a nivel de service al anular. Anular restituye el saldo de
+  // cada cuota imputada y puede devolver la unidad de VENDIDA a
+  // EN_PLAN_DE_PAGO si el saldo total de la venta vuelve a ser mayor a cero.
+  motivo_anulacion String?
+
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
+
+  FK_usuario_creador      Int
+  FK_usuario_actualizador Int
+
+  usuarioCreador      USUARIO @relation("CobroCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("CobroActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+
+  detalles        DETALLECOBRO[]
+  declaracionPago DECLARACIONPAGO?
+
+  @@index([FK_cliente])
+  @@index([FK_forma_pago])
+  @@index([estado])
+  @@index([fecha_cobro])
+}
+
+// Calcado de DETALLEPAGO, incluida la foto del saldo antes y después: se
+// guarda y nunca se recalcula al consultar.
+model DETALLECOBRO {
+  id_detalle_cobro Int @id @default(autoincrement())
+
+  FK_cobro Int
+  // Restrict, no Cascade: es historial financiero, nunca se borra en
+  // cascada aunque el cobro se elimine.
+  cobro    COBRO @relation(fields: [FK_cobro], references: [id_cobro], onDelete: Restrict)
+
+  FK_cuota Int
+  cuota    CUOTA @relation(fields: [FK_cuota], references: [id_cuota])
+
+  // Mayor a cero y nunca superior al saldo pendiente de la cuota (validación
+  // de service).
+  importe_imputado Decimal @db.Decimal(14, 2)
+
+  // Foto del saldo antes/después: se guarda y nunca se recalcula al
+  // consultar (mismo criterio que DETALLEPAGO / STOCKMOVIMIENTO).
+  saldo_anterior  Decimal @db.Decimal(14, 2)
+  saldo_posterior Decimal @db.Decimal(14, 2)
+
+  @@unique([FK_cobro, FK_cuota])
+}
+
+// --------------------------------------------------------------------------
+// HU-29 — Declaración y validación de pagos online
+// --------------------------------------------------------------------------
+// Lo que el cliente dice que pagó. No mueve ningún saldo hasta que Tesorería
+// la valida; recién ahí nace un COBRO de origen ECOMMERCE.
+model DECLARACIONPAGO {
+  id_declaracion_pago Int @id @default(autoincrement())
+
+  // Solo sobre adhesiones propias.
+  FK_cliente Int
+  cliente    CLIENTE @relation(fields: [FK_cliente], references: [id_cliente])
+
+  // Pendiente o parcial, nunca saldada (validación de service).
+  FK_cuota Int
+  cuota    CUOTA @relation(fields: [FK_cuota], references: [id_cuota])
+
+  // Solo las formas habilitadas para autogestión.
+  FK_forma_pago Int
+  formaPago     FORMAPAGO @relation(fields: [FK_forma_pago], references: [id_forma_pago])
+
+  importe Decimal @db.Decimal(14, 2)
+
+  // Lo que Tesorería cruza contra el extracto bancario. No hay adjuntos.
+  numero_referencia String?
+
+  estado EstadoDeclaracionPago @default(PENDIENTE)
+
+  // Obligatorio a nivel de service al rechazar. RECHAZADA permite volver a
+  // declarar.
+  motivo_rechazo   String?
+  fecha_resolucion DateTime?
+
+  FK_usuario_validador Int?
+  usuarioValidador     USUARIO? @relation("DeclaracionPagoValidador", fields: [FK_usuario_validador], references: [id_usuario])
+
+  // El cobro que generó al validarse. Si ese cobro se anula después, esta
+  // declaración sigue VALIDADA como registro histórico y sigue apuntando
+  // acá — no se agrega un cuarto estado a EstadoDeclaracionPago.
+  FK_cobro Int?   @unique
+  cobro    COBRO? @relation(fields: [FK_cobro], references: [id_cobro])
+
+  hora_creacion DateTime @default(now())
+
+  @@index([FK_cliente])
+  @@index([FK_cuota])
+  @@index([estado])
 }
