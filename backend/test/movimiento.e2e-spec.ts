@@ -17,6 +17,7 @@ interface ListadoResponseBody<T> {
 interface TipoMovimientoItem {
   id_tipo_movimiento: number;
   indicador_entrada: boolean;
+  estado: boolean;
 }
 
 interface StockBody {
@@ -81,9 +82,12 @@ describe('Movimientos (e2e)', () => {
 
     prisma = app.get(PrismaService);
 
+    // Administrador: es el rol dueño de los endpoints de Almacén
+    // (`@Roles(RolNombre.ADMINISTRADOR)`), así que es con el que hay que
+    // loguearse para que estos flujos no den 403.
     const login = await request(app.getHttpServer())
       .post('/api/auth/login')
-      .send({ email: 'almacen@axontech.test', password: 'Password123!' })
+      .send({ email: 'admin@axontech.test', password: 'Password123!' })
       .expect(200);
     accessToken = (login.body as LoginResponseBody).accessToken;
 
@@ -96,11 +100,16 @@ describe('Movimientos (e2e)', () => {
     const tipos = await get('/api/tipos-movimiento').expect(200);
     const tiposData = (tipos.body as ListadoResponseBody<TipoMovimientoItem>)
       .data;
+    // El listado trae también los tipos dados de baja (viene ordenado por
+    // nombre, no por estado), y el service rechaza con 409 un movimiento que
+    // use uno inactivo. Por eso hay que filtrar por `estado` acá: sin eso, el
+    // primer tipo de salida por orden alfabético es "Baja por rotura o
+    // deterioro", que el seed crea dado de baja.
     idTipoEntrada = tiposData.find(
-      (t) => t.indicador_entrada,
+      (t) => t.indicador_entrada && t.estado,
     )!.id_tipo_movimiento;
     idTipoSalida = tiposData.find(
-      (t) => !t.indicador_entrada,
+      (t) => !t.indicador_entrada && t.estado,
     )!.id_tipo_movimiento;
 
     const categorias = await get('/api/categorias').expect(200);

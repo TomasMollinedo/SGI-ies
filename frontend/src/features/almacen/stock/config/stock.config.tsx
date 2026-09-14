@@ -4,7 +4,11 @@ import { Badge } from '@/shared/components/ui/Badge'
 import type { Stock } from '../types/stock.types'
 import { formatearCodigoStock } from '../utils/codigoStock'
 
-export function stockBajoUmbral(item: Stock) {
+/**
+ * Recibe solo los dos campos que compara —y no un `Stock` entero— porque
+ * también lo usa la cabecera del cardex, que trabaja con `CardexFicha`.
+ */
+export function stockBajoUmbral(item: { cantidad: number; umbral_minimo: number }) {
   return item.cantidad < item.umbral_minimo
 }
 

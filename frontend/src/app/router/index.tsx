@@ -1,12 +1,11 @@
 import { createBrowserRouter, Navigate } from 'react-router'
+import { AlertasPage } from '@/features/alertas/pages/AlertasPage'
 import { ArticulosPage } from '@/features/almacen/artículos/pages/ArticulosPage'
 import { DepositosPage } from '@/features/almacen/deposito/pages/DepositosPage'
-import { CatalogoArticulosPage } from '@/features/almacen/pages/CatalogoArticulosPage'
-import { DepositoObradoresPage } from '@/features/almacen/pages/DepositoObradoresPage'
 import { MarcasPage } from '@/features/almacen/marca/pages/MarcasPage'
-import { MovimientosPage } from '@/features/almacen/pages/MovimientosPage'
 import { RegistroMovimientoPage } from '@/features/almacen/movimiento/pages/RegistroMovimientoPage'
 import { TiposMovimientoPage } from '@/features/almacen/tipo-movimiento/pages/TiposMovimientoPage'
+import { CardexPage } from '@/features/almacen/stock/pages/CardexPage'
 import { StockPage } from '@/features/almacen/stock/pages/StockPage'
 import { UnidadesMedidaPage } from '@/features/almacen/unidades-medida/pages/UnidadesMedidaPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
@@ -15,6 +14,15 @@ import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PATHS } from './paths'
 import { ProtectedRoute } from './ProtectedRoute'
 import { CategoriasPage } from '@/features/almacen/categorias/pages/CategoriasPage'
+import { ProveedoresPage } from '@/features/compras/proveedores/pages/ProveedoresPage'
+import { OrdenesCompraPage } from '@/features/compras/ordenes-compra/pages/OrdenesCompraPage'
+import { ComprobantesPage } from '@/features/tesoreria/comprobantes/pages/ComprobantesPage'
+import { TiposComprobantePage } from '@/features/tesoreria/tipos-comprobante/pages/TiposComprobantePage'
+import { NuevoPagoPage } from '@/features/tesoreria/pagos/pages/NuevoPagoPage'
+import { PagosPage } from '@/features/tesoreria/pagos/pages/PagosPage'
+import { FormasPagoPage } from '@/features/tesoreria/formas-pago/pages/FormasPagoPage'
+import { CardexCuentaCorrientePage } from '@/features/tesoreria/cuentas-corrientes/pages/CardexCuentaCorrientePage'
+import { CuentasCorrientesPage } from '@/features/tesoreria/cuentas-corrientes/pages/CuentasCorrientesPage'
 
 export const router = createBrowserRouter([
   { path: PATHS.LOGIN, element: <LoginPage /> },
@@ -35,77 +43,135 @@ export const router = createBrowserRouter([
             path: PATHS.ALMACEN.ROOT,
             children: [
               { index: true, element: <Navigate to={PATHS.ALMACEN.CATALOGO.ARTICULOS} replace /> },
+
               {
                 path: PATHS.ALMACEN.CATALOGO.ROOT,
-                element: <CatalogoArticulosPage />,
-                handle: { title: 'Catálogo de Artículos' },
-                children: [
-                  {
-                    index: true,
-                    element: <Navigate to={PATHS.ALMACEN.CATALOGO.ARTICULOS} replace />,
-                  },
-                  {
-                    path: PATHS.ALMACEN.CATALOGO.ARTICULOS,
-                    element: <ArticulosPage />,
-                  },
-                  {
-                    path: PATHS.ALMACEN.CATALOGO.MARCAS,
-                    element: <MarcasPage />,
-                  },
-                  {
-                    path: PATHS.ALMACEN.CATALOGO.CATEGORIAS,
-                    element: <CategoriasPage />,
-                  },
-                  {
-                    path: PATHS.ALMACEN.CATALOGO.UNIDADES_MEDIDA,
-                    element: <UnidadesMedidaPage />,
-                  },
-                ],
+                element: <Navigate to={PATHS.ALMACEN.CATALOGO.ARTICULOS} replace />,
               },
+              {
+                path: PATHS.ALMACEN.CATALOGO.ARTICULOS,
+                element: <ArticulosPage />,
+                handle: { title: 'Artículos' },
+              },
+              {
+                path: PATHS.ALMACEN.CATALOGO.MARCAS,
+                element: <MarcasPage />,
+                handle: { title: 'Marcas' },
+              },
+              {
+                path: PATHS.ALMACEN.CATALOGO.CATEGORIAS,
+                element: <CategoriasPage />,
+                handle: { title: 'Categorías' },
+              },
+              {
+                path: PATHS.ALMACEN.CATALOGO.UNIDADES_MEDIDA,
+                element: <UnidadesMedidaPage />,
+                handle: { title: 'Unidades de Medida' },
+              },
+
               {
                 path: PATHS.ALMACEN.DEPOSITO.ROOT,
-                element: <DepositoObradoresPage />,
-                handle: { title: 'Depósito/Obradores' },
-                children: [
-                  {
-                    index: true,
-                    element: <Navigate to={PATHS.ALMACEN.DEPOSITO.OBRADORES} replace />,
-                  },
-                  {
-                    path: PATHS.ALMACEN.DEPOSITO.OBRADORES,
-                    element: <DepositosPage />,
-                  },
-                  {
-                    path: PATHS.ALMACEN.DEPOSITO.STOCK,
-                    element: <StockPage />,
-                  },
-                ],
+                element: <Navigate to={PATHS.ALMACEN.DEPOSITO.OBRADORES} replace />,
               },
               {
+                path: PATHS.ALMACEN.DEPOSITO.OBRADORES,
+                element: <DepositosPage />,
+                handle: { title: 'Depósito y Obradores' },
+              },
+              {
+                path: PATHS.ALMACEN.DEPOSITO.STOCK,
+                element: <StockPage />,
+                handle: { title: 'Stock por Depósito' },
+              },
+              {
+                path: PATHS.ALMACEN.DEPOSITO.STOCK_CARDEX,
+                element: <CardexPage />,
+                handle: { title: 'Historial de Movimientos por Artículo' },
+              },
+
+              {
                 path: PATHS.ALMACEN.MOVIMIENTOS.ROOT,
-                element: <MovimientosPage />,
-                handle: { title: 'Movimientos' },
-                children: [
-                  { index: true, element: <RegistroMovimientoPage /> },
-                  {
-                    path: PATHS.ALMACEN.MOVIMIENTOS.TIPOS,
-                    element: <TiposMovimientoPage />,
-                  },
-                ],
+                element: <RegistroMovimientoPage />,
+                handle: { title: 'Registro de Movimientos' },
+              },
+              {
+                path: PATHS.ALMACEN.MOVIMIENTOS.TIPOS,
+                element: <TiposMovimientoPage />,
+                handle: { title: 'Tipos de Movimiento' },
               },
             ],
           },
-          /*
+
           {
             path: PATHS.COMPRAS.ROOT,
-            element: <PlaceholderPage titulo="Compras y Proveedores" />,
-            handle: { title: 'Compras y Proveedores' },
+            children: [
+              { index: true, element: <Navigate to={PATHS.COMPRAS.PROVEEDORES} replace /> },
+              {
+                path: PATHS.COMPRAS.PROVEEDORES,
+                element: <ProveedoresPage />,
+                handle: { title: 'Proveedores' },
+              },
+              {
+                path: PATHS.COMPRAS.ORDENES_COMPRA,
+                element: <OrdenesCompraPage />,
+                handle: { title: 'Órdenes de Compra' },
+              },
+            ],
           },
+
           {
             path: PATHS.TESORERIA.ROOT,
-            element: <PlaceholderPage titulo="Tesorería" />,
-            handle: { title: 'Tesorería' },
+            children: [
+              {
+                index: true,
+                element: <Navigate to={PATHS.TESORERIA.COMPROBANTES.ROOT} replace />,
+              },
+
+              {
+                path: PATHS.TESORERIA.COMPROBANTES.ROOT,
+                element: <ComprobantesPage />,
+                handle: { title: 'Comprobantes' },
+              },
+              {
+                path: PATHS.TESORERIA.COMPROBANTES.TIPOS,
+                element: <TiposComprobantePage />,
+                handle: { title: 'Tipos de Comprobante' },
+              },
+
+              {
+                path: PATHS.TESORERIA.PAGOS.ROOT,
+                element: <PagosPage />,
+                handle: { title: 'Pagos' },
+              },
+              {
+                path: PATHS.TESORERIA.PAGOS.NUEVO,
+                element: <NuevoPagoPage />,
+                handle: { title: 'Nuevo pago' },
+              },
+              {
+                path: PATHS.TESORERIA.PAGOS.FORMAS,
+                element: <FormasPagoPage />,
+                handle: { title: 'Formas de Pago' },
+              },
+
+              {
+                path: PATHS.TESORERIA.CUENTAS_CORRIENTES,
+                element: <CuentasCorrientesPage />,
+                handle: { title: 'Cuentas Corrientes' },
+              },
+              {
+                path: PATHS.TESORERIA.CUENTAS_CORRIENTES_CARDEX,
+                element: <CardexCuentaCorrientePage />,
+                handle: { title: 'Cuenta Corriente del Proveedor' },
+              },
+            ],
           },
+          {
+            path: PATHS.ALERTAS.ROOT,
+            element: <AlertasPage />,
+            handle: { title: 'Alertas' },
+          },
+          /*
           {
             path: PATHS.PROYECTOS.ROOT,
             element: <PlaceholderPage titulo="Proyectos" />,
@@ -115,11 +181,6 @@ export const router = createBrowserRouter([
             path: PATHS.COMERCIAL.ROOT,
             element: <PlaceholderPage titulo="Comercial" />,
             handle: { title: 'Comercial' },
-          },
-          {
-            path: PATHS.SISTEMA.ROOT,
-            element: <PlaceholderPage titulo="Administración del Sistema" />,
-            handle: { title: 'Administración del Sistema' },
           },
           */
 

@@ -79,6 +79,7 @@ describe('MovimientoService', () => {
     FK_deposito: ID_DEPOSITO,
     FK_articulo: id * 10,
     articulo: { nombre: `Artículo ${id}` },
+    deposito: { nombre: 'Depósito Central' },
     ...extra,
   });
 
@@ -340,10 +341,15 @@ describe('MovimientoService', () => {
       // Fijo: los roles de este sistema no son por depósito.
       expect(input.rolDestinatario).toBe(RolNombre.RESPONSABLE_ALMACEN);
       expect(input.mensaje).toContain('Artículo 1');
+      // El depósito va en el mensaje porque la misma combinación
+      // artículo/depósito es una ficha distinta: sin él no se sabe dónde
+      // reponer.
+      expect(input.mensaje).toContain('Depósito Central');
       expect(input.datos).toEqual({
         stockId: 1,
         movimientoId: ID_MOVIMIENTO,
         articuloId: 10,
+        depositoId: ID_DEPOSITO,
         stockNuevo: 6,
         umbralMinimo: 8,
       });

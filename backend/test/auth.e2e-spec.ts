@@ -34,6 +34,10 @@ describe('Auth (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    // main.ts no corre en los tests, así que hay que replicar acá lo que
+    // configura del app (prefijo global y cookies). Sin el prefijo, todas las
+    // rutas de este archivo (/api/auth/...) responden 404.
+    app.setGlobalPrefix('api');
     app.use(cookieParser());
     await app.init();
   });

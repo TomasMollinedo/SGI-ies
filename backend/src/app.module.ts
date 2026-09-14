@@ -17,6 +17,13 @@ import { ArticuloModule } from './modules/almacen/articulo/articulo.module';
 import { TipoMovimientoModule } from './modules/almacen/tipo-movimiento/tipo-movimiento.module';
 import { MovimientoModule } from './modules/almacen/movimiento/movimiento.module';
 import { AlertaModule } from './modules/alerta/alerta.module';
+import { ProveedorModule } from './modules/compras/proveedor/proveedor.module';
+import { OrdenCompraModule } from './modules/compras/orden-compra/orden-compra.module';
+import { TipoComprobanteModule } from './modules/tesoreria/tipo-comprobante/tipo-comprobante.module';
+import { FormaPagoModule } from './modules/tesoreria/forma-pago/forma-pago.module';
+import { ComprobanteModule } from './modules/tesoreria/comprobante/comprobante.module';
+import { PagoModule } from './modules/tesoreria/pago/pago.module';
+import { CuentaCorrienteModule } from './modules/tesoreria/cuenta-corriente/cuenta-corriente.module';
 
 @Module({
   imports: [
@@ -36,6 +43,13 @@ import { AlertaModule } from './modules/alerta/alerta.module';
     TipoMovimientoModule,
     MovimientoModule,
     AlertaModule,
+    ProveedorModule,
+    OrdenCompraModule,
+    TipoComprobanteModule,
+    FormaPagoModule,
+    ComprobanteModule,
+    PagoModule,
+    CuentaCorrienteModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },

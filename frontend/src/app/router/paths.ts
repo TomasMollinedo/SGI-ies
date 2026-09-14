@@ -15,15 +15,48 @@ export const PATHS = {
       ROOT: '/almacen/deposito',
       OBRADORES: '/almacen/deposito/obradores',
       STOCK: '/almacen/deposito/stock',
+      // Patrón de ruta, no una URL navegable: para armar la de una ficha
+      // concreta está `rutaCardexStock`.
+      STOCK_CARDEX: '/almacen/deposito/stock/:idStock/cardex',
     },
     MOVIMIENTOS: {
       ROOT: '/almacen/movimientos',
       TIPOS: '/almacen/movimientos/tipos',
     },
   },
-  //COMPRAS: { ROOT: '/compras' },
-  //TESORERIA: { ROOT: '/tesoreria' },
+  COMPRAS: {
+    ROOT: '/compras',
+    PROVEEDORES: '/compras/proveedores',
+    ORDENES_COMPRA: '/compras/ordenes-compra',
+  },
+  TESORERIA: {
+    ROOT: '/tesoreria',
+    COMPROBANTES: {
+      ROOT: '/tesoreria/comprobantes',
+      TIPOS: '/tesoreria/comprobantes/tipos',
+    },
+    PAGOS: {
+      ROOT: '/tesoreria/pagos',
+      NUEVO: '/tesoreria/pagos/nuevo',
+      FORMAS: '/tesoreria/pagos/formas',
+    },
+    CUENTAS_CORRIENTES: '/tesoreria/cuentas-corrientes',
+    // Patrón de ruta, no una URL navegable: para armar la de un proveedor
+    // concreto está `rutaCardexCuentaCorriente`.
+    CUENTAS_CORRIENTES_CARDEX: '/tesoreria/cuentas-corrientes/:idProveedor/cardex',
+  },
+  ALERTAS: { ROOT: '/alertas' },
+
   //PROYECTOS: { ROOT: '/proyectos' },
   //COMERCIAL: { ROOT: '/comercial' },
-  //SISTEMA: { ROOT: '/sistema' },
 } as const
+
+/** La ruta del cardex de una ficha puntual (ej. 42 → /almacen/deposito/stock/42/cardex). */
+export function rutaCardexStock(idStock: number): string {
+  return PATHS.ALMACEN.DEPOSITO.STOCK_CARDEX.replace(':idStock', String(idStock))
+}
+
+/** La ruta del extracto de un proveedor puntual (ej. 42 → /tesoreria/cuentas-corrientes/42/cardex). */
+export function rutaCardexCuentaCorriente(idProveedor: number): string {
+  return PATHS.TESORERIA.CUENTAS_CORRIENTES_CARDEX.replace(':idProveedor', String(idProveedor))
+}

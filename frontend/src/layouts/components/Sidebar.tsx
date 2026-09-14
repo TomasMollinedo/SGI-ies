@@ -1,42 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, LogOut } from 'lucide-react'
+import { ChevronRight, LogOut } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router'
 import logo from '@/assets/logo.svg'
-import { PATHS } from '@/app/router/paths'
 import { useAuthUser } from '@/features/auth/hooks/useAuthUser'
 import { useLogout } from '@/features/auth/hooks/useLogout'
-
-interface NavChild {
-  label: string
-  to: string
-}
-
-interface NavItem {
-  label: string
-  to: string
-  children?: NavChild[]
-}
-
-const ITEMS: NavItem[] = [
-  // { label: 'Inicio', to: PATHS.HOME },
-  {
-    label: 'Almacén',
-    to: PATHS.ALMACEN.ROOT,
-    children: [
-      { label: 'Catálogo de Artículos', to: PATHS.ALMACEN.CATALOGO.ROOT },
-      { label: 'Depósito/Obradores', to: PATHS.ALMACEN.DEPOSITO.ROOT },
-      { label: 'Movimientos', to: PATHS.ALMACEN.MOVIMIENTOS.ROOT },
-    ],
-  },
-  // { label: 'Compras', to: PATHS.COMPRAS.ROOT },
-  // { label: 'Tesorería', to: PATHS.TESORERIA.ROOT },
-  // { label: 'Proyectos', to: PATHS.PROYECTOS.ROOT },
-  // { label: 'Comercial', to: PATHS.COMERCIAL.ROOT },
-  // { label: 'Sistema', to: PATHS.SISTEMA.ROOT },
-]
+import { NAV_ITEMS, recolectarRamaActiva, type NavNode } from '@/layouts/navItems'
 
 const navLinkClase = ({ isActive }: { isActive: boolean }) =>
-  `rounded px-3 py-2 text-sm ${
+  `rounded px-3 py-1.5 text-xs ${
     isActive ? 'bg-secondary text-content' : 'text-light hover:bg-light/10'
   }`
 
@@ -47,9 +18,21 @@ interface SidebarProps {
 
 export function Sidebar({ abierto, onCerrar }: SidebarProps) {
   const location = useLocation()
-  const [grupoAbierto, setGrupoAbierto] = useState<string | null>(
-    () => ITEMS.find((item) => item.children && location.pathname.startsWith(item.to))?.to ?? null
+  const [gruposAbiertos, setGruposAbiertos] = useState<Set<string>>(
+    () => new Set(recolectarRamaActiva(NAV_ITEMS, location.pathname))
   )
+
+  function alternarGrupo(to: string) {
+    setGruposAbiertos((actual) => {
+      const siguiente = new Set(actual)
+      if (siguiente.has(to)) {
+        siguiente.delete(to)
+      } else {
+        siguiente.add(to)
+      }
+      return siguiente
+    })
+  }
 
   return (
     <>
@@ -61,62 +44,95 @@ export function Sidebar({ abierto, onCerrar }: SidebarProps) {
           abierto ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="border-subtle flex h-24 items-center border-b px-4">
-          <img src={logo} alt="IES" className="h-40 w-40 bg-center mt-4" />
+        <div className="border-subtle flex h-20 items-center border-b px-4">
+          <img src={logo} alt="IES" className="h-16 w-auto" />
         </div>
-        <nav className="flex flex-col gap-1 px-2 py-6">
-          {ITEMS.map((item) =>
-            item.children ? (
-              <div key={item.to}>
-                <button
-                  type="button"
-                  onClick={() => setGrupoAbierto((actual) => (actual === item.to ? null : item.to))}
-                  className={`flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm ${
-                    location.pathname.startsWith(item.to)
-                      ? 'bg-primary text-fondotabla'
-                      : 'text-light hover:bg-light/10'
-                  }`}
-                >
-                  {item.label}
-                  {grupoAbierto === item.to ? (
-                    <ChevronDown size={16} />
-                  ) : (
-                    <ChevronRight size={16} />
-                  )}
-                </button>
-                {grupoAbierto === item.to ? (
-                  <div className="mt-1 flex flex-col gap-1 pl-3">
-                    {item.children.map((child) => (
-                      <NavLink
-                        key={child.to}
-                        to={child.to}
-                        className={navLinkClase}
-                        onClick={onCerrar}
-                      >
-                        {child.label}
-                      </NavLink>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === PATHS.HOME}
-                className={navLinkClase}
-                onClick={onCerrar}
-              >
-                {item.label}
-              </NavLink>
-            )
-          )}
+        <nav className="flex flex-col gap-1 overflow-y-auto px-2 py-4">
+          {NAV_ITEMS.map((item) => (
+            <SidebarNode
+              key={item.to}
+              node={item}
+              pathname={location.pathname}
+              gruposAbiertos={gruposAbiertos}
+              onAlternar={alternarGrupo}
+              onNavegar={onCerrar}
+            />
+          ))}
         </nav>
         <div className="mt-auto">
           <UserMenu />
         </div>
       </aside>
     </>
+  )
+}
+
+interface SidebarNodeProps {
+  node: NavNode
+  pathname: string
+  gruposAbiertos: Set<string>
+  onAlternar: (to: string) => void
+  onNavegar: () => void
+}
+
+function SidebarNode({ node, pathname, gruposAbiertos, onAlternar, onNavegar }: SidebarNodeProps) {
+  const Icon = node.icon
+
+  if (!node.children) {
+    return (
+      <NavLink to={node.to} end className={navLinkClase} onClick={onNavegar}>
+        <span className="flex items-center gap-2">
+          <Icon size={14} className="shrink-0" />
+          {node.label}
+        </span>
+      </NavLink>
+    )
+  }
+
+  const abierto = gruposAbiertos.has(node.to)
+  const activo = pathname.startsWith(node.to)
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => onAlternar(node.to)}
+        className={`flex w-full items-center justify-between rounded px-3 py-1.5 text-left text-xs ${
+          activo ? 'bg-primary text-fondotabla' : 'text-light hover:bg-light/10'
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          <Icon size={14} className="shrink-0" />
+          {node.label}
+        </span>
+        <ChevronRight
+          size={14}
+          className={`shrink-0 transition-transform duration-200 ease-in-out ${
+            abierto ? 'rotate-90' : ''
+          }`}
+        />
+      </button>
+      <div
+        className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${
+          abierto ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div className="border-subtle mt-1 ml-3 flex flex-col gap-1 border-l pl-2">
+            {node.children.map((child) => (
+              <SidebarNode
+                key={child.to}
+                node={child}
+                pathname={pathname}
+                gruposAbiertos={gruposAbiertos}
+                onAlternar={onAlternar}
+                onNavegar={onNavegar}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -150,9 +166,9 @@ function UserMenu() {
           type="button"
           onClick={() => cerrarSesion()}
           disabled={cerrandoSesion}
-          className="text-light hover:bg-light/10 mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-sm"
+          className="text-light hover:bg-light/10 mb-1 flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs"
         >
-          <LogOut size={16} />
+          <LogOut size={14} />
           {cerrandoSesion ? 'Saliendo...' : 'Salir'}
         </button>
       ) : null}
@@ -161,15 +177,15 @@ function UserMenu() {
         onClick={() => setAbierto((valor) => !valor)}
         className="hover:bg-light/10 flex w-full items-center gap-3 rounded px-2 py-2 text-left"
       >
-        <span className="bg-primary text-primary-content flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+        <span className="bg-primary text-primary-content flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
           {usuario.nombre.charAt(0)}
           {usuario.apellido.charAt(0)}
         </span>
         <span className="min-w-0">
-          <span className="text-light block truncate text-sm font-medium">
+          <span className="text-light block truncate text-xs font-medium">
             {usuario.nombre} {usuario.apellido}
           </span>
-          <span className="text-light/60 block truncate text-xs">{usuario.rol}</span>
+          <span className="text-light/60 block truncate text-[0.6875rem]">{usuario.rol}</span>
         </span>
       </button>
     </div>

@@ -54,6 +54,8 @@ Al modelar un `enum` en `schema.prisma` (estados operativos, estados de confirma
 ### Reutilización de código entre módulos
 No extraer lógica a una zona común "por las dudas". Si una validación, helper o lógica de negocio se repite igual en 2 o más submódulos (ej. `almacen/marca` y `almacen/articulo`, o entre distintos dominios como `almacen` y `ventas`), ahí sí se extrae a `src/common/`. La primera vez que se escribe algo, vive dentro de su propio módulo — aunque se sepa que probablemente se vaya a reutilizar después.
 
+**Excepción — búsqueda de texto en listados:** `condicionBusquedaPorPalabras` (`src/common/validaciones/busqueda-por-palabras.ts`) es la única excepción a la regla de arriba: se extrajo a `common/` desde su primer uso (Proveedor), a propósito, para fijar un único criterio de búsqueda en todo el proyecto en vez de que cada submódulo reinvente el suyo. Arma una condición de Prisma que exige que **cada palabra** de la búsqueda esté contenida en el campo (sin importar el orden ni que sean contiguas) — a diferencia de un `contains` de la frase completa, que exigiría el orden exacto. Todo endpoint de listado que agregue un filtro de búsqueda de texto libre (`busqueda`, sea por nombre, razón social, etc.) tiene que usar este helper en vez de un `contains` manual. Los módulos que ya tenían su propio `contains` antes de esta convención (Marca, Artículo, ...) no se migraron retroactivamente — no hace falta tocarlos salvo que se toquen por otro motivo.
+
 ### Nomenclatura de modelos en `schema.prisma`
 Los nombres de `model` van siempre en MAYÚSCULA (`USUARIO`, `ROL`, `ARTICULO`, `MOVIMIENTO`, etc.), sin excepción — es la convención que ya traía el schema y se mantiene para todo modelo nuevo. Esto afecta el nombre de la tabla en Postgres y el accessor que expone el cliente de Prisma generado (ej. `prisma.uSUARIO.findUnique(...)`, `prisma.rOL.findMany(...)` — Prisma solo baja a minúscula la primera letra del nombre del modelo). Los campos, relaciones y enums dentro del modelo siguen en `camelCase`/español normal (`id_usuario`, `usuarioCreador`, `RolNombre`).
 
@@ -65,8 +67,9 @@ El login (`AuthModule`) usa un esquema de doble token:
 
 `JwtAuthGuard` y `RolesGuard` se registran una sola vez, como `APP_GUARD` globales dentro de `AuthModule` — no hay que volver a registrarlos en otros módulos. De esto se desprende:
 - **Todo endpoint nuevo queda protegido por defecto** (requiere `Authorization: Bearer <accessToken>` válido), salvo que se marque explícitamente `@Public()` (hoy solo `login` y `refresh`).
-- **Todo módulo de negocio tiene un rol "dueño" del recurso**, declarado con `@Roles(RolNombre.<ROL>)` a nivel `Controller` (no endpoint por endpoint, salvo que un mismo controller vaya a mezclar endpoints con distinto rol requerido — no pasó todavía). Ejemplo ya implementado: `MarcaController`, `CategoriaController` y `UnidadMedidaController` son los tres `@Roles(RolNombre.RESPONSABLE_ALMACEN)`, porque son submódulos de Almacén. Al sumar un módulo de negocio nuevo, preguntar (si no surge obvio de la HU) qué rol de `RolNombre` es el dueño y aplicar el mismo patrón.
+- **Todo módulo de negocio tiene un rol "dueño" del recurso**, declarado con `@Roles(RolNombre.<ROL>)` a nivel `Controller` (no endpoint por endpoint, salvo que un mismo controller vaya a mezclar endpoints con distinto rol requerido — no pasó todavía). Ejemplo ya implementado: `MarcaController`, `CategoriaController` y `UnidadMedidaController` son los tres `@Roles(RolNombre.ADMINISTRADOR)`, igual que el resto de los submódulos de Almacén. Al sumar un módulo de negocio nuevo, preguntar (si no surge obvio de la HU) qué rol de `RolNombre` es el dueño, aplicar el mismo patrón y sumar el controller a `roles.guard.spec.ts` (ver Testing).
 - `GERENTE_GENERAL` tiene acceso transversal a todo (el propio `RolesGuard` lo bypassea) — nunca hace falta agregarlo a la lista de roles de un endpoint.
+- En el módulo de Alertas, `ADMINISTRADOR` tiene las mismas facultades que `GERENTE_GENERAL`: ve y atiende las alertas de cualquier rol destinatario, no solo las del suyo (ver `AlertaService.veTodasLasAlertas`). Ese bypass es solo de Alertas — a nivel `RolesGuard` el `ADMINISTRADOR` no bypassea nada, entra a los endpoints donde figura en `@Roles(...)`.
 - Un controller **sin** `@Roles(...)` queda accesible para cualquier usuario autenticado, sea cual sea su rol — reservarlo para recursos que de verdad no son específicos de un rol (ej. `GET /auth/me`).
 - Para leer el usuario autenticado dentro de un controller, usar `@CurrentUser() user: AuthenticatedUser` (expone `id`, `email`, `rol`) — nunca decodificar el JWT a mano.
 - Todo endpoint protegido documenta en Swagger `@ApiBearerAuth()` + `@ApiUnauthorizedResponse` (401) y, si además tiene `@Roles(...)`, también `@ApiForbiddenResponse` (403) — ver sección Swagger.
@@ -97,9 +100,40 @@ Como no hay nada compartido con el frontend, Swagger ES la única fuente de verd
 ## Paginación
 Todo endpoint de listado que pueda crecer sin límite soporta `?page=1&limit=10` y devuelve `{ data: [...], meta: { total, page, limit } }`. No hace falta en catálogos chicos y fijos por diseño (ej. tipos de movimiento, roles).
 
+## Catálogos para `<select>` del frontend
+Cuando un endpoint expone una lista fija y chica para poblar un `<select>` (valores de un enum de `schema.prisma`, una tabla de referencia sin ABM, etc.), la respuesta es siempre un array de `CatalogoItemDto` (`src/common/dto/catalogo-item.dto.ts`) — DTO común a todo el proyecto, no vive en ningún módulo de negocio:
+```ts
+{ id: string, code: string, metadata: Record<string, unknown> }
+```
+- `id`: el valor que acepta la base de datos (lo que viaja de vuelta al crear/editar un registro — ej. el nombre del enum, `"RESPONSABLE_INSCRIPTO"`).
+- `code`: la etiqueta legible que se le muestra al usuario (ej. `"Responsable Inscripto"`).
+- `metadata`: objeto libre para datos extra que un catálogo puntual necesite a futuro (color, ícono, etc.) — va vacío (`{}`) en catálogos simples como Condición frente al IVA.
+
+No lleva paginación (son listas chicas y fijas por diseño). El endpoint vive dentro del módulo dueño del enum/tabla (ej. `GET /proveedores/condiciones-iva` en `ProveedorController`, mismo patrón que `GET /alertas/tipos`), declarado antes que cualquier ruta `:id` del mismo controller para que Nest no la matchee como parámetro dinámico. Ejemplo de referencia (ver `ProveedorService`/`ProveedorController` para el caso completo):
+```ts
+// service: un Record<Enum, string> con la etiqueta de cada valor, mapeado a CatalogoItemDto[]
+const MI_ENUM_LABELS: Record<MiEnum, string> = { VALOR_A: 'Valor A', VALOR_B: 'Valor B' };
+
+findMiCatalogo(): CatalogoItemDto[] {
+  return Object.entries(MI_ENUM_LABELS).map(([id, code]) => ({ id, code, metadata: {} }));
+}
+```
+```ts
+// controller: antes que @Get(':id'), sin paginación
+@Get('mi-catalogo')
+@ApiOperation({ summary: 'Listar los valores posibles de X, para poblar el <select> del frontend' })
+@ApiOkResponse({ description: 'Catálogo de X', type: [CatalogoItemDto] })
+findMiCatalogo() {
+  return this.miService.findMiCatalogo();
+}
+```
+
 ## Testing
 - Unit tests de la lógica de negocio en los services: al menos uno por historia de usuario.
 - E2E solo para flujos críticos (login, alta de movimiento). No exhaustivo en todo — ajustable si la cátedra pide más cobertura.
+- **Al sumar un controller con `@Roles(...)`, agregarlo a `src/common/guards/roles.guard.spec.ts`.** Ese spec importa los controllers de verdad y lee su metadata con un `Reflector` real, así que es lo que fija por escrito qué rol es dueño de cada módulo: cubre que el rol dueño entra, que otro rol recibe 403, y que `GERENTE_GENERAL` bypassea. Si el spec no conoce un controller, ese controller no tiene protegido su `@Roles` contra un cambio accidental.
+- Los tests unitarios de los services **no** pasan por `JwtAuthGuard` ni `RolesGuard` (instancian el service pelado), y los services de negocio reciben solo `usuarioId: number`, nunca el rol. O sea: un cambio de roles no puede romper un spec de service, y tampoco puede estar cubierto por uno — para eso está el spec del guard.
+- Los E2E se loguean con un usuario del seed (`prisma/seed.ts`), así que el email tiene que ser el del rol dueño del módulo que se está probando, o todo el `beforeAll` se cae con 403.
 
 ## Convenciones de código
 - Seguir el ESLint/Prettier ya configurado.

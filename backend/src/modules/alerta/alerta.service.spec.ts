@@ -29,6 +29,7 @@ describe('AlertaService', () => {
       findMany: jest.Mock;
       findUnique: jest.Mock;
       update: jest.Mock;
+      updateMany: jest.Mock;
       count: jest.Mock;
     };
     tIPOALERTA: { findUnique: jest.Mock; findMany: jest.Mock };
@@ -48,6 +49,11 @@ describe('AlertaService', () => {
     id: 9,
     email: 'gerente@axontech.test',
     rol: RolNombre.GERENTE_GENERAL,
+  };
+  const administrador: AuthenticatedUser = {
+    id: 11,
+    email: 'admin@axontech.test',
+    rol: RolNombre.ADMINISTRADOR,
   };
 
   /** Alerta dirigida al Responsable de Almacén, sin atender. */
@@ -73,6 +79,7 @@ describe('AlertaService', () => {
         findFirst: jest.fn().mockResolvedValue(null),
         findUnique: jest.fn().mockResolvedValue(alerta()),
         update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 3 }),
         count: jest.fn().mockResolvedValue(0),
       },
       tIPOALERTA: {
@@ -207,6 +214,12 @@ describe('AlertaService', () => {
       expect(whereDelListado()).toEqual({});
     });
 
+    it('no aplica filtro de rol para el Administrador: ve todas, incluidas las de Almacén', async () => {
+      await service.findAll(query(), administrador);
+
+      expect(whereDelListado()).toEqual({});
+    });
+
     it('combina el filtro de rol con los filtros del query', async () => {
       const desde = new Date('2026-08-01T00:00:00.000Z');
       const hasta = new Date('2026-08-31T00:00:00.000Z');
@@ -280,6 +293,12 @@ describe('AlertaService', () => {
       expect(resultado.id_alerta).toBe(ID_ALERTA);
     });
 
+    it('deja al Administrador ver una alerta dirigida al Responsable de Almacén', async () => {
+      const resultado = await service.findOne(ID_ALERTA, administrador);
+
+      expect(resultado.id_alerta).toBe(ID_ALERTA);
+    });
+
     it('devuelve 404 si la alerta no existe', async () => {
       prisma.aLERTA.findUnique.mockResolvedValue(null);
 
@@ -328,6 +347,60 @@ describe('AlertaService', () => {
         service.atender(ID_ALERTA, responsableAlmacen),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.aLERTA.update).not.toHaveBeenCalled();
+    });
+
+    // Contracara del test de arriba: el acceso transversal no es solo de
+    // lectura, también habilita a atender la alerta de cualquier rol.
+    it('deja al Administrador atender una alerta de otro rol', async () => {
+      prisma.aLERTA.findUnique.mockResolvedValue(
+        alerta({ rolDestinatario: { nombre: RolNombre.RESPONSABLE_COMPRAS } }),
+      );
+
+      await service.atender(ID_ALERTA, administrador);
+
+      const [actualizacion] = argumentosDe(prisma.aLERTA.update);
+      expect(actualizacion.data).toMatchObject({
+        atendida: true,
+        FK_usuario_atencion: administrador.id,
+      });
+    });
+  });
+
+  describe('atenderTodas', () => {
+    it('marca solo las pendientes del rol del usuario y registra quién las atendió', async () => {
+      const antes = Date.now();
+
+      const resultado = await service.atenderTodas(responsableAlmacen);
+
+      const [actualizacion] = argumentosDe(prisma.aLERTA.updateMany);
+      expect(actualizacion.where).toEqual({
+        rolDestinatario: { nombre: RolNombre.RESPONSABLE_ALMACEN },
+        atendida: false,
+      });
+      expect(actualizacion.data).toMatchObject({
+        atendida: true,
+        FK_usuario_atencion: responsableAlmacen.id,
+      });
+      const fecha = actualizacion.data?.fecha_atencion as Date;
+      expect(fecha.getTime()).toBeGreaterThanOrEqual(antes);
+      expect(resultado).toEqual({ atendidas: 3 });
+    });
+
+    it('no acota por rol al Administrador: deja en cero la bandeja de todos los roles', async () => {
+      await service.atenderTodas(administrador);
+
+      expect(argumentosDe(prisma.aLERTA.updateMany)[0].where).toEqual({
+        atendida: false,
+      });
+    });
+
+    it('devuelve 0 si no había ninguna pendiente, sin fallar', async () => {
+      // Dejar en cero una bandeja ya vacía no es un error del cliente.
+      prisma.aLERTA.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.atenderTodas(gerenteGeneral)).resolves.toEqual({
+        atendidas: 0,
+      });
     });
   });
 

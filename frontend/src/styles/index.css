@@ -20,3 +20,29 @@ input:-webkit-autofill:focus {
   -webkit-text-fill-color: var(--color-content);
   transition: background-color 9999s ease-in-out 0s;
 }
+
+/*
+ * Aislamiento de impresión (T93, orden de pago): un documento imprimible se
+ * marca con `data-imprimible` (oculto en pantalla, visible solo con
+ * `print:block`). Al imprimir se oculta todo lo demás de la página —menú,
+ * modal, botones, filtros— sin importar en qué parte del árbol esté montado
+ * ese nodo (el modal es un portal a `document.body`), y se lo reposiciona al
+ * origen de la hoja para que no arrastre el espacio en blanco que dejan los
+ * elementos ocultos.
+ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  [data-imprimible],
+  [data-imprimible] * {
+    visibility: visible;
+  }
+
+  [data-imprimible] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+  }
+}
