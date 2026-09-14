@@ -178,7 +178,7 @@ export class ProveedorService {
     const motivos: string[] = [];
     if (await this.tieneOrdenesCompraEnCurso(id)) {
       motivos.push(
-        'tiene órdenes de compra en curso (emitidas o en recepción parcial)',
+        'tiene órdenes de compra en curso (en borrador, emitidas o en recepción parcial)',
       );
     }
     if (await this.tieneComprobantesConSaldoPendiente(id)) {
@@ -274,17 +274,21 @@ export class ProveedorService {
   }
 
   /**
-   * BORRADOR queda afuera a propósito: mientras no se emite, la orden
-   * todavía se puede editar para cambiarle el proveedor, no representa un
-   * compromiso vigente. RECIBIDA y CANCELADA son finales (ver
-   * OrdenCompraService), tampoco bloquean.
+   * BORRADOR también bloquea: aunque todavía no se emitió, ya es una orden
+   * cargada contra este proveedor puntual y no tiene sentido dejarla
+   * "huérfana" de un proveedor dado de baja. RECIBIDA y CANCELADA son
+   * finales (ver OrdenCompraService), esas sí quedan afuera.
    */
   private async tieneOrdenesCompraEnCurso(id: number) {
     const orden = await this.prisma.oRDENCOMPRA.findFirst({
       where: {
         FK_proveedor: id,
         estado: {
-          in: [EstadoOrdenCompra.EMITIDA, EstadoOrdenCompra.RECIBIDA_PARCIAL],
+          in: [
+            EstadoOrdenCompra.BORRADOR,
+            EstadoOrdenCompra.EMITIDA,
+            EstadoOrdenCompra.RECIBIDA_PARCIAL,
+          ],
         },
       },
     });
