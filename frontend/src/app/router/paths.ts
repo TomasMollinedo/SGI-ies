@@ -1,54 +1,64 @@
 export const PATHS = {
+  // Raíz del dominio público del ecommerce (HU-24 Landing).
   HOME: '/',
+  // Login del personal interno. El login de clientes (Google OAuth, HU-23)
+  // es una pantalla propia del dominio público, separada de esta.
   LOGIN: '/login',
 
+  // Panel interno (staff), protegido por sesión.
+  SISTEMA: {
+    ROOT: '/sistema',
+  },
+
   ALMACEN: {
-    ROOT: '/almacen',
+    ROOT: '/sistema/almacen',
     CATALOGO: {
-      ROOT: '/almacen/catalogo',
-      ARTICULOS: '/almacen/catalogo/articulos',
-      MARCAS: '/almacen/catalogo/marcas',
-      CATEGORIAS: '/almacen/catalogo/categorias',
-      UNIDADES_MEDIDA: '/almacen/catalogo/unidades-medida',
+      ROOT: '/sistema/almacen/catalogo',
+      ARTICULOS: '/sistema/almacen/catalogo/articulos',
+      MARCAS: '/sistema/almacen/catalogo/marcas',
+      CATEGORIAS: '/sistema/almacen/catalogo/categorias',
+      UNIDADES_MEDIDA: '/sistema/almacen/catalogo/unidades-medida',
     },
     DEPOSITO: {
-      ROOT: '/almacen/deposito',
-      OBRADORES: '/almacen/deposito/obradores',
-      STOCK: '/almacen/deposito/stock',
+      ROOT: '/sistema/almacen/deposito',
+      OBRADORES: '/sistema/almacen/deposito/obradores',
+      STOCK: '/sistema/almacen/deposito/stock',
       // Patrón de ruta, no una URL navegable: para armar la de una ficha
       // concreta está `rutaCardexStock`.
-      STOCK_CARDEX: '/almacen/deposito/stock/:idStock/cardex',
+      STOCK_CARDEX: '/sistema/almacen/deposito/stock/:idStock/cardex',
     },
     MOVIMIENTOS: {
-      ROOT: '/almacen/movimientos',
-      TIPOS: '/almacen/movimientos/tipos',
+      ROOT: '/sistema/almacen/movimientos',
+      TIPOS: '/sistema/almacen/movimientos/tipos',
     },
   },
   COMPRAS: {
-    ROOT: '/compras',
-    PROVEEDORES: '/compras/proveedores',
-    ORDENES_COMPRA: '/compras/ordenes-compra',
+    ROOT: '/sistema/compras',
+    PROVEEDORES: '/sistema/compras/proveedores',
+    ORDENES_COMPRA: '/sistema/compras/ordenes-compra',
   },
   TESORERIA: {
-    ROOT: '/tesoreria',
+    ROOT: '/sistema/tesoreria',
     COMPROBANTES: {
-      ROOT: '/tesoreria/comprobantes',
-      TIPOS: '/tesoreria/comprobantes/tipos',
+      ROOT: '/sistema/tesoreria/comprobantes',
+      TIPOS: '/sistema/tesoreria/comprobantes/tipos',
     },
     PAGOS: {
-      ROOT: '/tesoreria/pagos',
-      NUEVO: '/tesoreria/pagos/nuevo',
-      FORMAS: '/tesoreria/pagos/formas',
+      ROOT: '/sistema/tesoreria/pagos',
+      NUEVO: '/sistema/tesoreria/pagos/nuevo',
+      FORMAS: '/sistema/tesoreria/pagos/formas',
     },
-    CUENTAS_CORRIENTES: '/tesoreria/cuentas-corrientes',
+    CUENTAS_CORRIENTES: '/sistema/tesoreria/cuentas-corrientes',
     // Patrón de ruta, no una URL navegable: para armar la de un proveedor
     // concreto está `rutaCardexCuentaCorriente`.
-    CUENTAS_CORRIENTES_CARDEX: '/tesoreria/cuentas-corrientes/:idProveedor/cardex',
+    CUENTAS_CORRIENTES_CARDEX: '/sistema/tesoreria/cuentas-corrientes/:idProveedor/cardex',
+    REPORTE_EGRESOS: '/sistema/tesoreria/reporte-egresos',
+    COBRANZAS: '/sistema/tesoreria/cobranzas',
   },
-  ALERTAS: { ROOT: '/alertas' },
+  ALERTAS: { ROOT: '/sistema/alertas' },
 
-  //PROYECTOS: { ROOT: '/proyectos' },
-  //COMERCIAL: { ROOT: '/comercial' },
+  PROYECTOS: { ROOT: '/sistema/proyectos' },
+  COMERCIALIZACION: { ROOT: '/sistema/comercializacion' },
 } as const
 
 /** La ruta del cardex de una ficha puntual (ej. 42 → /almacen/deposito/stock/42/cardex). */

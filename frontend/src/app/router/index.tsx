@@ -11,6 +11,8 @@ import { UnidadesMedidaPage } from '@/features/almacen/unidades-medida/pages/Uni
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { MainLayout } from '@/layouts/MainLayout'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { PlaceholderPage } from '@/pages/PlaceholderPage'
+import { HomeRoute } from './HomeRoute'
 import { PATHS } from './paths'
 import { ProtectedRoute } from './ProtectedRoute'
 import { CategoriasPage } from '@/features/almacen/categorias/pages/CategoriasPage'
@@ -25,12 +27,16 @@ import { CardexCuentaCorrientePage } from '@/features/tesoreria/cuentas-corrient
 import { CuentasCorrientesPage } from '@/features/tesoreria/cuentas-corrientes/pages/CuentasCorrientesPage'
 
 export const router = createBrowserRouter([
+  {
+    path: PATHS.HOME,
+    element: <HomeRoute />,
+  },
   { path: PATHS.LOGIN, element: <LoginPage /> },
   {
     element: <ProtectedRoute />,
     children: [
       {
-        path: PATHS.HOME,
+        path: PATHS.SISTEMA.ROOT,
         element: <MainLayout />,
         errorElement: <NotFoundPage />,
         children: [
@@ -164,6 +170,16 @@ export const router = createBrowserRouter([
                 element: <CardexCuentaCorrientePage />,
                 handle: { title: 'Cuenta Corriente del Proveedor' },
               },
+              {
+                path: PATHS.TESORERIA.REPORTE_EGRESOS,
+                element: <PlaceholderPage titulo="Reporte de Egresos" historia="HU-19" />,
+                handle: { title: 'Reporte de Egresos' },
+              },
+              {
+                path: PATHS.TESORERIA.COBRANZAS,
+                element: <PlaceholderPage titulo="Cobranzas" historia="HU-30" />,
+                handle: { title: 'Cobranzas' },
+              },
             ],
           },
           {
@@ -171,18 +187,16 @@ export const router = createBrowserRouter([
             element: <AlertasPage />,
             handle: { title: 'Alertas' },
           },
-          /*
           {
             path: PATHS.PROYECTOS.ROOT,
-            element: <PlaceholderPage titulo="Proyectos" />,
+            element: <PlaceholderPage titulo="Proyectos" historia="HU-20" />,
             handle: { title: 'Proyectos' },
           },
           {
-            path: PATHS.COMERCIAL.ROOT,
-            element: <PlaceholderPage titulo="Comercial" />,
-            handle: { title: 'Comercial' },
+            path: PATHS.COMERCIALIZACION.ROOT,
+            element: <PlaceholderPage titulo="Comercialización" historia="HU-21" />,
+            handle: { title: 'Comercialización' },
           },
-          */
 
           { path: '*', element: <NotFoundPage /> },
         ],

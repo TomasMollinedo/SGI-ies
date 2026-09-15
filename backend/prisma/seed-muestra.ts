@@ -2,6 +2,7 @@ import 'dotenv/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
+import { EstadoProyecto } from '../generated/prisma/enums';
 import { RolNombre } from '../src/common/enums/rol.enum';
 import { TipoAlertaNombre } from '../src/common/enums/tipo-alerta.enum';
 
@@ -855,10 +856,17 @@ async function main() {
   };
 
   // --- Catálogos -----------------------------------------------------------
+  // A diferencia de CATEGORIA/MARCA/UNIDADMEDIDA (sin unique real en BD,
+  // duplicar nombre no rompe nada), TIPOMOVIMIENTO.nombre sí tiene @unique.
+  // Dos de estos nombres ("Entrada por compra", "Salida por consumo") ya los
+  // crea `prisma/seed.ts`, así que acá hace falta upsert real en vez de
+  // `create` a ciegas.
   const idPorTipoMovimiento = new Map<string, number>();
   for (const tipo of tiposMovimiento) {
-    const creado = await prisma.tIPOMOVIMIENTO.create({
-      data: { ...tipo, ...auditoria },
+    const creado = await prisma.tIPOMOVIMIENTO.upsert({
+      where: { nombre: tipo.nombre },
+      update: tipo,
+      create: { ...tipo, ...auditoria },
     });
     idPorTipoMovimiento.set(creado.nombre, creado.id_tipo_movimiento);
   }
@@ -891,19 +899,48 @@ async function main() {
   }
   console.log(`UNIDADMEDIDA: ${unidadesMedida.length} registros.`);
 
-  // PROYECTO es todavía un stub (solo el id): se crean tantos como obradores
-  // vinculados haya, para poder mostrar la relación depósito-proyecto.
-  const cantidadProyectos = new Set(
-    depositos
-      .map((deposito) => deposito.proyecto)
-      .filter((indice): indice is number => indice !== null),
-  ).size;
+  // PROYECTO ahora exige codigo/nombre/localidad/auditoría: se le da un dato
+  // coherente con cada obrador para poder mostrar la relación depósito-proyecto
+  // (seeding rico y a gran escala lo cubre seed-comercializacion.ts, este es
+  // solo para que Almacén/Compras tengan un proyecto válido al que apuntar).
+  // Prefijo OBRADOR- para no colisionar con los códigos PROY- del otro script.
+  const proyectosDatos = [
+    {
+      codigo: 'OBRADOR-TORREBELGRANO',
+      nombre: 'Torre Belgrano',
+      localidad: 'Córdoba',
+      direccion: 'Barrio Alberdi, Córdoba',
+      estado: EstadoProyecto.EN_EJECUCION,
+      fecha_fin_estimada: new Date('2027-04-01'),
+      cantidad_unidades_planificadas: 48, // torre de 12 pisos, 4 unidades por piso
+    },
+    {
+      codigo: 'OBRADOR-RUTA9KM42',
+      nombre: 'Repavimentación Ruta 9 Km 42',
+      localidad: 'Córdoba',
+      direccion: null, // obra vial, no tiene una dirección puntual
+      estado: EstadoProyecto.EN_EJECUCION,
+      fecha_fin_estimada: new Date('2026-12-01'),
+      cantidad_unidades_planificadas: null, // no aplica: no produce unidades funcionales
+    },
+    {
+      codigo: 'OBRADOR-BARRIOSUR',
+      nombre: 'Barrio Sur',
+      localidad: 'Córdoba',
+      direccion: 'Barrio Sur, Córdoba',
+      estado: EstadoProyecto.FINALIZADO, // el depósito ya está "cerrado al finalizar la obra"
+      fecha_fin_estimada: new Date('2026-06-01'),
+      cantidad_unidades_planificadas: 20,
+    },
+  ];
   const proyectos: number[] = [];
-  for (let i = 0; i < cantidadProyectos; i++) {
-    const proyecto = await prisma.pROYECTO.create({ data: {} });
+  for (const proyectoDatos of proyectosDatos) {
+    const proyecto = await prisma.pROYECTO.create({
+      data: { ...proyectoDatos, ...auditoria },
+    });
     proyectos.push(proyecto.id_proyecto);
   }
-  console.log(`PROYECTO: ${cantidadProyectos} registros.`);
+  console.log(`PROYECTO: ${proyectosDatos.length} registros.`);
 
   const idPorDeposito = new Map<string, number>();
   for (const { proyecto, ...deposito } of depositos) {
