@@ -856,10 +856,17 @@ async function main() {
   };
 
   // --- Catálogos -----------------------------------------------------------
+  // A diferencia de CATEGORIA/MARCA/UNIDADMEDIDA (sin unique real en BD,
+  // duplicar nombre no rompe nada), TIPOMOVIMIENTO.nombre sí tiene @unique.
+  // Dos de estos nombres ("Entrada por compra", "Salida por consumo") ya los
+  // crea `prisma/seed.ts`, así que acá hace falta upsert real en vez de
+  // `create` a ciegas.
   const idPorTipoMovimiento = new Map<string, number>();
   for (const tipo of tiposMovimiento) {
-    const creado = await prisma.tIPOMOVIMIENTO.create({
-      data: { ...tipo, ...auditoria },
+    const creado = await prisma.tIPOMOVIMIENTO.upsert({
+      where: { nombre: tipo.nombre },
+      update: tipo,
+      create: { ...tipo, ...auditoria },
     });
     idPorTipoMovimiento.set(creado.nombre, creado.id_tipo_movimiento);
   }
