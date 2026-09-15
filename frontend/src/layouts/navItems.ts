@@ -8,6 +8,8 @@ import {
   Coins,
   CreditCard,
   FileText,
+  HandCoins,
+  HardHat,
   Landmark,
   Layers,
   ListTree,
@@ -16,7 +18,9 @@ import {
   Ruler,
   ShoppingBag,
   ShoppingCart,
+  Store,
   Tag,
+  TrendingDown,
   Truck,
   Wallet,
   Warehouse,
@@ -106,10 +110,12 @@ export const NAV_ITEMS: NavNode[] = [
         ],
       },
       { label: 'Cuentas Corrientes', to: PATHS.TESORERIA.CUENTAS_CORRIENTES, icon: Landmark },
+      { label: 'Reporte de Egresos', to: PATHS.TESORERIA.REPORTE_EGRESOS, icon: TrendingDown },
+      { label: 'Cobranzas', to: PATHS.TESORERIA.COBRANZAS, icon: HandCoins },
     ],
   },
-  // { label: 'Proyectos', to: PATHS.PROYECTOS.ROOT },
-  // { label: 'Comercial', to: PATHS.COMERCIAL.ROOT },
+  { label: 'Proyectos', to: PATHS.PROYECTOS.ROOT, icon: HardHat },
+  { label: 'Comercialización', to: PATHS.COMERCIALIZACION.ROOT, icon: Store },
 ]
 
 export function iconoDeRuta(pathname: string): LucideIcon | undefined {
