@@ -350,6 +350,7 @@ async function main() {
     return prisma.vENTA.create({
       data: {
         ...ventaDatos,
+        FK_usuario_creador: responsableComercializacion.id_usuario,
         estado: EstadoVenta.VIGENTE,
         cuotas: { create: cuotas },
       },
