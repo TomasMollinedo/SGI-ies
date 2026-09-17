@@ -20,6 +20,18 @@ export const envSchema = z.object({
     .min(16, 'JWT_REFRESH_SECRET debe tener al menos 16 caracteres'),
   JWT_REFRESH_EXPIRES_IN: z.string().min(1).default('7d'),
   CORS_ORIGIN: z.url('CORS_ORIGIN debe ser una URL válida'),
+  STORAGE_ENDPOINT: z
+    .string()
+    .min(1, 'STORAGE_ENDPOINT es obligatoria'),
+  STORAGE_PORT: z.coerce.number().default(9000),
+  STORAGE_ACCESS_KEY: z
+    .string()
+    .min(1, 'STORAGE_ACCESS_KEY es obligatoria'),
+  STORAGE_SECRET_KEY: z
+    .string()
+    .min(1, 'STORAGE_SECRET_KEY es obligatoria'),
+  STORAGE_BUCKET: z.string().min(1, 'STORAGE_BUCKET es obligatoria'),
+  STORAGE_PUBLIC_URL: z.url('STORAGE_PUBLIC_URL debe ser una URL válida'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

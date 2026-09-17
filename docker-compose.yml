@@ -11,6 +11,37 @@ services:
       - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql
- 
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: ies_minio_dev
+    restart: always
+    environment:
+      MINIO_ROOT_USER: ies
+      MINIO_ROOT_PASSWORD: ies12345
+    ports:
+      - "9000:9000" # API S3, acá le habla el backend
+      - "9001:9001" # Consola web, para ver los archivos a mano
+    command: server /data --console-address ":9001"
+    volumes:
+      - miniodata:/data
+
+  # Corre una sola vez al levantar todo: crea el bucket de imágenes y lo deja
+  # de lectura pública anónima. Así "docker compose up" alcanza para tener
+  # todo listo, sin tener que crear el bucket a mano desde la consola web.
+  minio-init:
+    image: quay.io/minio/mc:latest
+    container_name: ies_minio_init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 ies ies12345; do sleep 1; done;
+      mc mb -p local/ies-imagenes;
+      mc anonymous set download local/ies-imagenes;
+      exit 0;
+      "
+
 volumes:
   pgdata:
+  miniodata:

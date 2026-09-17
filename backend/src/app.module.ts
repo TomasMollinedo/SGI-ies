@@ -24,6 +24,7 @@ import { FormaPagoModule } from './modules/tesoreria/forma-pago/forma-pago.modul
 import { ComprobanteModule } from './modules/tesoreria/comprobante/comprobante.module';
 import { PagoModule } from './modules/tesoreria/pago/pago.module';
 import { CuentaCorrienteModule } from './modules/tesoreria/cuenta-corriente/cuenta-corriente.module';
+import { AlmacenamientoModule } from './modules/almacenamiento/almacenamiento.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { CuentaCorrienteModule } from './modules/tesoreria/cuenta-corriente/cuen
     ComprobanteModule,
     PagoModule,
     CuentaCorrienteModule,
+    AlmacenamientoModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
