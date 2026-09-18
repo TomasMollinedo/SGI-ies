@@ -25,6 +25,7 @@ import { ComprobanteModule } from './modules/tesoreria/comprobante/comprobante.m
 import { PagoModule } from './modules/tesoreria/pago/pago.module';
 import { CuentaCorrienteModule } from './modules/tesoreria/cuenta-corriente/cuenta-corriente.module';
 import { AlmacenamientoModule } from './modules/almacenamiento/almacenamiento.module';
+import { ClienteAuthModule } from './modules/comercializacion/cliente-auth/cliente-auth.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { AlmacenamientoModule } from './modules/almacenamiento/almacenamiento.mo
     PagoModule,
     CuentaCorrienteModule,
     AlmacenamientoModule,
+    ClienteAuthModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
