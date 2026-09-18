@@ -1031,12 +1031,13 @@ model PUBLICACIONUNIDAD {
 
   fecha_publicacion DateTime @default(now())
 
-  // Solo una publicación vigente por unidad. Postgres lo resolvería con un
-  // índice único parcial (WHERE vigente = true), que Prisma no expone en el
-  // schema — agregar a mano en la migración generada. Mientras tanto lo
-  // valida el service. No significa "se ve en el catálogo": el catálogo
-  // filtra además por estado_comercial = DISPONIBLE (dos condiciones, no
-  // una).
+  // Solo una publicación vigente por unidad. No hay índice único parcial
+  // (WHERE vigente = true) para esto: la unicidad se garantiza a nivel de
+  // service, bloqueando la fila de la unidad con SELECT ... FOR UPDATE
+  // dentro de la transacción de publicar (ver PublicacionesService.publicar)
+  // antes de verificar que no exista otra publicación vigente. No significa
+  // "se ve en el catálogo": el catálogo filtra además por
+  // estado_comercial = DISPONIBLE (dos condiciones, no una).
   vigente Boolean @default(true)
 
   fecha_despublicacion  DateTime?

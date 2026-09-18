@@ -22,6 +22,7 @@ import { ComprobantesPage } from '@/features/tesoreria/comprobantes/pages/Compro
 import { TiposComprobantePage } from '@/features/tesoreria/tipos-comprobante/pages/TiposComprobantePage'
 import { NuevoPagoPage } from '@/features/tesoreria/pagos/pages/NuevoPagoPage'
 import { PagosPage } from '@/features/tesoreria/pagos/pages/PagosPage'
+import { ReporteEgresosPage } from '@/features/tesoreria/pagos/pages/ReporteEgresosPage'
 import { FormasPagoPage } from '@/features/tesoreria/formas-pago/pages/FormasPagoPage'
 import { CardexCuentaCorrientePage } from '@/features/tesoreria/cuentas-corrientes/pages/CardexCuentaCorrientePage'
 import { CuentasCorrientesPage } from '@/features/tesoreria/cuentas-corrientes/pages/CuentasCorrientesPage'
@@ -172,7 +173,7 @@ export const router = createBrowserRouter([
               },
               {
                 path: PATHS.TESORERIA.REPORTE_EGRESOS,
-                element: <PlaceholderPage titulo="Reporte de Egresos" historia="HU-19" />,
+                element: <ReporteEgresosPage />,
                 handle: { title: 'Reporte de Egresos' },
               },
               {
