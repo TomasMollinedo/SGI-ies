@@ -24,12 +24,17 @@ import type {
  * `keepPreviousData` mantiene el paginador (y el resumen del período) en
  * pantalla mientras llega la página siguiente: sin eso, `meta` desaparecería y
  * el pie de la tabla saltaría.
+ *
+ * `opciones.enabled` (default `true`) permite no disparar la consulta —
+ * lo usa el Reporte de Egresos (T98) para no pedir nada mientras falte
+ * alguna de las dos fechas del período, en vez de mostrar una tabla vacía.
  */
-export function usePagos(filtros: PagosQuery) {
+export function usePagos(filtros: PagosQuery, opciones?: { enabled?: boolean }) {
   return useQuery<PagosListResponse, ApiErrorResponse>({
     queryKey: PAGOS_QUERY_KEYS.LISTA(filtros),
     queryFn: ({ signal }) => listarPagos(filtros, signal),
     placeholderData: keepPreviousData,
+    enabled: opciones?.enabled ?? true,
   })
 }
 
