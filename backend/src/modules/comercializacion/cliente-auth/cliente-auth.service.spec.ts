@@ -127,6 +127,27 @@ describe('ClienteAuthService', () => {
       expect(resultado.cliente.email).toBe('nuevo@test.com');
     });
 
+    it('login repetido: si el CLIENTE ya existe por google_sub, lo devuelve sin crear ni actualizar nada', async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({
+          sub: clienteMock.google_sub,
+          email: clienteMock.email,
+        }),
+      });
+      prisma.cLIENTE.findUnique.mockResolvedValue(clienteMock);
+      bcrypt.hash.mockResolvedValue('hash-refresh-relogin');
+
+      const resultado = await service.loginConGoogle('token-valido');
+
+      expect(prisma.cLIENTE.findUnique).toHaveBeenCalledTimes(1);
+      expect(prisma.cLIENTE.findUnique).toHaveBeenCalledWith({
+        where: { google_sub: clienteMock.google_sub },
+      });
+      expect(prisma.cLIENTE.create).not.toHaveBeenCalled();
+      expect(resultado.cliente.id).toBe(clienteMock.id_cliente);
+      expect(resultado.cliente.email).toBe(clienteMock.email);
+    });
+
     it('vincula google_sub a un cliente provisional (alta por venta presencial) sin tocar sus otros datos', async () => {
       mockVerifyIdToken.mockResolvedValue({
         getPayload: () => ({
