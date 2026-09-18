@@ -5,6 +5,7 @@ import { Roles } from '../decorators/roles.decorator';
 import { RolNombre } from '../enums/rol.enum';
 import type { AuthenticatedUser } from '../../modules/auth/strategies/jwt.strategy';
 import { AlertaController } from '../../modules/alerta/alerta.controller';
+import { AlmacenamientoController } from '../../modules/almacenamiento/almacenamiento.controller';
 import { ArticuloController } from '../../modules/almacen/articulo/articulo.controller';
 import { CategoriaController } from '../../modules/almacen/categoria/categoria.controller';
 import { DepositoController } from '../../modules/almacen/deposito/deposito.controller';
@@ -205,6 +206,50 @@ describe('RolesGuard', () => {
         ).toBe(true);
       },
     );
+  });
+
+  describe('AlmacenamientoController', () => {
+    // Único controller con dos roles dueños a la vez: Administrador y
+    // Responsable de Comercialización y Ventas (quien sube las imágenes de
+    // las unidades en venta), a diferencia del resto de los módulos donde
+    // el dueño es siempre uno solo.
+    it('deja entrar al Administrador', () => {
+      expect(
+        guard.canActivate(
+          contexto(AlmacenamientoController, usuario(RolNombre.ADMINISTRADOR)),
+        ),
+      ).toBe(true);
+    });
+
+    it('deja entrar al Responsable de Comercialización y Ventas', () => {
+      expect(
+        guard.canActivate(
+          contexto(
+            AlmacenamientoController,
+            usuario(RolNombre.RESPONSABLE_COMERCIALIZACION),
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it('rechaza a un rol que no es dueño del recurso', () => {
+      expect(
+        guard.canActivate(
+          contexto(
+            AlmacenamientoController,
+            usuario(RolNombre.RESPONSABLE_COMPRAS),
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it('deja entrar al Gerente General por su acceso transversal', () => {
+      expect(
+        guard.canActivate(
+          contexto(AlmacenamientoController, usuario(RolNombre.GERENTE_GENERAL)),
+        ),
+      ).toBe(true);
+    });
   });
 
   describe('sin @Roles en el controller', () => {

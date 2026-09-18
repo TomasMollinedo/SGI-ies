@@ -85,9 +85,10 @@ model USUARIO {
   publicacionesCreadas      PUBLICACIONUNIDAD[] @relation("PublicacionCreador")
   publicacionesActualizadas PUBLICACIONUNIDAD[] @relation("PublicacionActualizador")
 
-  planesPagoCreados      PLANPAGO[]          @relation("PlanPagoCreador")
-  planesPagoActualizados PLANPAGO[]          @relation("PlanPagoActualizador")
-  planesPagoHistorial    PLANPAGOHISTORIAL[] @relation("PlanPagoHistorialUsuario")
+  planesPagoCreados      PLANPAGO[] @relation("PlanPagoCreador")
+  planesPagoActualizados PLANPAGO[] @relation("PlanPagoActualizador")
+
+  ventasCreadas VENTA[] @relation("VentaCreador")
 
   consultasRespondidas CONSULTAUNIDAD[] @relation("ConsultaUnidadRespuesta")
 
@@ -1030,12 +1031,13 @@ model PUBLICACIONUNIDAD {
 
   fecha_publicacion DateTime @default(now())
 
-  // Solo una publicación vigente por unidad. Postgres lo resolvería con un
-  // índice único parcial (WHERE vigente = true), que Prisma no expone en el
-  // schema — agregar a mano en la migración generada. Mientras tanto lo
-  // valida el service. No significa "se ve en el catálogo": el catálogo
-  // filtra además por estado_comercial = DISPONIBLE (dos condiciones, no
-  // una).
+  // Solo una publicación vigente por unidad. No hay índice único parcial
+  // (WHERE vigente = true) para esto: la unicidad se garantiza a nivel de
+  // service, bloqueando la fila de la unidad con SELECT ... FOR UPDATE
+  // dentro de la transacción de publicar (ver PublicacionesService.publicar)
+  // antes de verificar que no exista otra publicación vigente. No significa
+  // "se ve en el catálogo": el catálogo filtra además por
+  // estado_comercial = DISPONIBLE (dos condiciones, no una).
   vigente Boolean @default(true)
 
   fecha_despublicacion  DateTime?
@@ -1113,47 +1115,10 @@ model PLANPAGO {
   usuarioCreador      USUARIO @relation("PlanPagoCreador", fields: [FK_usuario_creador], references: [id_usuario])
   usuarioActualizador USUARIO @relation("PlanPagoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
-  historial PLANPAGOHISTORIAL[]
-  ventas    VENTA[]
+  ventas VENTA[]
 
   @@index([FK_publicacion])
   @@index([estado])
-}
-
-// Una fila por cada edición del plan, con el antes y el después de las
-// cuatro cosas que importan (no trackea campo por campo: cada edición genera
-// una sola fila con la foto completa). La creación de un plan nuevo no
-// genera fila acá (no hay "antes" que registrar) — queda cubierta por la
-// auditoría estándar de PLANPAGO.
-model PLANPAGOHISTORIAL {
-  id_historial Int @id @default(autoincrement())
-
-  FK_plan_pago Int
-  // Restrict, no Cascade: es historial de auditoría, nunca se borra en
-  // cascada aunque el plan se elimine.
-  planPago     PLANPAGO @relation(fields: [FK_plan_pago], references: [id_plan_pago], onDelete: Restrict)
-
-  precio_anterior Decimal @db.Decimal(14, 2)
-  precio_nuevo    Decimal @db.Decimal(14, 2)
-
-  porcentaje_ganancia_anterior Decimal @db.Decimal(5, 2)
-  porcentaje_ganancia_nuevo    Decimal @db.Decimal(5, 2)
-
-  margen_anterior Decimal @db.Decimal(14, 2)
-  margen_nuevo    Decimal @db.Decimal(14, 2)
-
-  // Activo/inactivo, también queda en el historial.
-  estado_anterior Boolean
-  estado_nuevo    Boolean
-
-  FK_usuario Int
-  usuario    USUARIO @relation("PlanPagoHistorialUsuario", fields: [FK_usuario], references: [id_usuario])
-
-  // Append-only: cada fila es un evento cerrado, sin hora_actualizacion ni
-  // FK_usuario_actualizador (mismo criterio que ORDENCOMPRAHISTORIALESTADO).
-  hora_creacion DateTime @default(now())
-
-  @@index([FK_plan_pago])
 }
 
 // --------------------------------------------------------------------------
@@ -1198,8 +1163,15 @@ model VENTA {
   motivo_cancelacion String?
   fecha_cancelacion  DateTime?
 
-  // El autor lógico es el CLIENTE, no un USUARIO: no hay FK_usuario_creador.
   hora_creacion DateTime @default(now())
+
+  // Venta siempre presencial: la carga un usuario de Comercialización, nunca
+  // el cliente por su cuenta. Sin actualizador porque la venta no se edita
+  // después de creada — su único cambio posible es la cancelación, que ya
+  // tiene sus propios campos (motivo_cancelacion/fecha_cancelacion) sin
+  // trackear quién la hizo, mismo criterio que el resto de la fila.
+  FK_usuario_creador Int
+  usuarioCreador     USUARIO @relation("VentaCreador", fields: [FK_usuario_creador], references: [id_usuario])
 
   cuotas CUOTA[]
 
@@ -1282,21 +1254,28 @@ model CONSULTAUNIDAD {
 // --------------------------------------------------------------------------
 // Entidad separada de USUARIO a propósito: un cliente no tiene rol, no tiene
 // contraseña y nunca entra a una pantalla interna. Se autocrea en el primer
-// login con Google.
+// login con Google — o, si Comercialización ya le vendió presencial antes de
+// que se loguee (HU-27), nace como registro "provisional" sin cuenta de
+// Google todavía; el primer login la vincula por email en vez de duplicar.
 model CLIENTE {
   id_cliente Int @id @default(autoincrement())
 
   // Id estable de la cuenta de Google — el mail puede cambiar, esto no.
-  google_sub String @unique
+  // Nullable: null identifica a un cliente "provisional", dado de alta por
+  // Comercialización al venderle presencial (HU-27) sin que haya iniciado
+  // sesión todavía. Se completa en el primer login con Google, que busca por
+  // email antes de crear un cliente nuevo.
+  google_sub String? @unique
   // Identifica al cliente de forma unívoca; evita duplicados.
-  email      String @unique
+  email      String  @unique
 
   nombre   String
   // Google no siempre lo manda separado del nombre.
   apellido String?
 
-  // Null hasta que el cliente lo completa; obligatorio antes de adherirse a
-  // un plan (HU-27) o declarar un pago (HU-29). Único entre clientes.
+  // Null hasta que se completa; obligatorio antes de declarar un pago
+  // (HU-29). Comercialización lo carga al registrar la venta (HU-27) si el
+  // cliente todavía no lo tenía. Único entre clientes.
   dni_cuil String? @unique
   telefono String?
 

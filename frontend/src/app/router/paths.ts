@@ -59,6 +59,21 @@ export const PATHS = {
 
   PROYECTOS: { ROOT: '/sistema/proyectos' },
   COMERCIALIZACION: { ROOT: '/sistema/comercializacion' },
+
+  // Sitio público del ecommerce (HU-23/24/25). Convive con el resto de las
+  // rutas: HOME y estas son las públicas, /login y /sistema siguen siendo
+  // del panel interno.
+  ECOMMERCE: {
+    CATALOGO: {
+      ROOT: '/catalogo',
+      // Patrón de ruta, no una URL navegable: para armar la de una unidad
+      // concreta está `rutaDetalleUnidad`.
+      DETALLE: '/catalogo/:id',
+    },
+    LOGIN: '/ingresar',
+    COMPLETAR_DATOS: '/completar-datos',
+    PERFIL: '/mi-perfil',
+  },
 } as const
 
 /** La ruta del cardex de una ficha puntual (ej. 42 → /almacen/deposito/stock/42/cardex). */
@@ -69,4 +84,9 @@ export function rutaCardexStock(idStock: number): string {
 /** La ruta del extracto de un proveedor puntual (ej. 42 → /tesoreria/cuentas-corrientes/42/cardex). */
 export function rutaCardexCuentaCorriente(idProveedor: number): string {
   return PATHS.TESORERIA.CUENTAS_CORRIENTES_CARDEX.replace(':idProveedor', String(idProveedor))
+}
+
+/** La ruta pública del detalle de una unidad puntual (ej. 42 → /catalogo/42). */
+export function rutaDetalleUnidad(idPublicacion: number): string {
+  return PATHS.ECOMMERCE.CATALOGO.DETALLE.replace(':id', String(idPublicacion))
 }

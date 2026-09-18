@@ -9,10 +9,10 @@ import { CardexPage } from '@/features/almacen/stock/pages/CardexPage'
 import { StockPage } from '@/features/almacen/stock/pages/StockPage'
 import { UnidadesMedidaPage } from '@/features/almacen/unidades-medida/pages/UnidadesMedidaPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { PublicLayout } from '@/features/ecommerce/layout/PublicLayout'
 import { MainLayout } from '@/layouts/MainLayout'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
-import { HomeRoute } from './HomeRoute'
 import { PATHS } from './paths'
 import { ProtectedRoute } from './ProtectedRoute'
 import { CategoriasPage } from '@/features/almacen/categorias/pages/CategoriasPage'
@@ -22,16 +22,39 @@ import { ComprobantesPage } from '@/features/tesoreria/comprobantes/pages/Compro
 import { TiposComprobantePage } from '@/features/tesoreria/tipos-comprobante/pages/TiposComprobantePage'
 import { NuevoPagoPage } from '@/features/tesoreria/pagos/pages/NuevoPagoPage'
 import { PagosPage } from '@/features/tesoreria/pagos/pages/PagosPage'
+import { ReporteEgresosPage } from '@/features/tesoreria/pagos/pages/ReporteEgresosPage'
 import { FormasPagoPage } from '@/features/tesoreria/formas-pago/pages/FormasPagoPage'
 import { CardexCuentaCorrientePage } from '@/features/tesoreria/cuentas-corrientes/pages/CardexCuentaCorrientePage'
 import { CuentasCorrientesPage } from '@/features/tesoreria/cuentas-corrientes/pages/CuentasCorrientesPage'
 
 export const router = createBrowserRouter([
-  {
-    path: PATHS.HOME,
-    element: <HomeRoute />,
-  },
   { path: PATHS.LOGIN, element: <LoginPage /> },
+  {
+    element: <PublicLayout />,
+    children: [
+      { path: PATHS.HOME, element: <PlaceholderPage titulo="Inicio" historia="HU-24" /> },
+      {
+        path: PATHS.ECOMMERCE.CATALOGO.ROOT,
+        element: <PlaceholderPage titulo="Catálogo" historia="HU-25" />,
+      },
+      {
+        path: PATHS.ECOMMERCE.CATALOGO.DETALLE,
+        element: <PlaceholderPage titulo="Detalle de unidad" historia="HU-25" />,
+      },
+      {
+        path: PATHS.ECOMMERCE.LOGIN,
+        element: <PlaceholderPage titulo="Ingresar" historia="HU-23" />,
+      },
+      {
+        path: PATHS.ECOMMERCE.PERFIL,
+        element: <PlaceholderPage titulo="Mi perfil" historia="HU-28" />,
+      },
+      {
+        path: PATHS.ECOMMERCE.COMPLETAR_DATOS,
+        element: <PlaceholderPage titulo="Completar datos" historia="HU-23" />,
+      },
+    ],
+  },
   {
     element: <ProtectedRoute />,
     children: [
@@ -172,7 +195,7 @@ export const router = createBrowserRouter([
               },
               {
                 path: PATHS.TESORERIA.REPORTE_EGRESOS,
-                element: <PlaceholderPage titulo="Reporte de Egresos" historia="HU-19" />,
+                element: <ReporteEgresosPage />,
                 handle: { title: 'Reporte de Egresos' },
               },
               {
