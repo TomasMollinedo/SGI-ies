@@ -25,6 +25,7 @@ describe('ClienteAuthService', () => {
   let prisma: {
     cLIENTE: {
       findUnique: jest.Mock;
+      findUniqueOrThrow: jest.Mock;
       update: jest.Mock;
       create: jest.Mock;
     };
@@ -46,6 +47,7 @@ describe('ClienteAuthService', () => {
     prisma = {
       cLIENTE: {
         findUnique: jest.fn(),
+        findUniqueOrThrow: jest.fn(),
         update: jest.fn(),
         create: jest.fn(),
       },
@@ -233,6 +235,23 @@ describe('ClienteAuthService', () => {
       expect(prisma.cLIENTE.update).toHaveBeenCalledWith({
         where: { id_cliente: clienteMock.id_cliente },
         data: { refreshTokenHash: null },
+      });
+    });
+  });
+
+  describe('perfil', () => {
+    it('devuelve los datos públicos del cliente, sin google_sub ni refreshTokenHash', async () => {
+      prisma.cLIENTE.findUniqueOrThrow.mockResolvedValue(clienteMock);
+
+      const resultado = await service.perfil(clienteMock.id_cliente);
+
+      expect(resultado).toEqual({
+        id: clienteMock.id_cliente,
+        nombre: clienteMock.nombre,
+        apellido: clienteMock.apellido,
+        email: clienteMock.email,
+        dni_cuil: clienteMock.dni_cuil,
+        telefono: clienteMock.telefono,
       });
     });
   });

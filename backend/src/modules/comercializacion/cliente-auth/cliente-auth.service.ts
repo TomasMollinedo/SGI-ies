@@ -92,6 +92,18 @@ export class ClienteAuthService {
   }
 
   /**
+   * Devuelve los datos públicos del cliente autenticado, a partir del id
+   * incluido en el JWT (usado por GET /cliente/me).
+   */
+  async perfil(clienteId: number) {
+    const cliente = await this.prisma.cLIENTE.findUniqueOrThrow({
+      where: { id_cliente: clienteId },
+    });
+
+    return this.mapClientePublico(cliente);
+  }
+
+  /**
    * Actualiza dni_cuil y/o teléfono del cliente autenticado (HU-29 los exige
    * completos antes de declarar un pago — ver clienteTieneDatosCompletos).
    * Traduce el conflicto de unicidad de dni_cuil (P2002) a un mensaje en
@@ -100,12 +112,13 @@ export class ClienteAuthService {
   async actualizarDatos(
     clienteId: number,
     datos: { dni_cuil?: string; telefono?: string },
-  ): Promise<CLIENTE> {
+  ) {
     try {
-      return await this.prisma.cLIENTE.update({
+      const cliente = await this.prisma.cLIENTE.update({
         where: { id_cliente: clienteId },
         data: datos,
       });
+      return this.mapClientePublico(cliente);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -215,12 +228,22 @@ export class ClienteAuthService {
     return {
       accessToken,
       refreshToken,
-      cliente: {
-        id: cliente.id_cliente,
-        nombre: cliente.nombre,
-        apellido: cliente.apellido,
-        email: cliente.email,
-      },
+      cliente: this.mapClientePublico(cliente),
+    };
+  }
+
+  /**
+   * Proyecta un CLIENTE de Prisma a su shape pública: sin google_sub ni
+   * refreshTokenHash, que son detalles internos de la sesión.
+   */
+  private mapClientePublico(cliente: CLIENTE) {
+    return {
+      id: cliente.id_cliente,
+      nombre: cliente.nombre,
+      apellido: cliente.apellido,
+      email: cliente.email,
+      dni_cuil: cliente.dni_cuil,
+      telefono: cliente.telefono,
     };
   }
 }
