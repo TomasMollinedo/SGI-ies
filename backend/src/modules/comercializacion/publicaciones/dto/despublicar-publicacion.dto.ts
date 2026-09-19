@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
 
-/** Motivo obligatorio al despublicar (Decisión cerrada #6). */
+/** Motivo obligatorio al despublicar. */
 export const despublicarPublicacionSchema = z.object({
   motivo: z
     .string()
