@@ -7,6 +7,8 @@ import { PublicacionesService } from '../publicaciones/publicaciones.service';
 import { PlanPagoService } from './plan-pago.service';
 import { createPlanPagoSchema } from './dto/create-plan-pago.dto';
 import { updatePlanPagoSchema } from './dto/update-plan-pago.dto';
+import { queryPlanPagoSchema } from './dto/query-plan-pago.dto';
+import { simularCuotasSchema } from './dto/simular-cuotas.dto';
 
 /** `data` con el que se llamó a un `create`/`update` de PLANPAGO, ya tipado. */
 type DataPlanPago = {
@@ -40,7 +42,7 @@ describe('PlanPagoService', () => {
   };
   let prisma: {
     pUBLICACIONUNIDAD: { findUnique: jest.Mock };
-    pLANPAGO: { findUnique: jest.Mock };
+    pLANPAGO: { findUnique: jest.Mock; findMany: jest.Mock };
     $transaction: jest.Mock;
   };
   let publicaciones: { transicionarEstadoComercial: jest.Mock };
@@ -101,7 +103,7 @@ describe('PlanPagoService', () => {
 
     prisma = {
       pUBLICACIONUNIDAD: { findUnique: jest.fn() },
-      pLANPAGO: { findUnique: jest.fn() },
+      pLANPAGO: { findUnique: jest.fn(), findMany: jest.fn() },
       $transaction: jest.fn((callback: (t: typeof tx) => unknown) =>
         callback(tx),
       ),
@@ -430,6 +432,134 @@ describe('PlanPagoService', () => {
         ),
       ).rejects.toThrow(NotFoundException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findOne', () => {
+    it('devuelve el plan encontrado', async () => {
+      prisma.pLANPAGO.findUnique.mockResolvedValue({ id_plan_pago: ID_PLAN });
+
+      await expect(service.findOne(ID_PLAN)).resolves.toEqual({
+        id_plan_pago: ID_PLAN,
+      });
+    });
+
+    it('rechaza con 404 si el plan no existe', async () => {
+      prisma.pLANPAGO.findUnique.mockResolvedValue(null);
+
+      await expect(service.findOne(ID_PLAN)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findByPublicacion', () => {
+    const where = (): Record<string, unknown> =>
+      (
+        prisma.pLANPAGO.findMany.mock.calls as {
+          where: Record<string, unknown>;
+        }[][]
+      )[0][0].where;
+
+    it('filtra solo los planes activos de la publicación por default', async () => {
+      prisma.pLANPAGO.findMany.mockResolvedValue([]);
+
+      await service.findByPublicacion(
+        queryPlanPagoSchema.parse({ FK_publicacion: String(ID_PUBLICACION) }),
+      );
+
+      expect(where()).toEqual({
+        FK_publicacion: ID_PUBLICACION,
+        estado: true,
+      });
+    });
+
+    it('trae solo los inactivos con estado=false', async () => {
+      prisma.pLANPAGO.findMany.mockResolvedValue([]);
+
+      await service.findByPublicacion(
+        queryPlanPagoSchema.parse({
+          FK_publicacion: String(ID_PUBLICACION),
+          estado: 'false',
+        }),
+      );
+
+      expect(where()).toEqual({
+        FK_publicacion: ID_PUBLICACION,
+        estado: false,
+      });
+    });
+
+    it('no filtra por estado con estado=todos', async () => {
+      prisma.pLANPAGO.findMany.mockResolvedValue([]);
+
+      await service.findByPublicacion(
+        queryPlanPagoSchema.parse({
+          FK_publicacion: String(ID_PUBLICACION),
+          estado: 'todos',
+        }),
+      );
+
+      expect(where()).toEqual({ FK_publicacion: ID_PUBLICACION });
+    });
+  });
+
+  describe('simularCuotas', () => {
+    it('convierte el anticipo en % a monto antes de pasárselo al motor', () => {
+      // 27.000.000 - (20% = 5.400.000) = 21.600.000 / 6 = 3.600.000 por cuota.
+      const cuotas = service.simularCuotas(
+        simularCuotasSchema.parse({
+          tipo: 'FINANCIADO',
+          precio: 27000000,
+          anticipo_porcentaje: 20,
+          cantidad_cuotas: 6,
+          periodicidad: 'MENSUAL',
+          fecha_venta: '2026-04-14',
+        }),
+      );
+
+      expect(cuotas).toHaveLength(7);
+      expect(cuotas[0].importe.toFixed(2)).toBe('5400000.00');
+      expect(cuotas[1].importe.toFixed(2)).toBe('3600000.00');
+      expect(cuotas[1].fecha_vencimiento.toISOString().slice(0, 10)).toBe(
+        '2026-05-14',
+      );
+    });
+
+    it('simula un CONTADO como una única cuota por el total', () => {
+      const cuotas = service.simularCuotas(
+        simularCuotasSchema.parse({
+          tipo: 'CONTADO',
+          precio: 19000000,
+          fecha_venta: '2026-08-01',
+        }),
+      );
+
+      expect(cuotas).toHaveLength(1);
+      expect(cuotas[0].numero).toBe(0);
+      expect(cuotas[0].importe.toFixed(2)).toBe('19000000.00');
+    });
+
+    it('usa la fecha de hoy si el frontend no manda fecha_venta', () => {
+      const hoy = new Date().toISOString().slice(0, 10);
+
+      const cuotas = service.simularCuotas(
+        simularCuotasSchema.parse({
+          tipo: 'CONTADO',
+          precio: 19000000,
+        }),
+      );
+
+      expect(cuotas[0].fecha_vencimiento.toISOString().slice(0, 10)).toBe(hoy);
+    });
+
+    it('no toca la base: simular no escribe ni lee nada', () => {
+      service.simularCuotas(
+        simularCuotasSchema.parse({ tipo: 'CONTADO', precio: 19000000 }),
+      );
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.pUBLICACIONUNIDAD.findUnique).not.toHaveBeenCalled();
+      expect(prisma.pLANPAGO.findUnique).not.toHaveBeenCalled();
+      expect(prisma.pLANPAGO.findMany).not.toHaveBeenCalled();
     });
   });
 });

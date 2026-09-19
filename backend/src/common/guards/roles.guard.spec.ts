@@ -22,6 +22,7 @@ import { PagoController } from '../../modules/tesoreria/pago/pago.controller';
 import { CuentaCorrienteController } from '../../modules/tesoreria/cuenta-corriente/cuenta-corriente.controller';
 
 import { ComprobanteController } from '../../modules/tesoreria/comprobante/comprobante.controller';
+import { PlanPagoController } from '../../modules/comercializacion/plan-pago/plan-pago.controller';
 /**
  * Controller de mentira, dueño de un rol que no es ni Administrador ni
  * Gerente General: hoy todos los controllers reales son de Administrador
@@ -208,6 +209,38 @@ describe('RolesGuard', () => {
     );
   });
 
+  describe('controllers de Comercialización', () => {
+    // El dueño es el Administrador, igual que en el resto de los módulos:
+    // los planes de pago son una pantalla interna (precio contra costo,
+    // planes inactivos), no el catálogo público que ve el cliente.
+    it('PlanPagoController deja entrar al Administrador, que es el rol dueño del recurso', () => {
+      expect(
+        guard.canActivate(
+          contexto(PlanPagoController, usuario(RolNombre.ADMINISTRADOR)),
+        ),
+      ).toBe(true);
+    });
+
+    it('PlanPagoController rechaza al Responsable de Comercialización y Ventas', () => {
+      expect(
+        guard.canActivate(
+          contexto(
+            PlanPagoController,
+            usuario(RolNombre.RESPONSABLE_COMERCIALIZACION),
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it('PlanPagoController deja entrar al Gerente General por su acceso transversal', () => {
+      expect(
+        guard.canActivate(
+          contexto(PlanPagoController, usuario(RolNombre.GERENTE_GENERAL)),
+        ),
+      ).toBe(true);
+    });
+  });
+
   describe('AlmacenamientoController', () => {
     // Único controller con dos roles dueños a la vez: Administrador y
     // Responsable de Comercialización y Ventas (quien sube las imágenes de
@@ -246,7 +279,10 @@ describe('RolesGuard', () => {
     it('deja entrar al Gerente General por su acceso transversal', () => {
       expect(
         guard.canActivate(
-          contexto(AlmacenamientoController, usuario(RolNombre.GERENTE_GENERAL)),
+          contexto(
+            AlmacenamientoController,
+            usuario(RolNombre.GERENTE_GENERAL),
+          ),
         ),
       ).toBe(true);
     });

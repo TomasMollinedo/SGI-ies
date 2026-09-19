@@ -9,6 +9,9 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { PublicacionesService } from '../publicaciones/publicaciones.service';
 import { CreatePlanPagoDto } from './dto/create-plan-pago.dto';
 import { UpdatePlanPagoDto } from './dto/update-plan-pago.dto';
+import { QueryPlanPagoDto } from './dto/query-plan-pago.dto';
+import { SimularCuotasDto } from './dto/simular-cuotas.dto';
+import { CuotaGenerada, generarCuotas } from './motor-cuotas';
 
 /** Decimales de todo importe y porcentaje, igual que las columnas del schema. */
 const DECIMALES = 2;
@@ -215,6 +218,66 @@ export class PlanPagoService {
   }
 
   /**
+   * Detalle de un plan puntual, para la pantalla interna de Comercialización
+   * (incluye el `estado`, que el catálogo público nunca vería).
+   */
+  async findOne(id: number) {
+    const plan = await this.prisma.pLANPAGO.findUnique({
+      where: { id_plan_pago: id },
+    });
+    if (!plan) {
+      throw new NotFoundException(`No existe un plan de pago con id ${id}`);
+    }
+
+    return plan;
+  }
+
+  /**
+   * Los planes de una publicación, el abanico de formas de pago que se le
+   * ofrece al cliente por esa unidad. Por default solo los activos;
+   * `estado=todos` incluye los inactivos, que es como la pantalla encuentra
+   * uno dado de baja para reactivarlo.
+   *
+   * Sin paginación: son pocos por diseño (ver `QueryPlanPagoDto`).
+   */
+  async findByPublicacion(query: QueryPlanPagoDto) {
+    const { FK_publicacion, estado } = query;
+
+    return this.prisma.pLANPAGO.findMany({
+      where: {
+        FK_publicacion,
+        ...(estado !== 'todos' && { estado }),
+      },
+      orderBy: { id_plan_pago: 'asc' },
+    });
+  }
+
+  /**
+   * Previsualiza el cronograma de cuotas sin guardar nada (T106).
+   *
+   * No toca la base: no hay publicación, ni plan, ni venta. Resuelve el
+   * anticipo a monto igual que `create()` y le pasa las condiciones al motor
+   * de cuotas, que es el único dueño del cálculo — el frontend consume esto
+   * en vez de reimplementar la división, el redondeo y el caso del día 31 por
+   * su cuenta, que es como las dos implementaciones se desincronizarían.
+   *
+   * La fecha de venta real recién existe en la adhesión (T110): si el
+   * frontend no manda una, se simula desde hoy.
+   */
+  simularCuotas(dto: SimularCuotasDto): CuotaGenerada[] {
+    const precio = new Prisma.Decimal(dto.precio);
+
+    return generarCuotas({
+      precio,
+      tipo: dto.tipo,
+      anticipo_monto: this.resolverAnticipoMonto(dto, precio),
+      cantidad_cuotas: dto.cantidad_cuotas ?? null,
+      periodicidad: dto.periodicidad ?? null,
+      fecha_venta: dto.fecha_venta ?? new Date(),
+    });
+  }
+
+  /**
    * Alinea el `estado_comercial` de la publicación con la cantidad de planes
    * activos que quedaron después del update.
    *
@@ -266,7 +329,10 @@ export class PlanPagoService {
    * congelar las condiciones de la VENTA.
    */
   private resolverAnticipoMonto(
-    dto: CreatePlanPagoDto,
+    dto: {
+      anticipo_porcentaje?: number | null;
+      anticipo_monto?: number | null;
+    },
     precio: Prisma.Decimal,
   ): Prisma.Decimal {
     if (dto.anticipo_monto !== undefined && dto.anticipo_monto !== null) {

@@ -27,6 +27,7 @@ import { CuentaCorrienteModule } from './modules/tesoreria/cuenta-corriente/cuen
 import { AlmacenamientoModule } from './modules/almacenamiento/almacenamiento.module';
 import { ClienteModule } from './modules/comercializacion/cliente/cliente.module';
 import { PublicacionesModule } from './modules/comercializacion/publicaciones/publicaciones.module';
+import { PlanPagoModule } from './modules/comercializacion/plan-pago/plan-pago.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { PublicacionesModule } from './modules/comercializacion/publicaciones/pu
     AlmacenamientoModule,
     ClienteModule,
     PublicacionesModule,
+    PlanPagoModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
