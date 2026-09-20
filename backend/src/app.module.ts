@@ -24,6 +24,8 @@ import { FormaPagoModule } from './modules/tesoreria/forma-pago/forma-pago.modul
 import { ComprobanteModule } from './modules/tesoreria/comprobante/comprobante.module';
 import { PagoModule } from './modules/tesoreria/pago/pago.module';
 import { CuentaCorrienteModule } from './modules/tesoreria/cuenta-corriente/cuenta-corriente.module';
+
+import { CatalogoModule } from './modules/catalogo/catalogo.module';
 import { AlmacenamientoModule } from './modules/almacenamiento/almacenamiento.module';
 import { ClienteModule } from './modules/comercializacion/cliente/cliente.module';
 import { PublicacionesModule } from './modules/comercializacion/publicaciones/publicaciones.module';
@@ -54,6 +56,8 @@ import { PlanPagoModule } from './modules/comercializacion/plan-pago/plan-pago.m
     ComprobanteModule,
     PagoModule,
     CuentaCorrienteModule,
+
+    CatalogoModule,
     AlmacenamientoModule,
     ClienteModule,
     PublicacionesModule,
