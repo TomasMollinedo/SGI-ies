@@ -20,7 +20,12 @@ const UNIDAD_CATALOGO_SELECT = {
   superficie_descubierta: true,
   piso: true,
   proyecto: {
-    select: { nombre: true, localidad: true, estado: true, fecha_fin_estimada: true },
+    select: {
+      nombre: true,
+      localidad: true,
+      estado: true,
+      fecha_fin_estimada: true,
+    },
   },
 } as const;
 
@@ -86,7 +91,10 @@ export class CatalogoService {
       where: {
         vigente: true,
         estado_comercial: EstadoComercial.DISPONIBLE,
-        unidadFuncional: { id_unidad_funcional: idUnidadFuncional, estado: true },
+        unidadFuncional: {
+          id_unidad_funcional: idUnidadFuncional,
+          estado: true,
+        },
       },
       select: {
         fecha_publicacion: true,
@@ -180,7 +188,13 @@ export class CatalogoService {
         unidadFuncional: {
           select: {
             FK_proyecto: true,
-            proyecto: { select: { nombre: true, localidad: true, imagen_portada_url: true } },
+            proyecto: {
+              select: {
+                nombre: true,
+                localidad: true,
+                imagen_portada_url: true,
+              },
+            },
           },
         },
         planes: PLAN_ACTIVO_MAS_BARATO_SELECT,
@@ -266,7 +280,8 @@ function mapearItemCatalogo(publicacion: PublicacionParaListado) {
     identificador: unidadFuncional.identificador,
     tipologia: unidadFuncional.tipologia,
     superficie_cubierta: unidadFuncional.superficie_cubierta.toNumber(),
-    superficie_descubierta: unidadFuncional.superficie_descubierta?.toNumber() ?? null,
+    superficie_descubierta:
+      unidadFuncional.superficie_descubierta?.toNumber() ?? null,
     piso: unidadFuncional.piso,
     proyecto: { nombre: proyecto.nombre, localidad: proyecto.localidad },
     // Garantizado por reglas de negocio: una publicación DISPONIBLE siempre

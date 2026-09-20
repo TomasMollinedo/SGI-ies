@@ -3,7 +3,16 @@ import { NotFoundException } from '@nestjs/common';
 import { CatalogoService } from './catalogo.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '../../../generated/prisma/client';
-import { EstadoComercial, EstadoProyecto } from '../../../generated/prisma/enums';
+import {
+  EstadoComercial,
+  EstadoProyecto,
+} from '../../../generated/prisma/enums';
+
+/** Primer argumento con el que se llamó a un mock de `findMany`, ya tipado. */
+const primerArgumento = (
+  mock: jest.Mock,
+): Prisma.PUBLICACIONUNIDADFindManyArgs =>
+  (mock.mock.calls as Prisma.PUBLICACIONUNIDADFindManyArgs[][])[0][0];
 
 describe('CatalogoService', () => {
   let service: CatalogoService;
@@ -48,7 +57,10 @@ describe('CatalogoService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CatalogoService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        CatalogoService,
+        { provide: PrismaService, useValue: prisma },
+      ],
     }).compile();
 
     service = module.get(CatalogoService);
@@ -59,11 +71,13 @@ describe('CatalogoService', () => {
       prisma.pUBLICACIONUNIDAD.findMany.mockResolvedValue([]);
       prisma.pUBLICACIONUNIDAD.count.mockResolvedValue(0);
 
-      await service.listarCatalogo({ page: 1, limit: 12 } as any);
+      await service.listarCatalogo({ page: 1, limit: 12 });
 
-      const argumento = prisma.pUBLICACIONUNIDAD.findMany.mock.calls[0][0];
-      expect(argumento.where.vigente).toBe(true);
-      expect(argumento.where.estado_comercial).toBe(EstadoComercial.DISPONIBLE);
+      const argumento = primerArgumento(prisma.pUBLICACIONUNIDAD.findMany);
+      expect(argumento.where?.vigente).toBe(true);
+      expect(argumento.where?.estado_comercial).toBe(
+        EstadoComercial.DISPONIBLE,
+      );
     });
 
     it('arma el filtro de localidad y de condición de entrega contra el proyecto, no en memoria', async () => {
@@ -75,10 +89,13 @@ describe('CatalogoService', () => {
         limit: 12,
         localidad: 'Rosario',
         entregada: false,
-      } as any);
+      });
 
-      const argumento = prisma.pUBLICACIONUNIDAD.findMany.mock.calls[0][0];
-      expect(argumento.where.unidadFuncional.proyecto).toEqual({
+      const argumento = primerArgumento(prisma.pUBLICACIONUNIDAD.findMany);
+      expect(
+        (argumento.where as { unidadFuncional?: { proyecto?: unknown } })
+          .unidadFuncional?.proyecto,
+      ).toEqual({
         localidad: { contains: 'Rosario', mode: 'insensitive' },
         estado: { not: EstadoProyecto.FINALIZADO },
       });
@@ -88,17 +105,19 @@ describe('CatalogoService', () => {
       prisma.pUBLICACIONUNIDAD.findMany.mockResolvedValue([]);
       prisma.pUBLICACIONUNIDAD.count.mockResolvedValue(0);
 
-      await service.listarCatalogo({ page: 1, limit: 12 } as any);
+      await service.listarCatalogo({ page: 1, limit: 12 });
 
-      const argumento = prisma.pUBLICACIONUNIDAD.findMany.mock.calls[0][0];
+      const argumento = primerArgumento(prisma.pUBLICACIONUNIDAD.findMany);
       expect(argumento.orderBy).toEqual({ fecha_publicacion: 'desc' });
     });
 
     it('mapea el precio desde y la condición de entrega, sin exponer costo ni margen', async () => {
-      prisma.pUBLICACIONUNIDAD.findMany.mockResolvedValue([publicacionCatalogo()]);
+      prisma.pUBLICACIONUNIDAD.findMany.mockResolvedValue([
+        publicacionCatalogo(),
+      ]);
       prisma.pUBLICACIONUNIDAD.count.mockResolvedValue(1);
 
-      const res = await service.listarCatalogo({ page: 1, limit: 12 } as any);
+      const res = await service.listarCatalogo({ page: 1, limit: 12 });
 
       expect(res.data).toEqual([
         {
@@ -118,7 +137,9 @@ describe('CatalogoService', () => {
           fecha_publicacion: new Date('2026-06-01').toISOString(),
         },
       ]);
-      expect(JSON.stringify(res)).not.toMatch(/costo|margen|porcentaje_ganancia/i);
+      expect(JSON.stringify(res)).not.toMatch(
+        /costo|margen|porcentaje_ganancia/i,
+      );
     });
   });
 
@@ -126,7 +147,9 @@ describe('CatalogoService', () => {
     it('tira 404 si no hay una publicación vigente y disponible con ese id', async () => {
       prisma.pUBLICACIONUNIDAD.findFirst.mockResolvedValue(null);
 
-      await expect(service.obtenerDetalle(999)).rejects.toThrow(NotFoundException);
+      await expect(service.obtenerDetalle(999)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('devuelve solo los planes activos, con su precio', async () => {
@@ -179,7 +202,9 @@ describe('CatalogoService', () => {
     });
 
     it('calcula el precio más barato del proyecto entre todas sus unidades disponibles', async () => {
-      prisma.uNIDADFUNCIONAL.groupBy.mockResolvedValue([{ FK_proyecto: 1, _count: 2 }]);
+      prisma.uNIDADFUNCIONAL.groupBy.mockResolvedValue([
+        { FK_proyecto: 1, _count: 2 },
+      ]);
       prisma.pUBLICACIONUNIDAD.findMany.mockResolvedValue([
         {
           unidadFuncional: {

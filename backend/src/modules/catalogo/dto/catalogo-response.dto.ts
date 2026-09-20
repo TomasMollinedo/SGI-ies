@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
-import { Periodicidad, TipoPlanPago, TipologiaUnidad } from '../../../../generated/prisma/enums';
+import {
+  Periodicidad,
+  TipoPlanPago,
+  TipologiaUnidad,
+} from '../../../../generated/prisma/enums';
 
 /**
  * DTOs de la API pública del catálogo (T107). Cada schema se arma campo por

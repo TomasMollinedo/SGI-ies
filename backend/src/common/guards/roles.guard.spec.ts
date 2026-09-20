@@ -20,6 +20,8 @@ import { FormaPagoController } from '../../modules/tesoreria/forma-pago/forma-pa
 import { TipoComprobanteController } from '../../modules/tesoreria/tipo-comprobante/tipo-comprobante.controller';
 import { PagoController } from '../../modules/tesoreria/pago/pago.controller';
 import { CuentaCorrienteController } from '../../modules/tesoreria/cuenta-corriente/cuenta-corriente.controller';
+import { PublicacionController } from '../../modules/comercializacion/publicacion/publicacion.controller';
+import { PlanPagoController } from '../../modules/comercializacion/plan-pago/plan-pago.controller';
 
 import { ComprobanteController } from '../../modules/tesoreria/comprobante/comprobante.controller';
 /**
@@ -208,12 +210,55 @@ describe('RolesGuard', () => {
     );
   });
 
+  describe('controllers de Comercialización', () => {
+    const controllersDeComercializacion: [string, object][] = [
+      ['PublicacionController', PublicacionController],
+      ['PlanPagoController', PlanPagoController],
+    ];
+
+    it.each(controllersDeComercializacion)(
+      '%s deja entrar al Administrador, que es el rol dueño del recurso',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.ADMINISTRADOR)),
+          ),
+        ).toBe(true);
+      },
+    );
+
+    // Publicar/despublicar unidades y administrar planes de pago son tareas
+    // del Administrador, como el resto de los datos maestros del proyecto:
+    // el Responsable de Comercialización y Ventas no es el dueño de estos
+    // recursos.
+    it.each(controllersDeComercializacion)(
+      '%s rechaza al Responsable de Comercialización y Ventas',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(
+              controller,
+              usuario(RolNombre.RESPONSABLE_COMERCIALIZACION),
+            ),
+          ),
+        ).toBe(false);
+      },
+    );
+
+    it.each(controllersDeComercializacion)(
+      '%s deja entrar al Gerente General por su acceso transversal',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.GERENTE_GENERAL)),
+          ),
+        ).toBe(true);
+      },
+    );
+  });
+
   describe('AlmacenamientoController', () => {
-    // Único controller con dos roles dueños a la vez: Administrador y
-    // Responsable de Comercialización y Ventas (quien sube las imágenes de
-    // las unidades en venta), a diferencia del resto de los módulos donde
-    // el dueño es siempre uno solo.
-    it('deja entrar al Administrador', () => {
+    it('deja entrar al Administrador, que es el rol dueño del recurso', () => {
       expect(
         guard.canActivate(
           contexto(AlmacenamientoController, usuario(RolNombre.ADMINISTRADOR)),
@@ -221,23 +266,15 @@ describe('RolesGuard', () => {
       ).toBe(true);
     });
 
-    it('deja entrar al Responsable de Comercialización y Ventas', () => {
+    // Es un endpoint técnico de almacenamiento (sube a MinIO/S3), no de
+    // negocio: el Responsable de Comercialización y Ventas no es su dueño,
+    // igual que Publicación y Plan de Pago quedan a cargo del Administrador.
+    it('rechaza al Responsable de Comercialización y Ventas', () => {
       expect(
         guard.canActivate(
           contexto(
             AlmacenamientoController,
             usuario(RolNombre.RESPONSABLE_COMERCIALIZACION),
-          ),
-        ),
-      ).toBe(true);
-    });
-
-    it('rechaza a un rol que no es dueño del recurso', () => {
-      expect(
-        guard.canActivate(
-          contexto(
-            AlmacenamientoController,
-            usuario(RolNombre.RESPONSABLE_COMPRAS),
           ),
         ),
       ).toBe(false);
@@ -246,7 +283,10 @@ describe('RolesGuard', () => {
     it('deja entrar al Gerente General por su acceso transversal', () => {
       expect(
         guard.canActivate(
-          contexto(AlmacenamientoController, usuario(RolNombre.GERENTE_GENERAL)),
+          contexto(
+            AlmacenamientoController,
+            usuario(RolNombre.GERENTE_GENERAL),
+          ),
         ),
       ).toBe(true);
     });
