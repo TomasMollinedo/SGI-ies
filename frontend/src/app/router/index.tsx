@@ -9,6 +9,9 @@ import { CardexPage } from '@/features/almacen/stock/pages/CardexPage'
 import { StockPage } from '@/features/almacen/stock/pages/StockPage'
 import { UnidadesMedidaPage } from '@/features/almacen/unidades-medida/pages/UnidadesMedidaPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { CompletarDatosPage } from '@/features/ecommerce/pages/CompletarDatosPage'
+import { LoginClientePage } from '@/features/ecommerce/pages/LoginClientePage'
+import { PerfilPage } from '@/features/ecommerce/pages/PerfilPage'
 import { PublicLayout } from '@/features/ecommerce/layout/PublicLayout'
 import { MainLayout } from '@/layouts/MainLayout'
 import { NotFoundPage } from '@/pages/NotFoundPage'
@@ -44,14 +47,14 @@ export const router = createBrowserRouter([
       },
       {
         path: PATHS.ECOMMERCE.LOGIN,
-        element: <PlaceholderPage titulo="Ingresar" historia="HU-23" />,
+        element: <LoginClientePage />,
       },
       {
         element: <ClienteProtectedRoute requiereDatosCompletos />,
         children: [
           {
             path: PATHS.ECOMMERCE.PERFIL,
-            element: <PlaceholderPage titulo="Mi perfil" historia="HU-28" />,
+            element: <PerfilPage />,
           },
         ],
       },
@@ -60,7 +63,7 @@ export const router = createBrowserRouter([
         children: [
           {
             path: PATHS.ECOMMERCE.COMPLETAR_DATOS,
-            element: <PlaceholderPage titulo="Completar datos" historia="HU-23" />,
+            element: <CompletarDatosPage />,
           },
         ],
       },
