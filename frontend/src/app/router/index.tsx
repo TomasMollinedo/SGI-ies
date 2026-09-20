@@ -13,6 +13,7 @@ import { PublicLayout } from '@/features/ecommerce/layout/PublicLayout'
 import { MainLayout } from '@/layouts/MainLayout'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
+import { ClienteProtectedRoute } from './ClienteProtectedRoute'
 import { PATHS } from './paths'
 import { ProtectedRoute } from './ProtectedRoute'
 import { CategoriasPage } from '@/features/almacen/categorias/pages/CategoriasPage'
@@ -46,12 +47,22 @@ export const router = createBrowserRouter([
         element: <PlaceholderPage titulo="Ingresar" historia="HU-23" />,
       },
       {
-        path: PATHS.ECOMMERCE.PERFIL,
-        element: <PlaceholderPage titulo="Mi perfil" historia="HU-28" />,
+        element: <ClienteProtectedRoute requiereDatosCompletos />,
+        children: [
+          {
+            path: PATHS.ECOMMERCE.PERFIL,
+            element: <PlaceholderPage titulo="Mi perfil" historia="HU-28" />,
+          },
+        ],
       },
       {
-        path: PATHS.ECOMMERCE.COMPLETAR_DATOS,
-        element: <PlaceholderPage titulo="Completar datos" historia="HU-23" />,
+        element: <ClienteProtectedRoute />,
+        children: [
+          {
+            path: PATHS.ECOMMERCE.COMPLETAR_DATOS,
+            element: <PlaceholderPage titulo="Completar datos" historia="HU-23" />,
+          },
+        ],
       },
     ],
   },
