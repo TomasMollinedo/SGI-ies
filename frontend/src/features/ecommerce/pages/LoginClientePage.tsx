@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { User } from 'lucide-react'
 import { Navigate, useLocation } from 'react-router'
 import { PATHS } from '@/app/router/paths'
 import { Spinner } from '@/shared/components/estados-pantalla/Spinner'
@@ -17,9 +18,9 @@ export function LoginClientePage() {
 
   if (verificandoSesion) {
     return (
-      <div className="flex items-center justify-center py-24">
+      <PaginaCentrada>
         <Spinner size={32} />
-      </div>
+      </PaginaCentrada>
     )
   }
 
@@ -37,27 +38,28 @@ export function LoginClientePage() {
   }
 
   return (
-    <div className="bg-surface-muted flex justify-center px-4 py-12 sm:py-16">
-      <div className="bg-fondotabla h-fit w-full max-w-sm rounded-2xl p-6 shadow-xl sm:p-10">
-        <h1 className="text-titulo-modal text-content mb-1 text-center font-semibold">Ingresar</h1>
-        <p className="text-content-muted mb-8 text-center text-sm">
-          Iniciá sesión con tu cuenta de Google para continuar.
-        </p>
-
-        <div className={cn(iniciandoSesion && 'pointer-events-none opacity-60')}>
-          <GoogleSignInButton onCredential={handleCredential} onLoadError={setErrorGoogle} />
-        </div>
-
-        {iniciandoSesion ? (
-          <p className="text-content-muted mt-4 text-center text-sm">Ingresando...</p>
-        ) : null}
-
-        {mensajeError ? (
-          <p role="alert" className="text-error bg-error/10 mt-4 rounded-lg px-3 py-2 text-sm">
-            {mensajeError}
-          </p>
-        ) : null}
+    <div className="bg-fondotabla mx-auto w-full max-w-sm rounded-2xl p-6 shadow-xl sm:p-10">
+      <div className="bg-primary text-primary-content mx-auto mb-6 flex size-14 items-center justify-center rounded-full">
+        <User size={28} />
       </div>
+      <h1 className="text-titulo-modal text-content mb-1 text-center font-semibold">Ingresar</h1>
+      <p className="text-content-muted mb-8 text-center text-sm">
+        Iniciá sesión con tu cuenta de Google para continuar.
+      </p>
+
+      <div className={cn(iniciandoSesion && 'pointer-events-none opacity-60')}>
+        <GoogleSignInButton onCredential={handleCredential} onLoadError={setErrorGoogle} />
+      </div>
+
+      {iniciandoSesion ? (
+        <p className="text-content-muted mt-4 text-center text-sm">Ingresando...</p>
+      ) : null}
+
+      {mensajeError ? (
+        <p role="alert" className="text-error bg-error/10 mt-4 rounded-lg px-3 py-2 text-sm">
+          {mensajeError}
+        </p>
+      ) : null}
     </div>
   )
 }

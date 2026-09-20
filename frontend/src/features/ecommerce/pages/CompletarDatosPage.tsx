@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import type { UseFormSetError } from 'react-hook-form'
+import { Check, Pencil, X } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { PATHS } from '@/app/router/paths'
@@ -8,11 +9,14 @@ import { Button } from '@/shared/components/ui/Button'
 import { Input } from '@/shared/components/ui/Input'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { esArrayDeValidationIssues, formatearMensajeError } from '@/shared/utils/apiError'
+import { TarjetaPublica } from '../components/TarjetaPublica'
 import { useClienteAuthUser } from '../hooks/useClienteAuthUser'
 import { useCompletarDatosCliente } from '../hooks/useCompletarDatosCliente'
 import { completarDatosFormSchema } from '../types/cliente.schema'
 import type { CompletarDatosFormOutput, CompletarDatosFormValues } from '../types/cliente.schema'
 import { destinoOriginal } from '../utils/destinoOriginal'
+
+const ID_FORM = 'form-completar-datos'
 
 export function CompletarDatosPage() {
   const location = useLocation()
@@ -56,56 +60,72 @@ export function CompletarDatosPage() {
     )
   }
 
+  function cancelar() {
+    navigate(yaTeniaDatos ? PATHS.ECOMMERCE.PERFIL : PATHS.HOME)
+  }
+
   return (
-    <div className="bg-surface-muted flex justify-center px-4 py-12 sm:py-16">
-      <div className="bg-fondotabla h-fit w-full max-w-md rounded-2xl p-6 shadow-xl sm:p-10">
-        <h1 className="text-titulo-modal text-content mb-1 text-center font-semibold">
-          {yaTeniaDatos ? 'Editar mis datos' : 'Completá tus datos'}
-        </h1>
-        <p className="text-content-muted mb-8 text-center text-sm">
-          {yaTeniaDatos
-            ? 'Actualizá tu DNI/CUIT y tu teléfono de contacto.'
-            : 'Necesitamos tu DNI/CUIT y un teléfono de contacto para poder continuar.'}
-        </p>
-
-        <form onSubmit={handleSubmit(enviar)} className="flex flex-col gap-4" noValidate>
-          {errorGeneral && (
-            <p role="alert" className="text-error bg-error/10 rounded-lg px-3 py-2 text-sm">
-              {errorGeneral}
-            </p>
-          )}
-
-          <Input
-            label="DNI / CUIT"
-            required
-            inputMode="numeric"
-            autoComplete="off"
-            maxLength={11}
-            placeholder="Ej. 30712345678"
-            helperText="Sin puntos ni guiones."
-            disabled={isPending}
-            error={errors.dni_cuil?.message}
-            {...register('dni_cuil')}
-          />
-
-          <Input
-            label="Teléfono"
-            required
-            type="tel"
-            autoComplete="tel"
-            maxLength={30}
-            placeholder="Ej. 3874123456"
-            disabled={isPending}
-            error={errors.telefono?.message}
-            {...register('telefono')}
-          />
-
-          <Button type="submit" fullWidth loading={isPending} disabled={!isValid}>
-            Guardar y continuar
+    <TarjetaPublica
+      className="max-w-md"
+      icon={<Pencil />}
+      title={yaTeniaDatos ? 'Editar mis datos' : 'Completá tus datos'}
+      footer={
+        <>
+          <Button variant="error" icon={<X />} onClick={cancelar} disabled={isPending}>
+            Cancelar
           </Button>
-        </form>
-      </div>
-    </div>
+          <Button
+            variant="success"
+            icon={<Check />}
+            type="submit"
+            form={ID_FORM}
+            loading={isPending}
+            disabled={!isValid}
+          >
+            Guardar
+          </Button>
+        </>
+      }
+    >
+      <p className="text-content-muted mb-4 text-sm">
+        {yaTeniaDatos
+          ? 'Actualizá tu DNI/CUIT y tu teléfono de contacto.'
+          : 'Necesitamos tu DNI/CUIT y un teléfono de contacto para poder continuar.'}
+      </p>
+
+      <form id={ID_FORM} onSubmit={handleSubmit(enviar)} className="flex flex-col gap-4" noValidate>
+        {errorGeneral && (
+          <div role="alert" className="border-error/30 bg-error/10 rounded-md border px-4 py-3">
+            <p className="text-error text-xs">{errorGeneral}</p>
+          </div>
+        )}
+
+        <Input
+          label="DNI / CUIT"
+          required
+          inputMode="numeric"
+          autoComplete="off"
+          maxLength={11}
+          placeholder="Ej. 30712345678"
+          helperText="Sin puntos ni guiones."
+          disabled={isPending}
+          error={errors.dni_cuil?.message}
+          {...register('dni_cuil')}
+        />
+
+        <Input
+          label="Teléfono"
+          required
+          type="tel"
+          autoComplete="tel"
+          maxLength={30}
+          placeholder="Ej. 3874123456"
+          disabled={isPending}
+          error={errors.telefono?.message}
+          {...register('telefono')}
+        />
+      </form>
+    </TarjetaPublica>
   )
 }
 

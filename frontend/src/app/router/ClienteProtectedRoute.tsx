@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router'
+import { PaginaCentrada } from '@/features/ecommerce/components/PaginaCentrada'
 import { useClienteAuthUser } from '@/features/ecommerce/hooks/useClienteAuthUser'
 import { Spinner } from '@/shared/components/estados-pantalla/Spinner'
 import { PATHS } from './paths'
@@ -19,9 +20,9 @@ export function ClienteProtectedRoute({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-24">
+      <PaginaCentrada>
         <Spinner size={32} />
-      </div>
+      </PaginaCentrada>
     )
   }
 
