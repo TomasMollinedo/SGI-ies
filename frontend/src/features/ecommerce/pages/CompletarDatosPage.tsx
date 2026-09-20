@@ -9,6 +9,7 @@ import { Button } from '@/shared/components/ui/Button'
 import { Input } from '@/shared/components/ui/Input'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { esArrayDeValidationIssues, formatearMensajeError } from '@/shared/utils/apiError'
+import { PaginaCentrada } from '../components/PaginaCentrada'
 import { TarjetaPublica } from '../components/TarjetaPublica'
 import { useClienteAuthUser } from '../hooks/useClienteAuthUser'
 import { useCompletarDatosCliente } from '../hooks/useCompletarDatosCliente'
@@ -65,67 +66,74 @@ export function CompletarDatosPage() {
   }
 
   return (
-    <TarjetaPublica
-      className="max-w-md"
-      icon={<Pencil />}
-      title={yaTeniaDatos ? 'Editar mis datos' : 'Completá tus datos'}
-      footer={
-        <>
-          <Button variant="error" icon={<X />} onClick={cancelar} disabled={isPending}>
-            Cancelar
-          </Button>
-          <Button
-            variant="success"
-            icon={<Check />}
-            type="submit"
-            form={ID_FORM}
-            loading={isPending}
-            disabled={!isValid}
-          >
-            Guardar
-          </Button>
-        </>
-      }
-    >
-      <p className="text-content-muted mb-4 text-sm">
-        {yaTeniaDatos
-          ? 'Actualizá tu DNI/CUIT y tu teléfono de contacto.'
-          : 'Necesitamos tu DNI/CUIT y un teléfono de contacto para poder continuar.'}
-      </p>
+    <PaginaCentrada>
+      <TarjetaPublica
+        className="max-w-md"
+        icon={<Pencil />}
+        title={yaTeniaDatos ? 'Editar mis datos' : 'Completá tus datos'}
+        footer={
+          <>
+            <Button variant="error" icon={<X />} onClick={cancelar} disabled={isPending}>
+              Cancelar
+            </Button>
+            <Button
+              variant="success"
+              icon={<Check />}
+              type="submit"
+              form={ID_FORM}
+              loading={isPending}
+              disabled={!isValid}
+            >
+              Guardar
+            </Button>
+          </>
+        }
+      >
+        <p className="text-content-muted mb-4 text-sm">
+          {yaTeniaDatos
+            ? 'Actualizá tu DNI/CUIT y tu teléfono de contacto.'
+            : 'Necesitamos tu DNI/CUIT y un teléfono de contacto para poder continuar.'}
+        </p>
 
-      <form id={ID_FORM} onSubmit={handleSubmit(enviar)} className="flex flex-col gap-4" noValidate>
-        {errorGeneral && (
-          <div role="alert" className="border-error/30 bg-error/10 rounded-md border px-4 py-3">
-            <p className="text-error text-xs">{errorGeneral}</p>
-          </div>
-        )}
+        <form
+          id={ID_FORM}
+          onSubmit={handleSubmit(enviar)}
+          className="flex flex-col gap-4"
+          noValidate
+        >
+          {errorGeneral && (
+            <div role="alert" className="border-error/30 bg-error/10 rounded-md border px-4 py-3">
+              <p className="text-error text-xs">{errorGeneral}</p>
+            </div>
+          )}
 
-        <Input
-          label="DNI / CUIT"
-          required
-          inputMode="numeric"
-          autoComplete="off"
-          maxLength={11}
-          placeholder="Ej. 30712345678"
-          helperText="Sin puntos ni guiones."
-          disabled={isPending}
-          error={errors.dni_cuil?.message}
-          {...register('dni_cuil')}
-        />
+          <Input
+            label="DNI / CUIT"
+            required
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={11}
+            placeholder="Ej. 30712345678"
+            helperText="Sin puntos ni guiones."
+            disabled={isPending}
+            error={errors.dni_cuil?.message}
+            {...register('dni_cuil')}
+          />
 
-        <Input
-          label="Teléfono"
-          required
-          type="tel"
-          autoComplete="tel"
-          maxLength={30}
-          placeholder="Ej. 3874123456"
-          disabled={isPending}
-          error={errors.telefono?.message}
-          {...register('telefono')}
-        />
-      </form>
-    </TarjetaPublica>
+          <Input
+            label="Teléfono"
+            required
+            type="tel"
+            autoComplete="tel"
+            maxLength={30}
+            placeholder="Ej. 3874123456"
+            disabled={isPending}
+            error={errors.telefono?.message}
+            {...register('telefono')}
+          />
+        </form>
+      </TarjetaPublica>
+    </PaginaCentrada>
   )
 }
 
