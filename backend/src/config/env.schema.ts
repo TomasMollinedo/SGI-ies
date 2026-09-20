@@ -19,17 +19,20 @@ export const envSchema = z.object({
     .string()
     .min(16, 'JWT_REFRESH_SECRET debe tener al menos 16 caracteres'),
   JWT_REFRESH_EXPIRES_IN: z.string().min(1).default('7d'),
+  JWT_CLIENT_SECRET: z
+    .string()
+    .min(16, 'JWT_CLIENT_SECRET debe tener al menos 16 caracteres'),
+  JWT_CLIENT_EXPIRES_IN: z.string().min(1).default('15m'),
+  JWT_CLIENT_REFRESH_SECRET: z
+    .string()
+    .min(16, 'JWT_CLIENT_REFRESH_SECRET debe tener al menos 16 caracteres'),
+  JWT_CLIENT_REFRESH_EXPIRES_IN: z.string().min(1).default('7d'),
+  GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID es obligatoria'),
   CORS_ORIGIN: z.url('CORS_ORIGIN debe ser una URL válida'),
-  STORAGE_ENDPOINT: z
-    .string()
-    .min(1, 'STORAGE_ENDPOINT es obligatoria'),
+  STORAGE_ENDPOINT: z.string().min(1, 'STORAGE_ENDPOINT es obligatoria'),
   STORAGE_PORT: z.coerce.number().default(9000),
-  STORAGE_ACCESS_KEY: z
-    .string()
-    .min(1, 'STORAGE_ACCESS_KEY es obligatoria'),
-  STORAGE_SECRET_KEY: z
-    .string()
-    .min(1, 'STORAGE_SECRET_KEY es obligatoria'),
+  STORAGE_ACCESS_KEY: z.string().min(1, 'STORAGE_ACCESS_KEY es obligatoria'),
+  STORAGE_SECRET_KEY: z.string().min(1, 'STORAGE_SECRET_KEY es obligatoria'),
   STORAGE_BUCKET: z.string().min(1, 'STORAGE_BUCKET es obligatoria'),
   STORAGE_PUBLIC_URL: z.url('STORAGE_PUBLIC_URL debe ser una URL válida'),
 });
@@ -49,6 +52,12 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
   if (result.data.JWT_SECRET === result.data.JWT_REFRESH_SECRET) {
     throw new Error(
       'Variables de entorno inválidas:\nJWT_REFRESH_SECRET debe ser distinto de JWT_SECRET',
+    );
+  }
+
+  if (result.data.JWT_CLIENT_SECRET === result.data.JWT_CLIENT_REFRESH_SECRET) {
+    throw new Error(
+      'Variables de entorno inválidas:\nJWT_CLIENT_REFRESH_SECRET debe ser distinto de JWT_CLIENT_SECRET',
     );
   }
 
