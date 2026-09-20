@@ -258,11 +258,7 @@ describe('RolesGuard', () => {
   });
 
   describe('AlmacenamientoController', () => {
-    // Único controller con dos roles dueños a la vez: Administrador y
-    // Responsable de Comercialización y Ventas (quien sube las imágenes de
-    // las unidades en venta), a diferencia del resto de los módulos donde
-    // el dueño es siempre uno solo.
-    it('deja entrar al Administrador', () => {
+    it('deja entrar al Administrador, que es el rol dueño del recurso', () => {
       expect(
         guard.canActivate(
           contexto(AlmacenamientoController, usuario(RolNombre.ADMINISTRADOR)),
@@ -270,23 +266,15 @@ describe('RolesGuard', () => {
       ).toBe(true);
     });
 
-    it('deja entrar al Responsable de Comercialización y Ventas', () => {
+    // Es un endpoint técnico de almacenamiento (sube a MinIO/S3), no de
+    // negocio: el Responsable de Comercialización y Ventas no es su dueño,
+    // igual que Publicación y Plan de Pago quedan a cargo del Administrador.
+    it('rechaza al Responsable de Comercialización y Ventas', () => {
       expect(
         guard.canActivate(
           contexto(
             AlmacenamientoController,
             usuario(RolNombre.RESPONSABLE_COMERCIALIZACION),
-          ),
-        ),
-      ).toBe(true);
-    });
-
-    it('rechaza a un rol que no es dueño del recurso', () => {
-      expect(
-        guard.canActivate(
-          contexto(
-            AlmacenamientoController,
-            usuario(RolNombre.RESPONSABLE_COMPRAS),
           ),
         ),
       ).toBe(false);
@@ -295,7 +283,10 @@ describe('RolesGuard', () => {
     it('deja entrar al Gerente General por su acceso transversal', () => {
       expect(
         guard.canActivate(
-          contexto(AlmacenamientoController, usuario(RolNombre.GERENTE_GENERAL)),
+          contexto(
+            AlmacenamientoController,
+            usuario(RolNombre.GERENTE_GENERAL),
+          ),
         ),
       ).toBe(true);
     });
