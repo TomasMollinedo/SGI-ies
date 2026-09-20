@@ -6,7 +6,7 @@ import {
 import { Prisma } from '../../../../generated/prisma/client';
 import { EstadoComercial } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { PublicacionesService } from '../publicaciones/publicaciones.service';
+import { PublicacionService } from '../publicacion/publicacion.service';
 import { CreatePlanPagoDto } from './dto/create-plan-pago.dto';
 import { UpdatePlanPagoDto } from './dto/update-plan-pago.dto';
 import { QueryPlanPagoDto } from './dto/query-plan-pago.dto';
@@ -26,7 +26,7 @@ export class PlanPagoService {
      * de la publicación viaja dentro de la misma `$transaction` que el alta o
      * la edición del plan. No se duplica acá ninguna regla de transiciones.
      */
-    private readonly publicaciones: PublicacionesService,
+    private readonly publicaciones: PublicacionService,
   ) {}
 
   /**

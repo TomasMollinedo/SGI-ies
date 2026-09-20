@@ -28,7 +28,6 @@ import { CatalogoModule } from './modules/catalogo/catalogo.module';
 import { AlmacenamientoModule } from './modules/almacenamiento/almacenamiento.module';
 import { PublicacionModule } from './modules/comercializacion/publicacion/publicacion.module';
 import { ClienteModule } from './modules/comercializacion/cliente/cliente.module';
-import { PublicacionesModule } from './modules/comercializacion/publicaciones/publicaciones.module';
 import { PlanPagoModule } from './modules/comercializacion/plan-pago/plan-pago.module';
 @Module({
   imports: [
@@ -58,9 +57,7 @@ import { PlanPagoModule } from './modules/comercializacion/plan-pago/plan-pago.m
     CatalogoModule,
     AlmacenamientoModule,
     PublicacionModule,
-    ClienteModule
     ClienteModule,
-    PublicacionesModule,
     PlanPagoModule,
   ],
   providers: [
