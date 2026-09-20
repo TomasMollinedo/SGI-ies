@@ -20,9 +20,10 @@ import { FormaPagoController } from '../../modules/tesoreria/forma-pago/forma-pa
 import { TipoComprobanteController } from '../../modules/tesoreria/tipo-comprobante/tipo-comprobante.controller';
 import { PagoController } from '../../modules/tesoreria/pago/pago.controller';
 import { CuentaCorrienteController } from '../../modules/tesoreria/cuenta-corriente/cuenta-corriente.controller';
+import { PublicacionController } from '../../modules/comercializacion/publicacion/publicacion.controller';
+import { PlanPagoController } from '../../modules/comercializacion/plan-pago/plan-pago.controller';
 
 import { ComprobanteController } from '../../modules/tesoreria/comprobante/comprobante.controller';
-import { PlanPagoController } from '../../modules/comercializacion/plan-pago/plan-pago.controller';
 /**
  * Controller de mentira, dueño de un rol que no es ni Administrador ni
  * Gerente General: hoy todos los controllers reales son de Administrador
@@ -210,35 +211,50 @@ describe('RolesGuard', () => {
   });
 
   describe('controllers de Comercialización', () => {
-    // El dueño es el Administrador, igual que en el resto de los módulos:
-    // los planes de pago son una pantalla interna (precio contra costo,
-    // planes inactivos), no el catálogo público que ve el cliente.
-    it('PlanPagoController deja entrar al Administrador, que es el rol dueño del recurso', () => {
-      expect(
-        guard.canActivate(
-          contexto(PlanPagoController, usuario(RolNombre.ADMINISTRADOR)),
-        ),
-      ).toBe(true);
-    });
+    const controllersDeComercializacion: [string, object][] = [
+      ['PublicacionController', PublicacionController],
+      ['PlanPagoController', PlanPagoController],
+    ];
 
-    it('PlanPagoController rechaza al Responsable de Comercialización y Ventas', () => {
-      expect(
-        guard.canActivate(
-          contexto(
-            PlanPagoController,
-            usuario(RolNombre.RESPONSABLE_COMERCIALIZACION),
+    it.each(controllersDeComercializacion)(
+      '%s deja entrar al Administrador, que es el rol dueño del recurso',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.ADMINISTRADOR)),
           ),
-        ),
-      ).toBe(false);
-    });
+        ).toBe(true);
+      },
+    );
 
-    it('PlanPagoController deja entrar al Gerente General por su acceso transversal', () => {
-      expect(
-        guard.canActivate(
-          contexto(PlanPagoController, usuario(RolNombre.GERENTE_GENERAL)),
-        ),
-      ).toBe(true);
-    });
+    // Publicar/despublicar unidades y administrar planes de pago son tareas
+    // del Administrador, como el resto de los datos maestros del proyecto:
+    // el Responsable de Comercialización y Ventas no es el dueño de estos
+    // recursos.
+    it.each(controllersDeComercializacion)(
+      '%s rechaza al Responsable de Comercialización y Ventas',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(
+              controller,
+              usuario(RolNombre.RESPONSABLE_COMERCIALIZACION),
+            ),
+          ),
+        ).toBe(false);
+      },
+    );
+
+    it.each(controllersDeComercializacion)(
+      '%s deja entrar al Gerente General por su acceso transversal',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.GERENTE_GENERAL)),
+          ),
+        ).toBe(true);
+      },
+    );
   });
 
   describe('AlmacenamientoController', () => {
@@ -279,10 +295,7 @@ describe('RolesGuard', () => {
     it('deja entrar al Gerente General por su acceso transversal', () => {
       expect(
         guard.canActivate(
-          contexto(
-            AlmacenamientoController,
-            usuario(RolNombre.GERENTE_GENERAL),
-          ),
+          contexto(AlmacenamientoController, usuario(RolNombre.GERENTE_GENERAL)),
         ),
       ).toBe(true);
     });

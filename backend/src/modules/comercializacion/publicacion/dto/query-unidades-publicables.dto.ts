@@ -4,7 +4,7 @@ import { TipologiaUnidad } from '../../../../../generated/prisma/enums';
 
 /** Filtros de la tabla emergente (GET /publicaciones/unidades-publicables). */
 export const queryUnidadesPublicablesSchema = z.object({
-  id_proyecto: z.coerce.number().int().positive().optional(),
+  FK_proyecto: z.coerce.number().int().positive().optional(),
   tipologia: z.enum(TipologiaUnidad).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),

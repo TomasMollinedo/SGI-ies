@@ -9,6 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
@@ -21,22 +22,22 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { PublicacionesService } from './publicaciones.service';
+import { PublicacionService } from './publicacion.service';
 import { CreatePublicacionDto } from './dto/create-publicacion.dto';
 import { DespublicarPublicacionDto } from './dto/despublicar-publicacion.dto';
 import { QueryPublicacionDto } from './dto/query-publicacion.dto';
 import { QueryUnidadesPublicablesDto } from './dto/query-unidades-publicables.dto';
 import {
   PublicacionListResponseDto,
-  PublicacionResponseDto,
+  PublicacionDetalleResponseDto,
 } from './dto/publicacion-response.dto';
-import { UnidadesPublicablesResponseDto } from './dto/unidad-publicable-response.dto';
+import { UnidadPublicableListResponseDto } from './dto/unidad-publicable-response.dto';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { RolNombre } from '../../../common/enums/rol.enum';
 import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 
-@ApiTags('Comercialización - Publicaciones')
+@ApiTags('Publicaciones')
 @ApiBearerAuth()
 @Roles(RolNombre.ADMINISTRADOR)
 @ApiUnauthorizedResponse({ description: 'No autenticado' })
@@ -45,8 +46,8 @@ import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
     'El usuario autenticado no tiene el rol Administrador (el Gerente General también tiene acceso, por ser transversal)',
 })
 @Controller('publicaciones')
-export class PublicacionesController {
-  constructor(private readonly publicacionesService: PublicacionesService) {}
+export class PublicacionController {
+  constructor(private readonly publicacionService: PublicacionService) {}
 
   // Declarado antes de ":id": si no, Nest lo matchea como el parámetro
   // dinámico (mismo criterio que "comprobantes-imputables" en PagoController).
@@ -56,7 +57,7 @@ export class PublicacionesController {
       'Listar unidades funcionales publicables (activas, de proyecto no cancelado y sin publicación vigente), para la tabla emergente de selección al publicar',
   })
   @ApiQuery({
-    name: 'id_proyecto',
+    name: 'FK_proyecto',
     required: false,
     type: Number,
     description: 'Filtra por proyecto',
@@ -93,10 +94,13 @@ export class PublicacionesController {
   @ApiOkResponse({
     description:
       'Listado paginado. Las unidades de proyecto En planificación vienen con publicable: false y su motivo',
-    type: UnidadesPublicablesResponseDto,
+    type: UnidadPublicableListResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Parámetros de filtro/paginación inválidos',
   })
   findUnidadesPublicables(@Query() query: QueryUnidadesPublicablesDto) {
-    return this.publicacionesService.findUnidadesPublicables(query);
+    return this.publicacionService.findUnidadesPublicables(query);
   }
 
   @Post()
@@ -106,8 +110,9 @@ export class PublicacionesController {
   })
   @ApiCreatedResponse({
     description: 'Publicación creada',
-    type: PublicacionResponseDto,
+    type: PublicacionDetalleResponseDto,
   })
+  @ApiBadRequestResponse({ description: 'Datos inválidos' })
   @ApiNotFoundResponse({
     description: 'No existe una unidad funcional con ese id',
   })
@@ -119,7 +124,7 @@ export class PublicacionesController {
     @Body() dto: CreatePublicacionDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.publicacionesService.publicar(dto, user.id);
+    return this.publicacionService.publicar(dto, user.id);
   }
 
   @Get()
@@ -140,7 +145,7 @@ export class PublicacionesController {
     description: 'Filtra por estado comercial',
   })
   @ApiQuery({
-    name: 'id_proyecto',
+    name: 'FK_proyecto',
     required: false,
     type: Number,
     description: 'Filtra por el proyecto de la unidad publicada',
@@ -178,8 +183,11 @@ export class PublicacionesController {
     description: 'Listado paginado de publicaciones, más recientes primero',
     type: PublicacionListResponseDto,
   })
+  @ApiBadRequestResponse({
+    description: 'Parámetros de filtro/paginación inválidos',
+  })
   findAll(@Query() query: QueryPublicacionDto) {
-    return this.publicacionesService.findAll(query);
+    return this.publicacionService.findAll(query);
   }
 
   @Get(':id')
@@ -194,11 +202,11 @@ export class PublicacionesController {
   })
   @ApiOkResponse({
     description: 'Publicación encontrada',
-    type: PublicacionResponseDto,
+    type: PublicacionDetalleResponseDto,
   })
   @ApiNotFoundResponse({ description: 'No existe una publicación con ese id' })
   findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.publicacionesService.findOne(id);
+    return this.publicacionService.findOne(id);
   }
 
   @Patch(':id/despublicar')
@@ -213,18 +221,21 @@ export class PublicacionesController {
   })
   @ApiOkResponse({
     description: 'Publicación despublicada',
-    type: PublicacionResponseDto,
+    type: PublicacionDetalleResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'El motivo de despublicación es obligatorio',
   })
   @ApiNotFoundResponse({ description: 'No existe una publicación con ese id' })
   @ApiConflictResponse({
     description:
-      'La publicación ya fue despublicada, o su estado comercial es En Plan de Pago o Vendida',
+      'La publicación ya fue despublicada, su estado comercial es En Plan de Pago o Vendida, o cambió mientras se procesaba la despublicación (reintentar)',
   })
   despublicar(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: DespublicarPublicacionDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.publicacionesService.despublicar(id, dto, user.id);
+    return this.publicacionService.despublicar(id, dto, user.id);
   }
 }
