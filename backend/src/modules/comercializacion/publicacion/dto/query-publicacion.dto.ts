@@ -15,7 +15,7 @@ export const queryPublicacionSchema = z.object({
     .transform((valor) => valor === 'true')
     .optional(),
   estado_comercial: z.enum(EstadoComercial).optional(),
-  id_proyecto: z.coerce.number().int().positive().optional(),
+  FK_proyecto: z.coerce.number().int().positive().optional(),
   tipologia: z.enum(TipologiaUnidad).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),

@@ -13,7 +13,7 @@ const usuarioResumenSchema = z.object({
 
 /**
  * Datos descriptivos de la unidad, heredados en vivo desde `UNIDADFUNCIONAL`
- * (Decisión cerrada #1): nunca se duplican en la publicación. Sin `costo` a
+ * (herencia en vivo): nunca se duplican en la publicación. Sin `costo` a
  * propósito — es un dato interno de Proyectos, la publicación nunca lo
  * expone.
  */
@@ -51,50 +51,50 @@ const condicionEntregaSchema = z.object({
 });
 
 /**
- * Detalle completo (GET /publicaciones/:id): la unidad, sus imágenes y el
- * proyecto se leen por relación (herencia en vivo), nunca se persisten en
- * esta fila.
+ * Cabecera de la publicación. Los datos de la unidad, sus imágenes y el
+ * proyecto no viven acá: se leen por relación (herencia en vivo) y se suman
+ * en el detalle y en el listado.
  */
 export const publicacionResponseSchema = z.object({
   id_publicacion: z.number(),
+  FK_unidad_funcional: z.number(),
   estado_comercial: z.enum(EstadoComercial),
   vigente: z.boolean(),
   fecha_publicacion: z.iso.datetime(),
   fecha_despublicacion: z.iso.datetime().nullable(),
   motivo_despublicacion: z.string().nullable(),
-  unidad: unidadHeredadaSchema,
-  imagenes: z.array(imagenUnidadSchema),
-  proyecto: proyectoResumenSchema,
-  condicion_entrega: condicionEntregaSchema,
-  usuarioCreador: usuarioResumenSchema,
-  usuarioActualizador: usuarioResumenSchema,
+  hora_creacion: z.iso.datetime(),
+  hora_actualizacion: z.iso.datetime().nullable(),
+  FK_usuario_creador: z.number(),
+  FK_usuario_actualizador: z.number(),
 });
-
-export class PublicacionResponseDto extends createZodDto(
-  publicacionResponseSchema,
-) {}
 
 /**
  * Ítem del listado interno (GET /publicaciones): sin imágenes ni condición
- * de entrega, eso lo trae el detalle (GET /publicaciones/:id).
+ * de entrega, ni datos de auditoría — eso lo trae el detalle
+ * (GET /publicaciones/:id).
  */
-export const publicacionListItemSchema = z.object({
-  id_publicacion: z.number(),
-  estado_comercial: z.enum(EstadoComercial),
-  vigente: z.boolean(),
-  fecha_publicacion: z.iso.datetime(),
-  fecha_despublicacion: z.iso.datetime().nullable(),
-  unidad: unidadHeredadaSchema.pick({
-    id_unidad_funcional: true,
-    identificador: true,
-    tipologia: true,
-  }),
-  proyecto: proyectoResumenSchema.pick({
-    id_proyecto: true,
-    codigo: true,
-    nombre: true,
-  }),
-});
+export const publicacionListItemSchema = publicacionResponseSchema
+  .omit({
+    FK_unidad_funcional: true,
+    motivo_despublicacion: true,
+    hora_creacion: true,
+    hora_actualizacion: true,
+    FK_usuario_creador: true,
+    FK_usuario_actualizador: true,
+  })
+  .extend({
+    unidad: unidadHeredadaSchema.pick({
+      id_unidad_funcional: true,
+      identificador: true,
+      tipologia: true,
+    }),
+    proyecto: proyectoResumenSchema.pick({
+      id_proyecto: true,
+      codigo: true,
+      nombre: true,
+    }),
+  });
 
 export const publicacionListResponseSchema = z.object({
   data: z.array(publicacionListItemSchema),
@@ -107,4 +107,23 @@ export const publicacionListResponseSchema = z.object({
 
 export class PublicacionListResponseDto extends createZodDto(
   publicacionListResponseSchema,
+) {}
+
+/**
+ * Detalle (POST, PATCH despublicar y GET /publicaciones/:id): cabecera
+ * completa + la unidad, sus imágenes, el proyecto, la condición de entrega
+ * calculada y quién la creó/actualizó.
+ */
+export const publicacionDetalleResponseSchema =
+  publicacionResponseSchema.extend({
+    unidad: unidadHeredadaSchema,
+    imagenes: z.array(imagenUnidadSchema),
+    proyecto: proyectoResumenSchema,
+    condicion_entrega: condicionEntregaSchema,
+    usuarioCreador: usuarioResumenSchema,
+    usuarioActualizador: usuarioResumenSchema,
+  });
+
+export class PublicacionDetalleResponseDto extends createZodDto(
+  publicacionDetalleResponseSchema,
 ) {}

@@ -49,6 +49,22 @@ describe('ComprobanteService', () => {
     alicuota_iva: 21,
   };
 
+  /**
+   * Prisma coerciona un `Decimal` de columna a instancia `Decimal.js` al
+   * releer la fila, aunque el `data` del `create`/`update` haya llegado con
+   * un `number` plano (como manda el DTO). Los mocks de abajo simulan esa
+   * misma coerción para `alicuota_iva`, si no `toResponse` explota al llamar
+   * `.toNumber()` sobre un `number`.
+   */
+  const conDecimales = (data: Record<string, unknown>) => ({
+    ...data,
+    ...(data.alicuota_iva !== undefined && {
+      alicuota_iva: new Prisma.Decimal(
+        data.alicuota_iva as Prisma.Decimal.Value,
+      ),
+    }),
+  });
+
   const dtoCrear = (
     detalle: CreateComprobanteDto['detalle'] = [
       { descripcion: 'Cemento', cantidad: 2, precio_unitario: 150.5 },
@@ -113,7 +129,7 @@ describe('ComprobanteService', () => {
           .fn()
           .mockResolvedValue({ id_tipo_comprobante: 1, estado: true }),
       },
-    oRDENCOMPRA: {
+      oRDENCOMPRA: {
         findUnique: jest.fn().mockResolvedValue({
           id_orden_compra: 1,
           estado: 'EMITIDA',
@@ -125,7 +141,7 @@ describe('ComprobanteService', () => {
         create: jest
           .fn()
           .mockImplementation(({ data }) =>
-            Promise.resolve(filaComprobante({ ...data })),
+            Promise.resolve(filaComprobante(conDecimales(data))),
           ),
         findUnique: jest.fn().mockResolvedValue(filaComprobante()),
         findFirst: jest.fn().mockResolvedValue(null),
@@ -134,7 +150,7 @@ describe('ComprobanteService', () => {
         update: jest
           .fn()
           .mockImplementation(({ data }) =>
-            Promise.resolve(filaComprobante({ ...data })),
+            Promise.resolve(filaComprobante(conDecimales(data))),
           ),
       },
       dETALLECOMPROBANTE: {
@@ -374,7 +390,7 @@ describe('ComprobanteService', () => {
         service.create(dtoCrear(), USUARIO_ID),
       ).resolves.toBeDefined();
     });
-        it('rechaza vincular una orden de compra en un estado no vinculable (ej. BORRADOR)', async () => {
+    it('rechaza vincular una orden de compra en un estado no vinculable (ej. BORRADOR)', async () => {
       prisma.oRDENCOMPRA.findUnique.mockResolvedValue({
         id_orden_compra: 9,
         estado: 'BORRADOR',
@@ -567,7 +583,7 @@ describe('ComprobanteService', () => {
         service.update(
           10,
           updateComprobanteSchema.parse({
-            fecha_vencimiento: new Date('2026-07-01'),
+            fecha_vencimiento: '2026-07-01',
           }),
           USUARIO_ID,
         ),
@@ -820,7 +836,7 @@ describe('ComprobanteService', () => {
       ]);
       expect(res.comprobanteOrigen).toBeNull();
       expect(res.notasAplicadas).toEqual([]);
-      expect(res.ordenesPago).toEqual([]);
+      expect(res.pagos).toEqual([]);
       expect(res.usuarioCreador).toEqual({
         nombre: 'Ada',
         apellido: 'Lovelace',
@@ -844,14 +860,14 @@ describe('ComprobanteService', () => {
       expect(res.comprobanteOrigen).not.toHaveProperty('detalle');
     });
 
-    it('mapea las órdenes de pago que imputaron el comprobante', async () => {
+    it('mapea los pagos que imputaron el comprobante', async () => {
       prisma.cOMPROBANTEPROVEEDOR.findUnique.mockResolvedValue(
         filaComprobante({
-          detallesOrdenPago: [
+          detallesPago: [
             {
               importe_imputado: new Prisma.Decimal('150.00'),
-              ordenPago: {
-                id_orden_pago: 3,
+              pago: {
+                id_pago: 3,
                 fecha_pago: new Date('2026-09-01T00:00:00.000Z'),
               },
             },
@@ -861,9 +877,9 @@ describe('ComprobanteService', () => {
 
       const res = await service.findOne(10);
 
-      expect(res.ordenesPago).toEqual([
+      expect(res.pagos).toEqual([
         {
-          id_orden_pago: 3,
+          id_pago: 3,
           fecha_pago: '2026-09-01T00:00:00.000Z',
           importe_imputado: 150,
         },

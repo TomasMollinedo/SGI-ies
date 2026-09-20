@@ -4,10 +4,10 @@ import { createZodDto } from 'nestjs-zod';
 /**
  * Publicar solo necesita la unidad: identificador, proyecto, tipología,
  * superficies, comodidades e imágenes se heredan en vivo por relación desde
- * `UNIDADFUNCIONAL` (ver Fase 5) y nunca se duplican acá.
+ * `UNIDADFUNCIONAL` y nunca se duplican acá.
  */
 export const createPublicacionSchema = z.object({
-  id_unidad_funcional: z.number().int().positive(),
+  FK_unidad_funcional: z.number().int().positive(),
 });
 
 export class CreatePublicacionDto extends createZodDto(
