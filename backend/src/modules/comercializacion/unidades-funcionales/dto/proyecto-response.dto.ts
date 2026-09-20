@@ -2,11 +2,35 @@ import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
 import { EstadoProyecto } from '../../../../../generated/prisma/enums';
 
-export const queryProyectoSchema = z.object({
-  busqueda: z.string().trim().min(1).optional(),
-  estado: z.enum(EstadoProyecto).optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(10),
+export const proyectoResponseSchema = z.object({
+  id_proyecto: z.number(),
+  codigo: z.string(),
+  nombre: z.string(),
+  localidad: z.string(),
+  direccion: z.string().nullable(),
+  estado: z.enum(EstadoProyecto),
+  fecha_fin_estimada: z.iso.datetime().nullable(),
+  cantidad_unidades_planificadas: z.number().nullable(),
+  unidades_cargadas: z.number().meta({
+    description: 'Cantidad de unidades activas cargadas en el proyecto',
+  }),
+  presupuesto: z.number().meta({
+    description:
+      'Suma del costo de las unidades activas, en pesos. Se calcula, no se carga ni se edita.',
+  }),
 });
 
-export class QueryProyectoDto extends createZodDto(queryProyectoSchema) {}
+export class ProyectoResponseDto extends createZodDto(proyectoResponseSchema) {}
+
+export const proyectoListResponseSchema = z.object({
+  data: z.array(proyectoResponseSchema),
+  meta: z.object({
+    total: z.number(),
+    page: z.number(),
+    limit: z.number(),
+  }),
+});
+
+export class ProyectoListResponseDto extends createZodDto(
+  proyectoListResponseSchema,
+) {}
