@@ -7,7 +7,7 @@ import { createZodDto } from 'nestjs-zod';
  * `UNIDADFUNCIONAL` y nunca se duplican acá.
  */
 export const createPublicacionSchema = z.object({
-  id_unidad_funcional: z.number().int().positive(),
+  FK_unidad_funcional: z.number().int().positive(),
 });
 
 export class CreatePublicacionDto extends createZodDto(

@@ -99,7 +99,7 @@ type PublicacionDetalle = Prisma.PUBLICACIONUNIDADGetPayload<{
 }>;
 
 @Injectable()
-export class PublicacionesService {
+export class PublicacionService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
@@ -120,12 +120,12 @@ export class PublicacionesService {
       const filas = await tx.$queryRaw<
         { id_unidad_funcional: number; estado: boolean; FK_proyecto: number }[]
       >(
-        Prisma.sql`SELECT "id_unidad_funcional", "estado", "FK_proyecto" FROM "UNIDADFUNCIONAL" WHERE "id_unidad_funcional" = ${dto.id_unidad_funcional} FOR UPDATE`,
+        Prisma.sql`SELECT "id_unidad_funcional", "estado", "FK_proyecto" FROM "UNIDADFUNCIONAL" WHERE "id_unidad_funcional" = ${dto.FK_unidad_funcional} FOR UPDATE`,
       );
       const unidad = filas[0];
       if (!unidad) {
         throw new NotFoundException(
-          `No existe una unidad funcional con id ${dto.id_unidad_funcional}`,
+          `No existe una unidad funcional con id ${dto.FK_unidad_funcional}`,
         );
       }
       if (!unidad.estado) {
@@ -150,7 +150,7 @@ export class PublicacionesService {
       }
 
       const publicacionVigente = await tx.pUBLICACIONUNIDAD.findFirst({
-        where: { FK_unidad_funcional: dto.id_unidad_funcional, vigente: true },
+        where: { FK_unidad_funcional: dto.FK_unidad_funcional, vigente: true },
         select: { id_publicacion: true },
       });
       if (publicacionVigente) {
@@ -163,7 +163,7 @@ export class PublicacionesService {
 
       const publicacion = await tx.pUBLICACIONUNIDAD.create({
         data: {
-          FK_unidad_funcional: dto.id_unidad_funcional,
+          FK_unidad_funcional: dto.FK_unidad_funcional,
           estado_comercial: EstadoComercial.EN_PREPARACION,
           vigente: true,
           FK_usuario_creador: usuarioId,
@@ -222,7 +222,7 @@ export class PublicacionesService {
         data: {
           vigente: false,
           fecha_despublicacion: new Date(),
-          motivo_despublicacion: dto.motivo,
+          motivo_despublicacion: dto.motivo_despublicacion,
           FK_usuario_actualizador: usuarioId,
           hora_actualizacion: new Date(),
         },
@@ -334,15 +334,15 @@ export class PublicacionesService {
    * `vigente`, devuelve todas las publicaciones, incluido el historial.
    */
   async findAll(query: QueryPublicacionDto) {
-    const { vigente, estado_comercial, id_proyecto, tipologia, page, limit } =
+    const { vigente, estado_comercial, FK_proyecto, tipologia, page, limit } =
       query;
 
     const where: Prisma.PUBLICACIONUNIDADWhereInput = {
       ...(vigente !== undefined && { vigente }),
       ...(estado_comercial !== undefined && { estado_comercial }),
-      ...((id_proyecto !== undefined || tipologia !== undefined) && {
+      ...((FK_proyecto !== undefined || tipologia !== undefined) && {
         unidadFuncional: {
-          ...(id_proyecto !== undefined && { FK_proyecto: id_proyecto }),
+          ...(FK_proyecto !== undefined && { FK_proyecto }),
           ...(tipologia !== undefined && { tipologia }),
         },
       }),
@@ -393,13 +393,13 @@ export class PublicacionesService {
    * pueda mostrarlas igual (deshabilitadas) en vez de ocultarlas.
    */
   async findUnidadesPublicables(query: QueryUnidadesPublicablesDto) {
-    const { id_proyecto, tipologia, page, limit } = query;
+    const { FK_proyecto, tipologia, page, limit } = query;
 
     const where: Prisma.UNIDADFUNCIONALWhereInput = {
       estado: true,
       proyecto: { estado: { not: EstadoProyecto.CANCELADO } },
       publicaciones: { none: { vigente: true } },
-      ...(id_proyecto !== undefined && { FK_proyecto: id_proyecto }),
+      ...(FK_proyecto !== undefined && { FK_proyecto }),
       ...(tipologia !== undefined && { tipologia }),
     };
 

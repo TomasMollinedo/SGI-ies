@@ -22,7 +22,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { PublicacionesService } from './publicaciones.service';
+import { PublicacionService } from './publicacion.service';
 import { CreatePublicacionDto } from './dto/create-publicacion.dto';
 import { DespublicarPublicacionDto } from './dto/despublicar-publicacion.dto';
 import { QueryPublicacionDto } from './dto/query-publicacion.dto';
@@ -46,8 +46,8 @@ import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
     'El usuario autenticado no tiene el rol Administrador (el Gerente General también tiene acceso, por ser transversal)',
 })
 @Controller('publicaciones')
-export class PublicacionesController {
-  constructor(private readonly publicacionesService: PublicacionesService) {}
+export class PublicacionController {
+  constructor(private readonly publicacionService: PublicacionService) {}
 
   // Declarado antes de ":id": si no, Nest lo matchea como el parámetro
   // dinámico (mismo criterio que "comprobantes-imputables" en PagoController).
@@ -57,7 +57,7 @@ export class PublicacionesController {
       'Listar unidades funcionales publicables (activas, de proyecto no cancelado y sin publicación vigente), para la tabla emergente de selección al publicar',
   })
   @ApiQuery({
-    name: 'id_proyecto',
+    name: 'FK_proyecto',
     required: false,
     type: Number,
     description: 'Filtra por proyecto',
@@ -100,7 +100,7 @@ export class PublicacionesController {
     description: 'Parámetros de filtro/paginación inválidos',
   })
   findUnidadesPublicables(@Query() query: QueryUnidadesPublicablesDto) {
-    return this.publicacionesService.findUnidadesPublicables(query);
+    return this.publicacionService.findUnidadesPublicables(query);
   }
 
   @Post()
@@ -124,7 +124,7 @@ export class PublicacionesController {
     @Body() dto: CreatePublicacionDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.publicacionesService.publicar(dto, user.id);
+    return this.publicacionService.publicar(dto, user.id);
   }
 
   @Get()
@@ -145,7 +145,7 @@ export class PublicacionesController {
     description: 'Filtra por estado comercial',
   })
   @ApiQuery({
-    name: 'id_proyecto',
+    name: 'FK_proyecto',
     required: false,
     type: Number,
     description: 'Filtra por el proyecto de la unidad publicada',
@@ -187,7 +187,7 @@ export class PublicacionesController {
     description: 'Parámetros de filtro/paginación inválidos',
   })
   findAll(@Query() query: QueryPublicacionDto) {
-    return this.publicacionesService.findAll(query);
+    return this.publicacionService.findAll(query);
   }
 
   @Get(':id')
@@ -206,7 +206,7 @@ export class PublicacionesController {
   })
   @ApiNotFoundResponse({ description: 'No existe una publicación con ese id' })
   findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.publicacionesService.findOne(id);
+    return this.publicacionService.findOne(id);
   }
 
   @Patch(':id/despublicar')
@@ -229,13 +229,13 @@ export class PublicacionesController {
   @ApiNotFoundResponse({ description: 'No existe una publicación con ese id' })
   @ApiConflictResponse({
     description:
-      'La publicación ya fue despublicada, o su estado comercial es En Plan de Pago o Vendida',
+      'La publicación ya fue despublicada, su estado comercial es En Plan de Pago o Vendida, o cambió mientras se procesaba la despublicación (reintentar)',
   })
   despublicar(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: DespublicarPublicacionDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.publicacionesService.despublicar(id, dto, user.id);
+    return this.publicacionService.despublicar(id, dto, user.id);
   }
 }

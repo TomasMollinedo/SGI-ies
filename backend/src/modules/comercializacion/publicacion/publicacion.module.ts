@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
-import { PublicacionesController } from './publicaciones.controller';
-import { PublicacionesService } from './publicaciones.service';
+import { PublicacionController } from './publicacion.controller';
+import { PublicacionService } from './publicacion.service';
 
 @Module({
-  controllers: [PublicacionesController],
-  providers: [PublicacionesService],
+  controllers: [PublicacionController],
+  providers: [PublicacionService],
   // T105 (pase automático a Disponible) y la adhesión de HU-27 inyectan este
   // service para invocar `transicionarEstadoComercial` dentro de su propia
   // transacción.
-  exports: [PublicacionesService],
+  exports: [PublicacionService],
 })
-export class PublicacionesModule {}
+export class PublicacionModule {}

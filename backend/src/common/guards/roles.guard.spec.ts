@@ -20,6 +20,7 @@ import { FormaPagoController } from '../../modules/tesoreria/forma-pago/forma-pa
 import { TipoComprobanteController } from '../../modules/tesoreria/tipo-comprobante/tipo-comprobante.controller';
 import { PagoController } from '../../modules/tesoreria/pago/pago.controller';
 import { CuentaCorrienteController } from '../../modules/tesoreria/cuenta-corriente/cuenta-corriente.controller';
+import { PublicacionController } from '../../modules/comercializacion/publicacion/publicacion.controller';
 
 import { ComprobanteController } from '../../modules/tesoreria/comprobante/comprobante.controller';
 /**
@@ -197,6 +198,51 @@ describe('RolesGuard', () => {
     );
 
     it.each(controllersDeTesoreria)(
+      '%s deja entrar al Gerente General por su acceso transversal',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.GERENTE_GENERAL)),
+          ),
+        ).toBe(true);
+      },
+    );
+  });
+
+  describe('controllers de Comercialización', () => {
+    const controllersDeComercializacion: [string, object][] = [
+      ['PublicacionController', PublicacionController],
+    ];
+
+    it.each(controllersDeComercializacion)(
+      '%s deja entrar al Administrador, que es el rol dueño del recurso',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.ADMINISTRADOR)),
+          ),
+        ).toBe(true);
+      },
+    );
+
+    // Publicar/despublicar unidades es una tarea del Administrador, como el
+    // resto de los datos maestros del proyecto: el Responsable de
+    // Comercialización y Ventas no es el dueño de este recurso.
+    it.each(controllersDeComercializacion)(
+      '%s rechaza al Responsable de Comercialización y Ventas',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(
+              controller,
+              usuario(RolNombre.RESPONSABLE_COMERCIALIZACION),
+            ),
+          ),
+        ).toBe(false);
+      },
+    );
+
+    it.each(controllersDeComercializacion)(
       '%s deja entrar al Gerente General por su acceso transversal',
       (_nombre, controller) => {
         expect(
