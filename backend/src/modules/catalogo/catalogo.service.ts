@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { calcularCondicionEntrega } from '../../common/validaciones/condicion-entrega';
+import { calcularCondicionEntrega } from '../comercializacion/common/condicion-entrega';
 import { EstadoComercial, EstadoProyecto } from '../../../generated/prisma/enums';
 import type { Prisma } from '../../../generated/prisma/client';
 import { QueryCatalogoDto } from './dto/query-catalogo.dto';
@@ -242,6 +242,21 @@ type PublicacionParaListado = {
   planes: { precio: Prisma.Decimal }[];
 };
 
+/**
+ * `calcularCondicionEntrega` (T103) devuelve `fecha_referencia` como `Date`;
+ * acá se pasa a ISO string, igual que el resto de las fechas de este DTO.
+ */
+function mapearCondicionEntrega(proyecto: {
+  estado: EstadoProyecto;
+  fecha_fin_estimada: Date | null;
+}) {
+  const condicion = calcularCondicionEntrega(proyecto);
+  return {
+    ...condicion,
+    fecha_referencia: condicion.fecha_referencia?.toISOString() ?? null,
+  };
+}
+
 function mapearItemCatalogo(publicacion: PublicacionParaListado) {
   const { unidadFuncional } = publicacion;
   const { proyecto } = unidadFuncional;
@@ -258,7 +273,7 @@ function mapearItemCatalogo(publicacion: PublicacionParaListado) {
     // tiene al menos un plan activo (si se inactivan todos, la publicación
     // vuelve a EN_PREPARACION), así que planes[0] siempre existe acá.
     precio_desde: publicacion.planes[0].precio.toNumber(),
-    condicion_entrega: calcularCondicionEntrega(proyecto.estado, proyecto.fecha_fin_estimada),
+    condicion_entrega: mapearCondicionEntrega(proyecto),
     fecha_publicacion: publicacion.fecha_publicacion.toISOString(),
   };
 }
