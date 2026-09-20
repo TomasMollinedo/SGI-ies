@@ -62,7 +62,7 @@ export class PlanPagoController {
 
   /**
    * Declarado antes que cualquier ruta con `:id`, mismo criterio que
-   * `unidades-publicables` en PublicacionesController.
+   * `unidades-publicables` en PublicacionController.
    *
    * Existe específicamente para que el frontend de T106 NO reimplemente el
    * cálculo de cuotas: si el formulario hiciera su propia división, su propio
