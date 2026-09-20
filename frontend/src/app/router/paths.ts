@@ -58,7 +58,17 @@ export const PATHS = {
   ALERTAS: { ROOT: '/sistema/alertas' },
 
   PROYECTOS: { ROOT: '/sistema/proyectos' },
-  COMERCIALIZACION: { ROOT: '/sistema/comercializacion' },
+  COMERCIALIZACION: {
+    ROOT: '/sistema/comercializacion',
+    PUBLICACIONES: '/sistema/comercializacion/publicaciones',
+    // Patrón de ruta, no una URL navegable: para armar la de una publicación
+    // concreta está `rutaDetallePublicacion`.
+    PUBLICACION_DETALLE: '/sistema/comercializacion/publicaciones/:idPublicacion',
+    // Patrón de ruta, no una URL navegable: para armar la de una publicación
+    // concreta está `rutaPlanesPagoPublicacion`. La ruta la declara T106 en el
+    // router; acá solo está la constante para navegar desde el detalle.
+    PLANES_PAGO_PUBLICACION: '/sistema/comercializacion/publicaciones/:idPublicacion/planes-pago',
+  },
 
   // Sitio público del ecommerce (HU-23/24/25). Convive con el resto de las
   // rutas: HOME y estas son las públicas, /login y /sistema siguen siendo
@@ -89,4 +99,17 @@ export function rutaCardexCuentaCorriente(idProveedor: number): string {
 /** La ruta pública del detalle de una unidad puntual (ej. 42 → /catalogo/42). */
 export function rutaDetalleUnidad(idPublicacion: number): string {
   return PATHS.ECOMMERCE.CATALOGO.DETALLE.replace(':id', String(idPublicacion))
+}
+
+/** La ruta del detalle de una publicación puntual (ej. 42 → /comercializacion/publicaciones/42). */
+export function rutaDetallePublicacion(idPublicacion: number): string {
+  return PATHS.COMERCIALIZACION.PUBLICACION_DETALLE.replace(':idPublicacion', String(idPublicacion))
+}
+
+/** La ruta de los planes de pago de una publicación (la declara T106, ver `PLANES_PAGO_PUBLICACION`). */
+export function rutaPlanesPagoPublicacion(idPublicacion: number): string {
+  return PATHS.COMERCIALIZACION.PLANES_PAGO_PUBLICACION.replace(
+    ':idPublicacion',
+    String(idPublicacion)
+  )
 }

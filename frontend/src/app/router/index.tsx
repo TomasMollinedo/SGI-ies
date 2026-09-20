@@ -22,6 +22,8 @@ import { ProtectedRoute } from './ProtectedRoute'
 import { CategoriasPage } from '@/features/almacen/categorias/pages/CategoriasPage'
 import { ProveedoresPage } from '@/features/compras/proveedores/pages/ProveedoresPage'
 import { OrdenesCompraPage } from '@/features/compras/ordenes-compra/pages/OrdenesCompraPage'
+import { PublicacionDetallePage } from '@/features/comercializacion/publicaciones/pages/PublicacionDetallePage'
+import { PublicacionesPage } from '@/features/comercializacion/publicaciones/pages/PublicacionesPage'
 import { ComprobantesPage } from '@/features/tesoreria/comprobantes/pages/ComprobantesPage'
 import { TiposComprobantePage } from '@/features/tesoreria/tipos-comprobante/pages/TiposComprobantePage'
 import { NuevoPagoPage } from '@/features/tesoreria/pagos/pages/NuevoPagoPage'
@@ -231,8 +233,22 @@ export const router = createBrowserRouter([
           },
           {
             path: PATHS.COMERCIALIZACION.ROOT,
-            element: <PlaceholderPage titulo="Comercialización" historia="HU-21" />,
-            handle: { title: 'Comercialización' },
+            children: [
+              {
+                index: true,
+                element: <Navigate to={PATHS.COMERCIALIZACION.PUBLICACIONES} replace />,
+              },
+              {
+                path: PATHS.COMERCIALIZACION.PUBLICACIONES,
+                element: <PublicacionesPage />,
+                handle: { title: 'Publicaciones' },
+              },
+              {
+                path: PATHS.COMERCIALIZACION.PUBLICACION_DETALLE,
+                element: <PublicacionDetallePage />,
+                handle: { title: 'Detalle de publicación' },
+              },
+            ],
           },
 
           { path: '*', element: <NotFoundPage /> },
