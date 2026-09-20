@@ -129,7 +129,11 @@ describe('CatalogoService', () => {
           piso: '1',
           proyecto: { nombre: 'Torre Nogal', localidad: 'Resistencia, Chaco' },
           precio_desde: 19000000,
-          condicion_entrega: 'A entregar — 2027-12-01',
+          condicion_entrega: {
+            codigo: 'A_ENTREGAR_CON_FECHA',
+            texto: 'A entregar, fecha estimada',
+            fecha_referencia: new Date('2027-12-01').toISOString(),
+          },
           fecha_publicacion: new Date('2026-06-01').toISOString(),
         },
       ]);
