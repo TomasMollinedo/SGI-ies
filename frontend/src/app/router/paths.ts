@@ -58,7 +58,10 @@ export const PATHS = {
   ALERTAS: { ROOT: '/sistema/alertas' },
 
   PROYECTOS: { ROOT: '/sistema/proyectos' },
-  COMERCIALIZACION: { ROOT: '/sistema/comercializacion' },
+  COMERCIALIZACION: {
+    ROOT: '/sistema/comercializacion',
+    PUBLICACIONES: '/sistema/comercializacion/publicaciones',
+  },
 
   // Sitio público del ecommerce (HU-23/24/25). Convive con el resto de las
   // rutas: HOME y estas son las públicas, /login y /sistema siguen siendo
