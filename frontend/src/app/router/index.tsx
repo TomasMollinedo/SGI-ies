@@ -9,10 +9,14 @@ import { CardexPage } from '@/features/almacen/stock/pages/CardexPage'
 import { StockPage } from '@/features/almacen/stock/pages/StockPage'
 import { UnidadesMedidaPage } from '@/features/almacen/unidades-medida/pages/UnidadesMedidaPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { CompletarDatosPage } from '@/features/ecommerce/pages/CompletarDatosPage'
+import { LoginClientePage } from '@/features/ecommerce/pages/LoginClientePage'
+import { PerfilPage } from '@/features/ecommerce/pages/PerfilPage'
 import { PublicLayout } from '@/features/ecommerce/layout/PublicLayout'
 import { MainLayout } from '@/layouts/MainLayout'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
+import { ClienteProtectedRoute } from './ClienteProtectedRoute'
 import { PATHS } from './paths'
 import { ProtectedRoute } from './ProtectedRoute'
 import { CategoriasPage } from '@/features/almacen/categorias/pages/CategoriasPage'
@@ -43,15 +47,25 @@ export const router = createBrowserRouter([
       },
       {
         path: PATHS.ECOMMERCE.LOGIN,
-        element: <PlaceholderPage titulo="Ingresar" historia="HU-23" />,
+        element: <LoginClientePage />,
       },
       {
-        path: PATHS.ECOMMERCE.PERFIL,
-        element: <PlaceholderPage titulo="Mi perfil" historia="HU-28" />,
+        element: <ClienteProtectedRoute requiereDatosCompletos />,
+        children: [
+          {
+            path: PATHS.ECOMMERCE.PERFIL,
+            element: <PerfilPage />,
+          },
+        ],
       },
       {
-        path: PATHS.ECOMMERCE.COMPLETAR_DATOS,
-        element: <PlaceholderPage titulo="Completar datos" historia="HU-23" />,
+        element: <ClienteProtectedRoute />,
+        children: [
+          {
+            path: PATHS.ECOMMERCE.COMPLETAR_DATOS,
+            element: <CompletarDatosPage />,
+          },
+        ],
       },
     ],
   },
