@@ -18,6 +18,15 @@ interface CatalogoListadoBody {
   meta: { total: number; page: number; limit: number };
 }
 
+interface CatalogoDetalleBody {
+  identificador: string;
+  planes: { nombre: string; precio: number }[];
+}
+
+interface ProyectosDestacadosBody {
+  data: { cantidad_disponibles: number; precio_desde: number }[];
+}
+
 /**
  * API pública del ecommerce (T107). Sin login: ninguno de estos requests manda
  * `Authorization`.
@@ -100,19 +109,20 @@ describe('Catálogo público (e2e)', () => {
 
   it('el detalle devuelve los planes activos con su precio', async () => {
     const res = await get('/api/catalogo/2').expect(200);
+    const body = res.body as CatalogoDetalleBody;
 
-    expect(res.body.identificador).toBe('1-A');
-    expect(res.body.planes).toEqual(
-      expect.arrayContaining([expect.objectContaining({ nombre: 'Contado 1-A', precio: 19000000 })]),
+    expect(body.identificador).toBe('1-A');
+    expect(body.planes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ nombre: 'Contado 1-A', precio: 19000000 }),
+      ]),
     );
   });
 
   it('destacados devuelve hasta 4 proyectos, ordenados por cantidad de unidades disponibles', async () => {
     const res = await get('/api/catalogo/destacados').expect(200);
-    const proyectos = res.body.data as {
-      cantidad_disponibles: number;
-      precio_desde: number;
-    }[];
+    const body = res.body as ProyectosDestacadosBody;
+    const proyectos = body.data;
 
     expect(proyectos.length).toBeLessThanOrEqual(4);
     for (let i = 1; i < proyectos.length; i++) {

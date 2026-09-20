@@ -28,17 +28,15 @@ const TIPOS_IMAGEN_PERMITIDOS = /^image\/(jpeg|png|webp|gif)$/;
 
 @ApiTags('Almacenamiento')
 @ApiBearerAuth()
-@Roles(RolNombre.ADMINISTRADOR, RolNombre.RESPONSABLE_COMERCIALIZACION)
+@Roles(RolNombre.ADMINISTRADOR)
 @ApiUnauthorizedResponse({ description: 'No autenticado' })
 @ApiForbiddenResponse({
   description:
-    'El usuario autenticado no tiene el rol Administrador ni Responsable de Comercialización y Ventas (el Gerente General también tiene acceso, por ser transversal)',
+    'El usuario autenticado no tiene el rol Administrador (el Gerente General también tiene acceso, por ser transversal)',
 })
 @Controller('almacenamiento')
 export class AlmacenamientoController {
-  constructor(
-    private readonly almacenamientoService: AlmacenamientoService,
-  ) {}
+  constructor(private readonly almacenamientoService: AlmacenamientoService) {}
 
   @Post('imagenes')
   @ApiOperation({
@@ -60,7 +58,8 @@ export class AlmacenamientoController {
     type: ImagenResponseDto,
   })
   @ApiBadRequestResponse({
-    description: 'El archivo no es una imagen (jpeg/png/webp/gif) o supera los 5 MB',
+    description:
+      'El archivo no es una imagen (jpeg/png/webp/gif) o supera los 5 MB',
   })
   @UseInterceptors(FileInterceptor('file'))
   subirImagen(

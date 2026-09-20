@@ -3,7 +3,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
 import { EstadoComercial } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { PublicacionesService } from '../publicaciones/publicaciones.service';
+import { PublicacionService } from '../publicacion/publicacion.service';
 import { PlanPagoService } from './plan-pago.service';
 import { createPlanPagoSchema } from './dto/create-plan-pago.dto';
 import { updatePlanPagoSchema } from './dto/update-plan-pago.dto';
@@ -117,7 +117,7 @@ describe('PlanPagoService', () => {
       providers: [
         PlanPagoService,
         { provide: PrismaService, useValue: prisma },
-        { provide: PublicacionesService, useValue: publicaciones },
+        { provide: PublicacionService, useValue: publicaciones },
       ],
     }).compile();
 
