@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { calcularCondicionEntrega } from '../../common/validaciones/condicion-entrega';
-import { EstadoComercial, EstadoProyecto } from '../../../generated/prisma/enums';
+import {
+  EstadoComercial,
+  EstadoProyecto,
+} from '../../../generated/prisma/enums';
 import type { Prisma } from '../../../generated/prisma/client';
 import { QueryCatalogoDto } from './dto/query-catalogo.dto';
 
@@ -20,7 +23,12 @@ const UNIDAD_CATALOGO_SELECT = {
   superficie_descubierta: true,
   piso: true,
   proyecto: {
-    select: { nombre: true, localidad: true, estado: true, fecha_fin_estimada: true },
+    select: {
+      nombre: true,
+      localidad: true,
+      estado: true,
+      fecha_fin_estimada: true,
+    },
   },
 } as const;
 
@@ -86,7 +94,10 @@ export class CatalogoService {
       where: {
         vigente: true,
         estado_comercial: EstadoComercial.DISPONIBLE,
-        unidadFuncional: { id_unidad_funcional: idUnidadFuncional, estado: true },
+        unidadFuncional: {
+          id_unidad_funcional: idUnidadFuncional,
+          estado: true,
+        },
       },
       select: {
         fecha_publicacion: true,
@@ -180,7 +191,13 @@ export class CatalogoService {
         unidadFuncional: {
           select: {
             FK_proyecto: true,
-            proyecto: { select: { nombre: true, localidad: true, imagen_portada_url: true } },
+            proyecto: {
+              select: {
+                nombre: true,
+                localidad: true,
+                imagen_portada_url: true,
+              },
+            },
           },
         },
         planes: PLAN_ACTIVO_MAS_BARATO_SELECT,
@@ -251,14 +268,18 @@ function mapearItemCatalogo(publicacion: PublicacionParaListado) {
     identificador: unidadFuncional.identificador,
     tipologia: unidadFuncional.tipologia,
     superficie_cubierta: unidadFuncional.superficie_cubierta.toNumber(),
-    superficie_descubierta: unidadFuncional.superficie_descubierta?.toNumber() ?? null,
+    superficie_descubierta:
+      unidadFuncional.superficie_descubierta?.toNumber() ?? null,
     piso: unidadFuncional.piso,
     proyecto: { nombre: proyecto.nombre, localidad: proyecto.localidad },
     // Garantizado por reglas de negocio: una publicación DISPONIBLE siempre
     // tiene al menos un plan activo (si se inactivan todos, la publicación
     // vuelve a EN_PREPARACION), así que planes[0] siempre existe acá.
     precio_desde: publicacion.planes[0].precio.toNumber(),
-    condicion_entrega: calcularCondicionEntrega(proyecto.estado, proyecto.fecha_fin_estimada),
+    condicion_entrega: calcularCondicionEntrega(
+      proyecto.estado,
+      proyecto.fecha_fin_estimada,
+    ),
     fecha_publicacion: publicacion.fecha_publicacion.toISOString(),
   };
 }

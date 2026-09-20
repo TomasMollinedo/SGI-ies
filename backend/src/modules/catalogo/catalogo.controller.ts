@@ -44,7 +44,8 @@ export class CatalogoController {
     name: 'localidad',
     required: false,
     type: String,
-    description: 'Filtra por coincidencia parcial contra la localidad del proyecto',
+    description:
+      'Filtra por coincidencia parcial contra la localidad del proyecto',
   })
   @ApiQuery({
     name: 'tipologia',
@@ -82,7 +83,8 @@ export class CatalogoController {
     summary: 'Hasta 4 proyectos con más unidades disponibles, para la landing',
   })
   @ApiOkResponse({
-    description: 'Proyectos destacados (lista vacía si no hay ninguna unidad disponible)',
+    description:
+      'Proyectos destacados (lista vacía si no hay ninguna unidad disponible)',
     type: ProyectosDestacadosResponseDto,
   })
   destacados() {
@@ -91,9 +93,14 @@ export class CatalogoController {
 
   @Public()
   @Get(':id')
-  @ApiOperation({ summary: 'Detalle público de una unidad, con sus planes de pago activos' })
+  @ApiOperation({
+    summary: 'Detalle público de una unidad, con sus planes de pago activos',
+  })
   @ApiParam({ name: 'id', type: Number, description: 'id_unidad_funcional' })
-  @ApiOkResponse({ description: 'Detalle de la unidad', type: CatalogoDetalleResponseDto })
+  @ApiOkResponse({
+    description: 'Detalle de la unidad',
+    type: CatalogoDetalleResponseDto,
+  })
   @ApiNotFoundResponse({
     description: 'No existe, o existe pero no está publicada/disponible',
   })
