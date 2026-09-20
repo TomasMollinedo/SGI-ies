@@ -47,11 +47,13 @@ describe('PlanPagoService', () => {
   };
   let publicaciones: { transicionarEstadoComercial: jest.Mock };
 
-  /** La publicación tal como la lee el service: estado comercial + costo de la unidad. */
+  /** La publicación tal como la lee el service: vigente + estado comercial + costo de la unidad. */
   const publicacionEn = (
     estadoComercial: EstadoComercial,
     costo: Prisma.Decimal = COSTO,
+    vigente = true,
   ) => ({
+    vigente,
     estado_comercial: estadoComercial,
     unidadFuncional: { costo },
   });
@@ -278,6 +280,17 @@ describe('PlanPagoService', () => {
       );
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
+
+    it('rechaza con 404 si la publicación no está vigente (historial de una unidad republicada)', async () => {
+      prisma.pUBLICACIONUNIDAD.findUnique.mockResolvedValue(
+        publicacionEn(EstadoComercial.DISPONIBLE, COSTO, false),
+      );
+
+      await expect(service.create(dtoContado(), USUARIO_ID)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
   });
 
   describe('update', () => {
@@ -310,6 +323,51 @@ describe('PlanPagoService', () => {
       );
 
       expect(resultado.warning).toContain('menor al costo');
+    });
+
+    it('calcula el % de ganancia implícito cuando la edición carga el precio directo', async () => {
+      prisma.pLANPAGO.findUnique.mockResolvedValue(
+        planGuardado(EstadoComercial.DISPONIBLE),
+      );
+
+      // (19.000.000 - 15.000.000) / 15.000.000 * 100 = 26,666... -> 26,67
+      const resultado = await service.update(
+        ID_PLAN,
+        updatePlanPagoSchema.parse({ precio: 19000000 }),
+        USUARIO_ID,
+      );
+
+      expect(resultado.porcentaje_ganancia_implicito?.toFixed(2)).toBe('26.67');
+    });
+
+    it('no calcula el implícito si la edición trae porcentaje_ganancia o margen junto con el precio', async () => {
+      prisma.pLANPAGO.findUnique.mockResolvedValue(
+        planGuardado(EstadoComercial.DISPONIBLE),
+      );
+
+      const resultado = await service.update(
+        ID_PLAN,
+        updatePlanPagoSchema.parse({ precio: 19000000, margen: 4000000 }),
+        USUARIO_ID,
+      );
+
+      expect(resultado.porcentaje_ganancia_implicito).toBeNull();
+    });
+
+    it('no calcula warning ni implícito si la edición no tocó el precio', async () => {
+      prisma.pLANPAGO.findUnique.mockResolvedValue(
+        planGuardado(EstadoComercial.DISPONIBLE),
+      );
+      tx.pLANPAGO.count.mockResolvedValue(1);
+
+      const resultado = await service.update(
+        ID_PLAN,
+        updatePlanPagoSchema.parse({ estado: false }),
+        USUARIO_ID,
+      );
+
+      expect(resultado.warning).toBeNull();
+      expect(resultado.porcentaje_ganancia_implicito).toBeNull();
     });
 
     it('rechaza editar el precio si la publicación está EN_PLAN_DE_PAGO', async () => {

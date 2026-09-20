@@ -45,13 +45,19 @@ export class PlanPagoService {
     const publicacion = await this.prisma.pUBLICACIONUNIDAD.findUnique({
       where: { id_publicacion: dto.FK_publicacion },
       select: {
+        vigente: true,
         estado_comercial: true,
         unidadFuncional: { select: { costo: true } },
       },
     });
-    if (!publicacion) {
+    // `vigente: false` es una publicación despublicada o reemplazada por una
+    // más nueva (hay varias filas históricas por unidad, ver
+    // `PUBLICACIONUNIDAD.vigente` en schema.prisma): no es un destino válido
+    // para un plan nuevo, mismo criterio que el resto de las operaciones de
+    // Publicaciones (`despublicar`, `transicionarEstadoComercial`).
+    if (!publicacion || !publicacion.vigente) {
       throw new NotFoundException(
-        `No existe una publicación con id ${dto.FK_publicacion}`,
+        `No existe una publicación vigente con id ${dto.FK_publicacion}`,
       );
     }
 
@@ -134,6 +140,12 @@ export class PlanPagoService {
    * El cambio de `estado` puede arrastrar a la publicación: al inactivar el
    * último plan activo vuelve a EN_PREPARACION, y al reactivar el primero
    * vuelve a DISPONIBLE — siempre en la misma transacción que el update.
+   *
+   * Si este request carga un `precio` nuevo, la respuesta trae los mismos
+   * dos derivados que `create()`: `warning` (precio por debajo del costo) y
+   * `porcentaje_ganancia_implicito` (solo si tampoco vinieron
+   * `porcentaje_ganancia` ni `margen`) — Comercialización puede editar el
+   * precio a mano igual que en el alta, y necesita ver lo mismo.
    */
   async update(id: number, dto: UpdatePlanPagoDto, usuarioId: number) {
     const plan = await this.prisma.pLANPAGO.findUnique({
@@ -173,13 +185,21 @@ export class PlanPagoService {
       );
     }
 
+    // Los dos derivados solo tienen sentido cuando este request carga un
+    // precio nuevo: si no vino `precio`, no hay nada nuevo que avisar ni
+    // ganancia implícita que mostrar (mismo criterio que `create()`).
+    const precioNuevo =
+      dto.precio === undefined ? null : new Prisma.Decimal(dto.precio);
+    const costo = plan.publicacion.unidadFuncional.costo;
+
     const warning =
-      dto.precio === undefined
+      precioNuevo === null
         ? null
-        : this.warningPrecioMenorAlCosto(
-            new Prisma.Decimal(dto.precio),
-            plan.publicacion.unidadFuncional.costo,
-          );
+        : this.warningPrecioMenorAlCosto(precioNuevo, costo);
+    const porcentajeGananciaImplicito =
+      precioNuevo === null
+        ? null
+        : this.calcularGananciaImplicita(dto, precioNuevo, costo);
 
     const cambiaEstado = dto.estado !== undefined && dto.estado !== plan.estado;
 
@@ -214,7 +234,11 @@ export class PlanPagoService {
       return filaActualizada;
     });
 
-    return { ...actualizado, warning };
+    return {
+      ...actualizado,
+      warning,
+      porcentaje_ganancia_implicito: porcentajeGananciaImplicito,
+    };
   }
 
   /**
@@ -371,9 +395,13 @@ export class PlanPagoService {
    * Solo se calcula si no vinieron `porcentaje_ganancia` ni `margen` — si
    * vinieron, el dato real es el que cargó el usuario. Es de solo lectura:
    * las columnas quedan en 0 por el default de Prisma.
+   *
+   * Mismo cálculo para el alta y para la edición: el `dto` solo necesita
+   * traer estos dos campos, así que le sirve tanto a `CreatePlanPagoDto`
+   * (los dos opcionales) como a `UpdatePlanPagoDto` (idem).
    */
   private calcularGananciaImplicita(
-    dto: CreatePlanPagoDto,
+    dto: { porcentaje_ganancia?: number; margen?: number },
     precio: Prisma.Decimal,
     costo: Prisma.Decimal,
   ): Prisma.Decimal | null {

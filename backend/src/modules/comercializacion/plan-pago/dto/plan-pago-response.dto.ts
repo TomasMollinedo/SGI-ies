@@ -68,9 +68,16 @@ export class PlanPagoCreadoResponseDto extends createZodDto(
   planPagoCreadoResponseSchema,
 ) {}
 
-/** Respuesta de la edición: la fila actualizada más el warning si aplica. */
+/**
+ * Respuesta de la edición: la fila actualizada más los mismos dos derivados
+ * que el alta, presentes solo cuando este request cargó un `precio` nuevo
+ * (si no vino `precio`, los dos quedan en `null`: no hay nada nuevo que
+ * avisar ni ganancia implícita que mostrar).
+ */
 export const planPagoActualizadoResponseSchema = planPagoResponseSchema.extend({
   warning: warningSchema,
+  /** Ver `porcentaje_ganancia_implicito` en `planPagoCreadoResponseSchema`. */
+  porcentaje_ganancia_implicito: z.string().nullable(),
 });
 
 export class PlanPagoActualizadoResponseDto extends createZodDto(

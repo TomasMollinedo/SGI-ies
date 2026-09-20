@@ -173,7 +173,7 @@ export class PlanPagoController {
   })
   @ApiOkResponse({
     description:
-      'Plan actualizado. Incluye warning si el precio nuevo quedó por debajo del costo',
+      'Plan actualizado. Si el request cargó un precio nuevo, incluye warning si quedó por debajo del costo y el porcentaje de ganancia implícito si no se editaron porcentaje ni margen',
     type: PlanPagoActualizadoResponseDto,
   })
   @ApiBadRequestResponse({
