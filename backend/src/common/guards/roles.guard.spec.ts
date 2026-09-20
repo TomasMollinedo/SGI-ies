@@ -21,6 +21,7 @@ import { TipoComprobanteController } from '../../modules/tesoreria/tipo-comproba
 import { PagoController } from '../../modules/tesoreria/pago/pago.controller';
 import { CuentaCorrienteController } from '../../modules/tesoreria/cuenta-corriente/cuenta-corriente.controller';
 import { PublicacionController } from '../../modules/comercializacion/publicacion/publicacion.controller';
+import { PlanPagoController } from '../../modules/comercializacion/plan-pago/plan-pago.controller';
 
 import { ComprobanteController } from '../../modules/tesoreria/comprobante/comprobante.controller';
 /**
@@ -212,6 +213,7 @@ describe('RolesGuard', () => {
   describe('controllers de Comercialización', () => {
     const controllersDeComercializacion: [string, object][] = [
       ['PublicacionController', PublicacionController],
+      ['PlanPagoController', PlanPagoController],
     ];
 
     it.each(controllersDeComercializacion)(
@@ -225,9 +227,10 @@ describe('RolesGuard', () => {
       },
     );
 
-    // Publicar/despublicar unidades es una tarea del Administrador, como el
-    // resto de los datos maestros del proyecto: el Responsable de
-    // Comercialización y Ventas no es el dueño de este recurso.
+    // Publicar/despublicar unidades y administrar planes de pago son tareas
+    // del Administrador, como el resto de los datos maestros del proyecto:
+    // el Responsable de Comercialización y Ventas no es el dueño de estos
+    // recursos.
     it.each(controllersDeComercializacion)(
       '%s rechaza al Responsable de Comercialización y Ventas',
       (_nombre, controller) => {
