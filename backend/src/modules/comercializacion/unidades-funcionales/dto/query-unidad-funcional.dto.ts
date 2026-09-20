@@ -1,16 +1,17 @@
 import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
-import { TipologiaUnidad } from '../../../../generated/prisma/enums';
+import { TipologiaUnidad } from '../../../../../generated/prisma/enums';
 
 /**
- * Filtros combinables del listado. El rango de superficie es sobre la
- * superficie cubierta, con mínimo y máximo opcionales. Sin `estado`, lista
- * solo las activas; `todos` trae también las dadas de baja (para poder
- * reactivarlas).
+ * Filtros combinables del listado (GET /unidades-funcionales). El rango de
+ * superficie es sobre la superficie cubierta, con mínimo y máximo opcionales.
+ *
+ * Sin `estado`, lista solo las unidades activas; `todos` trae también las
+ * dadas de baja, para poder encontrar una y reactivarla.
  */
 export const queryUnidadFuncionalSchema = z
   .object({
-    id_proyecto: z.coerce.number().int().positive().optional(),
+    FK_proyecto: z.coerce.number().int().positive().optional(),
     tipologia: z.enum(TipologiaUnidad).optional(),
     superficie_min: z.coerce.number().nonnegative().optional(),
     superficie_max: z.coerce.number().nonnegative().optional(),
