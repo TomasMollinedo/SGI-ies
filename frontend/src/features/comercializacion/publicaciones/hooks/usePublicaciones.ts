@@ -40,13 +40,21 @@ export function useUnidadesPublicables(
   })
 }
 
-/** Detalle de una publicación. Con `id` en `null` la query queda deshabilitada. */
+/**
+ * Detalle de una publicación. Con `id` en `null` la query queda deshabilitada.
+ *
+ * Nunca se sirve de caché (`staleTime: 0` + refetch al montar): el detalle hereda
+ * en vivo los datos de la unidad, y si se editan en Unidades Funcionales tienen
+ * que verse al volver acá.
+ */
 export function usePublicacionDetalle(id: number | null) {
   return useQuery<PublicacionDetalle, ApiErrorResponse>({
     queryKey: PUBLICACIONES_QUERY_KEYS.DETALLE(id),
     // El `!` es seguro: con `id` en `null` la query no corre (`enabled`).
     queryFn: ({ signal }) => obtenerPublicacion(id!, signal),
     enabled: id !== null,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 }
 

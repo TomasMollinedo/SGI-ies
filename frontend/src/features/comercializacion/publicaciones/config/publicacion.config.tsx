@@ -96,7 +96,9 @@ export function puedeDespublicarse(estado: EstadoComercial): boolean {
  * que mostrar ese estado sería engañoso. El estado que tenía queda como dato
  * secundario (ver `estadoAnteriorTexto`).
  */
-export function badgeEstadoPublicacion(publicacion: PublicacionListItem) {
+export function badgeEstadoPublicacion(
+  publicacion: Pick<PublicacionListItem, 'vigente' | 'estado_comercial'>
+) {
   if (!publicacion.vigente) {
     return (
       <Badge variant="inactive" className={CLASES_BADGE_MOBILE}>

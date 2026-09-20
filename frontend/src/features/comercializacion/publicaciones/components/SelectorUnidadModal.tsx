@@ -7,15 +7,11 @@ import { Select } from '@/shared/components/ui/Select'
 import { CLASES_BADGE_MOBILE, OPCIONES_TIPOLOGIA, esTipologia } from '../config/publicacion.config'
 import { useUnidadesPublicables } from '../hooks/usePublicaciones'
 import type { UnidadPublicable } from '../types/publicacion.types'
+import { formatearSuperficie } from '../utils/formatearSuperficie'
 import { CeldaUnidad } from './CeldaUnidad'
 import { ProyectoCombobox } from './ProyectoCombobox'
 
 const LIMITE_PAGINA = 8
-
-/** Superficie con dos decimales máximo y separador local (el backend manda un Decimal). */
-function formatearSuperficie(valor: number): string {
-  return `${Number(valor).toLocaleString('es-AR', { maximumFractionDigits: 2 })} m²`
-}
 
 // Tres columnas (más la de "Elegir" que agrega el modal) para que entre en mobile sin scroll horizontal.
 const COLUMNAS: DataTableColumn<UnidadPublicable>[] = [
