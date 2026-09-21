@@ -9,7 +9,11 @@ interface CatalogoItem {
   identificador: string;
   tipologia: string;
   precio_desde: number;
-  condicion_entrega: { codigo: string; texto: string; fecha_referencia: string | null };
+  condicion_entrega: {
+    codigo: string;
+    texto: string;
+    fecha_referencia: string | null;
+  };
   proyecto: { nombre: string; localidad: string };
 }
 

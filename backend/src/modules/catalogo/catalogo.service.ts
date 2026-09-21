@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { calcularCondicionEntrega } from '../comercializacion/common/condicion-entrega';
-import { EstadoComercial, EstadoProyecto } from '../../../generated/prisma/enums';
+import {
+  EstadoComercial,
+  EstadoProyecto,
+} from '../../../generated/prisma/enums';
 import type { Prisma } from '../../../generated/prisma/client';
 import { QueryCatalogoDto } from './dto/query-catalogo.dto';
 
