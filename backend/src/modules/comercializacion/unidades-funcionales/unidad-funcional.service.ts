@@ -14,7 +14,7 @@ import { CatalogoItemDto } from '../../../common/dto/catalogo-item.dto';
 import { validarNombreUnicoEntreActivos } from '../../../common/validaciones/nombre-unico-entre-activos';
 import { reactivarEntidad } from '../../../common/validaciones/reactivar-entidad';
 import { calcularCondicionEntrega } from '../common/condicion-entrega';
-import { ESTADO_PROYECTO_LABELS } from './proyecto.service';
+import { ESTADO_PROYECTO_LABELS } from '../../proyectos/proyecto.service';
 import { CreateUnidadFuncionalDto } from './dto/create-unidad-funcional.dto';
 import { UpdateUnidadFuncionalDto } from './dto/update-unidad-funcional.dto';
 import { QueryUnidadFuncionalDto } from './dto/query-unidad-funcional.dto';

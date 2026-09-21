@@ -17,14 +17,14 @@ import {
   ProyectoListResponseDto,
   ProyectoResponseDto,
 } from './dto/proyecto-response.dto';
-import { CatalogoItemDto } from '../../../common/dto/catalogo-item.dto';
-import { Roles } from '../../../common/decorators/roles.decorator';
-import { RolNombre } from '../../../common/enums/rol.enum';
-import { EstadoProyecto } from '../../../../generated/prisma/enums';
+import { CatalogoItemDto } from '../../common/dto/catalogo-item.dto';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolNombre } from '../../common/enums/rol.enum';
+import { EstadoProyecto } from '../../../generated/prisma/enums';
 
 /**
- * Solo lectura y provisorio (ver `ProyectoService`): no hay ABM de Proyecto,
- * los proyectos se cargan por seed.
+ * Solo lectura (ver `ProyectoService`): no hay ABM de Proyecto, los
+ * proyectos se cargan por seed.
  */
 @ApiTags('Proyectos')
 @ApiBearerAuth()

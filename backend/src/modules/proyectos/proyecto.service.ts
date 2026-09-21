@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '../../../../generated/prisma/client';
-import { EstadoProyecto } from '../../../../generated/prisma/enums';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { CatalogoItemDto } from '../../../common/dto/catalogo-item.dto';
-import { condicionBusquedaPorPalabras } from '../../../common/validaciones/busqueda-por-palabras';
+import { Prisma } from '../../../generated/prisma/client';
+import { EstadoProyecto } from '../../../generated/prisma/enums';
+import { PrismaService } from '../../prisma/prisma.service';
+import { CatalogoItemDto } from '../../common/dto/catalogo-item.dto';
+import { condicionBusquedaPorPalabras } from '../../common/validaciones/busqueda-por-palabras';
 import { QueryProyectoDto } from './dto/query-proyecto.dto';
 
 /**
@@ -39,11 +39,10 @@ interface ResumenUnidades {
 }
 
 /**
- * VERSIÓN PROVISIONAL, de solo lectura (T101): no hay ABM de Proyecto en
- * ningún sprint, los proyectos se cargan por seed. Alcanza para la tabla
- * emergente de HU-20 y para que HU-25 filtre por proyecto. Se borra o se
- * reemplaza cuando exista el módulo Proyecto real; T102 consume
- * `presupuesto`, `unidades_cargadas` y `GET /proyectos/estados`.
+ * De solo lectura (T101): no hay ABM de Proyecto en ningún sprint, los
+ * proyectos se cargan por seed. Alcanza para la tabla emergente de HU-20 y
+ * para que HU-25 filtre por proyecto; T102 consume `presupuesto`,
+ * `unidades_cargadas` y `GET /proyectos/estados`.
  */
 @Injectable()
 export class ProyectoService {

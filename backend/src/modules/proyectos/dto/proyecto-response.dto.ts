@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
-import { EstadoProyecto } from '../../../../../generated/prisma/enums';
+import { EstadoProyecto } from '../../../../generated/prisma/enums';
 
 export const proyectoResponseSchema = z.object({
   id_proyecto: z.number(),

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
-import { EstadoProyecto } from '../../../../../generated/prisma/enums';
+import { EstadoProyecto } from '../../../../generated/prisma/enums';
 
 export const queryProyectoSchema = z.object({
   busqueda: z.string().trim().min(1).optional(),

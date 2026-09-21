@@ -22,7 +22,7 @@ import { PagoController } from '../../modules/tesoreria/pago/pago.controller';
 import { CuentaCorrienteController } from '../../modules/tesoreria/cuenta-corriente/cuenta-corriente.controller';
 import { PublicacionController } from '../../modules/comercializacion/publicacion/publicacion.controller';
 import { PlanPagoController } from '../../modules/comercializacion/plan-pago/plan-pago.controller';
-import { ProyectoController } from '../../modules/comercializacion/unidades-funcionales/proyecto.controller';
+import { ProyectoController } from '../../modules/proyectos/proyecto.controller';
 import { UnidadFuncionalController } from '../../modules/comercializacion/unidades-funcionales/unidad-funcional.controller';
 import { VentaController } from '../../modules/comercializacion/venta/venta.controller';
 import { ComprobanteController } from '../../modules/tesoreria/comprobante/comprobante.controller';
@@ -259,7 +259,6 @@ describe('RolesGuard', () => {
       },
     );
   });
-
 
   describe('controllers de Unidades Funcionales y Proyectos', () => {
     const controllersDeUnidadesFuncionales: [string, object][] = [

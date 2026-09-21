@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
-import { Prisma } from '../../../../generated/prisma/client';
-import { EstadoProyecto } from '../../../../generated/prisma/enums';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { Prisma } from '../../../generated/prisma/client';
+import { EstadoProyecto } from '../../../generated/prisma/enums';
+import { PrismaService } from '../../prisma/prisma.service';
 import { ProyectoService } from './proyecto.service';
 import { proyectoResponseSchema } from './dto/proyecto-response.dto';
 
