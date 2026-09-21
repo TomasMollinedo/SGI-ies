@@ -24,6 +24,7 @@ import { PublicacionController } from '../../modules/comercializacion/publicacio
 import { PlanPagoController } from '../../modules/comercializacion/plan-pago/plan-pago.controller';
 import { ProyectoController } from '../../modules/comercializacion/unidades-funcionales/proyecto.controller';
 import { UnidadFuncionalController } from '../../modules/comercializacion/unidades-funcionales/unidad-funcional.controller';
+import { VentaController } from '../../modules/comercializacion/venta/venta.controller';
 import { ComprobanteController } from '../../modules/tesoreria/comprobante/comprobante.controller';
 /**
  * Controller de mentira, dueño de un rol que no es ni Administrador ni
@@ -215,6 +216,7 @@ describe('RolesGuard', () => {
     const controllersDeComercializacion: [string, object][] = [
       ['PublicacionController', PublicacionController],
       ['PlanPagoController', PlanPagoController],
+      ['VentaController', VentaController],
     ];
 
     it.each(controllersDeComercializacion)(

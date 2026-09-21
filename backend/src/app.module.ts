@@ -30,6 +30,7 @@ import { PublicacionModule } from './modules/comercializacion/publicacion/public
 import { ClienteModule } from './modules/comercializacion/cliente/cliente.module';
 import { PlanPagoModule } from './modules/comercializacion/plan-pago/plan-pago.module';
 import { UnidadFuncionalModule } from './modules/comercializacion/unidades-funcionales/unidad-funcional.module';
+import { VentaModule } from './modules/comercializacion/venta/venta.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
@@ -61,6 +62,7 @@ import { UnidadFuncionalModule } from './modules/comercializacion/unidades-funci
     ClienteModule,
     PlanPagoModule,
     UnidadFuncionalModule,
+    VentaModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
