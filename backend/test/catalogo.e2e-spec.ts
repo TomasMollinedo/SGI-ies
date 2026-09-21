@@ -9,7 +9,7 @@ interface CatalogoItem {
   identificador: string;
   tipologia: string;
   precio_desde: number;
-  condicion_entrega: string;
+  condicion_entrega: { codigo: string; texto: string; fecha_referencia: string | null };
   proyecto: { nombre: string; localidad: string };
 }
 
@@ -99,7 +99,7 @@ describe('Catálogo público (e2e)', () => {
     for (const item of body.data) {
       expect(item.tipologia).toBe('DOS_DORMITORIOS');
       expect(item.proyecto.localidad).toContain('Santa Fe');
-      expect(item.condicion_entrega.startsWith('A entregar')).toBe(true);
+      expect(item.condicion_entrega.codigo).toMatch(/^A_ENTREGAR/);
     }
   });
 

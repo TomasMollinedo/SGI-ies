@@ -13,6 +13,7 @@ import {
   Landmark,
   Layers,
   ListTree,
+  Megaphone,
   Package,
   Receipt,
   Ruler,
@@ -115,7 +116,14 @@ export const NAV_ITEMS: NavNode[] = [
     ],
   },
   { label: 'Proyectos', to: PATHS.PROYECTOS.ROOT, icon: HardHat },
-  { label: 'Comercialización', to: PATHS.COMERCIALIZACION.ROOT, icon: Store },
+  {
+    label: 'Comercialización',
+    to: PATHS.COMERCIALIZACION.ROOT,
+    icon: Store,
+    children: [
+      { label: 'Publicaciones', to: PATHS.COMERCIALIZACION.PUBLICACIONES, icon: Megaphone },
+    ],
+  },
 ]
 
 export function iconoDeRuta(pathname: string): LucideIcon | undefined {
