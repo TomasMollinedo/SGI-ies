@@ -60,7 +60,16 @@ const PROYECTO_RESUMEN_SELECT = {
   fecha_fin_estimada: true,
 } as const;
 
-/** Nunca incluye `costo`: es un dato interno de Proyectos. */
+/**
+ * Incluye `costo` porque este select alimenta SOLO al detalle
+ * (`PUBLICACION_DETALLE_SELECT` → `findOne`), que es de la pantalla interna de
+ * Comercialización y pide rol ADMINISTRADOR: ahí el costo es justamente el
+ * dato contra el que se arman los planes de pago (HU-22).
+ *
+ * El listado tiene su propio select, más chico, y el catálogo público
+ * (`CatalogoService`) también — ninguno de los dos lo trae, y ahí sí no debe
+ * aparecer nunca.
+ */
 const UNIDAD_CON_PROYECTO_E_IMAGENES_SELECT = {
   id_unidad_funcional: true,
   identificador: true,
@@ -70,6 +79,7 @@ const UNIDAD_CON_PROYECTO_E_IMAGENES_SELECT = {
   piso: true,
   comodidades: true,
   observaciones: true,
+  costo: true,
   imagenes: {
     select: { id_imagen_unidad: true, url: true, orden: true },
     orderBy: { orden: 'asc' as const },

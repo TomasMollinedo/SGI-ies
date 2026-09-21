@@ -22,6 +22,7 @@ import { ProtectedRoute } from './ProtectedRoute'
 import { CategoriasPage } from '@/features/almacen/categorias/pages/CategoriasPage'
 import { ProveedoresPage } from '@/features/compras/proveedores/pages/ProveedoresPage'
 import { OrdenesCompraPage } from '@/features/compras/ordenes-compra/pages/OrdenesCompraPage'
+import { PlanesPagoPublicacionPage } from '@/features/comercializacion/planes-pago/pages/PlanesPagoPublicacionPage'
 import { PublicacionDetallePage } from '@/features/comercializacion/publicaciones/pages/PublicacionDetallePage'
 import { PublicacionesPage } from '@/features/comercializacion/publicaciones/pages/PublicacionesPage'
 import { ComprobantesPage } from '@/features/tesoreria/comprobantes/pages/ComprobantesPage'
@@ -247,6 +248,11 @@ export const router = createBrowserRouter([
                 path: PATHS.COMERCIALIZACION.PUBLICACION_DETALLE,
                 element: <PublicacionDetallePage />,
                 handle: { title: 'Detalle de publicación' },
+              },
+              {
+                path: PATHS.COMERCIALIZACION.PLANES_PAGO_PUBLICACION,
+                element: <PlanesPagoPublicacionPage />,
+                handle: { title: 'Planes de Pago' },
               },
             ],
           },

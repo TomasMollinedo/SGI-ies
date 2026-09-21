@@ -65,8 +65,7 @@ export const PATHS = {
     // concreta está `rutaDetallePublicacion`.
     PUBLICACION_DETALLE: '/sistema/comercializacion/publicaciones/:idPublicacion',
     // Patrón de ruta, no una URL navegable: para armar la de una publicación
-    // concreta está `rutaPlanesPagoPublicacion`. La ruta la declara T106 en el
-    // router; acá solo está la constante para navegar desde el detalle.
+    // concreta está `rutaPlanesPagoPublicacion`.
     PLANES_PAGO_PUBLICACION: '/sistema/comercializacion/publicaciones/:idPublicacion/planes-pago',
   },
 
@@ -106,7 +105,7 @@ export function rutaDetallePublicacion(idPublicacion: number): string {
   return PATHS.COMERCIALIZACION.PUBLICACION_DETALLE.replace(':idPublicacion', String(idPublicacion))
 }
 
-/** La ruta de los planes de pago de una publicación (la declara T106, ver `PLANES_PAGO_PUBLICACION`). */
+/** La ruta de los planes de pago de una publicación (ej. 42 → /comercializacion/publicaciones/42/planes-pago). */
 export function rutaPlanesPagoPublicacion(idPublicacion: number): string {
   return PATHS.COMERCIALIZACION.PLANES_PAGO_PUBLICACION.replace(
     ':idPublicacion',

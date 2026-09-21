@@ -68,6 +68,15 @@ export interface PublicacionDetalle {
     piso: string | null
     comodidades: string | null
     observaciones: string | null
+    /**
+     * Solo lo trae el detalle, que es de la pantalla interna: el listado y el
+     * catálogo público no lo exponen. Lo necesita Planes de Pago (HU-22) como
+     * referencia para cargar los precios.
+     *
+     * `string` y no `number` porque es un `Decimal` del backend — ver el
+     * encabezado de `planPago.types.ts`.
+     */
+    costo: string
   }
   imagenes: { id_imagen_unidad: number; url: string; orden: number }[]
   proyecto: ProyectoPublicacion & {
