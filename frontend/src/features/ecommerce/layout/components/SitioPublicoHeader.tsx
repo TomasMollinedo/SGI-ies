@@ -70,6 +70,7 @@ export function SitioPublicoHeader() {
             onNavegar={cerrarMenu}
             variante="landing"
             etiquetaLogin={HEADER.iniciarSesion}
+            desplegable
           />
         </div>
 

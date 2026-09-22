@@ -1,9 +1,11 @@
-import { LogOut, User } from 'lucide-react'
+import { useId } from 'react'
+import { ChevronDown, LogOut, User } from 'lucide-react'
 import { Link, NavLink, useNavigate } from 'react-router'
 import { PATHS } from '@/app/router/paths'
 import { LinkButton } from '@/features/ecommerce/components/LinkButton'
 import { useClienteAuthUser } from '@/features/ecommerce/hooks/useClienteAuthUser'
 import { useLogoutCliente } from '@/features/ecommerce/hooks/useLogoutCliente'
+import { useMenuDesplegable } from '@/features/ecommerce/hooks/useMenuDesplegable'
 import { cn } from '@/shared/utils/cn'
 import { CLASE_BASE_NAV_LANDING, claseEnlaceNav, claseEnlaceNavLanding } from './navClases'
 
@@ -23,6 +25,13 @@ interface ClienteSesionMenuProps {
    * siga viviendo en el archivo de constantes de esa pantalla.
    */
   etiquetaLogin?: string
+  /**
+   * Con sesión, muestra solo el avatar y el nombre, y deja "Mi perfil" y
+   * "Cerrar sesión" dentro de un desplegable. Es para el header, donde las tres
+   * cosas en fila compiten con la navegación; en el panel móvil, que ya es un
+   * desplegable, las opciones van a la vista.
+   */
+  desplegable?: boolean
 }
 
 /**
@@ -34,10 +43,13 @@ export function ClienteSesionMenu({
   onNavegar,
   variante = 'publico',
   etiquetaLogin,
+  desplegable = false,
 }: ClienteSesionMenuProps) {
   const { data: cliente } = useClienteAuthUser()
   const { mutate: cerrarSesion, isPending: cerrandoSesion } = useLogoutCliente()
   const navigate = useNavigate()
+  const { abierto, alternar, cerrar, contenedorRef, botonRef, manejarBlur } = useMenuDesplegable()
+  const idPanel = useId()
   const esLanding = variante === 'landing'
 
   if (!cliente) {
@@ -83,6 +95,116 @@ export function ClienteSesionMenu({
     cerrarSesion()
   }
 
+  const avatar = (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'bg-primary text-primary-content flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+        esLanding && 'font-mono'
+      )}
+    >
+      {iniciales}
+    </span>
+  )
+
+  // Las dos opciones se definen una sola vez y se acomodan al contenedor: en el
+  // desplegable ocupan todo el ancho, y fuera de él conservan el estilo de los
+  // enlaces del header. La ruta y el logout son los mismos en los dos casos.
+  const enlacePerfil = (
+    <NavLink
+      to={PATHS.ECOMMERCE.PERFIL}
+      className={({ isActive }) =>
+        cn(
+          esLanding ? claseEnlaceNavLanding({ isActive }) : claseEnlaceNav({ isActive }),
+          desplegable && CLASE_ITEM_DESPLEGABLE
+        )
+      }
+      onClick={() => {
+        cerrar()
+        onNavegar()
+      }}
+    >
+      Mi perfil
+    </NavLink>
+  )
+
+  const botonCerrarSesion = (
+    <button
+      type="button"
+      onClick={() => {
+        cerrar()
+        handleCerrarSesion()
+      }}
+      disabled={cerrandoSesion}
+      className={cn(
+        'flex items-center gap-2 text-left disabled:opacity-60',
+        esLanding
+          ? `${CLASE_BASE_NAV_LANDING} text-light hover:text-secondary`
+          : 'text-light hover:bg-light/10 rounded px-3 py-2.5 text-xs md:py-1.5',
+        desplegable && CLASE_ITEM_DESPLEGABLE
+      )}
+    >
+      <LogOut size={14} className="shrink-0" />
+      {cerrandoSesion ? 'Saliendo...' : 'Cerrar sesión'}
+    </button>
+  )
+
+  if (desplegable) {
+    return (
+      <div ref={contenedorRef} onBlur={manejarBlur} className="relative">
+        {/*
+          Es un "disclosure", no un menú ARIA: adentro hay un enlace y un botón
+          que se recorren con Tab, como el resto del header. Por eso
+          `aria-haspopup` genérico y no `role="menu"`, que obligaría a mover el
+          foco con las flechas.
+        */}
+        <button
+          ref={botonRef}
+          type="button"
+          onClick={alternar}
+          aria-haspopup="true"
+          aria-expanded={abierto}
+          aria-controls={idPanel}
+          className={cn(
+            'text-light hover:text-secondary flex items-center gap-3 rounded px-2 py-2 transition-colors',
+            'focus-visible:outline-light focus-visible:outline-2 focus-visible:outline-offset-2'
+          )}
+        >
+          {avatar}
+          {/*
+            El nombre manda: se le da todo el ancho que sobra en el header y un
+            interletrado más corto que el de la navegación, para que un nombre
+            largo entre entero. El recorte queda solo como red de seguridad —si
+            igual llega a cortarse, el panel lo muestra completo al abrirlo.
+          */}
+          <span className="max-w-64 truncate font-mono text-xs tracking-wide uppercase xl:max-w-80">
+            {nombreCompleto}
+          </span>
+          <ChevronDown
+            size={16}
+            aria-hidden="true"
+            className={cn('shrink-0 transition-transform', abierto && 'rotate-180')}
+          />
+        </button>
+
+        {abierto && (
+          <div
+            id={idPanel}
+            className="bg-dark-deep border-light/15 absolute top-full right-0 z-40 mt-2 flex w-64 flex-col border shadow-xl"
+          >
+            <span aria-hidden="true" className="bg-primary h-0.5 w-full" />
+            {/* Acá el nombre va entero, en varias líneas si hace falta. */}
+            <p className="border-light/10 text-light border-b px-4 py-3 font-mono text-xs tracking-wide break-words uppercase">
+              {nombreCompleto}
+            </p>
+            {enlacePerfil}
+            {botonCerrarSesion}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div
       className={cn(
@@ -91,53 +213,32 @@ export function ClienteSesionMenu({
       )}
     >
       <div className={cn('flex items-center gap-3 px-3 py-2', esLanding ? 'lg:py-0' : 'md:py-0')}>
-        <span
-          aria-hidden="true"
-          className={cn(
-            'bg-primary text-primary-content flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
-            esLanding && 'font-mono'
-          )}
-        >
-          {iniciales}
-        </span>
+        {avatar}
         {/*
-          Dónde entra el nombre: en el header del resto del sitio, desde lg. En
-          la landing, dentro del panel desplegable (hasta lg) y en el header
-          recién desde xl — entre medio, las cuatro anclas más "Mi perfil" y
-          "Cerrar sesión" ya ocupan todo el ancho.
+          En la landing esta presentación es la del panel desplegable, donde hay
+          ancho de sobra: el nombre se muestra entero, cortando de línea si hace
+          falta. En el header del resto del sitio, en cambio, comparte la fila
+          con el resto del menú, así que se recorta y aparece recién desde lg.
         */}
         <span
-          className={cn(
-            'text-light max-w-48 truncate text-xs font-medium md:hidden lg:inline',
-            esLanding && 'font-mono tracking-widest uppercase md:inline lg:hidden xl:inline'
-          )}
+          className={
+            esLanding
+              ? 'text-light font-mono text-xs tracking-wide break-words uppercase'
+              : 'text-light max-w-48 truncate text-xs font-medium md:hidden lg:inline'
+          }
         >
           {nombreCompleto}
         </span>
       </div>
 
-      <NavLink
-        to={PATHS.ECOMMERCE.PERFIL}
-        className={esLanding ? claseEnlaceNavLanding : claseEnlaceNav}
-        onClick={onNavegar}
-      >
-        Mi perfil
-      </NavLink>
-
-      <button
-        type="button"
-        onClick={handleCerrarSesion}
-        disabled={cerrandoSesion}
-        className={cn(
-          'flex items-center gap-2 text-left disabled:opacity-60',
-          esLanding
-            ? `${CLASE_BASE_NAV_LANDING} text-light hover:text-secondary`
-            : 'text-light hover:bg-light/10 rounded px-3 py-2.5 text-xs md:py-1.5'
-        )}
-      >
-        <LogOut size={14} className="shrink-0" />
-        {cerrandoSesion ? 'Saliendo...' : 'Cerrar sesión'}
-      </button>
+      {enlacePerfil}
+      {botonCerrarSesion}
     </div>
   )
 }
+
+/**
+ * Dentro del panel las dos opciones ocupan todo el ancho. `lg:py-3` neutraliza
+ * el `lg:py-1.5` que traen los enlaces del header, pensado para ir en línea.
+ */
+const CLASE_ITEM_DESPLEGABLE = 'hover:bg-light/5 w-full justify-start px-4 py-3 lg:py-3'
