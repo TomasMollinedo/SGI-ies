@@ -13,6 +13,7 @@ import { Select } from '@/shared/components/ui/Select'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { formatearFecha } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
+import { CeldaUnidad } from '@/features/comercializacion/publicaciones/components/CeldaUnidad'
 import {
   badgeEstadoVenta,
   ESTADO_VENTA_POR_DEFECTO,
@@ -53,6 +54,17 @@ export function VentasPage() {
   }, [statusCode, navigate])
 
   const columnas: DataTableColumn<VentaListItem>[] = [
+    {
+      key: 'unidad',
+      label: 'Unidad',
+      render: (venta) => (
+        <CeldaUnidad
+          identificador={venta.unidad.identificador}
+          proyecto={venta.proyecto.nombre}
+          tipologia={venta.unidad.tipologia}
+        />
+      ),
+    },
     {
       key: 'cliente',
       label: 'Cliente',

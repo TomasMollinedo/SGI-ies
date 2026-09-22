@@ -2,6 +2,10 @@ import type {
   Periodicidad,
   TipoPlanPago,
 } from '@/features/comercializacion/planes-pago/types/planPago.types'
+import type {
+  ProyectoPublicacion,
+  UnidadResumen,
+} from '@/features/comercializacion/publicaciones/types/publicacion.types'
 
 export type EstadoVenta = 'VIGENTE' | 'CANCELADA'
 
@@ -70,6 +74,8 @@ export interface VentaListItem {
   cliente: ClienteResumen
   FK_publicacion: number
   FK_plan_pago: number
+  unidad: UnidadResumen
+  proyecto: ProyectoPublicacion
 }
 
 export interface CuotaVenta {

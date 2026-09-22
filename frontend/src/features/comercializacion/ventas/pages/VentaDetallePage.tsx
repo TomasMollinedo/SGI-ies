@@ -15,7 +15,6 @@ import {
   PERIODICIDAD_LABEL,
   TIPO_PLAN_LABEL,
 } from '@/features/comercializacion/planes-pago/config/planPago.config'
-import { usePublicacionDetalle } from '@/features/comercializacion/publicaciones/hooks/usePublicaciones'
 import { CancelarVentaModal } from '../components/CancelarVentaModal'
 import type { VentaACancelar } from '../components/CancelarVentaModal'
 import { badgeEstadoCuota, badgeEstadoVenta } from '../config/venta.config'
@@ -37,9 +36,6 @@ export function VentaDetallePage() {
   const idVenta = params.idVenta ? Number(params.idVenta) : null
 
   const { data: venta, isLoading, error, refetch } = useVentaDetalle(idVenta)
-  // La venta solo guarda FK_publicacion; el identificador legible de la
-  // unidad (para mostrarlo y para el modal de cancelación) se resuelve acá.
-  const { data: publicacion } = usePublicacionDetalle(venta?.FK_publicacion ?? null)
   const [cancelando, setCancelando] = useState<VentaACancelar | null>(null)
 
   const statusCode = error?.statusCode
@@ -81,14 +77,8 @@ export function VentaDetallePage() {
       <div className="border-subtle bg-fondotabla flex flex-col gap-4 rounded-lg border p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-content text-lg font-semibold">
-              {publicacion
-                ? publicacion.unidad.identificador
-                : `Publicación #${venta.FK_publicacion}`}
-            </p>
-            {publicacion && (
-              <p className="text-content-muted text-sm">{publicacion.proyecto.nombre}</p>
-            )}
+            <p className="text-content text-lg font-semibold">{venta.unidad.identificador}</p>
+            <p className="text-content-muted text-sm">{venta.proyecto.nombre}</p>
           </div>
           {badgeEstadoVenta(venta.estado)}
         </div>
@@ -140,8 +130,7 @@ export function VentaDetallePage() {
               onClick={() =>
                 setCancelando({
                   id_venta: venta.id_venta,
-                  identificadorUnidad:
-                    publicacion?.unidad.identificador ?? `#${venta.FK_publicacion}`,
+                  identificadorUnidad: venta.unidad.identificador,
                 })
               }
             >
