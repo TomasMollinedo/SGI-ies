@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
 import {
   EstadoCobro,
@@ -7,6 +11,7 @@ import {
   EstadoVenta,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { validarTelefonoSoloNumeros } from '../../../common/validaciones/telefono-solo-numeros';
 import { PublicacionService } from '../publicacion/publicacion.service';
 import { generarCuotas } from '../plan-pago/motor-cuotas';
 import { CreateVentaDto } from './dto/create-venta.dto';
@@ -58,7 +63,9 @@ export class VentaService {
         throw new ConflictException('La publicación no está vigente');
       }
       if (publicacion.estado_comercial !== EstadoComercial.DISPONIBLE) {
-        throw new ConflictException('La unidad no está disponible para la venta');
+        throw new ConflictException(
+          'La unidad no está disponible para la venta',
+        );
       }
 
       const plan = await tx.pLANPAGO.findUnique({
@@ -68,7 +75,9 @@ export class VentaService {
         throw new ConflictException('El plan de pago está inactivado');
       }
       if (plan.FK_publicacion !== dto.FK_publicacion) {
-        throw new ConflictException('El plan de pago no pertenece a esta publicación');
+        throw new ConflictException(
+          'El plan de pago no pertenece a esta publicación',
+        );
       }
 
       // Chequeo defensivo previo: por construcción, una publicación DISPONIBLE
@@ -76,10 +85,15 @@ export class VentaService {
       // de más abajo es quien realmente lo garantiza contra condiciones de
       // carrera (ver comentario del constructor).
       const ventaVigente = await tx.vENTA.findFirst({
-        where: { FK_publicacion: dto.FK_publicacion, estado: EstadoVenta.VIGENTE },
+        where: {
+          FK_publicacion: dto.FK_publicacion,
+          estado: EstadoVenta.VIGENTE,
+        },
       });
       if (ventaVigente) {
-        throw new ConflictException('Ya existe una venta vigente sobre esta publicación');
+        throw new ConflictException(
+          'Ya existe una venta vigente sobre esta publicación',
+        );
       }
 
       const anticipoCongelado = this.resolverAnticipoMonto(plan);
@@ -147,6 +161,8 @@ export class VentaService {
     tx: Prisma.TransactionClient,
     datos: CreateVentaDto['cliente'],
   ) {
+    validarTelefonoSoloNumeros(datos.telefono);
+
     const existente = await tx.cLIENTE.findFirst({
       where: this.clienteWhere({ dni_cuil: datos.dni_cuil, email: datos.email }),
       select: CLIENTE_SELECT,
@@ -335,6 +351,13 @@ export class VentaService {
     };
   }
 
+  /**
+   * `unidad`/`proyecto` viajan igual que en `PublicacionController.findAll`
+   * (mismo `select` anidado sobre `publicacion.unidadFuncional`): sin esto,
+   * el listado y el detalle de venta solo tenían `FK_publicacion`, un id sin
+   * significado para quien mira la pantalla — no había forma de saber qué
+   * unidad se vendió sin un pedido aparte por cada fila.
+   */
   private ventaSelect() {
     return {
       id_venta: true,
@@ -350,6 +373,20 @@ export class VentaService {
       FK_publicacion: true,
       FK_plan_pago: true,
       cliente: { select: CLIENTE_SELECT },
+      publicacion: {
+        select: {
+          unidadFuncional: {
+            select: {
+              id_unidad_funcional: true,
+              identificador: true,
+              tipologia: true,
+              proyecto: {
+                select: { id_proyecto: true, codigo: true, nombre: true },
+              },
+            },
+          },
+        },
+      },
     } as const;
   }
 
@@ -374,7 +411,18 @@ export class VentaService {
       email: string;
       telefono: string | null;
     };
+    publicacion: {
+      unidadFuncional: {
+        id_unidad_funcional: number;
+        identificador: string;
+        tipologia: string;
+        proyecto: { id_proyecto: number; codigo: string; nombre: string };
+      };
+    };
   }) {
+    const { unidadFuncional } = venta.publicacion;
+    const { proyecto, ...unidad } = unidadFuncional;
+
     return {
       id_venta: venta.id_venta,
       fecha_adhesion: venta.fecha_adhesion.toISOString(),
@@ -389,6 +437,8 @@ export class VentaService {
       cliente: venta.cliente,
       FK_publicacion: venta.FK_publicacion,
       FK_plan_pago: venta.FK_plan_pago,
+      unidad,
+      proyecto,
     };
   }
 }
