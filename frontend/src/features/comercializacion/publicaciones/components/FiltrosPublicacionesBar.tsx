@@ -2,11 +2,8 @@ import type { ReactNode } from 'react'
 import { FilterX } from 'lucide-react'
 import { Button } from '@/shared/components/ui/Button'
 import { Select } from '@/shared/components/ui/Select'
-import {
-  OPCIONES_ESTADO_COMERCIAL,
-  OPCIONES_TIPOLOGIA,
-  OPCIONES_VIGENCIA,
-} from '../config/publicacion.config'
+import { OPCIONES_TIPOLOGIA } from '@/shared/config/tipologiaUnidad.config'
+import { OPCIONES_ESTADO_COMERCIAL, OPCIONES_VIGENCIA } from '../config/publicacion.config'
 import { ProyectoCombobox } from './ProyectoCombobox'
 
 interface FiltrosPublicacionesBarProps {

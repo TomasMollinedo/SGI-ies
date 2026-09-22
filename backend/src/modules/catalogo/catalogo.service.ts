@@ -30,6 +30,16 @@ const UNIDAD_CATALOGO_SELECT = {
       fecha_fin_estimada: true,
     },
   },
+  // Solo la portada (la de menor `orden`), para que la tarjeta del catálogo
+  // tenga su imagen sin pedir el detalle de cada unidad: Prisma la resuelve
+  // dentro de la misma consulta del listado, no una por fila.
+  // `obtenerDetalle` vuelve a declarar `imagenes` después de este spread y se
+  // queda con la galería completa.
+  imagenes: {
+    select: { url: true },
+    orderBy: { orden: 'asc' as const },
+    take: 1,
+  },
 } as const;
 
 @Injectable()
@@ -255,6 +265,7 @@ type PublicacionParaListado = {
       estado: EstadoProyecto;
       fecha_fin_estimada: Date | null;
     };
+    imagenes: { url: string }[];
   };
   planes: { precio: Prisma.Decimal }[];
 };
@@ -287,6 +298,7 @@ function mapearItemCatalogo(publicacion: PublicacionParaListado) {
       unidadFuncional.superficie_descubierta?.toNumber() ?? null,
     piso: unidadFuncional.piso,
     proyecto: { nombre: proyecto.nombre, localidad: proyecto.localidad },
+    imagen_url: unidadFuncional.imagenes[0]?.url ?? null,
     // Garantizado por reglas de negocio: una publicación DISPONIBLE siempre
     // tiene al menos un plan activo (si se inactivan todos, la publicación
     // vuelve a EN_PREPARACION), así que planes[0] siempre existe acá.

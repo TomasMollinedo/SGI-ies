@@ -33,6 +33,8 @@ export const catalogoListItemSchema = z.object({
   superficie_descubierta: z.number().nullable(),
   piso: z.string().nullable(),
   proyecto: proyectoResumenSchema,
+  /** Portada de la unidad (la imagen de menor `orden`). Null si no tiene ninguna. */
+  imagen_url: z.string().nullable(),
   precio_desde: z.number(),
   condicion_entrega: condicionEntregaSchema,
   // Fecha de la publicación vigente: es el criterio de orden del catálogo

@@ -1,5 +1,5 @@
+import type { CondicionEntrega } from '@/shared/types/unidadFuncional.types'
 import { formatearFechaSinHora } from '@/shared/utils/fecha'
-import type { CondicionEntrega } from '../types/publicacion.types'
 
 /**
  * El texto final de la condición de entrega. Se decide por `codigo`, nunca

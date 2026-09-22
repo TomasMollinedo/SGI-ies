@@ -5,11 +5,8 @@ import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/hooks/useToast'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { formatearMensajeError } from '@/shared/utils/apiError'
-import {
-  ESTADO_COMERCIAL_META,
-  TIPOLOGIA_LABEL,
-  puedeDespublicarse,
-} from '../config/publicacion.config'
+import { TIPOLOGIA_LABEL } from '@/shared/config/tipologiaUnidad.config'
+import { ESTADO_COMERCIAL_META, puedeDespublicarse } from '../config/publicacion.config'
 import { useCrearPublicacion, usePublicacionDetalle } from '../hooks/usePublicaciones'
 import type { UnidadPublicable } from '../types/publicacion.types'
 import { extraerIdPublicacionVigente } from '../utils/publicacionVigenteError'

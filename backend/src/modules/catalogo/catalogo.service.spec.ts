@@ -14,6 +14,15 @@ const primerArgumento = (
 ): Prisma.PUBLICACIONUNIDADFindManyArgs =>
   (mock.mock.calls as Prisma.PUBLICACIONUNIDADFindManyArgs[][])[0][0];
 
+/**
+ * El `select` anidado que arma Prisma es una unión de tipos (puede ser `true`,
+ * o un objeto con `select`), así que para inspeccionarlo desde el test se lo
+ * mira con la forma puntual que interesa.
+ */
+type SelectDelListado = {
+  unidadFuncional: { select: { imagenes: unknown } };
+};
+
 describe('CatalogoService', () => {
   let service: CatalogoService;
   let prisma: {
@@ -41,6 +50,7 @@ describe('CatalogoService', () => {
         estado: EstadoProyecto.EN_EJECUCION,
         fecha_fin_estimada: new Date('2027-12-01'),
       },
+      imagenes: [{ url: 'https://cdn.test/1-a.jpg' }],
     },
     planes: [{ precio: new Prisma.Decimal('19000000') }],
     ...extra,
@@ -128,6 +138,7 @@ describe('CatalogoService', () => {
           superficie_descubierta: 6,
           piso: '1',
           proyecto: { nombre: 'Torre Nogal', localidad: 'Resistencia, Chaco' },
+          imagen_url: 'https://cdn.test/1-a.jpg',
           precio_desde: 19000000,
           condicion_entrega: {
             codigo: 'A_ENTREGAR_CON_FECHA',
@@ -140,6 +151,32 @@ describe('CatalogoService', () => {
       expect(JSON.stringify(res)).not.toMatch(
         /costo|margen|porcentaje_ganancia/i,
       );
+    });
+
+    it('pide una sola imagen por unidad, la de menor orden', async () => {
+      prisma.pUBLICACIONUNIDAD.findMany.mockResolvedValue([]);
+      prisma.pUBLICACIONUNIDAD.count.mockResolvedValue(0);
+
+      await service.listarCatalogo({ page: 1, limit: 12 });
+
+      const argumento = primerArgumento(prisma.pUBLICACIONUNIDAD.findMany);
+      const select = argumento.select as unknown as SelectDelListado;
+      expect(select.unidadFuncional.select.imagenes).toEqual({
+        select: { url: true },
+        orderBy: { orden: 'asc' },
+        take: 1,
+      });
+    });
+
+    it('devuelve imagen_url en null si la unidad no tiene imágenes', async () => {
+      const sinImagenes = publicacionCatalogo();
+      sinImagenes.unidadFuncional.imagenes = [];
+      prisma.pUBLICACIONUNIDAD.findMany.mockResolvedValue([sinImagenes]);
+      prisma.pUBLICACIONUNIDAD.count.mockResolvedValue(1);
+
+      const res = await service.listarCatalogo({ page: 1, limit: 12 });
+
+      expect(res.data[0].imagen_url).toBeNull();
     });
   });
 
