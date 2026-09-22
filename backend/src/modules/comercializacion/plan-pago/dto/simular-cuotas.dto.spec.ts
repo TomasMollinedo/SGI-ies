@@ -35,7 +35,9 @@ describe('simularCuotasSchema', () => {
       ...financiado,
       fecha_venta: '2026-04-14',
     });
-    expect(conFecha.fecha_venta).toEqual(new Date('2026-04-14T00:00:00.000Z'));
+    // Una fecha sola se ancla a la medianoche de Argentina (UTC-3), no a la
+    // medianoche UTC: ver `fechaIsoSchema`.
+    expect(conFecha.fecha_venta).toEqual(new Date('2026-04-14T03:00:00.000Z'));
   });
 
   it('ignora FK_publicacion y nombre: simular no necesita una publicación real', () => {
