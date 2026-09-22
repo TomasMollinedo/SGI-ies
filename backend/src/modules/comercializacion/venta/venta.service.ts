@@ -335,6 +335,13 @@ export class VentaService {
     };
   }
 
+  /**
+   * `unidad`/`proyecto` viajan igual que en `PublicacionController.findAll`
+   * (mismo `select` anidado sobre `publicacion.unidadFuncional`): sin esto,
+   * el listado y el detalle de venta solo tenían `FK_publicacion`, un id sin
+   * significado para quien mira la pantalla — no había forma de saber qué
+   * unidad se vendió sin un pedido aparte por cada fila.
+   */
   private ventaSelect() {
     return {
       id_venta: true,
@@ -350,6 +357,20 @@ export class VentaService {
       FK_publicacion: true,
       FK_plan_pago: true,
       cliente: { select: CLIENTE_SELECT },
+      publicacion: {
+        select: {
+          unidadFuncional: {
+            select: {
+              id_unidad_funcional: true,
+              identificador: true,
+              tipologia: true,
+              proyecto: {
+                select: { id_proyecto: true, codigo: true, nombre: true },
+              },
+            },
+          },
+        },
+      },
     } as const;
   }
 
@@ -374,7 +395,18 @@ export class VentaService {
       email: string;
       telefono: string | null;
     };
+    publicacion: {
+      unidadFuncional: {
+        id_unidad_funcional: number;
+        identificador: string;
+        tipologia: string;
+        proyecto: { id_proyecto: number; codigo: string; nombre: string };
+      };
+    };
   }) {
+    const { unidadFuncional } = venta.publicacion;
+    const { proyecto, ...unidad } = unidadFuncional;
+
     return {
       id_venta: venta.id_venta,
       fecha_adhesion: venta.fecha_adhesion.toISOString(),
@@ -389,6 +421,8 @@ export class VentaService {
       cliente: venta.cliente,
       FK_publicacion: venta.FK_publicacion,
       FK_plan_pago: venta.FK_plan_pago,
+      unidad,
+      proyecto,
     };
   }
 }
