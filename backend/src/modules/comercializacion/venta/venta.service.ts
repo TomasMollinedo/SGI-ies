@@ -148,7 +148,7 @@ export class VentaService {
     datos: CreateVentaDto['cliente'],
   ) {
     const existente = await tx.cLIENTE.findFirst({
-      where: { OR: [{ dni_cuil: datos.dni_cuil }, { email: datos.email }] },
+      where: this.clienteWhere({ dni_cuil: datos.dni_cuil, email: datos.email }),
       select: CLIENTE_SELECT,
     });
     if (existente) return existente;
@@ -163,6 +163,35 @@ export class VentaService {
       },
       select: CLIENTE_SELECT,
     });
+  }
+
+  /**
+   * Buscador del formulario de venta (HU-27): a diferencia de
+   * `buscarOCrearCliente`, esto corre fuera de cualquier transacción y nunca
+   * crea nada — el vendedor lo usa para saber, antes de completar el resto
+   * del formulario, si el cliente ya existe (y así no volver a pedirle
+   * nombre/teléfono) o si hay que darlo de alta. `dni_cuil`/`email` son
+   * ambos opcionales en el query, pero `BuscarClienteQueryDto` exige que
+   * venga al menos uno.
+   */
+  async buscarCliente(datos: { dni_cuil?: string; email?: string }) {
+    const cliente = await this.prisma.cLIENTE.findFirst({
+      where: this.clienteWhere(datos),
+      select: CLIENTE_SELECT,
+    });
+
+    return { encontrado: cliente !== null, cliente };
+  }
+
+  /** Condición `OR` compartida por `buscarOCrearCliente` y `buscarCliente`, solo con los campos presentes. */
+  private clienteWhere(datos: {
+    dni_cuil?: string;
+    email?: string;
+  }): Prisma.CLIENTEWhereInput {
+    const or: Prisma.CLIENTEWhereInput[] = [];
+    if (datos.dni_cuil !== undefined) or.push({ dni_cuil: datos.dni_cuil });
+    if (datos.email !== undefined) or.push({ email: datos.email });
+    return { OR: or };
   }
 
   /**

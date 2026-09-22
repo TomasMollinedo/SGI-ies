@@ -7,7 +7,7 @@ import {
   TipoPlanPago,
 } from '../../../../../generated/prisma/enums';
 
-const clienteResumenSchema = z.object({
+export const clienteResumenSchema = z.object({
   id_cliente: z.number(),
   nombre: z.string(),
   apellido: z.string().nullable(),
