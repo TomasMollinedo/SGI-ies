@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Eye, FilterX, ShieldAlert, ShoppingCart } from 'lucide-react'
+import { Eye, ShieldAlert, ShoppingCart } from 'lucide-react'
 import { PATHS, rutaDetalleVenta } from '@/app/router/paths'
 import { DataTable } from '@/shared/components/common/DataTable'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
@@ -9,40 +9,66 @@ import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
 import { Button } from '@/shared/components/ui/Button'
 import { IconButton } from '@/shared/components/ui/IconButton'
-import { Select } from '@/shared/components/ui/Select'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { formatearFecha } from '@/shared/utils/fecha'
+import { finDelDiaIso, inicioDelDiaIso } from '@/shared/utils/fechaIso'
 import { formatearImporte } from '@/shared/utils/importe'
 import { CeldaUnidad } from '@/features/comercializacion/publicaciones/components/CeldaUnidad'
-import {
-  badgeEstadoVenta,
-  ESTADO_VENTA_POR_DEFECTO,
-  esFiltroEstadoVenta,
-  LIMITE_PAGINA,
-  OPCIONES_ESTADO_VENTA,
-} from '../config/venta.config'
-import type { FiltroEstadoVenta } from '../config/venta.config'
+import { FiltrosVentasBar } from '../components/FiltrosVentasBar'
+import { badgeEstadoVenta, ESTADO_VENTA_POR_DEFECTO, LIMITE_PAGINA } from '../config/venta.config'
 import type { VentaListItem } from '../types/venta.types'
 import { useVentas } from '../hooks/useVentas'
 
+const FILTROS_VACIOS = {
+  estado: ESTADO_VENTA_POR_DEFECTO,
+  proyecto: '',
+  unidad: '',
+  cliente: '',
+  fechaDesde: '',
+  fechaHasta: '',
+}
+
 /**
- * Listado interno de ventas (HU-27): filtro por estado y paginación. El
- * detalle de cada fila muestra el cronograma completo de cuotas.
+ * Listado interno de ventas (HU-27): filtrable por proyecto, unidad, cliente,
+ * estado y período (PB), con paginación. El detalle de cada fila muestra el
+ * cronograma completo de cuotas.
  */
 export function VentasPage() {
   const navigate = useNavigate()
 
-  const [estado, setEstado] = useState<FiltroEstadoVenta>(ESTADO_VENTA_POR_DEFECTO)
+  const [filtros, setFiltros] = useState(FILTROS_VACIOS)
   const [page, setPage] = useState(1)
 
-  const hayFiltros = estado !== ESTADO_VENTA_POR_DEFECTO
+  const { estado, proyecto, unidad, cliente, fechaDesde, fechaHasta } = filtros
 
+  // Las dos fechas son ISO `YYYY-MM-DD`, así que alcanza con compararlas como texto.
+  const rangoInvalido = fechaDesde !== '' && fechaHasta !== '' && fechaDesde > fechaHasta
+  const hayFiltros = Object.values(filtros).some(
+    (valor) => valor !== ESTADO_VENTA_POR_DEFECTO && valor !== ''
+  )
+
+  function cambiarFiltro<K extends keyof typeof FILTROS_VACIOS>(
+    campo: K,
+    valor: (typeof FILTROS_VACIOS)[K]
+  ) {
+    setFiltros((actuales) => ({ ...actuales, [campo]: valor }))
+  }
+
+  // Con otros filtros, la página en la que estaba parado el usuario puede no
+  // existir más: siempre se vuelve a la primera.
   useEffect(() => {
     setPage(1)
-  }, [estado])
+  }, [filtros])
 
   const { data, isLoading, isFetching, error, refetch } = useVentas({
     estado: estado === 'todos' ? undefined : estado,
+    FK_proyecto: proyecto === '' ? undefined : Number(proyecto),
+    FK_unidad_funcional: unidad === '' ? undefined : Number(unidad),
+    FK_cliente: cliente === '' ? undefined : Number(cliente),
+    // Un rango al revés no se manda: el listado sigue mostrando el resto de
+    // los filtros mientras el usuario corrige las fechas.
+    fechaDesde: rangoInvalido || fechaDesde === '' ? undefined : inicioDelDiaIso(fechaDesde),
+    fechaHasta: rangoInvalido || fechaHasta === '' ? undefined : finDelDiaIso(fechaHasta),
     page,
     limit: LIMITE_PAGINA,
   })
@@ -126,37 +152,33 @@ export function VentasPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex w-full flex-wrap items-end justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-end gap-3">
-          <Select
-            size="sm"
-            label="Estado"
-            options={OPCIONES_ESTADO_VENTA}
-            value={estado}
-            onChange={(evento) => {
-              const valor = evento.target.value
-              if (esFiltroEstadoVenta(valor)) setEstado(valor)
-            }}
-            className="w-full sm:w-44"
-          />
+      <FiltrosVentasBar
+        estado={estado}
+        onEstadoChange={(valor) => cambiarFiltro('estado', valor)}
+        proyecto={proyecto}
+        onProyectoChange={(valor) => cambiarFiltro('proyecto', valor)}
+        unidad={unidad}
+        onUnidadChange={(valor) => cambiarFiltro('unidad', valor)}
+        cliente={cliente}
+        onClienteChange={(valor) => cambiarFiltro('cliente', valor)}
+        fechaDesde={fechaDesde}
+        onFechaDesdeChange={(valor) => cambiarFiltro('fechaDesde', valor)}
+        fechaHasta={fechaHasta}
+        onFechaHastaChange={(valor) => cambiarFiltro('fechaHasta', valor)}
+        errorRango={
+          rangoInvalido ? 'La fecha desde no puede ser posterior a la fecha hasta' : undefined
+        }
+        onLimpiar={() => setFiltros(FILTROS_VACIOS)}
+        hayFiltros={hayFiltros}
+        acciones={
           <Button
-            size="sm"
-            icon={<FilterX />}
-            onClick={() => setEstado(ESTADO_VENTA_POR_DEFECTO)}
-            disabled={!hayFiltros}
-            title="Volver a los filtros por defecto"
+            icon={<ShoppingCart />}
+            onClick={() => navigate(PATHS.COMERCIALIZACION.NUEVA_VENTA)}
           >
-            Limpiar filtros
+            Registrar venta
           </Button>
-        </div>
-
-        <Button
-          icon={<ShoppingCart />}
-          onClick={() => navigate(PATHS.COMERCIALIZACION.NUEVA_VENTA)}
-        >
-          Registrar venta
-        </Button>
-      </div>
+        }
+      />
 
       {error && statusCode !== 401 ? (
         <ErrorState mensaje={formatearMensajeError(error.message)} onReintentar={() => refetch()} />
@@ -165,11 +187,11 @@ export function VentasPage() {
           {!isLoading && ventas.length === 0 && (
             <EmptyState
               titulo={
-                hayFiltros ? 'No se encontraron ventas con ese filtro' : 'No hay ventas registradas'
+                hayFiltros ? 'No se encontraron ventas con esos filtros' : 'No hay ventas registradas'
               }
               descripcion={
                 hayFiltros
-                  ? 'Probá ajustar el filtro de estado.'
+                  ? 'Probá ajustar los filtros de búsqueda.'
                   : 'Registrá la primera con «Registrar venta».'
               }
             />

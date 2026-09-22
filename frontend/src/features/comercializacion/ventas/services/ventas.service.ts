@@ -25,7 +25,11 @@ export async function listarVentas(
     params: {
       FK_cliente: filtros.FK_cliente,
       FK_publicacion: filtros.FK_publicacion,
+      FK_unidad_funcional: filtros.FK_unidad_funcional,
+      FK_proyecto: filtros.FK_proyecto,
       estado: filtros.estado,
+      fechaDesde: filtros.fechaDesde,
+      fechaHasta: filtros.fechaHasta,
       page: filtros.page,
       limit: filtros.limit,
     },

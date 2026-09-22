@@ -54,7 +54,12 @@ export interface CancelarVentaPayload {
 export interface QueryVenta {
   FK_cliente?: number
   FK_publicacion?: number
+  FK_unidad_funcional?: number
+  FK_proyecto?: number
   estado?: EstadoVenta
+  /** ISO 8601. Filtran `fecha_adhesion`. */
+  fechaDesde?: string
+  fechaHasta?: string
   page?: number
   limit?: number
 }
