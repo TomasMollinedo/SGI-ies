@@ -29,6 +29,7 @@ import { AlmacenamientoModule } from './modules/almacenamiento/almacenamiento.mo
 import { PublicacionModule } from './modules/comercializacion/publicacion/publicacion.module';
 import { ClienteModule } from './modules/comercializacion/cliente/cliente.module';
 import { PlanPagoModule } from './modules/comercializacion/plan-pago/plan-pago.module';
+import { CobroModule } from './modules/comercializacion/cobro/cobro.module';
 import { UnidadFuncionalModule } from './modules/comercializacion/unidades-funcionales/unidad-funcional.module';
 import { VentaModule } from './modules/comercializacion/venta/venta.module';
 import { ProyectoModule } from './modules/proyectos/proyecto.module';
@@ -62,6 +63,7 @@ import { ProyectoModule } from './modules/proyectos/proyecto.module';
     PublicacionModule,
     ClienteModule,
     PlanPagoModule,
+    CobroModule,
     UnidadFuncionalModule,
     VentaModule,
     ProyectoModule,
