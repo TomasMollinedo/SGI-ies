@@ -78,6 +78,7 @@ describe('PublicacionService', () => {
       piso: '1',
       comodidades: null,
       observaciones: null,
+      costo: new Prisma.Decimal(15000000),
       imagenes: [{ id_imagen_unidad: 1, url: 'https://x/1.jpg', orden: 0 }],
       proyecto: {
         id_proyecto: 1,
@@ -534,20 +535,33 @@ describe('PublicacionService', () => {
       expect(resultado.imagenes).toHaveLength(1);
     });
 
-    it('el select de la unidad nunca incluye costo y ordena las imágenes por orden ascendente', async () => {
+    it('el select de la unidad incluye costo y ordena las imágenes por orden ascendente', async () => {
       prisma.pUBLICACIONUNIDAD.findUnique.mockResolvedValue(detalleMock());
 
       await service.findOne(7);
 
       const args = primerArgumento(prisma.pUBLICACIONUNIDAD.findUnique);
-      expect(JSON.stringify(args)).not.toContain('costo');
       const unidadSelect = (
         args.select as { unidadFuncional: { select: Args } }
       ).unidadFuncional.select;
+      // El detalle es de la pantalla interna (rol ADMINISTRADOR) y es la
+      // única lectura de PUBLICACIONUNIDAD que expone el costo: lo necesita
+      // Comercialización para armar los planes de pago (HU-22).
+      expect(unidadSelect.costo).toBe(true);
       expect(unidadSelect.imagenes).toEqual({
         select: { id_imagen_unidad: true, url: true, orden: true },
         orderBy: { orden: 'asc' },
       });
+    });
+
+    it('devuelve el costo de la unidad en el detalle', async () => {
+      prisma.pUBLICACIONUNIDAD.findUnique.mockResolvedValue(detalleMock());
+
+      const resultado = await service.findOne(7);
+
+      // Sigue siendo un Decimal: serializa a string por HTTP, igual que
+      // `precio` en los planes de pago (ver `unidadDetalleSchema`).
+      expect(resultado.unidad.costo).toStrictEqual(new Prisma.Decimal(15000000));
     });
   });
 

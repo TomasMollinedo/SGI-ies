@@ -13,9 +13,12 @@ const usuarioResumenSchema = z.object({
 
 /**
  * Datos descriptivos de la unidad, heredados en vivo desde `UNIDADFUNCIONAL`
- * (herencia en vivo): nunca se duplican en la publicación. Sin `costo` a
- * propósito — es un dato interno de Proyectos, la publicación nunca lo
- * expone.
+ * (herencia en vivo): nunca se duplican en la publicación.
+ *
+ * Sin `costo`: es un dato interno de Proyectos. Lo suma únicamente el detalle
+ * (ver `unidadDetalleSchema`), que es un endpoint de la pantalla interna de
+ * Comercialización; el listado lo `pick`ea sin él, y el catálogo público
+ * (`CatalogoService`) tiene su propio select, que nunca lo toca.
  */
 export const unidadHeredadaSchema = z.object({
   id_unidad_funcional: z.number(),
@@ -26,6 +29,27 @@ export const unidadHeredadaSchema = z.object({
   piso: z.string().nullable(),
   comodidades: z.string().nullable(),
   observaciones: z.string().nullable(),
+});
+
+/**
+ * La unidad tal como la ve el detalle: lo heredado más el `costo`, que
+ * Comercialización necesita para armar los planes de pago (HU-22). Es contra
+ * el costo que se calcula el precio sugerido del plan, y contra el que el
+ * backend avisa —con el `warning` de `PlanPagoCreadoResponseDto`— si el precio
+ * quedó por debajo.
+ *
+ * Solo acá: el detalle es de la pantalla interna y pide el mismo rol
+ * ADMINISTRADOR que los planes de pago. El catálogo público nunca ve este
+ * schema.
+ *
+ * `string` y no `number`: la columna es `Decimal(14, 2)` y Prisma la devuelve
+ * como `Prisma.Decimal`, que serializa a string. Mismo criterio —y misma
+ * pantalla— que `precio` en `PlanPagoResponseDto`. Las superficies de arriba
+ * sí son `number` porque el service las convierte con `.toNumber()`; los
+ * importes no se convierten.
+ */
+const unidadDetalleSchema = unidadHeredadaSchema.extend({
+  costo: z.string(),
 });
 
 const imagenUnidadSchema = z.object({
@@ -116,7 +140,7 @@ export class PublicacionListResponseDto extends createZodDto(
  */
 export const publicacionDetalleResponseSchema =
   publicacionResponseSchema.extend({
-    unidad: unidadHeredadaSchema,
+    unidad: unidadDetalleSchema,
     imagenes: z.array(imagenUnidadSchema),
     proyecto: proyectoResumenSchema,
     condicion_entrega: condicionEntregaSchema,

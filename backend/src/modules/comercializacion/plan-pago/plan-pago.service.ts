@@ -40,6 +40,10 @@ export class PlanPagoService {
    * Devuelve la fila creada más tres datos derivados que NO se persisten:
    * `warning` (precio menor al costo), `porcentaje_ganancia_implicito` y
    * `anticipo_monto_calculado`.
+   *
+   * Rechaza con 409 si la publicación ya tiene una venta (EN_PLAN_DE_PAGO o
+   * VENDIDA): el contrato con el cliente se cerró sobre el abanico de planes
+   * que existía en ese momento, no corresponde sumarle uno nuevo después.
    */
   async create(dto: CreatePlanPagoDto, usuarioId: number) {
     const publicacion = await this.prisma.pUBLICACIONUNIDAD.findUnique({
@@ -58,6 +62,18 @@ export class PlanPagoService {
     if (!publicacion || !publicacion.vigente) {
       throw new NotFoundException(
         `No existe una publicación vigente con id ${dto.FK_publicacion}`,
+      );
+    }
+
+    // Con una venta ya encima, el contrato con el cliente está cerrado sobre
+    // el abanico de planes que existía en ese momento: no tiene sentido
+    // comercial sumar una oferta nueva después.
+    if (
+      publicacion.estado_comercial === EstadoComercial.EN_PLAN_DE_PAGO ||
+      publicacion.estado_comercial === EstadoComercial.VENDIDA
+    ) {
+      throw new ConflictException(
+        'No se puede crear un plan nuevo: la publicación ya tiene una venta',
       );
     }
 
@@ -141,6 +157,12 @@ export class PlanPagoService {
    * último plan activo vuelve a EN_PREPARACION, y al reactivar el primero
    * vuelve a DISPONIBLE — siempre en la misma transacción que el update.
    *
+   * Precio, porcentaje de ganancia y margen solo se editan con el plan
+   * activo: si el plan ya está inactivo y este request no lo reactiva a la
+   * vez (`estado: true`), rechaza con 409 — la vía para tocar sus condiciones
+   * económicas es reactivarlo primero, no editarlo "apagado" y confiar en que
+   * nadie lo revise hasta la próxima vez que se active.
+   *
    * Si este request carga un `precio` nuevo, la respuesta trae los mismos
    * dos derivados que `create()`: `warning` (precio por debajo del costo) y
    * `porcentaje_ganancia_implicito` (solo si tampoco vinieron
@@ -182,6 +204,17 @@ export class PlanPagoService {
     if (editaCondiciones && tieneVenta) {
       throw new ConflictException(
         'No se puede editar precio/porcentaje/margen: la publicación ya tiene una venta',
+      );
+    }
+
+    // Un plan inactivo no es una oferta vigente: si el request no lo
+    // reactiva en el mismo golpe (`dto.estado` en true), sus condiciones
+    // económicas quedan tan congeladas como las de un plan con venta. Para
+    // tocarlas hay que reactivarlo primero, desde el listado.
+    const estadoResultante = dto.estado ?? plan.estado;
+    if (editaCondiciones && !estadoResultante) {
+      throw new ConflictException(
+        'No se puede editar precio/porcentaje/margen: el plan está inactivo',
       );
     }
 

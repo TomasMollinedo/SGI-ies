@@ -291,6 +291,20 @@ describe('PlanPagoService', () => {
       );
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
+
+    it.each([EstadoComercial.EN_PLAN_DE_PAGO, EstadoComercial.VENDIDA])(
+      'rechaza con 409 crear un plan nuevo si la publicación está %s',
+      async (estadoComercial) => {
+        prisma.pUBLICACIONUNIDAD.findUnique.mockResolvedValue(
+          publicacionEn(estadoComercial),
+        );
+
+        await expect(service.create(dtoContado(), USUARIO_ID)).rejects.toThrow(
+          ConflictException,
+        );
+        expect(prisma.$transaction).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('update', () => {
@@ -383,6 +397,38 @@ describe('PlanPagoService', () => {
         ),
       ).rejects.toThrow(ConflictException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rechaza editar el precio de un plan inactivo', async () => {
+      prisma.pLANPAGO.findUnique.mockResolvedValue(
+        planGuardado(EstadoComercial.DISPONIBLE, false),
+      );
+
+      await expect(
+        service.update(
+          ID_PLAN,
+          updatePlanPagoSchema.parse({ precio: 21000000 }),
+          USUARIO_ID,
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('permite editar el precio de un plan inactivo si el mismo request lo reactiva', async () => {
+      prisma.pLANPAGO.findUnique.mockResolvedValue(
+        planGuardado(EstadoComercial.EN_PREPARACION, false),
+      );
+      tx.pLANPAGO.count.mockResolvedValue(1);
+
+      await service.update(
+        ID_PLAN,
+        updatePlanPagoSchema.parse({ precio: 21000000, estado: true }),
+        USUARIO_ID,
+      );
+
+      const data = dataDe(tx.pLANPAGO.update);
+      expect(data.precio?.toFixed(2)).toBe('21000000.00');
+      expect(data.estado).toBe(true);
     });
 
     it('vuelve a EN_PREPARACION al inactivar el último plan activo', async () => {
