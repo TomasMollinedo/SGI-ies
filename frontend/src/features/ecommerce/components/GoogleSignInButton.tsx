@@ -13,6 +13,10 @@ interface GoogleSignInButtonProps {
  * Botón oficial de Google Identity Services. Es Google quien dibuja el botón
  * (y su texto, localizado en español): con GIS no se puede usar un botón
  * propio para obtener un id_token.
+ *
+ * Por eso su aspecto no sale del theme sino de las opciones de GIS:
+ * `filled_black` es la variante para fondos oscuros y `rectangular` la que
+ * acompaña los bordes rectos del sitio público.
  */
 export function GoogleSignInButton({ onCredential, onLoadError }: GoogleSignInButtonProps) {
   const contenedor = useRef<HTMLDivElement>(null)
@@ -40,7 +44,7 @@ export function GoogleSignInButton({ onCredential, onLoadError }: GoogleSignInBu
         })
         window.google.accounts.id.renderButton(elemento, {
           type: 'standard',
-          theme: 'outline',
+          theme: 'filled_black',
           size: 'large',
           text: 'signin_with',
           shape: 'rectangular',

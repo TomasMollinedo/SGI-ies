@@ -96,6 +96,14 @@ export function rutaCardexCuentaCorriente(idProveedor: number): string {
   return PATHS.TESORERIA.CUENTAS_CORRIENTES_CARDEX.replace(':idProveedor', String(idProveedor))
 }
 
+/**
+ * La ruta del catálogo filtrado por un proyecto (ej. 42 → /catalogo?FK_proyecto=42).
+ * El nombre del parámetro es el que acepta GET /catalogo, no uno propio del front.
+ */
+export function rutaCatalogoPorProyecto(idProyecto: number): string {
+  return `${PATHS.ECOMMERCE.CATALOGO.ROOT}?FK_proyecto=${idProyecto}`
+}
+
 /** La ruta pública del detalle de una unidad puntual (ej. 42 → /catalogo/42). */
 export function rutaDetalleUnidad(idPublicacion: number): string {
   return PATHS.ECOMMERCE.CATALOGO.DETALLE.replace(':id', String(idPublicacion))
