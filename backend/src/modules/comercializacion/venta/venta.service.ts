@@ -11,6 +11,7 @@ import {
   EstadoVenta,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { validarTelefonoSoloNumeros } from '../../../common/validaciones/telefono-solo-numeros';
 import { PublicacionService } from '../publicacion/publicacion.service';
 import { generarCuotas } from '../plan-pago/motor-cuotas';
 import { CreateVentaDto } from './dto/create-venta.dto';
@@ -160,8 +161,10 @@ export class VentaService {
     tx: Prisma.TransactionClient,
     datos: CreateVentaDto['cliente'],
   ) {
+    validarTelefonoSoloNumeros(datos.telefono);
+
     const existente = await tx.cLIENTE.findFirst({
-      where: { OR: [{ dni_cuil: datos.dni_cuil }, { email: datos.email }] },
+      where: this.clienteWhere({ dni_cuil: datos.dni_cuil, email: datos.email }),
       select: CLIENTE_SELECT,
     });
     if (existente) return existente;
@@ -176,6 +179,35 @@ export class VentaService {
       },
       select: CLIENTE_SELECT,
     });
+  }
+
+  /**
+   * Buscador del formulario de venta (HU-27): a diferencia de
+   * `buscarOCrearCliente`, esto corre fuera de cualquier transacción y nunca
+   * crea nada — el vendedor lo usa para saber, antes de completar el resto
+   * del formulario, si el cliente ya existe (y así no volver a pedirle
+   * nombre/teléfono) o si hay que darlo de alta. `dni_cuil`/`email` son
+   * ambos opcionales en el query, pero `BuscarClienteQueryDto` exige que
+   * venga al menos uno.
+   */
+  async buscarCliente(datos: { dni_cuil?: string; email?: string }) {
+    const cliente = await this.prisma.cLIENTE.findFirst({
+      where: this.clienteWhere(datos),
+      select: CLIENTE_SELECT,
+    });
+
+    return { encontrado: cliente !== null, cliente };
+  }
+
+  /** Condición `OR` compartida por `buscarOCrearCliente` y `buscarCliente`, solo con los campos presentes. */
+  private clienteWhere(datos: {
+    dni_cuil?: string;
+    email?: string;
+  }): Prisma.CLIENTEWhereInput {
+    const or: Prisma.CLIENTEWhereInput[] = [];
+    if (datos.dni_cuil !== undefined) or.push({ dni_cuil: datos.dni_cuil });
+    if (datos.email !== undefined) or.push({ email: datos.email });
+    return { OR: or };
   }
 
   /**
@@ -258,12 +290,36 @@ export class VentaService {
   }
 
   async listar(query: QueryVentaDto) {
-    const { FK_cliente, FK_publicacion, estado, page, limit } = query;
+    const {
+      FK_cliente,
+      FK_publicacion,
+      FK_unidad_funcional,
+      FK_proyecto,
+      estado,
+      fechaDesde,
+      fechaHasta,
+      page,
+      limit,
+    } = query;
 
     const where: Prisma.VENTAWhereInput = {
       ...(FK_cliente !== undefined && { FK_cliente }),
       ...(FK_publicacion !== undefined && { FK_publicacion }),
       ...(estado !== undefined && { estado }),
+      ...((FK_unidad_funcional !== undefined || FK_proyecto !== undefined) && {
+        publicacion: {
+          ...(FK_unidad_funcional !== undefined && { FK_unidad_funcional }),
+          ...(FK_proyecto !== undefined && {
+            unidadFuncional: { FK_proyecto },
+          }),
+        },
+      }),
+      ...((fechaDesde !== undefined || fechaHasta !== undefined) && {
+        fecha_adhesion: {
+          ...(fechaDesde !== undefined && { gte: fechaDesde }),
+          ...(fechaHasta !== undefined && { lte: fechaHasta }),
+        },
+      }),
     };
 
     const [data, total] = await Promise.all([
@@ -319,6 +375,13 @@ export class VentaService {
     };
   }
 
+  /**
+   * `unidad`/`proyecto` viajan igual que en `PublicacionController.findAll`
+   * (mismo `select` anidado sobre `publicacion.unidadFuncional`): sin esto,
+   * el listado y el detalle de venta solo tenían `FK_publicacion`, un id sin
+   * significado para quien mira la pantalla — no había forma de saber qué
+   * unidad se vendió sin un pedido aparte por cada fila.
+   */
   private ventaSelect() {
     return {
       id_venta: true,
@@ -334,6 +397,20 @@ export class VentaService {
       FK_publicacion: true,
       FK_plan_pago: true,
       cliente: { select: CLIENTE_SELECT },
+      publicacion: {
+        select: {
+          unidadFuncional: {
+            select: {
+              id_unidad_funcional: true,
+              identificador: true,
+              tipologia: true,
+              proyecto: {
+                select: { id_proyecto: true, codigo: true, nombre: true },
+              },
+            },
+          },
+        },
+      },
     } as const;
   }
 
@@ -358,7 +435,18 @@ export class VentaService {
       email: string;
       telefono: string | null;
     };
+    publicacion: {
+      unidadFuncional: {
+        id_unidad_funcional: number;
+        identificador: string;
+        tipologia: string;
+        proyecto: { id_proyecto: number; codigo: string; nombre: string };
+      };
+    };
   }) {
+    const { unidadFuncional } = venta.publicacion;
+    const { proyecto, ...unidad } = unidadFuncional;
+
     return {
       id_venta: venta.id_venta,
       fecha_adhesion: venta.fecha_adhesion.toISOString(),
@@ -373,6 +461,8 @@ export class VentaService {
       cliente: venta.cliente,
       FK_publicacion: venta.FK_publicacion,
       FK_plan_pago: venta.FK_plan_pago,
+      unidad,
+      proyecto,
     };
   }
 }
