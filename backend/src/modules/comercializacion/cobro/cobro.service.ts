@@ -147,7 +147,8 @@ export class CobroService {
           venta: {
             id_venta: cuota.venta.id_venta,
             unidad: {
-              identificador: cuota.venta.publicacion.unidadFuncional.identificador,
+              identificador:
+                cuota.venta.publicacion.unidadFuncional.identificador,
             },
           },
         };
@@ -190,7 +191,9 @@ export class CobroService {
         venta: {
           select: {
             id_venta: true,
-            cliente: { select: { id_cliente: true, nombre: true, apellido: true } },
+            cliente: {
+              select: { id_cliente: true, nombre: true, apellido: true },
+            },
             publicacion: {
               select: {
                 unidadFuncional: {
@@ -355,7 +358,9 @@ export class CobroService {
   ) {
     const errores = detalle
       .filter((linea) => {
-        const saldo = cuotaPorId.get(linea.FK_cuota)!.saldo_pendiente.toNumber();
+        const saldo = cuotaPorId
+          .get(linea.FK_cuota)!
+          .saldo_pendiente.toNumber();
         return linea.importe_imputado > saldo;
       })
       .map((linea) => {
@@ -545,8 +550,15 @@ export class CobroService {
    * juntos; `null` en caso contrario.
    */
   async listar(query: QueryCobroDto) {
-    const { FK_cliente, FK_forma_pago, estado, fechaDesde, fechaHasta, page, limit } =
-      query;
+    const {
+      FK_cliente,
+      FK_forma_pago,
+      estado,
+      fechaDesde,
+      fechaHasta,
+      page,
+      limit,
+    } = query;
 
     const where: Prisma.COBROWhereInput = {
       ...(FK_cliente !== undefined && { FK_cliente }),

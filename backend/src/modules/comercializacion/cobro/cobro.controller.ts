@@ -95,7 +95,8 @@ export class CobroController {
       'Confirmar un cobro presencial imputado a una o más cuotas del cliente. El importe total lo declara quien registra el cobro y tiene que coincidir con la suma del detalle. Es todo o nada: si una línea falla, no se registra nada',
   })
   @ApiCreatedResponse({
-    description: 'Cobro confirmado, con el detalle completo de sus imputaciones',
+    description:
+      'Cobro confirmado, con el detalle completo de sus imputaciones',
     type: CobroDetalleResponseDto,
   })
   @ApiBadRequestResponse({
@@ -103,7 +104,8 @@ export class CobroController {
       'Datos inválidos, cuotas repetidas o de otro cliente, número de referencia faltante cuando la forma de pago lo requiere, fecha de cobro futura, importe imputado mayor al saldo pendiente, o la suma del detalle no coincide con el importe total declarado',
   })
   @ApiNotFoundResponse({
-    description: 'No existe el cliente, la forma de pago, o alguna de las cuotas imputadas',
+    description:
+      'No existe el cliente, la forma de pago, o alguna de las cuotas imputadas',
   })
   @ApiConflictResponse({
     description:
@@ -129,14 +131,16 @@ export class CobroController {
     name: 'fechaDesde',
     required: false,
     type: String,
-    description: 'Filtra cobros con fecha_cobro mayor o igual a esta fecha (ISO 8601)',
+    description:
+      'Filtra cobros con fecha_cobro mayor o igual a esta fecha (ISO 8601)',
     example: '2026-08-01',
   })
   @ApiQuery({
     name: 'fechaHasta',
     required: false,
     type: String,
-    description: 'Filtra cobros con fecha_cobro menor o igual a esta fecha (ISO 8601)',
+    description:
+      'Filtra cobros con fecha_cobro menor o igual a esta fecha (ISO 8601)',
     example: '2026-08-31',
   })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
@@ -146,7 +150,9 @@ export class CobroController {
       'Listado paginado de cobros, más recientes primero. resumenPeriodo viaja null salvo que la query traiga fechaDesde y fechaHasta juntas; cuando viene, ignora el filtro de estado (siempre excluye los cobros anulados)',
     type: CobroListResponseDto,
   })
-  @ApiBadRequestResponse({ description: 'Parámetros de filtro/paginación inválidos' })
+  @ApiBadRequestResponse({
+    description: 'Parámetros de filtro/paginación inválidos',
+  })
   listar(@Query() query: QueryCobroDto) {
     return this.cobroService.listar(query);
   }
@@ -156,9 +162,14 @@ export class CobroController {
     summary:
       'Obtener un cobro por id, con el detalle completo de sus imputaciones (alimenta el recibo imprimible)',
   })
-  @ApiParam({ name: 'id', type: Number, description: 'id_cobro del cobro a buscar' })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_cobro del cobro a buscar',
+  })
   @ApiOkResponse({
-    description: 'Cobro encontrado: cabecera + detalle, con el saldo anterior y posterior de cada cuota imputada',
+    description:
+      'Cobro encontrado: cabecera + detalle, con el saldo anterior y posterior de cada cuota imputada',
     type: CobroDetalleResponseDto,
   })
   @ApiNotFoundResponse({ description: 'No existe un cobro con ese id' })
@@ -171,11 +182,22 @@ export class CobroController {
     summary:
       'Anular un cobro confirmado: restituye a cada cuota imputada exactamente el saldo que este cobro había descontado. No se puede anular un cobro ya anulado',
   })
-  @ApiParam({ name: 'id', type: Number, description: 'id_cobro del cobro a anular' })
-  @ApiOkResponse({ description: 'Cobro anulado', type: CobroDetalleResponseDto })
-  @ApiBadRequestResponse({ description: 'El motivo de anulación es obligatorio' })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_cobro del cobro a anular',
+  })
+  @ApiOkResponse({
+    description: 'Cobro anulado',
+    type: CobroDetalleResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'El motivo de anulación es obligatorio',
+  })
   @ApiNotFoundResponse({ description: 'No existe un cobro con ese id' })
-  @ApiConflictResponse({ description: 'El cobro no está CONFIRMADO (ya fue anulado)' })
+  @ApiConflictResponse({
+    description: 'El cobro no está CONFIRMADO (ya fue anulado)',
+  })
   anular(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AnularCobroDto,
