@@ -10,6 +10,7 @@ import {
   FileText,
   HandCoins,
   HardHat,
+  Home,
   Landmark,
   Layers,
   ListTree,
@@ -115,13 +116,16 @@ export const NAV_ITEMS: NavNode[] = [
       { label: 'Cobranzas', to: PATHS.TESORERIA.COBRANZAS, icon: HandCoins },
     ],
   },
-  { label: 'Proyectos', to: PATHS.COMERCIALIZACION.ROOT, icon: HardHat },
+  // Proyectos vuelve a ser una hoja simple: Unidades Funcionales pasó a vivir
+  // bajo Comercialización (ver bloque de abajo), no acá.
+  { label: 'Proyectos', to: PATHS.PROYECTOS.ROOT, icon: HardHat },
   {
     label: 'Comercialización',
     to: PATHS.COMERCIALIZACION.ROOT,
     icon: Store,
     children: [
       { label: 'Publicaciones', to: PATHS.COMERCIALIZACION.PUBLICACIONES, icon: Megaphone },
+      { label: 'Unidades Funcionales', to: PATHS.COMERCIALIZACION.UNIDADES_FUNCIONALES, icon: Home },
     ],
   },
 ]

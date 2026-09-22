@@ -57,7 +57,9 @@ export const PATHS = {
   },
   ALERTAS: { ROOT: '/sistema/alertas' },
 
-  COMERCIALIZACION: { ROOT: '/sistema/proyectos' },
+  // Sin hijos: la pantalla de Unidades Funcionales quedó bajo COMERCIALIZACION.
+  PROYECTOS: { ROOT: '/sistema/proyectos' },
+
   COMERCIALIZACION: {
     ROOT: '/sistema/comercializacion',
     PUBLICACIONES: '/sistema/comercializacion/publicaciones',
@@ -67,14 +69,13 @@ export const PATHS = {
     // Patrón de ruta, no una URL navegable: para armar la de una publicación
     // concreta está `rutaPlanesPagoPublicacion`.
     PLANES_PAGO_PUBLICACION: '/sistema/comercializacion/publicaciones/:idPublicacion/planes-pago',
-  
-    UNIDADES_FUNCIONALES: '/sistema/proyectos/unidades-funcionales',
-    UNIDADES_FUNCIONALES_NUEVA: '/sistema/proyectos/unidades-funcionales/nueva',
+
+    UNIDADES_FUNCIONALES: '/sistema/comercializacion/unidades-funcionales',
+    UNIDADES_FUNCIONALES_NUEVA: '/sistema/comercializacion/unidades-funcionales/nueva',
     // Patrones de ruta, no URLs navegables: para armar las de una unidad
     // concreta están `rutaDetalleUnidadFuncional` y `rutaEditarUnidadFuncional`.
-    UNIDADES_FUNCIONALES_DETALLE: '/sistema/proyectos/unidades-funcionales/:id',
-    UNIDADES_FUNCIONALES_EDITAR: '/sistema/proyectos/unidades-funcionales/:id/editar',
-  
+    UNIDADES_FUNCIONALES_DETALLE: '/sistema/comercializacion/unidades-funcionales/:id',
+    UNIDADES_FUNCIONALES_EDITAR: '/sistema/comercializacion/unidades-funcionales/:id/editar',
   },
 
   // Sitio público del ecommerce (HU-23/24/25). Convive con el resto de las

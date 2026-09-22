@@ -35,6 +35,8 @@ import { ReporteEgresosPage } from '@/features/tesoreria/pagos/pages/ReporteEgre
 import { FormasPagoPage } from '@/features/tesoreria/formas-pago/pages/FormasPagoPage'
 import { CardexCuentaCorrientePage } from '@/features/tesoreria/cuentas-corrientes/pages/CardexCuentaCorrientePage'
 import { CuentasCorrientesPage } from '@/features/tesoreria/cuentas-corrientes/pages/CuentasCorrientesPage'
+import { UnidadesFuncionalesPage } from '@/features/comercializacion/unidades-funcionales/pages/UnidadesFuncionalesPage'
+import { UnidadFuncionalFormPage } from '@/features/comercializacion/unidades-funcionales/pages/UnidadFuncionalFormPage'
 
 export const router = createBrowserRouter([
   { path: PATHS.LOGIN, element: <LoginPage /> },
@@ -239,7 +241,7 @@ export const router = createBrowserRouter([
             handle: { title: 'Alertas' },
           },
           {
-            path: PATHS.COMERCIALIZACION.ROOT,
+            path: PATHS.PROYECTOS.ROOT,
             element: <PlaceholderPage titulo="Proyectos" historia="HU-20" />,
             handle: { title: 'Proyectos' },
           },
@@ -264,6 +266,27 @@ export const router = createBrowserRouter([
                 path: PATHS.COMERCIALIZACION.PLANES_PAGO_PUBLICACION,
                 element: <PlanesPagoPublicacionPage />,
                 handle: { title: 'Planes de Pago' },
+              },
+
+              {
+                path: PATHS.COMERCIALIZACION.UNIDADES_FUNCIONALES,
+                element: <UnidadesFuncionalesPage />,
+                handle: { title: 'Unidades Funcionales' },
+              },
+              {
+                path: PATHS.COMERCIALIZACION.UNIDADES_FUNCIONALES_NUEVA,
+                element: <UnidadFuncionalFormPage modo="crear" />,
+                handle: { title: 'Nueva Unidad Funcional' },
+              },
+              {
+                path: PATHS.COMERCIALIZACION.UNIDADES_FUNCIONALES_EDITAR,
+                element: <UnidadFuncionalFormPage modo="editar" />,
+                handle: { title: 'Editar Unidad Funcional' },
+              },
+              {
+                path: PATHS.COMERCIALIZACION.UNIDADES_FUNCIONALES_DETALLE,
+                element: <UnidadFuncionalFormPage modo="lectura" />,
+                handle: { title: 'Detalle de Unidad Funcional' },
               },
             ],
           },
