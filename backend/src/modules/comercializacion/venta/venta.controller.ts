@@ -16,6 +16,8 @@ import { VentaService } from './venta.service';
 import { CreateVentaDto } from './dto/create-venta.dto';
 import { CancelarVentaDto } from './dto/cancelar-venta.dto';
 import { QueryVentaDto } from './dto/query-venta.dto';
+import { BuscarClienteQueryDto } from './dto/buscar-cliente-query.dto';
+import { ClienteBuscadoResponseDto } from './dto/cliente-buscado-response.dto';
 import { VentaDetalleResponseDto, VentaListResponseDto } from './dto/venta-response.dto';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
@@ -67,6 +69,22 @@ export class VentaController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.ventaService.cancelar(id, dto, user.id);
+  }
+
+  @Get('buscar-cliente')
+  @ApiOperation({
+    summary: 'Busca un cliente existente por DNI/CUIL o email',
+    description:
+      'Lo usa el buscador del formulario de venta: si el cliente ya existe, el vendedor no tiene que volver a pedirle nombre/teléfono; si no existe, el formulario despliega el alta completa. Declarado antes de GET /ventas/:id para que "buscar-cliente" no se matchee como su parámetro numérico.',
+  })
+  @ApiQuery({ name: 'dni_cuil', required: false, type: String })
+  @ApiQuery({ name: 'email', required: false, type: String })
+  @ApiOkResponse({
+    description: 'encontrado: false y cliente: null si no existe ninguno con ese dni_cuil/email',
+    type: ClienteBuscadoResponseDto,
+  })
+  buscarCliente(@Query() query: BuscarClienteQueryDto) {
+    return this.ventaService.buscarCliente(query);
   }
 
   @Get()
