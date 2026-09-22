@@ -239,7 +239,7 @@ export const router = createBrowserRouter([
             handle: { title: 'Alertas' },
           },
           {
-            path: PATHS.PROYECTOS.ROOT,
+            path: PATHS.COMERCIALIZACION.ROOT,
             element: <PlaceholderPage titulo="Proyectos" historia="HU-20" />,
             handle: { title: 'Proyectos' },
           },

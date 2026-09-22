@@ -115,7 +115,7 @@ export const NAV_ITEMS: NavNode[] = [
       { label: 'Cobranzas', to: PATHS.TESORERIA.COBRANZAS, icon: HandCoins },
     ],
   },
-  { label: 'Proyectos', to: PATHS.PROYECTOS.ROOT, icon: HardHat },
+  { label: 'Proyectos', to: PATHS.COMERCIALIZACION.ROOT, icon: HardHat },
   {
     label: 'Comercialización',
     to: PATHS.COMERCIALIZACION.ROOT,

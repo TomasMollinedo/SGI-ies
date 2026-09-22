@@ -57,7 +57,7 @@ export const PATHS = {
   },
   ALERTAS: { ROOT: '/sistema/alertas' },
 
-  PROYECTOS: { ROOT: '/sistema/proyectos' },
+  COMERCIALIZACION: { ROOT: '/sistema/proyectos' },
   COMERCIALIZACION: {
     ROOT: '/sistema/comercializacion',
     PUBLICACIONES: '/sistema/comercializacion/publicaciones',
@@ -67,6 +67,14 @@ export const PATHS = {
     // Patrón de ruta, no una URL navegable: para armar la de una publicación
     // concreta está `rutaPlanesPagoPublicacion`.
     PLANES_PAGO_PUBLICACION: '/sistema/comercializacion/publicaciones/:idPublicacion/planes-pago',
+  
+    UNIDADES_FUNCIONALES: '/sistema/proyectos/unidades-funcionales',
+    UNIDADES_FUNCIONALES_NUEVA: '/sistema/proyectos/unidades-funcionales/nueva',
+    // Patrones de ruta, no URLs navegables: para armar las de una unidad
+    // concreta están `rutaDetalleUnidadFuncional` y `rutaEditarUnidadFuncional`.
+    UNIDADES_FUNCIONALES_DETALLE: '/sistema/proyectos/unidades-funcionales/:id',
+    UNIDADES_FUNCIONALES_EDITAR: '/sistema/proyectos/unidades-funcionales/:id/editar',
+  
   },
 
   // Sitio público del ecommerce (HU-23/24/25). Convive con el resto de las
@@ -93,6 +101,16 @@ export function rutaCardexStock(idStock: number): string {
 /** La ruta del extracto de un proveedor puntual (ej. 42 → /tesoreria/cuentas-corrientes/42/cardex). */
 export function rutaCardexCuentaCorriente(idProveedor: number): string {
   return PATHS.TESORERIA.CUENTAS_CORRIENTES_CARDEX.replace(':idProveedor', String(idProveedor))
+}
+
+/** La ruta del detalle de una unidad funcional puntual (ej. 42 → /comercializacion/unidades-funcionales/42). */
+export function rutaDetalleUnidadFuncional(idUnidadFuncional: number): string {
+  return PATHS.COMERCIALIZACION.UNIDADES_FUNCIONALES_DETALLE.replace(':id', String(idUnidadFuncional))
+}
+
+/** La ruta de edición de una unidad funcional puntual (ej. 42 → /comercializacion/unidades-funcionales/42/editar). */
+export function rutaEditarUnidadFuncional(idUnidadFuncional: number): string {
+  return PATHS.COMERCIALIZACION.UNIDADES_FUNCIONALES_EDITAR.replace(':id', String(idUnidadFuncional))
 }
 
 /**
