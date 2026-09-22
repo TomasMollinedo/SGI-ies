@@ -34,7 +34,11 @@ interface SelectorProyectoModalProps {
  * formulario muestra— solo evita ofrecer de entrada opciones que ya se sabe
  * que van a fallar.
  */
-export function SelectorProyectoModal({ open, onClose, onSeleccionar }: SelectorProyectoModalProps) {
+export function SelectorProyectoModal({
+  open,
+  onClose,
+  onSeleccionar,
+}: SelectorProyectoModalProps) {
   const [busqueda, setBusqueda] = useState('')
   const [page, setPage] = useState(1)
 
@@ -51,7 +55,12 @@ export function SelectorProyectoModal({ open, onClose, onSeleccionar }: Selector
   }, [open])
 
   const { data, isFetching, error, refetch } = useProyectos(
-    { busqueda: busquedaDebounced || undefined, estado: 'EN_PLANIFICACION', page, limit: LIMITE_PAGINA },
+    {
+      busqueda: busquedaDebounced || undefined,
+      estado: 'EN_PLANIFICACION',
+      page,
+      limit: LIMITE_PAGINA,
+    },
     { enabled: open }
   )
 

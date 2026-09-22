@@ -50,7 +50,11 @@ export function FiltrosUnidadesFuncionalesBar({
 
   return (
     <div className="flex w-full flex-wrap items-end gap-3">
-      <ProyectoCombobox value={proyectoId} onChange={onProyectoIdChange} className="w-full sm:w-64" />
+      <ProyectoCombobox
+        value={proyectoId}
+        onChange={onProyectoIdChange}
+        className="w-full sm:w-64"
+      />
 
       <Select
         size="sm"

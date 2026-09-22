@@ -3,8 +3,9 @@ import { Controller, useForm } from 'react-hook-form'
 import type { UseFormSetError } from 'react-hook-form'
 import { useNavigate, useParams } from 'react-router'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Building2, Check, Pencil, TriangleAlert, X } from 'lucide-react'
+import { ArrowLeft, Building2, Check, Pencil, TriangleAlert, X } from 'lucide-react'
 import { PATHS, rutaDetalleUnidadFuncional, rutaEditarUnidadFuncional } from '@/app/router/paths'
+import { SeccionPublicacion } from '@/features/comercializacion/publicaciones/components/SeccionPublicacion'
 import { formatearMoneda } from '@/features/compras/ordenes-compra/utils/formatearMoneda'
 import { useProyectoDetalle } from '@/features/proyectos/hooks/useProyectos'
 import type { ProyectoResumen } from '@/features/proyectos/types/proyecto.types'
@@ -12,6 +13,7 @@ import { AuditInfo } from '@/shared/components/common/AuditInfo'
 import { ConfirmDialog } from '@/shared/components/common/ConfirmDialog'
 import { StatTile } from '@/shared/components/common/StatTile'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
+import { Badge } from '@/shared/components/ui/Badge'
 import { Button } from '@/shared/components/ui/Button'
 import { Input } from '@/shared/components/ui/Input'
 import { Select } from '@/shared/components/ui/Select'
@@ -43,6 +45,8 @@ import type {
 const ID_FORM = 'form-unidad-funcional'
 
 type Modo = 'crear' | 'editar' | 'lectura'
+/** A dónde vuelve el formulario si hay cambios sin guardar y hay que confirmar antes de salir. */
+type Destino = 'listado' | 'detalle'
 
 interface UnidadFuncionalFormPageProps {
   modo: Modo
@@ -80,15 +84,17 @@ function valoresDesdeUnidad(unidad: UnidadFuncionalDetalleType): UnidadFuncional
  * Formulario de Unidad Funcional en sus tres modos (HU-20): `crear`, `editar`
  * y `lectura`, controlados por el `modo` que le pasa el router — no por un
  * parámetro de la URL. Página propia, no modal: con galería de imágenes,
- * rinde mejor (ver README-integracion.md, decisión #1).
+ * rinde mejor.
+ *
+ * Diseño calcado del detalle de Publicación (`PublicacionDetallePage`):
+ * cabecera con título + acciones, y el resto en tarjetas `SeccionPublicacion`.
  *
  * El proyecto no se elige con un `<select>` sino con una tabla emergente
  * (`SelectorProyectoModal`) y, una vez creada, la unidad no puede cambiar de
  * proyecto: por eso el campo queda de solo lectura fuera del modo alta.
  *
- * El alta es en dos pasos (ver decisión #2 del README): al guardar la
- * cabecera, la página redirige a `editar` de la unidad recién creada, donde
- * la galería ya está habilitada.
+ * El alta es en dos pasos: al guardar la cabecera, la página redirige a
+ * `editar` de la unidad recién creada, donde la galería ya está habilitada.
  */
 export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) {
   const { id } = useParams<{ id: string }>()
@@ -102,7 +108,7 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
   const [modalProyectoAbierto, setModalProyectoAbierto] = useState(false)
   const [proyectoElegido, setProyectoElegido] = useState<ProyectoResumen | null>(null)
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
-  const [confirmarDescarte, setConfirmarDescarte] = useState(false)
+  const [confirmarSalida, setConfirmarSalida] = useState<Destino | null>(null)
 
   const {
     data: unidad,
@@ -117,7 +123,9 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
 
   // Presupuesto y unidades cargadas/planificadas: se muestran apenas hay un
   // proyecto en contexto (elegido en el alta, o el de la unidad existente).
-  const idProyectoActivo = esAlta ? (proyectoElegido?.id_proyecto ?? null) : (unidad?.FK_proyecto ?? null)
+  const idProyectoActivo = esAlta
+    ? (proyectoElegido?.id_proyecto ?? null)
+    : (unidad?.FK_proyecto ?? null)
   const { data: proyectoDetalle } = useProyectoDetalle(idProyectoActivo)
 
   const crear = useCrearUnidadFuncional()
@@ -224,21 +232,27 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
     }
   }
 
-  function volver() {
-    navigate(
-      esAlta || !unidad
-        ? PATHS.PROYECTOS.UNIDADES_FUNCIONALES
-        : rutaDetalleUnidadFuncional(unidad.id_unidad_funcional)
-    )
-  }
-
-  function intentarVolver() {
-    if (guardando) return
-    if (isDirty && !soloLectura) {
-      setConfirmarDescarte(true)
+  /** Ejecuta la salida sin preguntar nada: la usa tanto el botón directo como la confirmación de descarte. */
+  function ejecutarSalida(destino: Destino) {
+    if (destino === 'listado' || !unidad) {
+      navigate(PATHS.PROYECTOS.UNIDADES_FUNCIONALES)
       return
     }
-    volver()
+    navigate(rutaDetalleUnidadFuncional(unidad.id_unidad_funcional))
+  }
+
+  /**
+   * Punto único de salida del formulario. Con cambios sin guardar (y no en
+   * modo lectura, que nunca los tiene) pide confirmación antes de irse;
+   * si no, navega directo.
+   */
+  function salirHacia(destino: Destino) {
+    if (guardando) return
+    if (isDirty && !soloLectura) {
+      setConfirmarSalida(destino)
+      return
+    }
+    ejecutarSalida(destino)
   }
 
   if (!esAlta && cargandoUnidad) {
@@ -251,24 +265,45 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
 
   if (!esAlta && errorUnidad) {
     return (
-      <ErrorState
-        mensaje={formatearMensajeError(errorUnidad.message)}
-        onReintentar={() => refetchUnidad()}
-      />
+      <div className="space-y-4">
+        <BotonVolverAlListado onClick={() => salirHacia('listado')} disabled={guardando} />
+        <ErrorState
+          mensaje={formatearMensajeError(errorUnidad.message)}
+          onReintentar={() => refetchUnidad()}
+        />
+      </div>
     )
   }
 
-  const titulo = esAlta
-    ? 'Nueva Unidad Funcional'
-    : soloLectura
-      ? 'Detalle de la Unidad Funcional'
-      : 'Editar Unidad Funcional'
+  const titulo = esAlta ? 'Nueva Unidad Funcional' : (unidad?.identificador ?? '')
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-content text-subtitulo font-semibold">{titulo}</h1>
-        <div className="flex gap-2">
+    <div className="space-y-4">
+      <BotonVolverAlListado onClick={() => salirHacia('listado')} disabled={guardando} />
+
+      <section
+        aria-label="Cabecera de la unidad funcional"
+        className="bg-fondotabla border-subtle flex flex-wrap items-start justify-between gap-4 rounded-lg border p-4 shadow-md"
+      >
+        <div className="min-w-0">
+          <h1 className="text-content text-lg font-semibold wrap-anywhere">
+            {esAlta ? titulo : `Unidad ${titulo}`}
+          </h1>
+          {!esAlta && unidad && (
+            <>
+              <p className="text-content-muted text-sm wrap-anywhere">
+                {unidad.proyecto.codigo} · {unidad.proyecto.nombre}
+              </p>
+              <div className="mt-2">
+                <Badge variant={unidad.estado ? 'active' : 'inactive'}>
+                  {unidad.estado ? 'Activa' : 'Inactiva'}
+                </Badge>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
           {soloLectura && unidad && (
             <Button
               variant="success"
@@ -278,9 +313,16 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
               Editar
             </Button>
           )}
-          <Button variant="error" icon={<X />} onClick={intentarVolver} disabled={guardando}>
-            {soloLectura ? 'Volver' : 'Cancelar'}
-          </Button>
+          {modo === 'editar' && (
+            <Button
+              variant="error"
+              icon={<X />}
+              onClick={() => salirHacia('detalle')}
+              disabled={guardando}
+            >
+              Cancelar
+            </Button>
+          )}
           {!soloLectura && (
             <Button
               variant="success"
@@ -294,7 +336,7 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
             </Button>
           )}
         </div>
-      </div>
+      </section>
 
       {errorGeneral && (
         <div role="alert" className="border-error/30 bg-error/10 rounded-md border px-4 py-3">
@@ -303,165 +345,194 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
       )}
 
       <form id={ID_FORM} onSubmit={handleSubmit(manejarSubmit)} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <span className="text-content-muted text-xs font-medium uppercase">
-            Proyecto <span className="text-error">*</span>
-          </span>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <SeccionPublicacion titulo="Datos de la unidad">
+            <div className="flex flex-col gap-4">
+              <Input
+                label="Identificador"
+                required
+                placeholder="Ej. 3A"
+                disabled={soloLectura}
+                error={errors.identificador?.message}
+                {...register('identificador')}
+              />
 
-          <Controller
-            name="FK_proyecto"
-            control={control}
-            render={({ field }) => (
-              <>
-                <div className="flex items-center gap-2">
-                  <Input
-                    readOnly
-                    value={proyectoElegido ? `${proyectoElegido.codigo} — ${proyectoElegido.nombre}` : ''}
-                    placeholder="Elegí un proyecto"
-                    error={errors.FK_proyecto?.message}
-                    className="flex-1"
-                  />
-                  {esAlta && (
-                    <Button
-                      type="button"
-                      variant="primary"
-                      icon={<Building2 />}
-                      onClick={() => setModalProyectoAbierto(true)}
-                    >
-                      {proyectoElegido ? 'Cambiar' : 'Elegir proyecto'}
-                    </Button>
-                  )}
-                </div>
+              <Select
+                label="Tipología"
+                required
+                placeholder="Seleccioná una tipología"
+                options={opcionesTipologia}
+                disabled={soloLectura}
+                error={errors.tipologia?.message}
+                {...register('tipologia')}
+              />
 
-                <SelectorProyectoModal
-                  open={modalProyectoAbierto}
-                  onClose={() => setModalProyectoAbierto(false)}
-                  onSeleccionar={(proyecto) => elegirProyecto(proyecto, field.onChange)}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input
+                  label="Superficie cubierta (m²)"
+                  required
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  disabled={soloLectura}
+                  error={errors.superficie_cubierta?.message}
+                  {...register('superficie_cubierta', { valueAsNumber: true })}
                 />
-              </>
-            )}
-          />
-        </div>
 
-        {proyectoDetalle && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <StatTile
-              label="Presupuesto del proyecto"
-              value={formatearMoneda(proyectoDetalle.presupuesto)}
-            />
-            <StatTile
-              label="Unidades cargadas / planificadas"
-              value={`${proyectoDetalle.unidades_cargadas} / ${proyectoDetalle.cantidad_unidades_planificadas ?? '—'}`}
-            />
-          </div>
-        )}
+                <Input
+                  label="Superficie descubierta (m²)"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  helperText="Opcional"
+                  disabled={soloLectura}
+                  error={errors.superficie_descubierta?.message}
+                  {...register('superficie_descubierta', { valueAsNumber: true })}
+                />
+              </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input
-            label="Identificador"
-            required
-            placeholder="Ej. 3A"
-            disabled={soloLectura}
-            error={errors.identificador?.message}
-            {...register('identificador')}
-          />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input
+                  label="Piso"
+                  placeholder="Ej. PB"
+                  helperText="Opcional"
+                  disabled={soloLectura}
+                  error={errors.piso?.message}
+                  {...register('piso')}
+                />
 
-          <Select
-            label="Tipología"
-            required
-            placeholder="Seleccioná una tipología"
-            options={opcionesTipologia}
-            disabled={soloLectura}
-            error={errors.tipologia?.message}
-            {...register('tipologia')}
-          />
+                <Input
+                  label="Costo"
+                  required
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  disabled={costoDeshabilitado}
+                  helperText={
+                    costoDeshabilitado && unidad?.motivo_costo_no_editable
+                      ? unidad.motivo_costo_no_editable
+                      : 'En pesos. El sistema no registra monedas alternativas.'
+                  }
+                  error={errors.costo?.message}
+                  {...register('costo', { valueAsNumber: true })}
+                />
+              </div>
 
-          <Input
-            label="Superficie cubierta (m²)"
-            required
-            type="number"
-            min={0}
-            step="0.01"
-            disabled={soloLectura}
-            error={errors.superficie_cubierta?.message}
-            {...register('superficie_cubierta', { valueAsNumber: true })}
-          />
+              <Input
+                label="Comodidades"
+                multiline
+                helperText="Opcional"
+                disabled={soloLectura}
+                error={errors.comodidades?.message}
+                {...register('comodidades')}
+              />
 
-          <Input
-            label="Superficie descubierta (m²)"
-            type="number"
-            min={0}
-            step="0.01"
-            helperText="Opcional"
-            disabled={soloLectura}
-            error={errors.superficie_descubierta?.message}
-            {...register('superficie_descubierta', { valueAsNumber: true })}
-          />
-
-          <Input
-            label="Piso"
-            placeholder="Ej. PB"
-            helperText="Opcional"
-            disabled={soloLectura}
-            error={errors.piso?.message}
-            {...register('piso')}
-          />
-
-          <Input
-            label="Costo"
-            required
-            type="number"
-            min={0}
-            step="0.01"
-            disabled={costoDeshabilitado}
-            helperText={
-              costoDeshabilitado && unidad?.motivo_costo_no_editable
-                ? unidad.motivo_costo_no_editable
-                : 'En pesos. El sistema no registra monedas alternativas.'
-            }
-            error={errors.costo?.message}
-            {...register('costo', { valueAsNumber: true })}
-          />
-        </div>
-
-        <Input
-          label="Comodidades"
-          multiline
-          helperText="Opcional"
-          disabled={soloLectura}
-          error={errors.comodidades?.message}
-          {...register('comodidades')}
-        />
-
-        <Input
-          label="Observaciones"
-          multiline
-          helperText="Opcional"
-          disabled={soloLectura}
-          error={errors.observaciones?.message}
-          {...register('observaciones')}
-        />
-
-        {!esAlta && unidad && (
-          <>
-            <div className="flex flex-col gap-1">
-              <span className="text-content-muted text-xs font-medium uppercase">
-                Condición de entrega
-              </span>
-              <span className="text-content text-sm">{unidad.condicion_entrega.texto}</span>
+              <Input
+                label="Observaciones"
+                multiline
+                helperText="Opcional"
+                disabled={soloLectura}
+                error={errors.observaciones?.message}
+                {...register('observaciones')}
+              />
             </div>
+          </SeccionPublicacion>
 
+          <SeccionPublicacion titulo="Proyecto y presupuesto">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <span className="text-content-muted text-xs font-medium uppercase">
+                  Proyecto <span className="text-error">*</span>
+                </span>
+
+                <Controller
+                  name="FK_proyecto"
+                  control={control}
+                  render={({ field }) => (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          readOnly
+                          value={
+                            proyectoElegido
+                              ? `${proyectoElegido.codigo} — ${proyectoElegido.nombre}`
+                              : ''
+                          }
+                          placeholder="Elegí un proyecto"
+                          error={errors.FK_proyecto?.message}
+                          className="flex-1"
+                        />
+                        {esAlta && (
+                          <Button
+                            type="button"
+                            variant="primary"
+                            icon={<Building2 />}
+                            onClick={() => setModalProyectoAbierto(true)}
+                          >
+                            {proyectoElegido ? 'Cambiar' : 'Elegir proyecto'}
+                          </Button>
+                        )}
+                      </div>
+
+                      <SelectorProyectoModal
+                        open={modalProyectoAbierto}
+                        onClose={() => setModalProyectoAbierto(false)}
+                        onSeleccionar={(proyecto) => elegirProyecto(proyecto, field.onChange)}
+                      />
+                    </>
+                  )}
+                />
+              </div>
+
+              {proyectoDetalle && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <StatTile
+                    label="Presupuesto del proyecto"
+                    value={formatearMoneda(proyectoDetalle.presupuesto)}
+                  />
+                  <StatTile
+                    label="Unidades cargadas / planificadas"
+                    value={`${proyectoDetalle.unidades_cargadas} / ${proyectoDetalle.cantidad_unidades_planificadas ?? '—'}`}
+                  />
+                </div>
+              )}
+
+              {!esAlta && unidad && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-content-muted text-xs font-medium uppercase">
+                    Condición de entrega
+                  </span>
+                  <span className="text-content text-sm">{unidad.condicion_entrega.texto}</span>
+                </div>
+              )}
+            </div>
+          </SeccionPublicacion>
+        </div>
+
+        <SeccionPublicacion titulo="Galería de imágenes">
+          {!esAlta && unidad ? (
             <GaleriaImagenesForm
               idUnidadFuncional={unidad.id_unidad_funcional}
               identificador={unidad.identificador}
               imagenes={unidad.imagenes}
               soloLectura={soloLectura}
             />
+          ) : (
+            <p className="text-content-muted text-xs">
+              Guardá la unidad para poder cargar sus imágenes: la galería se habilita apenas se
+              crea.
+            </p>
+          )}
+        </SeccionPublicacion>
 
+        {!esAlta && unidad && (
+          <SeccionPublicacion titulo="Auditoría">
             <AuditInfo
-              className="mt-2"
+              className="border-t-0 pt-0"
               createdAt={unidad.hora_creacion}
-              createdBy={{ nombre: `${unidad.usuarioCreador.nombre} ${unidad.usuarioCreador.apellido}` }}
+              createdBy={{
+                nombre: `${unidad.usuarioCreador.nombre} ${unidad.usuarioCreador.apellido}`,
+              }}
               updatedAt={unidad.hora_actualizacion ?? undefined}
               updatedBy={
                 unidad.usuarioActualizador
@@ -471,22 +542,16 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
                   : undefined
               }
             />
-          </>
-        )}
-
-        {esAlta && (
-          <p className="text-content-muted text-xs">
-            Guardá la unidad para poder cargar sus imágenes: la galería se habilita apenas se crea.
-          </p>
+          </SeccionPublicacion>
         )}
       </form>
 
       <ConfirmDialog
-        open={confirmarDescarte}
-        onCancel={() => setConfirmarDescarte(false)}
+        open={confirmarSalida !== null}
+        onCancel={() => setConfirmarSalida(null)}
         onConfirm={() => {
-          setConfirmarDescarte(false)
-          volver()
+          if (confirmarSalida) ejecutarSalida(confirmarSalida)
+          setConfirmarSalida(null)
         }}
         eyebrow="Cambios sin guardar"
         eyebrowIcon={<TriangleAlert />}
@@ -496,6 +561,20 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
         cancelLabel="Seguir editando"
       />
     </div>
+  )
+}
+
+function BotonVolverAlListado({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+  return (
+    <Button
+      size="sm"
+      icon={<ArrowLeft />}
+      onClick={onClick}
+      disabled={disabled}
+      title="Volver al listado de unidades funcionales"
+    >
+      Volver a Unidades Funcionales
+    </Button>
   )
 }
 
@@ -547,7 +626,8 @@ function soloCamposModificados(
 ): EditarUnidadFuncionalPayload {
   const cambios: EditarUnidadFuncionalPayload = {}
 
-  if (payload.identificador !== original.identificador) cambios.identificador = payload.identificador
+  if (payload.identificador !== original.identificador)
+    cambios.identificador = payload.identificador
   if (payload.tipologia !== original.tipologia) cambios.tipologia = payload.tipologia as Tipologia
   if (payload.superficie_cubierta !== original.superficie_cubierta) {
     cambios.superficie_cubierta = payload.superficie_cubierta
