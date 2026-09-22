@@ -290,12 +290,36 @@ export class VentaService {
   }
 
   async listar(query: QueryVentaDto) {
-    const { FK_cliente, FK_publicacion, estado, page, limit } = query;
+    const {
+      FK_cliente,
+      FK_publicacion,
+      FK_unidad_funcional,
+      FK_proyecto,
+      estado,
+      fechaDesde,
+      fechaHasta,
+      page,
+      limit,
+    } = query;
 
     const where: Prisma.VENTAWhereInput = {
       ...(FK_cliente !== undefined && { FK_cliente }),
       ...(FK_publicacion !== undefined && { FK_publicacion }),
       ...(estado !== undefined && { estado }),
+      ...((FK_unidad_funcional !== undefined || FK_proyecto !== undefined) && {
+        publicacion: {
+          ...(FK_unidad_funcional !== undefined && { FK_unidad_funcional }),
+          ...(FK_proyecto !== undefined && {
+            unidadFuncional: { FK_proyecto },
+          }),
+        },
+      }),
+      ...((fechaDesde !== undefined || fechaHasta !== undefined) && {
+        fecha_adhesion: {
+          ...(fechaDesde !== undefined && { gte: fechaDesde }),
+          ...(fechaHasta !== undefined && { lte: fechaHasta }),
+        },
+      }),
     };
 
     const [data, total] = await Promise.all([
