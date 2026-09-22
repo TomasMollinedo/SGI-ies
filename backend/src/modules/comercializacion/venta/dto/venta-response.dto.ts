@@ -66,7 +66,9 @@ export const ventaListResponseSchema = z.object({
   }),
 });
 
-export class VentaListResponseDto extends createZodDto(ventaListResponseSchema) {}
+export class VentaListResponseDto extends createZodDto(
+  ventaListResponseSchema,
+) {}
 
 const cuotaVentaSchema = z.object({
   numero: z.number(),
@@ -85,4 +87,6 @@ export const ventaDetalleResponseSchema = ventaListItemSchema.extend({
   cuotas: z.array(cuotaVentaSchema),
 });
 
-export class VentaDetalleResponseDto extends createZodDto(ventaDetalleResponseSchema) {}
+export class VentaDetalleResponseDto extends createZodDto(
+  ventaDetalleResponseSchema,
+) {}

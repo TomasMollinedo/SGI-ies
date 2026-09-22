@@ -57,7 +57,16 @@ export const PATHS = {
   },
   ALERTAS: { ROOT: '/sistema/alertas' },
 
-  PROYECTOS: { ROOT: '/sistema/proyectos' },
+  PROYECTOS: {
+    ROOT: '/sistema/proyectos',
+    UNIDADES_FUNCIONALES: '/sistema/proyectos/unidades-funcionales',
+    UNIDADES_FUNCIONALES_NUEVA: '/sistema/proyectos/unidades-funcionales/nueva',
+    // Patrones de ruta, no URLs navegables: para armar las de una unidad
+    // concreta están `rutaDetalleUnidadFuncional` y `rutaEditarUnidadFuncional`.
+    UNIDADES_FUNCIONALES_DETALLE: '/sistema/proyectos/unidades-funcionales/:id',
+    UNIDADES_FUNCIONALES_EDITAR: '/sistema/proyectos/unidades-funcionales/:id/editar',
+  },
+
   COMERCIALIZACION: {
     ROOT: '/sistema/comercializacion',
     PUBLICACIONES: '/sistema/comercializacion/publicaciones',
@@ -98,6 +107,16 @@ export function rutaCardexStock(idStock: number): string {
 /** La ruta del extracto de un proveedor puntual (ej. 42 → /tesoreria/cuentas-corrientes/42/cardex). */
 export function rutaCardexCuentaCorriente(idProveedor: number): string {
   return PATHS.TESORERIA.CUENTAS_CORRIENTES_CARDEX.replace(':idProveedor', String(idProveedor))
+}
+
+/** La ruta del detalle de una unidad funcional puntual (ej. 42 → /proyectos/unidades-funcionales/42). */
+export function rutaDetalleUnidadFuncional(idUnidadFuncional: number): string {
+  return PATHS.PROYECTOS.UNIDADES_FUNCIONALES_DETALLE.replace(':id', String(idUnidadFuncional))
+}
+
+/** La ruta de edición de una unidad funcional puntual (ej. 42 → /proyectos/unidades-funcionales/42/editar). */
+export function rutaEditarUnidadFuncional(idUnidadFuncional: number): string {
+  return PATHS.PROYECTOS.UNIDADES_FUNCIONALES_EDITAR.replace(':id', String(idUnidadFuncional))
 }
 
 /**
