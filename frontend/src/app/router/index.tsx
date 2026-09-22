@@ -27,6 +27,9 @@ import { OrdenesCompraPage } from '@/features/compras/ordenes-compra/pages/Orden
 import { PlanesPagoPublicacionPage } from '@/features/comercializacion/planes-pago/pages/PlanesPagoPublicacionPage'
 import { PublicacionDetallePage } from '@/features/comercializacion/publicaciones/pages/PublicacionDetallePage'
 import { PublicacionesPage } from '@/features/comercializacion/publicaciones/pages/PublicacionesPage'
+import { RegistrarVentaPage } from '@/features/comercializacion/ventas/pages/RegistrarVentaPage'
+import { VentaDetallePage } from '@/features/comercializacion/ventas/pages/VentaDetallePage'
+import { VentasPage } from '@/features/comercializacion/ventas/pages/VentasPage'
 import { ComprobantesPage } from '@/features/tesoreria/comprobantes/pages/ComprobantesPage'
 import { TiposComprobantePage } from '@/features/tesoreria/tipos-comprobante/pages/TiposComprobantePage'
 import { NuevoPagoPage } from '@/features/tesoreria/pagos/pages/NuevoPagoPage'
@@ -291,7 +294,21 @@ export const router = createBrowserRouter([
                 element: <PlanesPagoPublicacionPage />,
                 handle: { title: 'Planes de Pago' },
               },
-
+              {
+                path: PATHS.COMERCIALIZACION.VENTAS,
+                element: <VentasPage />,
+                handle: { title: 'Ventas' },
+              },
+              {
+                path: PATHS.COMERCIALIZACION.NUEVA_VENTA,
+                element: <RegistrarVentaPage />,
+                handle: { title: 'Registrar venta' },
+              },
+              {
+                path: PATHS.COMERCIALIZACION.VENTA_DETALLE,
+                element: <VentaDetallePage />,
+                handle: { title: 'Detalle de venta' },
+              },
             ],
           },
 

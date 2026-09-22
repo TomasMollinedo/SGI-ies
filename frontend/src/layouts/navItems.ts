@@ -130,6 +130,7 @@ export const NAV_ITEMS: NavNode[] = [
     icon: Store,
     children: [
       { label: 'Publicaciones', to: PATHS.COMERCIALIZACION.PUBLICACIONES, icon: Megaphone },
+      { label: 'Ventas', to: PATHS.COMERCIALIZACION.VENTAS, icon: ShoppingCart },
     ],
   },
 ]
