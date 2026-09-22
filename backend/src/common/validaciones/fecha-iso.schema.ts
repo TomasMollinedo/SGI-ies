@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
 /**
+ * Offset fijo de Argentina (UTC-3, sin horario de verano). Se usa para anclar
+ * una fecha sola a un instante concreto — ver el comentario de más abajo.
+ */
+const OFFSET_ARGENTINA = '-03:00';
+
+/**
  * Fecha que llega del cliente como texto ISO 8601 y se convierte a `Date`.
  *
  * No se usa `z.coerce.date()` porque un `ZodDate` no se puede representar en
@@ -9,9 +15,26 @@ import { z } from 'zod';
  * es un string, que Swagger sí documenta, y la conversión a `Date` la hace el
  * `.transform()`.
  *
- * Acepta tanto fecha sola (`2026-08-01`) como fecha y hora
- * (`2026-08-01T14:30:00Z`).
+ * Acepta tanto fecha sola (`2026-08-01`) como fecha y hora con offset
+ * (`2026-08-01T14:30:00.000-03:00`).
+ *
+ * Una fecha sola se ancla explícitamente a la medianoche de Argentina
+ * (`T00:00:00.000-03:00`), nunca a la medianoche UTC que asumiría
+ * `new Date('2026-08-01')`. Es el mismo instante que arman
+ * `inicioDelDiaIso`/`finDelDiaIso` en el frontend para filtrar por período
+ * (`frontend/src/shared/utils/fechaIso.ts`): si acá se ancla a UTC, una fecha
+ * de negocio cargada como "hoy" (ej. `fecha_pago`, `fecha_emision`) puede
+ * quedar hasta 3 horas por debajo del borde que ese filtro arma para el mismo
+ * día, y un registro del primer día del período queda afuera del reporte sin
+ * ningún error visible. El offset se fija a mano y no se lee de la zona
+ * horaria del proceso de Node, para que el resultado no dependa de en qué
+ * servidor corra el backend.
  */
 export const fechaIsoSchema = z
   .union([z.iso.datetime({ offset: true }), z.iso.date()])
-  .transform((valor) => new Date(valor));
+  .transform((valor) => {
+    const conOffset = valor.includes('T')
+      ? valor
+      : `${valor}T00:00:00.000${OFFSET_ARGENTINA}`;
+    return new Date(conOffset);
+  });

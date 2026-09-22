@@ -9,6 +9,7 @@ import { OAuth2Client, type TokenPayload } from 'google-auth-library';
 import * as bcrypt from 'bcrypt';
 import type { StringValue } from 'ms';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { validarTelefonoSoloNumeros } from '../../../common/validaciones/telefono-solo-numeros';
 import { Prisma } from '../../../../generated/prisma/client';
 import type { CLIENTE } from '../../../../generated/prisma/client';
 
@@ -113,6 +114,10 @@ export class ClienteAuthService {
     clienteId: number,
     datos: { dni_cuil?: string; telefono?: string },
   ) {
+    if (datos.telefono !== undefined) {
+      validarTelefonoSoloNumeros(datos.telefono);
+    }
+
     try {
       const cliente = await this.prisma.cLIENTE.update({
         where: { id_cliente: clienteId },

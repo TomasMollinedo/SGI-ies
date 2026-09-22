@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ClienteAuthService } from './cliente-auth.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { Prisma } from '../../../../generated/prisma/client';
@@ -279,7 +283,7 @@ describe('ClienteAuthService', () => {
 
   describe('actualizarDatos', () => {
     it('actualiza dni_cuil y teléfono', async () => {
-      const datos = { dni_cuil: '20-12345678-9', telefono: '11-2222-3333' };
+      const datos = { dni_cuil: '20123456789', telefono: '1122223333' };
       prisma.cLIENTE.update.mockResolvedValue({ ...clienteMock, ...datos });
 
       const resultado = await service.actualizarDatos(
@@ -315,9 +319,31 @@ describe('ClienteAuthService', () => {
 
       await expect(
         service.actualizarDatos(clienteMock.id_cliente, {
-          telefono: '11-1111-1111',
+          telefono: '1111111111',
         }),
       ).rejects.toThrow(errorInesperado);
+    });
+
+    it('lanza BadRequestException si el teléfono tiene caracteres que no son dígitos', async () => {
+      await expect(
+        service.actualizarDatos(clienteMock.id_cliente, {
+          telefono: '11-2222-3333',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.cLIENTE.update).not.toHaveBeenCalled();
+    });
+
+    it('no valida el formato del teléfono si no se lo manda (solo se actualiza dni_cuil)', async () => {
+      prisma.cLIENTE.update.mockResolvedValue({
+        ...clienteMock,
+        dni_cuil: '20123456789',
+      });
+
+      await expect(
+        service.actualizarDatos(clienteMock.id_cliente, {
+          dni_cuil: '20123456789',
+        }),
+      ).resolves.toBeDefined();
     });
   });
 });

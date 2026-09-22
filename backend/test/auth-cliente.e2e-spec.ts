@@ -258,7 +258,7 @@ describe('Auth de Cliente (e2e)', () => {
       const patchA = await request(app.getHttpServer())
         .patch('/api/cliente/me')
         .set('Authorization', `Bearer ${clienteA.accessToken}`)
-        .send({ dni_cuil: dniCuilUnico, telefono: '11-0000-0001' });
+        .send({ dni_cuil: dniCuilUnico, telefono: '1100000001' });
       expect(patchA.status).toBe(200);
 
       const clienteBEnDb = await prisma.cLIENTE.findUnique({
@@ -271,6 +271,33 @@ describe('Auth de Cliente (e2e)', () => {
         where: { id_cliente: clienteA.cliente.id },
       });
       expect(clienteAEnDb?.dni_cuil).toBe(dniCuilUnico);
+    });
+  });
+
+  describe('PATCH /api/cliente/me — validación de teléfono', () => {
+    it('devuelve 400 si el teléfono tiene caracteres que no son dígitos', async () => {
+      const email = `telefono-invalido-${marcaTemporal}@e2e.test`;
+      mockGooglePayload({
+        sub: `google-sub-telefono-invalido-${marcaTemporal}`,
+        email,
+      });
+      const login = await request(app.getHttpServer())
+        .post('/api/cliente/login')
+        .send({ idToken: 'token-login' });
+      const loginBody = login.body as LoginResponseBody;
+      idsClientesCreados.push(loginBody.cliente.id);
+
+      const response = await request(app.getHttpServer())
+        .patch('/api/cliente/me')
+        .set('Authorization', `Bearer ${loginBody.accessToken}`)
+        .send({ telefono: '11-2222-3333' });
+
+      expect(response.status).toBe(400);
+
+      const clienteEnDb = await prisma.cLIENTE.findUnique({
+        where: { id_cliente: loginBody.cliente.id },
+      });
+      expect(clienteEnDb?.telefono).toBeNull();
     });
   });
 });

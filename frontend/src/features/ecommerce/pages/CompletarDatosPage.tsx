@@ -135,9 +135,11 @@ export function CompletarDatosPage() {
             label="Teléfono"
             required
             type="tel"
+            inputMode="numeric"
             autoComplete="tel"
             maxLength={30}
             placeholder="Ej. 3874123456"
+            helperText="Solo números, sin espacios ni guiones."
             disabled={isPending}
             error={errors.telefono?.message}
             {...register('telefono')}

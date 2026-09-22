@@ -119,7 +119,9 @@ export const cobroListResponseSchema = z.object({
   resumenPeriodo: resumenPeriodoCobroSchema.nullable(),
 });
 
-export class CobroListResponseDto extends createZodDto(cobroListResponseSchema) {}
+export class CobroListResponseDto extends createZodDto(
+  cobroListResponseSchema,
+) {}
 
 /** Detalle (POST y GET /cobros/:id): cabecera completa + las líneas de imputación + auditoría. */
 export const cobroDetalleResponseSchema = cobroResponseSchema.extend({
