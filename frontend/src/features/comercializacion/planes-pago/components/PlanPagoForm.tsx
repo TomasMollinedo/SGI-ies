@@ -13,9 +13,11 @@ import { Select } from '@/shared/components/ui/Select'
 import { useToast } from '@/shared/hooks/useToast'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { esArrayDeValidationIssues, formatearMensajeError } from '@/shared/utils/apiError'
+import { formatearImporte } from '@/shared/utils/importe'
 import { AyudaDePrecio } from './AyudaDePrecio'
 import { PrevisualizacionCuotas } from './PrevisualizacionCuotas'
 import {
+  MOTIVO_BLOQUEO_POR_PLAN_INACTIVO,
   MOTIVO_BLOQUEO_POR_VENTA,
   MOTIVO_CONDICIONES_ESTRUCTURALES,
   OPCIONES_PERIODICIDAD,
@@ -39,8 +41,16 @@ import type {
   PlanPagoFormValues,
 } from '../types/planPago.schema'
 import type { PlanPago, SimularCuotasPayload } from '../types/planPago.types'
-import { calcularGananciaImplicita, calcularPrecioSugerido } from '../utils/calculoPrecio'
-import { aNumeroDeTexto } from '../utils/decimal'
+import { calcularPrecioSugerido, calcularResultadoSobreCosto } from '../utils/calculoPrecio'
+import {
+  aMilesANumero,
+  aNumero,
+  aNumeroDeTexto,
+  formatearMilesEnVivo,
+  limitarADosDecimalesEnVivo,
+  normalizarSeparadorDecimal,
+  numeroAMilesTexto,
+} from '../utils/decimal'
 
 /**
  * La simulación no lleva nombre (es un cálculo puro), pero el schema del
@@ -84,6 +94,9 @@ interface PlanPagoFormProps {
  * - Si la publicación ya tiene una venta (EN_PLAN_DE_PAGO o VENDIDA), precio,
  *   porcentaje y margen también quedan bloqueados: el backend devuelve 409, y
  *   es mejor explicarlo antes que hacer chocar al usuario con el error.
+ * - Un plan INACTIVO tampoco es una oferta vigente: mismo bloqueo y mismo
+ *   409, salvo que este modal se use para reactivarlo (ver
+ *   `CambiarEstadoPlanModal`, que es la única vía para eso, no este form).
  *
  * El estado (activo/inactivo) NO se toca desde acá aunque el PATCH lo permita:
  * cambiarlo tiene consecuencias que hay que explicar antes (ver
@@ -103,6 +116,12 @@ export function PlanPagoForm({
   const bloqueadoPorVenta = esEdicion && tieneVenta(estadoComercial)
 
   const { data: plan, isLoading: cargandoPlan, error: errorPlan } = usePlanPagoDetalle(idPlan)
+
+  // Sin venta, el otro motivo para congelar precio/%/margen es que el plan ya
+  // esté inactivo: recién carga cuando `plan` llega, así que hasta entonces
+  // da `false` (mismo momento en que los campos ni se muestran, ver `mostrandoCarga`).
+  const planInactivo = esEdicion && plan !== undefined && !plan.estado
+  const edicionEconomicaBloqueada = bloqueadoPorVenta || planInactivo
   const crear = useCrearPlanPago()
   const editar = useEditarPlanPago()
   const simular = useSimularCuotas()
@@ -151,17 +170,17 @@ export function PlanPagoForm({
   const guardando = crear.isPending || editar.isPending
 
   const porcentajeNumero = aNumeroDeTexto(porcentajeGanancia)
-  const margenNumero = aNumeroDeTexto(margen)
-  const precioNumero = aNumeroDeTexto(precio)
+  // Margen tiene puntos de miles en pantalla (ver `formatearMilesEnVivo`), así
+  // que un punto ahí no es decimal: usa su propio parser, no `aNumeroDeTexto`.
+  const margenNumero = aMilesANumero(margen)
+  const precioNumero = aMilesANumero(precio)
 
-  const precioSugerido = calcularPrecioSugerido(costo, porcentajeNumero, margenNumero)
-  // Misma condición que `PlanPagoService.calcularGananciaImplicita`: el dato
-  // solo tiene sentido cuando el precio se escribió a mano. Si el usuario cargó
-  // porcentaje o margen, el porcentaje real es el suyo.
-  const gananciaImplicita =
-    porcentajeNumero === null && margenNumero === null
-      ? calcularGananciaImplicita(costo, precioNumero)
-      : null
+  const precioSugerido =
+    precio.trim() === '' ? calcularPrecioSugerido(costo, porcentajeNumero, margenNumero) : null
+  // A diferencia del precio sugerido, esto se calcula siempre que hay costo y
+  // precio: es el efecto real del precio actual, se haya llegado a él con las
+  // herramientas o pisando el sugerido a mano.
+  const resultadoSobreCosto = calcularResultadoSobreCosto(costo, precioNumero)
 
   // El anticipo se carga por porcentaje O por monto: en cuanto uno tiene algo,
   // el otro se deshabilita (y se limpia, por las dudas).
@@ -185,6 +204,77 @@ export function PlanPagoForm({
     if (getValues(opuesto) !== '') setValue(opuesto, '', { shouldValidate: true })
   }
 
+  /**
+   * DESVÍO A PROPÓSITO del enunciado de HU-22 ("[el % implícito] no reescribe
+   * ni completa los campos de porcentaje de ganancia ni margen"): a pedido
+   * expreso, acá SÍ se completa el campo porcentaje de ganancia con el
+   * resultado en vivo cuando se toca el precio a mano.
+   *
+   * Se completa solo `porcentaje_ganancia`, nunca los dos a la vez: si se
+   * cargaran ambos con el delta completo, `calcularPrecioSugerido` (que suma
+   * costo + costo×% + margen) contaría ese mismo delta dos veces la próxima
+   * vez que alguien reabra las herramientas. `margen` se limpia en su lugar.
+   *
+   * Un resultado negativo (precio por debajo del costo) NO se carga: las
+   * columnas de porcentaje y margen exigen `>= 0` tanto en este schema como
+   * en el del backend, y forzar un valor negativo dejaría el formulario
+   * inválido justo en el caso que el enunciado pide poder guardar igual (con
+   * advertencia). Ahí se limpian los dos, como antes.
+   */
+  function alEditarPrecioAMano(valorPrecio: string) {
+    const resultado = calcularResultadoSobreCosto(costo, aMilesANumero(valorPrecio))
+
+    if (resultado === null || resultado.porcentaje < 0) {
+      setValue('porcentaje_ganancia', '', { shouldValidate: true })
+      setValue('margen', '', { shouldValidate: true })
+      return
+    }
+
+    setValue('porcentaje_ganancia', normalizarSeparadorDecimal(String(resultado.porcentaje)), {
+      shouldValidate: true,
+    })
+    setValue('margen', '', { shouldValidate: true })
+  }
+
+  /**
+   * A la inversa: tocar porcentaje de ganancia o margen invalida el precio
+   * que hubiera cargado (a mano o copiado de una sugerencia anterior), porque
+   * pasó a corresponder a otras condiciones. Se limpia en vez de dejarlo
+   * como un valor viejo que ya no es el que esas herramientas describen.
+   */
+  function alEditarHerramientaDeCalculo() {
+    if (getValues('precio') !== '') setValue('precio', '', { shouldValidate: true })
+  }
+
+  /**
+   * Lo que se tipea en Porcentaje de ganancia siempre se ve con coma, se haya
+   * tipeado con punto o con coma, y con hasta dos decimales — igual que
+   * Margen, no deja escribir un tercero en vez de avisarlo recién al validar.
+   */
+  function alEscribirPorcentaje(valor: string) {
+    const limitado = limitarADosDecimalesEnVivo(valor)
+    if (limitado !== valor) setValue('porcentaje_ganancia', limitado, { shouldValidate: true })
+    alEditarHerramientaDeCalculo()
+  }
+
+  /** Lo que se tipea en Margen se reformatea en vivo con puntos de miles (ver `formatearMilesEnVivo`). */
+  function alEscribirMargen(valor: string) {
+    const formateado = formatearMilesEnVivo(valor)
+    if (formateado !== valor) setValue('margen', formateado, { shouldValidate: true })
+    alEditarHerramientaDeCalculo()
+  }
+  /** Precio se muestra con puntos de miles mientras se escribe. */
+  function alEscribirPrecio(valor: string) {
+    const formateado = formatearMilesEnVivo(valor)
+
+    if (formateado !== valor) {
+      setValue('precio', formateado, {
+        shouldValidate: true,
+      })
+    }
+
+    alEditarPrecioAMano(formateado)
+  }
   /** Al pasar a contado se limpia todo lo que no aplica, para no mandar algo que el backend rechaza. */
   function alCambiarTipo(valor: string) {
     if (valor !== 'CONTADO') return
@@ -280,9 +370,9 @@ export function PlanPagoForm({
       footer={
         <>
           <Button variant="error" icon={<X />} onClick={onClose} disabled={guardando}>
-            {bloqueadoPorVenta ? 'Cerrar' : 'Cancelar'}
+            {edicionEconomicaBloqueada ? 'Cerrar' : 'Cancelar'}
           </Button>
-          {!bloqueadoPorVenta && (
+          {!edicionEconomicaBloqueada && (
             <Button
               variant="success"
               onClick={() => void handleSubmit(guardar)()}
@@ -305,7 +395,7 @@ export function PlanPagoForm({
         <form className="flex flex-col gap-4" onSubmit={(evento) => evento.preventDefault()}>
           {errorGeneral && <AlertaInline>{errorGeneral}</AlertaInline>}
 
-          {bloqueadoPorVenta && (
+          {bloqueadoPorVenta ? (
             <div
               role="status"
               className="border-warning/30 bg-warning/10 text-warning rounded-md border px-4 py-3 text-xs"
@@ -313,6 +403,16 @@ export function PlanPagoForm({
               {MOTIVO_BLOQUEO_POR_VENTA}. Podés seguir activando o inactivando el plan desde el
               listado.
             </div>
+          ) : (
+            planInactivo && (
+              <div
+                role="status"
+                className="border-warning/30 bg-warning/10 text-warning rounded-md border px-4 py-3 text-xs"
+              >
+                {MOTIVO_BLOQUEO_POR_PLAN_INACTIVO}: activalo desde el listado para poder cambiar
+                precio, porcentaje de ganancia o margen.
+              </div>
+            )
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -344,55 +444,74 @@ export function PlanPagoForm({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
               label="Porcentaje de ganancia"
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
+              inputMode="decimal"
               placeholder="Opcional"
-              disabled={guardando || bloqueadoPorVenta}
-              helperText="Sobre el costo de la unidad."
+              disabled={guardando || edicionEconomicaBloqueada}
+              helperText="Sobre el costo de la unidad. Se puede combinar con el margen."
               error={errors.porcentaje_ganancia?.message}
-              {...register('porcentaje_ganancia')}
+              {...register('porcentaje_ganancia', {
+                onChange: (evento: React.ChangeEvent<HTMLInputElement>) =>
+                  alEscribirPorcentaje(evento.target.value),
+              })}
             />
 
             <Input
               label="Margen"
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
+              inputMode="decimal"
               placeholder="Opcional"
-              disabled={guardando || bloqueadoPorVenta}
-              helperText="Importe fijo que se suma al costo."
+              disabled={guardando || edicionEconomicaBloqueada}
+              helperText="Importe fijo que se suma al costo. Se puede combinar con el porcentaje."
               error={errors.margen?.message}
-              {...register('margen')}
+              {...register('margen', {
+                onChange: (evento: React.ChangeEvent<HTMLInputElement>) =>
+                  alEscribirMargen(evento.target.value),
+              })}
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
-            <Input
-              label="Precio"
-              required
-              type="number"
-              step="0.01"
-              min="0"
-              disabled={guardando || bloqueadoPorVenta}
-              helperText="El precio se carga a mano y es el que se guarda: no tiene por qué coincidir con el sugerido."
-              error={errors.precio?.message}
-              {...register('precio')}
-            />
-
-            <div className="sm:w-56">
-              <AyudaDePrecio
-                precioSugerido={precioSugerido}
-                gananciaImplicita={gananciaImplicita}
-                onUsarPrecioSugerido={() =>
-                  setValue('precio', String(precioSugerido), {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                  })
-                }
-                disabled={guardando || bloqueadoPorVenta}
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
+              <Input
+                label="Precio"
+                required
+                type="text"
+                inputMode="decimal"
+                placeholder="0"
+                disabled={guardando || edicionEconomicaBloqueada}
+                helperText="El precio se carga a mano y es el que se guarda: no tiene por qué coincidir con el sugerido."
+                error={errors.precio?.message}
+                {...register('precio', {
+                  onChange: (evento: React.ChangeEvent<HTMLInputElement>) =>
+                    alEscribirPrecio(evento.target.value),
+                })}
               />
+
+              {/* Al lado del precio, no adentro del panel de ayuda: es el dato con el que se compara de un vistazo. */}
+              <fieldset className="border-subtle rounded-md border p-3 sm:w-44">
+                <legend className="text-content px-1 text-xs font-medium">
+                  Costo de la unidad
+                </legend>
+                <p className="text-content text-base font-semibold wrap-anywhere">
+                  {costo === null ? '—' : formatearImporte(costo)}
+                </p>
+              </fieldset>
             </div>
+
+            <AyudaDePrecio
+              precioSugerido={precioSugerido}
+              resultadoSobreCosto={resultadoSobreCosto}
+              onUsarPrecioSugerido={() => {
+                if (precioSugerido === null) return
+
+                setValue('precio', numeroAMilesTexto(precioSugerido), {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                })
+              }}
+              disabled={guardando || edicionEconomicaBloqueada}
+            />
           </div>
 
           <fieldset className="border-subtle flex flex-col gap-3 rounded-md border p-3">
@@ -492,14 +611,21 @@ function textoAyudaEstructural(esContado: boolean, esEdicion: boolean): string |
   return undefined
 }
 
-/** Precarga del formulario con un plan existente. Los decimales del backend son strings: entran tal cual. */
+/**
+ * Precarga del formulario con un plan existente. Los decimales del backend
+ * son strings con punto decimal (nunca miles) y entran tal cual en los
+ * campos que se muestran igual — pero `porcentaje_ganancia` y `margen` ahora
+ * se ven siempre con coma / con puntos de miles, así que hay que pasarlos por
+ * el mismo formateo que corre mientras se tipea, si no se precargan crudos
+ * ("26.67" en vez de "26,67", o "4000000" en vez de "4.000.000").
+ */
 function valoresDesdePlan(plan: PlanPago): PlanPagoFormValues {
   return {
     nombre: plan.nombre,
     tipo: plan.tipo,
-    precio: plan.precio,
-    porcentaje_ganancia: plan.porcentaje_ganancia,
-    margen: plan.margen,
+    precio: aNumero(plan.precio) === null ? '' : numeroAMilesTexto(aNumero(plan.precio)!),
+    porcentaje_ganancia: normalizarSeparadorDecimal(plan.porcentaje_ganancia),
+    margen: aNumero(plan.margen) === null ? '' : numeroAMilesTexto(aNumero(plan.margen)!),
     // En contado el anticipo no se muestra como campo (es fijo en 100%), así
     // que no se precarga: iría a un input que no se renderiza.
     anticipo_porcentaje: plan.tipo === 'CONTADO' ? '' : (plan.anticipo_porcentaje ?? ''),

@@ -54,3 +54,62 @@ export function formatearPorcentaje(valor: number): string {
 export function aNumeroDeTexto(valor: string): number | null {
   return aNumero(valor.replace(',', '.'))
 }
+
+/**
+ * Normaliza a coma el separador decimal que haya tipeado el usuario, sea
+ * cual sea. La validación (`FORMATO_DECIMAL` en `planPagoFormSchema`) ya
+ * tolera un punto o una coma indistintamente; esto es solo para que lo que
+ * se VE en el campo sea siempre es-AR, tipee lo que tipee.
+ */
+export function normalizarSeparadorDecimal(valor: string): string {
+  return valor.replace('.', ',')
+}
+
+/**
+ * Formatea en vivo lo que se tipea en Porcentaje de ganancia: normaliza el
+ * separador a coma y corta la parte decimal a dos dígitos mientras se
+ * tipea, en vez de esperar a que la validación lo rechace después de
+ * escribirlo. Es lo mismo que hace `formatearMilesEnVivo` con Margen, pero
+ * sin puntos de miles — un porcentaje nunca llega a los miles.
+ */
+export function limitarADosDecimalesEnVivo(valorTipeado: string): string {
+  const limpio = normalizarSeparadorDecimal(valorTipeado).replace(/[^\d,]/g, '')
+  const [enteros, ...resto] = limpio.split(',')
+
+  if (!limpio.includes(',')) return enteros
+  return `${enteros},${resto.join('').slice(0, 2)}`
+}
+
+/**
+ * Formatea en vivo lo que se tipea en el campo Margen, con puntos de miles
+ * es-AR (ej. "20000" -> "20.000"). A diferencia de los demás decimales del
+ * formulario, acá el punto NO es el separador decimal (ese es siempre la
+ * coma): por eso Margen tiene su propio parser (`aMilesANumero`) y su propio
+ * schema (`decimalConMilesOpcional` en `planPago.schema.ts`) en vez de
+ * compartir `aNumeroDeTexto`/`decimalOpcional` con el resto de los campos.
+ *
+ * Tolera que todavía se esté escribiendo la parte decimal (una coma sola, o
+ * con un solo dígito) sin reformatear de más en cada tecla.
+ */
+export function formatearMilesEnVivo(valorTipeado: string): string {
+  // Solo dígitos y una coma: cualquier punto de un formateo anterior se
+  // descarta, se vuelve a armar entero.
+  const limpio = valorTipeado.replace(/[^\d,]/g, '')
+  const [enteros, ...resto] = limpio.split(',')
+  const enterosConPuntos = enteros.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+
+  if (!limpio.includes(',')) return enterosConPuntos
+
+  const decimales = resto.join('').slice(0, 2)
+  return `${enterosConPuntos},${decimales}`
+}
+
+/** El inverso de `formatearMilesEnVivo`: a número, sacando los puntos de miles antes de interpretar la coma. */
+export function aMilesANumero(valor: string): number | null {
+  return aNumero(valor.replace(/\./g, '').replace(',', '.'))
+}
+
+/** Un número ya guardado, al formato con puntos de miles del campo Margen (para precargar el formulario al editar). */
+export function numeroAMilesTexto(valor: number): string {
+  return formatearMilesEnVivo(String(valor).replace('.', ','))
+}

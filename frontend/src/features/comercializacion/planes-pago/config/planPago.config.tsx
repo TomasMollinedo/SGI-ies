@@ -64,6 +64,9 @@ export function tieneVenta(estadoComercial: EstadoComercial): boolean {
 
 export const MOTIVO_BLOQUEO_POR_VENTA = 'No se puede editar: la publicación ya tiene una venta'
 
+/** Un plan inactivo no es una oferta vigente: sus condiciones económicas se congelan hasta reactivarlo. */
+export const MOTIVO_BLOQUEO_POR_PLAN_INACTIVO = 'No se puede editar: el plan está inactivo'
+
 /** Por qué las condiciones estructurales no se editan nunca, ni siquiera sin venta. */
 export const MOTIVO_CONDICIONES_ESTRUCTURALES =
   'Para cambiar estas condiciones, inactivá este plan y creá uno nuevo'

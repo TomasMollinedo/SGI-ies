@@ -109,7 +109,7 @@ export class PlanPagoController {
   })
   @ApiConflictResponse({
     description:
-      'La publicación cambió de estado comercial mientras se procesaba el alta; hay que reintentar',
+      'La publicación ya tiene una venta (En plan de pago o Vendida): no se le puede sumar un plan nuevo',
   })
   create(
     @Body() dto: CreatePlanPagoDto,
@@ -183,7 +183,7 @@ export class PlanPagoController {
   @ApiNotFoundResponse({ description: 'No existe un plan de pago con ese id' })
   @ApiConflictResponse({
     description:
-      'No se puede editar precio/porcentaje/margen porque la publicación ya tiene una venta (En plan de pago o Vendida)',
+      'No se puede editar precio/porcentaje/margen: la publicación ya tiene una venta (En plan de pago o Vendida), o el plan está inactivo y este request no lo reactiva a la vez',
   })
   update(
     @Param('id', ParseIntPipe) id: number,

@@ -35,20 +35,32 @@ export function calcularPrecioSugerido(
   return redondearDosDecimales(costo + (costo * porcentaje) / 100 + margenFinal)
 }
 
+/** Lo que un precio representa de ganancia sobre el costo, en porcentaje y en pesos. */
+export interface ResultadoSobreCosto {
+  porcentaje: number
+  margen: number
+}
+
 /**
- * El porcentaje de ganancia que queda implícito cuando se escribe el precio a
- * mano: `(precio - costo) / costo * 100`.
+ * Lo que el precio actual de este plan representa sobre el costo, en vivo:
+ * `(precio - costo) / costo * 100` y `precio - costo`.
  *
- * Es el mismo cálculo que hace `PlanPagoService.calcularGananciaImplicita`, y
- * se muestra bajo las mismas condiciones con las que el backend lo devuelve:
- * solo si no se cargaron ni porcentaje ni margen, y solo si el costo no es 0
- * (sería una división por cero).
+ * A diferencia de `porcentaje_ganancia_implicito` del backend (que solo se
+ * calcula, y se guarda como referencia, cuando no se cargaron ni porcentaje
+ * ni margen), esto se recalcula siempre que hay costo y precio, se hayan
+ * usado o no las herramientas de cálculo: sirve para ver el efecto real de
+ * cualquier ajuste manual, incluso si el usuario pisó el precio sugerido con
+ * otro número. Es puramente informativo del cliente, nunca se manda al
+ * backend.
  */
-export function calcularGananciaImplicita(
+export function calcularResultadoSobreCosto(
   costo: number | null,
   precio: number | null
-): number | null {
+): ResultadoSobreCosto | null {
   if (costo === null || costo === 0 || precio === null) return null
 
-  return redondearDosDecimales(((precio - costo) / costo) * 100)
+  return {
+    porcentaje: redondearDosDecimales(((precio - costo) / costo) * 100),
+    margen: redondearDosDecimales(precio - costo),
+  }
 }

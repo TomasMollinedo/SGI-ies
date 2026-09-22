@@ -87,6 +87,30 @@ function decimalObligatorio(opciones: OpcionesDecimal) {
   ).transform(aNumeroDelFormulario)
 }
 
+/**
+ * Como `decimalOpcional`, pero para Margen: `formatearMilesEnVivo` le agrega
+ * puntos de miles mientras se tipea (ej. "20.000,50"), así que antes de
+ * aplicar las mismas reglas y el mismo `transform` que el resto de los
+ * decimales, hay que sacarlos — si no, "20.000" fallaría la regla de "hasta
+ * dos decimales" (la vería como 20 con tres decimales de más).
+ */
+function decimalConMilesOpcional(opciones: OpcionesDecimal) {
+  return z
+    .string()
+    .transform((valor) => valor.replace(/\./g, ''))
+    .pipe(decimalOpcional(opciones))
+}
+/**
+ * Igual que `decimalObligatorio`, pero acepta puntos de miles en pantalla.
+ * Ejemplo: "20.000,50" se transforma primero en "20000,50" y recién
+ * después se valida y convierte a number.
+ */
+function decimalConMilesObligatorio(opciones: OpcionesDecimal) {
+  return z
+    .string()
+    .transform((valor) => valor.replace(/\./g, ''))
+    .pipe(decimalObligatorio(opciones))
+}
 export const planPagoFormSchema = z
   .object({
     nombre: z
@@ -95,7 +119,10 @@ export const planPagoFormSchema = z
       .min(1, 'El nombre del plan es obligatorio')
       .max(100, 'El nombre no puede superar los 100 caracteres'),
     tipo: z.enum(['CONTADO', 'FINANCIADO']),
-    precio: decimalObligatorio({ etiqueta: 'El precio', mayorACero: true }),
+    precio: decimalConMilesObligatorio({
+      etiqueta: 'El precio',
+      mayorACero: true,
+    }),
     // Opcionales: son la ayuda de cálculo del precio, no la fuente de verdad.
     // El backend los defaultea en 0 si no vienen.
     porcentaje_ganancia: decimalOpcional({
@@ -103,7 +130,7 @@ export const planPagoFormSchema = z
       // `Decimal(5, 2)`: no entra nada de 1000 para arriba.
       max: 999.99,
     }),
-    margen: decimalOpcional({ etiqueta: 'El margen' }),
+    margen: decimalConMilesOpcional({ etiqueta: 'El margen' }),
     anticipo_porcentaje: decimalOpcional({ etiqueta: 'El anticipo', max: 100 }),
     anticipo_monto: decimalOpcional({ etiqueta: 'El anticipo' }),
     cantidad_cuotas: z
