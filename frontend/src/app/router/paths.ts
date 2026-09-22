@@ -67,6 +67,11 @@ export const PATHS = {
     // Patrón de ruta, no una URL navegable: para armar la de una publicación
     // concreta está `rutaPlanesPagoPublicacion`.
     PLANES_PAGO_PUBLICACION: '/sistema/comercializacion/publicaciones/:idPublicacion/planes-pago',
+    VENTAS: '/sistema/comercializacion/ventas',
+    NUEVA_VENTA: '/sistema/comercializacion/ventas/nueva',
+    // Patrón de ruta, no una URL navegable: para armar la de una venta
+    // concreta está `rutaDetalleVenta`.
+    VENTA_DETALLE: '/sistema/comercializacion/ventas/:idVenta',
   },
 
   // Sitio público del ecommerce (HU-23/24/25). Convive con el resto de las
@@ -111,6 +116,11 @@ export function rutaDetalleUnidad(idPublicacion: number): string {
 /** La ruta del detalle de una publicación puntual (ej. 42 → /comercializacion/publicaciones/42). */
 export function rutaDetallePublicacion(idPublicacion: number): string {
   return PATHS.COMERCIALIZACION.PUBLICACION_DETALLE.replace(':idPublicacion', String(idPublicacion))
+}
+
+/** La ruta del detalle de una venta puntual (ej. 7 → /comercializacion/ventas/7). */
+export function rutaDetalleVenta(idVenta: number): string {
+  return PATHS.COMERCIALIZACION.VENTA_DETALLE.replace(':idVenta', String(idVenta))
 }
 
 /** La ruta de los planes de pago de una publicación (ej. 42 → /comercializacion/publicaciones/42/planes-pago). */
