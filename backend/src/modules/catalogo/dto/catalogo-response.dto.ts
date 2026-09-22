@@ -18,6 +18,13 @@ const proyectoResumenSchema = z.object({
   localidad: z.string(),
 });
 
+/** Ver `calcularCondicionEntrega` (única fuente de estos textos, T103). */
+const condicionEntregaSchema = z.object({
+  codigo: z.enum(['TERMINADA', 'A_ENTREGAR_CON_FECHA', 'A_ENTREGAR_SIN_FECHA']),
+  texto: z.string(),
+  fecha_referencia: z.iso.datetime().nullable(),
+});
+
 export const catalogoListItemSchema = z.object({
   id_unidad_funcional: z.number(),
   identificador: z.string(),
@@ -27,7 +34,7 @@ export const catalogoListItemSchema = z.object({
   piso: z.string().nullable(),
   proyecto: proyectoResumenSchema,
   precio_desde: z.number(),
-  condicion_entrega: z.string(),
+  condicion_entrega: condicionEntregaSchema,
   // Fecha de la publicación vigente: es el criterio de orden del catálogo
   // (más nuevo primero), no un dato de negocio que le importe al frontend.
   fecha_publicacion: z.iso.datetime(),

@@ -24,6 +24,9 @@ import { PublicacionController } from '../../modules/comercializacion/publicacio
 import { PlanPagoController } from '../../modules/comercializacion/plan-pago/plan-pago.controller';
 import { CobroController } from '../../modules/comercializacion/cobro/cobro.controller';
 
+import { ProyectoController } from '../../modules/proyectos/proyecto.controller';
+import { UnidadFuncionalController } from '../../modules/comercializacion/unidades-funcionales/unidad-funcional.controller';
+import { VentaController } from '../../modules/comercializacion/venta/venta.controller';
 import { ComprobanteController } from '../../modules/tesoreria/comprobante/comprobante.controller';
 /**
  * Controller de mentira, dueño de un rol que no es ni Administrador ni
@@ -216,6 +219,7 @@ describe('RolesGuard', () => {
       ['PublicacionController', PublicacionController],
       ['PlanPagoController', PlanPagoController],
       ['CobroController', CobroController],
+      ['VentaController', VentaController],
     ];
 
     it.each(controllersDeComercializacion)(
@@ -248,6 +252,49 @@ describe('RolesGuard', () => {
     );
 
     it.each(controllersDeComercializacion)(
+      '%s deja entrar al Gerente General por su acceso transversal',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.GERENTE_GENERAL)),
+          ),
+        ).toBe(true);
+      },
+    );
+  });
+
+  describe('controllers de Unidades Funcionales y Proyectos', () => {
+    const controllersDeUnidadesFuncionales: [string, object][] = [
+      ['UnidadFuncionalController', UnidadFuncionalController],
+      ['ProyectoController', ProyectoController],
+    ];
+
+    it.each(controllersDeUnidadesFuncionales)(
+      '%s deja entrar al Administrador, que es el rol dueño del recurso',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.ADMINISTRADOR)),
+          ),
+        ).toBe(true);
+      },
+    );
+
+    // Cargar y mantener las unidades es tarea del Administrador, como el
+    // resto de los datos maestros del proyecto: el Responsable de Proyectos
+    // no es el dueño de estos recursos.
+    it.each(controllersDeUnidadesFuncionales)(
+      '%s rechaza al Responsable de Proyectos',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.RESPONSABLE_PROYECTOS)),
+          ),
+        ).toBe(false);
+      },
+    );
+
+    it.each(controllersDeUnidadesFuncionales)(
       '%s deja entrar al Gerente General por su acceso transversal',
       (_nombre, controller) => {
         expect(
