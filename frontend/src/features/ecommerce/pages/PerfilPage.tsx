@@ -1,6 +1,6 @@
 import { Pencil, User } from 'lucide-react'
 import { PATHS } from '@/app/router/paths'
-import { DetailRow } from '@/shared/components/common/DetailRow'
+import { FilaDato } from '../components/FilaDato'
 import { LinkButton } from '../components/LinkButton'
 import { PaginaCentrada } from '../components/PaginaCentrada'
 import { TarjetaPublica } from '../components/TarjetaPublica'
@@ -21,16 +21,21 @@ export function PerfilPage() {
         icon={<User />}
         title="Mi perfil"
         footer={
-          <LinkButton to={PATHS.ECOMMERCE.COMPLETAR_DATOS} icon={<Pencil />}>
+          <LinkButton
+            to={PATHS.ECOMMERCE.COMPLETAR_DATOS}
+            variant="secondary"
+            icon={<Pencil />}
+            className="font-mono tracking-widest uppercase"
+          >
             Editar mis datos
           </LinkButton>
         }
       >
-        <DetailRow label="Nombre" value={cliente.nombre} />
-        <DetailRow label="Apellido" value={cliente.apellido ?? SIN_DATO} />
-        <DetailRow label="Email" value={cliente.email} />
-        <DetailRow label="DNI / CUIT" value={cliente.dni_cuil ?? SIN_DATO} />
-        <DetailRow label="Teléfono" value={cliente.telefono ?? SIN_DATO} />
+        <FilaDato etiqueta="Nombre" valor={cliente.nombre} />
+        <FilaDato etiqueta="Apellido" valor={cliente.apellido ?? SIN_DATO} />
+        <FilaDato etiqueta="Email" valor={cliente.email} />
+        <FilaDato etiqueta="DNI / CUIT" valor={cliente.dni_cuil ?? SIN_DATO} />
+        <FilaDato etiqueta="Teléfono" valor={cliente.telefono ?? SIN_DATO} />
       </TarjetaPublica>
     </PaginaCentrada>
   )

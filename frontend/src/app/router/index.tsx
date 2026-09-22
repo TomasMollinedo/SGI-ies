@@ -11,8 +11,10 @@ import { UnidadesMedidaPage } from '@/features/almacen/unidades-medida/pages/Uni
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { CompletarDatosPage } from '@/features/ecommerce/pages/CompletarDatosPage'
 import { LoginClientePage } from '@/features/ecommerce/pages/LoginClientePage'
+import { LandingPage } from '@/features/ecommerce/landing/LandingPage'
 import { PerfilPage } from '@/features/ecommerce/pages/PerfilPage'
 import { PublicLayout } from '@/features/ecommerce/layout/PublicLayout'
+import { SitioPublicoLayout } from '@/features/ecommerce/layout/SitioPublicoLayout'
 import { MainLayout } from '@/layouts/MainLayout'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
@@ -36,22 +38,12 @@ import { CuentasCorrientesPage } from '@/features/tesoreria/cuentas-corrientes/p
 
 export const router = createBrowserRouter([
   { path: PATHS.LOGIN, element: <LoginPage /> },
+  // Sitio público rediseñado (T109): landing y pantallas de datos del cliente,
+  // con el mismo header, el mismo pie y el mismo fondo oscuro.
   {
-    element: <PublicLayout />,
+    element: <SitioPublicoLayout />,
     children: [
-      { path: PATHS.HOME, element: <PlaceholderPage titulo="Inicio" historia="HU-24" /> },
-      {
-        path: PATHS.ECOMMERCE.CATALOGO.ROOT,
-        element: <PlaceholderPage titulo="Catálogo" historia="HU-25" />,
-      },
-      {
-        path: PATHS.ECOMMERCE.CATALOGO.DETALLE,
-        element: <PlaceholderPage titulo="Detalle de unidad" historia="HU-25" />,
-      },
-      {
-        path: PATHS.ECOMMERCE.LOGIN,
-        element: <LoginClientePage />,
-      },
+      { path: PATHS.HOME, element: <LandingPage /> },
       {
         element: <ClienteProtectedRoute requiereDatosCompletos />,
         children: [
@@ -69,6 +61,25 @@ export const router = createBrowserRouter([
             element: <CompletarDatosPage />,
           },
         ],
+      },
+      {
+        path: PATHS.ECOMMERCE.LOGIN,
+        element: <LoginClientePage />,
+      },
+    ],
+  },
+  // Placeholders del catálogo (HU-25): siguen con el layout anterior hasta que
+  // esa historia arme sus pantallas.
+  {
+    element: <PublicLayout />,
+    children: [
+      {
+        path: PATHS.ECOMMERCE.CATALOGO.ROOT,
+        element: <PlaceholderPage titulo="Catálogo" historia="HU-25" />,
+      },
+      {
+        path: PATHS.ECOMMERCE.CATALOGO.DETALLE,
+        element: <PlaceholderPage titulo="Detalle de unidad" historia="HU-25" />,
       },
     ],
   },

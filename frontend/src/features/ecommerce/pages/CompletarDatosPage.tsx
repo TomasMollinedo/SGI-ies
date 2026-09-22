@@ -89,21 +89,32 @@ export function CompletarDatosPage() {
           </>
         }
       >
-        <p className="text-content-muted mb-4 text-sm">
+        <p className="text-light/70 mb-6 text-sm">
           {yaTeniaDatos
             ? 'Actualizá tu DNI/CUIT y tu teléfono de contacto.'
             : 'Necesitamos tu DNI/CUIT y un teléfono de contacto para poder continuar.'}
         </p>
 
+        {/*
+          `Input` y `Field` son del panel interno: el label, el texto de ayuda
+          y el mensaje de error vienen con los colores del fondo claro (el rojo
+          `error` es ilegible sobre oscuro). Acá se los reescribe una sola vez
+          para todo el formulario, en vez de tocar el componente compartido
+          —que usan todas las pantallas internas— o repetirlo campo por campo.
+          El control en sí queda igual que en el resto del sistema.
+        */}
         <form
           id={ID_FORM}
           onSubmit={handleSubmit(enviar)}
-          className="flex flex-col gap-4"
+          className="flex flex-col gap-5 [&_label]:text-light [&_p]:text-light/60 [&_p[role='alert']]:text-error-soft"
           noValidate
         >
           {errorGeneral && (
-            <div role="alert" className="border-error/30 bg-error/10 rounded-md border px-4 py-3">
-              <p className="text-error text-xs">{errorGeneral}</p>
+            <div className="border-error bg-error/25 border px-4 py-3">
+              {/* El role va en el mensaje, que es lo que se anuncia. */}
+              <p role="alert" className="text-xs">
+                {errorGeneral}
+              </p>
             </div>
           )}
 

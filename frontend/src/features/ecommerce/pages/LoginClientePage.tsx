@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { User } from 'lucide-react'
 import { Navigate, useLocation } from 'react-router'
 import { PATHS } from '@/app/router/paths'
-import { Spinner } from '@/shared/components/estados-pantalla/Spinner'
+import { Spinner } from '@/shared/components/ui/Spinner'
 import { cn } from '@/shared/utils/cn'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { GoogleSignInButton } from '../components/GoogleSignInButton'
 import { PaginaCentrada } from '../components/PaginaCentrada'
+import { TarjetaPublica } from '../components/TarjetaPublica'
 import { useClienteAuthUser } from '../hooks/useClienteAuthUser'
 import { useLoginCliente } from '../hooks/useLoginCliente'
 import { destinoOriginal } from '../utils/destinoOriginal'
@@ -20,7 +21,7 @@ export function LoginClientePage() {
   if (verificandoSesion) {
     return (
       <PaginaCentrada>
-        <Spinner size={32} />
+        <Spinner className="text-secondary size-8" />
       </PaginaCentrada>
     )
   }
@@ -40,12 +41,8 @@ export function LoginClientePage() {
 
   return (
     <PaginaCentrada>
-      <div className="bg-fondotabla w-full max-w-sm rounded-2xl p-6 shadow-xl sm:p-10">
-        <div className="bg-primary text-primary-content mx-auto mb-6 flex size-14 items-center justify-center rounded-full">
-          <User size={28} />
-        </div>
-        <h1 className="text-titulo-modal text-content mb-1 text-center font-semibold">Ingresar</h1>
-        <p className="text-content-muted mb-8 text-center text-sm">
+      <TarjetaPublica className="max-w-sm" icon={<User />} title="Ingresar">
+        <p className="text-light/70 mb-8 text-sm">
           Iniciá sesión con tu cuenta de Google para continuar.
         </p>
 
@@ -54,15 +51,20 @@ export function LoginClientePage() {
         </div>
 
         {iniciandoSesion ? (
-          <p className="text-content-muted mt-4 text-center text-sm">Ingresando...</p>
+          <p className="text-light/60 mt-4 text-center font-mono text-xs tracking-widest uppercase">
+            Ingresando...
+          </p>
         ) : null}
 
         {mensajeError ? (
-          <p role="alert" className="text-error bg-error/10 mt-4 rounded-lg px-3 py-2 text-sm">
-            {mensajeError}
-          </p>
+          <div className="border-error bg-error/25 mt-6 border px-4 py-3">
+            {/* El role va en el mensaje, que es lo que se anuncia. */}
+            <p role="alert" className="text-error-soft text-xs">
+              {mensajeError}
+            </p>
+          </div>
         ) : null}
-      </div>
+      </TarjetaPublica>
     </PaginaCentrada>
   )
 }

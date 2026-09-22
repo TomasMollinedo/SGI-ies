@@ -52,6 +52,9 @@
   --color-secondary-soft: color-mix(in srgb, var(--color-secondary) 30%, var(--color-fondotabla));
   /* fondo suave de alerta para stock bajo el umbral mínimo */
   --color-stock-bajo: color-mix(in srgb, var(--color-error) 25%, var(--color-fondotabla));
+  /* un escalón más oscuro que `dark`, para separar el pie del sitio público del
+     resto de la página cuando ambos van sobre fondo oscuro (landing, T109) */
+  --color-dark-deep: color-mix(in srgb, var(--color-dark) 78%, black);
 
   /* ---------- TIPOGRAFÍA ---------- */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -60,6 +63,7 @@
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
 
   --text-xs: 0.875rem; /* 14px */
   --text-xs--font-weight: var(--font-weight-regular);
@@ -73,6 +77,17 @@
   --text-titulo-modal--font-weight: var(--font-weight-semibold);
   --text-titulo-principal: 2.5rem; /* 40px */
   --text-titulo-principal--font-weight: var(--font-weight-medium);
+  /* Títulos del sitio público (T109): escalan con el viewport en vez de tener
+     un tamaño por breakpoint. `hero` es el <h1> de la landing; `seccion`, los
+     <h2> de cada sección. */
+  --text-seccion: clamp(1.75rem, 3.5vw, 2.75rem);
+  --text-seccion--font-weight: var(--font-weight-extrabold);
+  --text-seccion--line-height: 1.15;
+  --text-seccion--letter-spacing: -0.02em;
+  --text-hero: clamp(2.75rem, 8vw, 5.5rem);
+  --text-hero--font-weight: var(--font-weight-extrabold);
+  --text-hero--line-height: 0.95;
+  --text-hero--letter-spacing: -0.03em;
 
   /* ---------- ANIMACIONES ---------- */
 

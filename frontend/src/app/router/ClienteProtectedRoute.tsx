@@ -1,7 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router'
 import { PaginaCentrada } from '@/features/ecommerce/components/PaginaCentrada'
 import { useClienteAuthUser } from '@/features/ecommerce/hooks/useClienteAuthUser'
-import { Spinner } from '@/shared/components/estados-pantalla/Spinner'
+import { Spinner } from '@/shared/components/ui/Spinner'
 import { PATHS } from './paths'
 
 interface ClienteProtectedRouteProps {
@@ -21,7 +21,7 @@ export function ClienteProtectedRoute({
   if (isLoading) {
     return (
       <PaginaCentrada>
-        <Spinner size={32} />
+        <Spinner className="text-secondary size-8" />
       </PaginaCentrada>
     )
   }

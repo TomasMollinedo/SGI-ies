@@ -13,6 +13,7 @@ export type ColorToken =
   | 'light'
   | 'dark'
   | 'fondotabla'
+  | 'dark-deep'
   | 'error'
   | 'warning'
   | 'success'
