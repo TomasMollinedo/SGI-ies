@@ -1,17 +1,10 @@
-
-import { useState } from 'react'
-import { useProyectos } from '@/features/proyectos/hooks/useProyectos'
-import { Combobox } from '@/shared/components/ui/Combobox'
-import type { ComboboxOption } from '@/shared/components/ui/Combobox'
+import { ProyectoCombobox } from '@/features/comercializacion/publicaciones/components/ProyectoCombobox'
 import { Input } from '@/shared/components/ui/Input'
 import { Select } from '@/shared/components/ui/Select'
 import type { SelectOption } from '@/shared/components/ui/Select'
-import { useDebounce } from '@/shared/hooks/useDebounce'
 import { OPCIONES_ESTADO } from '../config/unidadFuncional.config'
 import { useTipologias } from '../hooks/useUnidadesFuncionales'
 import type { FiltroEstado } from '../types/unidadFuncional.types'
-
-const DEBOUNCE_BUSQUEDA = 400
 
 interface FiltrosUnidadesFuncionalesBarProps {
   proyectoId: string
@@ -27,9 +20,14 @@ interface FiltrosUnidadesFuncionalesBarProps {
 }
 
 /**
- * Filtros combinables del listado: proyecto (combo con búsqueda — para elegir
- * proyecto alcanza esto, la tabla emergente es solo para el formulario),
+ * Filtros combinables del listado: proyecto (mismo `ProyectoCombobox` con
+ * búsqueda que usa el listado de Publicaciones — para elegir proyecto acá
+ * alcanza esto, la tabla emergente es solo para el formulario de alta),
  * tipología, rango de superficie cubierta y estado.
+ *
+ * Cada campo lleva su `label` arriba (en vez de apoyarse solo en el
+ * placeholder): con anchos angostos, un placeholder largo se corta, pero un
+ * label puede pasar a una segunda línea sin perder texto.
  */
 export function FiltrosUnidadesFuncionalesBar({
   proyectoId,
@@ -43,19 +41,7 @@ export function FiltrosUnidadesFuncionalesBar({
   estado,
   onEstadoChange,
 }: FiltrosUnidadesFuncionalesBarProps) {
-  const [busquedaProyecto, setBusquedaProyecto] = useState('')
-  const busquedaDebounced = useDebounce(busquedaProyecto.trim(), DEBOUNCE_BUSQUEDA)
-
-  const { data: proyectos, isFetching: cargandoProyectos } = useProyectos({
-    busqueda: busquedaDebounced || undefined,
-    limit: 20,
-  })
   const { data: tipologias } = useTipologias()
-
-  const opcionesProyecto: ComboboxOption[] = (proyectos?.data ?? []).map((proyecto) => ({
-    value: String(proyecto.id_proyecto),
-    label: `${proyecto.codigo} — ${proyecto.nombre}`,
-  }))
 
   const opcionesTipologia: SelectOption[] = [
     { value: '', label: 'Todas las tipologías' },
@@ -63,26 +49,16 @@ export function FiltrosUnidadesFuncionalesBar({
   ]
 
   return (
-    <div className="flex flex-wrap items-end gap-3">
-      <Combobox
-        size="sm"
-        placeholder="Todos los proyectos"
-        minChars={0}
-        value={proyectoId}
-        onChange={onProyectoIdChange}
-        options={opcionesProyecto}
-        onSearch={setBusquedaProyecto}
-        loading={cargandoProyectos}
-        className="w-64"
-      />
+    <div className="flex w-full flex-wrap items-end gap-3">
+      <ProyectoCombobox value={proyectoId} onChange={onProyectoIdChange} className="w-full sm:w-64" />
 
       <Select
         size="sm"
-        aria-label="Tipología"
+        label="Tipología"
         options={opcionesTipologia}
         value={tipologia}
         onChange={(evento) => onTipologiaChange(evento.target.value)}
-        className="w-56"
+        className="w-full sm:w-56"
       />
 
       <Input
@@ -90,11 +66,11 @@ export function FiltrosUnidadesFuncionalesBar({
         type="number"
         min={0}
         step="0.01"
-        placeholder="Superficie mín. (m²)"
-        aria-label="Superficie cubierta mínima"
+        label="Superficie mínima (m²)"
+        placeholder="Ej. 40"
         value={superficieMin}
         onChange={(evento) => onSuperficieMinChange(evento.target.value)}
-        className="w-40"
+        className="w-full sm:w-44"
       />
 
       <Input
@@ -102,20 +78,20 @@ export function FiltrosUnidadesFuncionalesBar({
         type="number"
         min={0}
         step="0.01"
-        placeholder="Superficie máx. (m²)"
-        aria-label="Superficie cubierta máxima"
+        label="Superficie máxima (m²)"
+        placeholder="Ej. 120"
         value={superficieMax}
         onChange={(evento) => onSuperficieMaxChange(evento.target.value)}
-        className="w-40"
+        className="w-full sm:w-44"
       />
 
       <Select
         size="sm"
-        aria-label="Estado"
+        label="Estado"
         options={OPCIONES_ESTADO}
         value={estado}
         onChange={(evento) => onEstadoChange(evento.target.value as FiltroEstado)}
-        className="w-36"
+        className="w-full sm:w-36"
       />
     </div>
   )

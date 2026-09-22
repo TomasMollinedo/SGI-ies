@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
 import {
   EstadoCobro,
@@ -58,7 +62,9 @@ export class VentaService {
         throw new ConflictException('La publicación no está vigente');
       }
       if (publicacion.estado_comercial !== EstadoComercial.DISPONIBLE) {
-        throw new ConflictException('La unidad no está disponible para la venta');
+        throw new ConflictException(
+          'La unidad no está disponible para la venta',
+        );
       }
 
       const plan = await tx.pLANPAGO.findUnique({
@@ -68,7 +74,9 @@ export class VentaService {
         throw new ConflictException('El plan de pago está inactivado');
       }
       if (plan.FK_publicacion !== dto.FK_publicacion) {
-        throw new ConflictException('El plan de pago no pertenece a esta publicación');
+        throw new ConflictException(
+          'El plan de pago no pertenece a esta publicación',
+        );
       }
 
       // Chequeo defensivo previo: por construcción, una publicación DISPONIBLE
@@ -76,10 +84,15 @@ export class VentaService {
       // de más abajo es quien realmente lo garantiza contra condiciones de
       // carrera (ver comentario del constructor).
       const ventaVigente = await tx.vENTA.findFirst({
-        where: { FK_publicacion: dto.FK_publicacion, estado: EstadoVenta.VIGENTE },
+        where: {
+          FK_publicacion: dto.FK_publicacion,
+          estado: EstadoVenta.VIGENTE,
+        },
       });
       if (ventaVigente) {
-        throw new ConflictException('Ya existe una venta vigente sobre esta publicación');
+        throw new ConflictException(
+          'Ya existe una venta vigente sobre esta publicación',
+        );
       }
 
       const anticipoCongelado = this.resolverAnticipoMonto(plan);

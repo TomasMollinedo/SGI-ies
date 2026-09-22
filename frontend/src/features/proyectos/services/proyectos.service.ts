@@ -19,7 +19,12 @@ export async function listarProyectos(
   signal?: AbortSignal
 ): Promise<PaginatedResponse<ProyectoResumen>> {
   const { data } = await httpClient.get<PaginatedResponse<ProyectoResumen>>('/proyectos', {
-    params: { busqueda: filtros.busqueda, page: filtros.page, limit: filtros.limit },
+    params: {
+      busqueda: filtros.busqueda,
+      estado: filtros.estado,
+      page: filtros.page,
+      limit: filtros.limit,
+    },
     signal,
   })
 

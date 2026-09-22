@@ -10,6 +10,8 @@ export interface ProyectoResumen {
 
 export interface ProyectosQuery {
   busqueda?: string
+  /** GET /proyectos soporta filtrar por estado (T102: la tabla emergente de alta solo quiere los que admiten unidades nuevas). */
+  estado?: EstadoProyecto
   page?: number
   limit?: number
 }

@@ -169,7 +169,7 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
     }
     if (error.statusCode === 404) {
       toast.error('El proyecto o la unidad ya no existen')
-      navigate(PATHS.COMERCIALIZACION.UNIDADES_FUNCIONALES, { replace: true })
+      navigate(PATHS.PROYECTOS.UNIDADES_FUNCIONALES, { replace: true })
       return
     }
     setErrorGeneral(repartirErrorDelBackend(error, setError, setFocus))
@@ -227,7 +227,7 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
   function volver() {
     navigate(
       esAlta || !unidad
-        ? PATHS.COMERCIALIZACION.UNIDADES_FUNCIONALES
+        ? PATHS.PROYECTOS.UNIDADES_FUNCIONALES
         : rutaDetalleUnidadFuncional(unidad.id_unidad_funcional)
     )
   }

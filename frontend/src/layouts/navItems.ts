@@ -116,16 +116,20 @@ export const NAV_ITEMS: NavNode[] = [
       { label: 'Cobranzas', to: PATHS.TESORERIA.COBRANZAS, icon: HandCoins },
     ],
   },
-  // Proyectos vuelve a ser una hoja simple: Unidades Funcionales pasó a vivir
-  // bajo Comercialización (ver bloque de abajo), no acá.
-  { label: 'Proyectos', to: PATHS.PROYECTOS.ROOT, icon: HardHat },
+  {
+    label: 'Proyectos',
+    to: PATHS.PROYECTOS.ROOT,
+    icon: HardHat,
+    children: [
+      { label: 'Unidades Funcionales', to: PATHS.PROYECTOS.UNIDADES_FUNCIONALES, icon: Home },
+    ],
+  },
   {
     label: 'Comercialización',
     to: PATHS.COMERCIALIZACION.ROOT,
     icon: Store,
     children: [
       { label: 'Publicaciones', to: PATHS.COMERCIALIZACION.PUBLICACIONES, icon: Megaphone },
-      { label: 'Unidades Funcionales', to: PATHS.COMERCIALIZACION.UNIDADES_FUNCIONALES, icon: Home },
     ],
   },
 ]

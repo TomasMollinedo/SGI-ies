@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Building2, Search } from 'lucide-react'
-import { ESTADO_PROYECTO_LABEL } from '@/features/proyectos/config/proyecto.config'
 import { useProyectos } from '@/features/proyectos/hooks/useProyectos'
 import type { ProyectoResumen } from '@/features/proyectos/types/proyecto.types'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { SelectorEntidadModal } from '@/shared/components/common/SelectorEntidadModal'
-import { Badge } from '@/shared/components/ui/Badge'
 import { Input } from '@/shared/components/ui/Input'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 
@@ -15,15 +13,6 @@ const DEBOUNCE_BUSQUEDA = 400
 const COLUMNAS: DataTableColumn<ProyectoResumen>[] = [
   { key: 'codigo', label: 'Código', render: (p) => p.codigo },
   { key: 'nombre', label: 'Nombre', render: (p) => p.nombre },
-  {
-    key: 'estado',
-    label: 'Estado',
-    render: (p) => (
-      <Badge variant={p.estado === 'EN_PLANIFICACION' ? 'active' : 'inactive'}>
-        {ESTADO_PROYECTO_LABEL[p.estado]}
-      </Badge>
-    ),
-  },
 ]
 
 interface SelectorProyectoModalProps {
@@ -33,14 +22,17 @@ interface SelectorProyectoModalProps {
 }
 
 /**
- * Tabla emergente para elegir el proyecto de una unidad funcional: búsqueda +
- * paginación, no un desplegable (Definition of Done de HU-20). Envuelve al
- * `SelectorEntidadModal` genérico, mismo patrón que `SelectorArticuloModal`.
+ * Tabla emergente para elegir el proyecto de una unidad funcional nueva:
+ * búsqueda + paginación, no un desplegable (Definition of Done de HU-20).
+ * Envuelve al `SelectorEntidadModal` genérico, mismo patrón que
+ * `SelectorArticuloModal`.
  *
- * A propósito NO filtra por estado del proyecto: cualquiera se puede elegir.
- * Si el alta no corresponde (el proyecto no está En planificación), el
- * backend la rechaza con un mensaje que el formulario muestra igual — la
- * regla de negocio la valida el backend, no esta pantalla.
+ * Filtra por `estado=EN_PLANIFICACION`: es el único estado que admite altas de
+ * unidades (`validarProyectoAdmiteAltas` en el backend). No reemplaza esa
+ * validación —si un proyecto cambia de estado justo entre que se abre el
+ * modal y se confirma el alta, el backend igual la rechaza con un 409 que el
+ * formulario muestra— solo evita ofrecer de entrada opciones que ya se sabe
+ * que van a fallar.
  */
 export function SelectorProyectoModal({ open, onClose, onSeleccionar }: SelectorProyectoModalProps) {
   const [busqueda, setBusqueda] = useState('')
@@ -59,7 +51,7 @@ export function SelectorProyectoModal({ open, onClose, onSeleccionar }: Selector
   }, [open])
 
   const { data, isFetching, error, refetch } = useProyectos(
-    { busqueda: busquedaDebounced || undefined, page, limit: LIMITE_PAGINA },
+    { busqueda: busquedaDebounced || undefined, estado: 'EN_PLANIFICACION', page, limit: LIMITE_PAGINA },
     { enabled: open }
   )
 
@@ -78,17 +70,18 @@ export function SelectorProyectoModal({ open, onClose, onSeleccionar }: Selector
       page={page}
       onPageChange={setPage}
       onSeleccionar={onSeleccionar}
-      vacioTitulo="No se encontraron proyectos"
+      vacioTitulo="No hay proyectos en planificación"
+      vacioDescripcion="Solo se pueden cargar unidades nuevas en proyectos En planificación."
       filtros={
         <Input
           size="sm"
           type="search"
-          placeholder="Buscar por código o nombre"
-          aria-label="Buscar proyectos"
+          placeholder="Ej. Torre Nogal"
+          label="Buscar por código o nombre"
           iconLeft={<Search />}
           value={busqueda}
           onChange={(evento) => setBusqueda(evento.target.value)}
-          className="w-72"
+          className="w-full sm:w-72"
         />
       }
     />

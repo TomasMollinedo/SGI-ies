@@ -190,7 +190,7 @@ export function UnidadesFuncionalesPage() {
           estado={estado}
           onEstadoChange={setEstado}
         />
-        <Button icon={<Plus />} onClick={() => navigate(PATHS.COMERCIALIZACION.UNIDADES_FUNCIONALES_NUEVA)}>
+        <Button icon={<Plus />} onClick={() => navigate(PATHS.PROYECTOS.UNIDADES_FUNCIONALES_NUEVA)}>
           Nueva Unidad Funcional
         </Button>
       </div>
