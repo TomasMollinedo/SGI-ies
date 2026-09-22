@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { ProyectoCombobox } from '@/features/comercializacion/publicaciones/components/ProyectoCombobox'
 import { Input } from '@/shared/components/ui/Input'
 import { Select } from '@/shared/components/ui/Select'
@@ -17,6 +18,8 @@ interface FiltrosUnidadesFuncionalesBarProps {
   onSuperficieMaxChange: (value: string) => void
   estado: FiltroEstado
   onEstadoChange: (value: FiltroEstado) => void
+  /** Acciones de la pantalla (el botón de alta), alineadas a la derecha. */
+  acciones?: ReactNode
 }
 
 /**
@@ -40,6 +43,7 @@ export function FiltrosUnidadesFuncionalesBar({
   onSuperficieMaxChange,
   estado,
   onEstadoChange,
+  acciones,
 }: FiltrosUnidadesFuncionalesBarProps) {
   const { data: tipologias } = useTipologias()
 
@@ -49,54 +53,58 @@ export function FiltrosUnidadesFuncionalesBar({
   ]
 
   return (
-    <div className="flex w-full flex-wrap items-end gap-3">
-      <ProyectoCombobox
-        value={proyectoId}
-        onChange={onProyectoIdChange}
-        className="w-full sm:w-64"
-      />
+    <div className="flex w-full flex-wrap items-end justify-between gap-3">
+      <div className="flex min-w-0 flex-wrap items-end gap-3">
+        <ProyectoCombobox
+          value={proyectoId}
+          onChange={onProyectoIdChange}
+          className="w-full sm:w-64"
+        />
 
-      <Select
-        size="sm"
-        label="Tipología"
-        options={opcionesTipologia}
-        value={tipologia}
-        onChange={(evento) => onTipologiaChange(evento.target.value)}
-        className="w-full sm:w-56"
-      />
+        <Select
+          size="sm"
+          label="Tipología"
+          options={opcionesTipologia}
+          value={tipologia}
+          onChange={(evento) => onTipologiaChange(evento.target.value)}
+          className="w-full sm:w-56"
+        />
 
-      <Input
-        size="sm"
-        type="number"
-        min={0}
-        step="0.01"
-        label="Superficie mínima (m²)"
-        placeholder="Ej. 40"
-        value={superficieMin}
-        onChange={(evento) => onSuperficieMinChange(evento.target.value)}
-        className="w-full sm:w-44"
-      />
+        <Input
+          size="sm"
+          type="number"
+          min={0}
+          step="0.01"
+          label="Superficie mínima (m²)"
+          placeholder="Ej. 40"
+          value={superficieMin}
+          onChange={(evento) => onSuperficieMinChange(evento.target.value)}
+          className="w-full sm:w-44"
+        />
 
-      <Input
-        size="sm"
-        type="number"
-        min={0}
-        step="0.01"
-        label="Superficie máxima (m²)"
-        placeholder="Ej. 120"
-        value={superficieMax}
-        onChange={(evento) => onSuperficieMaxChange(evento.target.value)}
-        className="w-full sm:w-44"
-      />
+        <Input
+          size="sm"
+          type="number"
+          min={0}
+          step="0.01"
+          label="Superficie máxima (m²)"
+          placeholder="Ej. 120"
+          value={superficieMax}
+          onChange={(evento) => onSuperficieMaxChange(evento.target.value)}
+          className="w-full sm:w-44"
+        />
 
-      <Select
-        size="sm"
-        label="Estado"
-        options={OPCIONES_ESTADO}
-        value={estado}
-        onChange={(evento) => onEstadoChange(evento.target.value as FiltroEstado)}
-        className="w-full sm:w-36"
-      />
+        <Select
+          size="sm"
+          label="Estado"
+          options={OPCIONES_ESTADO}
+          value={estado}
+          onChange={(evento) => onEstadoChange(evento.target.value as FiltroEstado)}
+          className="w-full sm:w-36"
+        />
+      </div>
+
+      {acciones}
     </div>
   )
 }

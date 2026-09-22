@@ -177,23 +177,23 @@ export function UnidadesFuncionalesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <FiltrosUnidadesFuncionalesBar
-          proyectoId={proyectoId}
-          onProyectoIdChange={setProyectoId}
-          tipologia={tipologia}
-          onTipologiaChange={setTipologia}
-          superficieMin={superficieMin}
-          onSuperficieMinChange={setSuperficieMin}
-          superficieMax={superficieMax}
-          onSuperficieMaxChange={setSuperficieMax}
-          estado={estado}
-          onEstadoChange={setEstado}
-        />
-        <Button icon={<Plus />} onClick={() => navigate(PATHS.PROYECTOS.UNIDADES_FUNCIONALES_NUEVA)}>
-          Nueva Unidad Funcional
-        </Button>
-      </div>
+      <FiltrosUnidadesFuncionalesBar
+        proyectoId={proyectoId}
+        onProyectoIdChange={setProyectoId}
+        tipologia={tipologia}
+        onTipologiaChange={setTipologia}
+        superficieMin={superficieMin}
+        onSuperficieMinChange={setSuperficieMin}
+        superficieMax={superficieMax}
+        onSuperficieMaxChange={setSuperficieMax}
+        estado={estado}
+        onEstadoChange={setEstado}
+        acciones={
+          <Button icon={<Plus />} onClick={() => navigate(PATHS.PROYECTOS.UNIDADES_FUNCIONALES_NUEVA)}>
+            Nueva Unidad Funcional
+          </Button>
+        }
+      />
 
       {proyecto && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
