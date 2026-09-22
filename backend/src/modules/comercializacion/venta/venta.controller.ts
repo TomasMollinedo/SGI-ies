@@ -91,7 +91,21 @@ export class VentaController {
   @ApiOperation({ summary: 'Listado interno de ventas, con filtros y paginación' })
   @ApiQuery({ name: 'FK_cliente', required: false, type: Number })
   @ApiQuery({ name: 'FK_publicacion', required: false, type: Number })
+  @ApiQuery({ name: 'FK_unidad_funcional', required: false, type: Number })
+  @ApiQuery({ name: 'FK_proyecto', required: false, type: Number })
   @ApiQuery({ name: 'estado', required: false, enum: ['VIGENTE', 'CANCELADA'] })
+  @ApiQuery({
+    name: 'fechaDesde',
+    required: false,
+    type: String,
+    description: 'Filtra por fecha_adhesion >= (ISO 8601)',
+  })
+  @ApiQuery({
+    name: 'fechaHasta',
+    required: false,
+    type: String,
+    description: 'Filtra por fecha_adhesion <= (ISO 8601)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
   @ApiOkResponse({ description: 'Listado paginado de ventas', type: VentaListResponseDto })
