@@ -8,10 +8,12 @@ import {
   EstadoCobro,
   EstadoComercial,
   EstadoCuota,
+  EstadoDeclaracionPago,
   EstadoVenta,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { validarTelefonoSoloNumeros } from '../../../common/validaciones/telefono-solo-numeros';
+import { validarDniCuilValido } from '../../../common/validaciones/dni-cuil-valido';
 import { PublicacionService } from '../publicacion/publicacion.service';
 import { generarCuotas } from '../plan-pago/motor-cuotas';
 import { CreateVentaDto } from './dto/create-venta.dto';
@@ -156,18 +158,41 @@ export class VentaService {
    * `ClienteAuthService.buscarOCrearCliente` (que busca por `google_sub`/
    * `email`), acá también se busca por `dni_cuil`: quien vende presencial no
    * siempre tiene el email de memoria, pero sí el documento.
+   *
+   * Si lo encuentra pero le falta dni_cuil o teléfono (cliente que se
+   * registró solo por Google, HU-23, antes de comprar), completa acá los
+   * campos que falten con lo que mandó el formulario de venta — nunca
+   * pisa un valor que el cliente ya tenía. `CreateVentaDto` exige ambos
+   * campos siempre, así que `datos.dni_cuil`/`datos.telefono` llegan
+   * completos aunque el cliente sea nuevo.
    */
   private async buscarOCrearCliente(
     tx: Prisma.TransactionClient,
     datos: CreateVentaDto['cliente'],
   ) {
     validarTelefonoSoloNumeros(datos.telefono);
+    validarDniCuilValido(datos.dni_cuil);
 
     const existente = await tx.cLIENTE.findFirst({
-      where: this.clienteWhere({ dni_cuil: datos.dni_cuil, email: datos.email }),
+      where: this.clienteWhere({
+        dni_cuil: datos.dni_cuil,
+        email: datos.email,
+      }),
       select: CLIENTE_SELECT,
     });
-    if (existente) return existente;
+    if (existente) {
+      const faltantes: Prisma.CLIENTEUpdateInput = {};
+      if (existente.dni_cuil === null) faltantes.dni_cuil = datos.dni_cuil;
+      if (existente.telefono === null) faltantes.telefono = datos.telefono;
+
+      if (Object.keys(faltantes).length === 0) return existente;
+
+      return tx.cLIENTE.update({
+        where: { id_cliente: existente.id_cliente },
+        data: faltantes,
+        select: CLIENTE_SELECT,
+      });
+    }
 
     return tx.cLIENTE.create({
       data: {
@@ -182,24 +207,51 @@ export class VentaService {
   }
 
   /**
-   * Buscador del formulario de venta (HU-27): a diferencia de
-   * `buscarOCrearCliente`, esto corre fuera de cualquier transacción y nunca
-   * crea nada — el vendedor lo usa para saber, antes de completar el resto
-   * del formulario, si el cliente ya existe (y así no volver a pedirle
-   * nombre/teléfono) o si hay que darlo de alta. `dni_cuil`/`email` son
-   * ambos opcionales en el query, pero `BuscarClienteQueryDto` exige que
-   * venga al menos uno.
+   * Buscador por texto libre del alta de venta y del filtro de cliente del
+   * listado (HU-27): corre fuera de cualquier transacción y nunca crea nada
+   * — a diferencia de `buscarOCrearCliente`, es de solo lectura. Cada
+   * palabra de `busqueda` puede matchear parcialmente cualquiera de
+   * nombre/apellido/dni_cuil/email — así "Juan Perez" encuentra a alguien
+   * con nombre="Juan" y apellido="Perez" aunque ninguno de los dos campos
+   * contenga las dos palabras por sí solo. Puede devolver más de un
+   * cliente: por eso es paginado, igual que el resto de los listados.
    */
-  async buscarCliente(datos: { dni_cuil?: string; email?: string }) {
-    const cliente = await this.prisma.cLIENTE.findFirst({
-      where: this.clienteWhere(datos),
-      select: CLIENTE_SELECT,
-    });
+  async buscarClientes(datos: {
+    busqueda: string;
+    page: number;
+    limit: number;
+  }) {
+    const CAMPOS_BUSCABLES = [
+      'nombre',
+      'apellido',
+      'dni_cuil',
+      'email',
+    ] as const;
+    const tokens = datos.busqueda.trim().split(/\s+/).filter(Boolean);
 
-    return { encontrado: cliente !== null, cliente };
+    const where: Prisma.CLIENTEWhereInput = {
+      AND: tokens.map((token) => ({
+        OR: CAMPOS_BUSCABLES.map((campo) => ({
+          [campo]: { contains: token, mode: 'insensitive' },
+        })),
+      })),
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.cLIENTE.findMany({
+        where,
+        select: CLIENTE_SELECT,
+        orderBy: { nombre: 'asc' },
+        skip: (datos.page - 1) * datos.limit,
+        take: datos.limit,
+      }),
+      this.prisma.cLIENTE.count({ where }),
+    ]);
+
+    return { data, meta: { total, page: datos.page, limit: datos.limit } };
   }
 
-  /** Condición `OR` compartida por `buscarOCrearCliente` y `buscarCliente`, solo con los campos presentes. */
+  /** Condición `OR` de `buscarOCrearCliente` (match exacto por dni_cuil/email), solo con los campos presentes. */
   private clienteWhere(datos: {
     dni_cuil?: string;
     email?: string;
@@ -233,9 +285,10 @@ export class VentaService {
 
   /**
    * Cancela una venta vigente: exige motivo, solo si no hay un cobro
-   * CONFIRMADO sobre alguna de sus cuotas. Las cuotas quedan ANULADA sin
-   * borrarse, y la publicación vuelve a DISPONIBLE — misma transacción, mismo
-   * mecanismo de `transicionarEstadoComercial` que en `crear`.
+   * CONFIRMADO ni una declaración de pago (HU-29) PENDIENTE de resolver
+   * sobre alguna de sus cuotas. Las cuotas quedan ANULADA sin borrarse, y la
+   * publicación vuelve a DISPONIBLE — misma transacción, mismo mecanismo de
+   * `transicionarEstadoComercial` que en `crear`.
    */
   async cancelar(idVenta: number, dto: CancelarVentaDto, usuarioId: number) {
     await this.prisma.$transaction(async (tx) => {
@@ -259,9 +312,17 @@ export class VentaService {
         );
       }
 
-      // TODO(HU-29): antes de cancelar, verificar que no haya
-      // DECLARACIONPAGO en estado PENDIENTE sobre las cuotas de esta venta.
-      // HU-29 todavía no está integrada — hueco documentado a propósito.
+      const declaracionPendiente = await tx.dECLARACIONPAGO.findFirst({
+        where: {
+          cuota: { FK_venta: idVenta },
+          estado: EstadoDeclaracionPago.PENDIENTE,
+        },
+      });
+      if (declaracionPendiente) {
+        throw new ConflictException(
+          'No se puede cancelar: hay declaraciones de pago pendientes de resolver (validar o rechazar) sobre esta venta',
+        );
+      }
 
       await tx.vENTA.update({
         where: { id_venta: idVenta },

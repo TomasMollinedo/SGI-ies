@@ -6,5 +6,7 @@ import { FormaPagoService } from './forma-pago.service';
 @Module({
   controllers: [FormaPagoController],
   providers: [FormaPagoService],
+  // ClienteModule lo necesita para el catálogo de autogestión (HU-29).
+  exports: [FormaPagoService],
 })
 export class FormaPagoModule {}

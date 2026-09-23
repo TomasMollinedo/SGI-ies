@@ -32,6 +32,7 @@ import { PlanPagoModule } from './modules/comercializacion/plan-pago/plan-pago.m
 import { CobroModule } from './modules/comercializacion/cobro/cobro.module';
 import { UnidadFuncionalModule } from './modules/comercializacion/unidades-funcionales/unidad-funcional.module';
 import { VentaModule } from './modules/comercializacion/venta/venta.module';
+import { DeclaracionPagoModule } from './modules/comercializacion/declaracion-pago/declaracion-pago.module';
 import { ProyectoModule } from './modules/proyectos/proyecto.module';
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { ProyectoModule } from './modules/proyectos/proyecto.module';
     CobroModule,
     UnidadFuncionalModule,
     VentaModule,
+    DeclaracionPagoModule,
     ProyectoModule,
   ],
   providers: [
