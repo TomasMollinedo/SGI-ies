@@ -44,9 +44,10 @@ export class ConsultaClienteListResponseDto extends createZodDto(
 ) {}
 
 /** Shape de la cola interna: todo lo anterior + quién es el cliente que consultó. */
-export const consultaInternaResponseSchema = consultaClienteResponseSchema.extend({
-  cliente: clienteResumenSchema,
-});
+export const consultaInternaResponseSchema =
+  consultaClienteResponseSchema.extend({
+    cliente: clienteResumenSchema,
+  });
 
 export class ConsultaInternaResponseDto extends createZodDto(
   consultaInternaResponseSchema,

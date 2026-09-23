@@ -4,6 +4,21 @@ import { DNI_CUIL_REGEX } from '../../../../common/validaciones/dni-cuil-valido'
 
 export const completarDatosClienteSchema = z
   .object({
+    // Google los completa en el primer login (given_name/family_name), pero
+    // el cliente puede corregirlos después: no siempre coinciden con el
+    // nombre que quiere usar frente a la constructora.
+    nombre: z
+      .string()
+      .trim()
+      .min(1, 'El nombre es obligatorio')
+      .max(100)
+      .optional(),
+    apellido: z
+      .string()
+      .trim()
+      .min(1, 'El apellido es obligatorio')
+      .max(100)
+      .optional(),
     // Mismo criterio sin separadores que PROVEEDOR.cuit.
     dni_cuil: z
       .string()
@@ -21,9 +36,13 @@ export const completarDatosClienteSchema = z
     telefono: z.string().trim().min(1).max(30).optional(),
   })
   .refine(
-    (datos) => datos.dni_cuil !== undefined || datos.telefono !== undefined,
+    (datos) =>
+      datos.nombre !== undefined ||
+      datos.apellido !== undefined ||
+      datos.dni_cuil !== undefined ||
+      datos.telefono !== undefined,
     {
-      message: 'Hay que enviar al menos dni_cuil o telefono',
+      message: 'Hay que enviar al menos un dato para actualizar',
     },
   );
 

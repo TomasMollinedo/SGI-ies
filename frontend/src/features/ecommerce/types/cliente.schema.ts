@@ -2,10 +2,20 @@ import { z } from 'zod'
 
 /**
  * Límites calcados del DTO del backend (completar-datos-cliente.dto.ts). En
- * el backend ambos campos son opcionales (el PATCH sirve para actualizar uno
- * solo); esta pantalla puntual siempre pide los dos.
+ * el backend los cuatro campos son opcionales (el PATCH sirve para actualizar
+ * cualquier subconjunto); esta pantalla puntual siempre pide los cuatro.
  */
 export const completarDatosFormSchema = z.object({
+  nombre: z
+    .string()
+    .trim()
+    .min(1, 'El nombre es obligatorio')
+    .max(100, 'El nombre no puede superar los 100 caracteres'),
+  apellido: z
+    .string()
+    .trim()
+    .min(1, 'El apellido es obligatorio')
+    .max(100, 'El apellido no puede superar los 100 caracteres'),
   dni_cuil: z
     .string()
     .trim()

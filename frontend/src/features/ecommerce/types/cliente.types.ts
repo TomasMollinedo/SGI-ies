@@ -24,10 +24,12 @@ export interface LogoutClienteResponse {
 }
 
 /**
- * El backend acepta uno solo de los dos campos, pero el flujo de "completar
- * datos" siempre manda ambos.
+ * El backend acepta cualquier subconjunto de estos campos, pero el flujo de
+ * "completar datos" siempre manda los cuatro.
  */
 export interface CompletarDatosClientePayload {
+  nombre: string
+  apellido: string
   dni_cuil: string
   telefono: string
 }

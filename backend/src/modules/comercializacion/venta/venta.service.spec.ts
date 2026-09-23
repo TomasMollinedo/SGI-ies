@@ -160,9 +160,8 @@ describe('VentaService', () => {
         findUnique: jest.fn().mockResolvedValue(ventaDetalleCompleta),
       },
 
-      $transaction: jest.fn(
-        (callback: (transaction: typeof tx) => unknown) =>
-          callback(tx),
+      $transaction: jest.fn((callback: (transaction: typeof tx) => unknown) =>
+        callback(tx),
       ),
     };
 
@@ -397,11 +396,7 @@ describe('VentaService', () => {
     });
 
     it('caso feliz: sin cobro confirmado ni declaración pendiente, cancela, anula las cuotas y libera la publicación', async () => {
-      const resultado = await service.cancelar(
-        ID_VENTA,
-        dto,
-        USUARIO_ID,
-      );
+      const resultado = await service.cancelar(ID_VENTA, dto, USUARIO_ID);
 
       expect(tx.vENTA.update).toHaveBeenCalledWith({
         where: {
@@ -423,9 +418,7 @@ describe('VentaService', () => {
         },
       });
 
-      expect(
-        publicaciones.transicionarEstadoComercial,
-      ).toHaveBeenCalledWith(
+      expect(publicaciones.transicionarEstadoComercial).toHaveBeenCalledWith(
         tx,
         ventaVigente.FK_publicacion,
         EstadoComercial.EN_PLAN_DE_PAGO,

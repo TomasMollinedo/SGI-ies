@@ -4,7 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
-import { EstadoComercial, EstadoConsulta } from '../../../../generated/prisma/enums';
+import {
+  EstadoComercial,
+  EstadoConsulta,
+} from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateConsultaDto } from './dto/create-consulta.dto';
 import { QueryConsultaDto } from './dto/query-consulta.dto';

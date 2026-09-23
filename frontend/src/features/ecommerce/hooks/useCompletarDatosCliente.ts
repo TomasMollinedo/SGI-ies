@@ -7,7 +7,7 @@ export function useCompletarDatosCliente() {
   const queryClient = useQueryClient()
 
   return useMutation<Cliente, ApiErrorResponse, CompletarDatosClientePayload>({
-    mutationFn: ({ dni_cuil, telefono }) => completarDatosCliente(dni_cuil, telefono),
+    mutationFn: completarDatosCliente,
     onSuccess: (cliente) => {
       // El PATCH devuelve el cliente actualizado: se reemplaza en la caché en
       // vez de invalidar, así ClienteProtectedRoute ve los datos completos

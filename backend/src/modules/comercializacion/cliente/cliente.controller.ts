@@ -169,9 +169,9 @@ Lee el refresh token de la cookie \`httpOnly\` \`${REFRESH_TOKEN_COOKIE}\` (no h
   @ApiBearerAuth()
   @ApiOperation({
     summary:
-      'Completa o actualiza dni_cuil y/o teléfono del cliente autenticado',
+      'Completa o actualiza nombre, apellido, dni_cuil y/o teléfono del cliente autenticado',
     description:
-      'HU-29 exige dni_cuil y teléfono completos antes de dejar declarar un pago (ver clienteTieneDatosCompletos). Se puede mandar uno solo de los dos campos.',
+      'Nombre y apellido los completa Google en el primer login, pero el cliente los puede corregir después. HU-29 exige dni_cuil y teléfono completos antes de dejar declarar un pago (ver clienteTieneDatosCompletos). Se puede mandar cualquier subconjunto de los cuatro campos.',
   })
   @ApiOkResponse({
     description: 'Datos actualizados',
@@ -179,7 +179,7 @@ Lee el refresh token de la cookie \`httpOnly\` \`${REFRESH_TOKEN_COOKIE}\` (no h
   })
   @ApiBadRequestResponse({
     description:
-      'Formato de dni_cuil inválido, o no se envió ni dni_cuil ni telefono',
+      'Formato de dni_cuil inválido, o no se envió ningún campo para actualizar',
   })
   @ApiUnauthorizedResponse({ description: MENSAJE_NO_AUTENTICADO })
   @ApiConflictResponse({

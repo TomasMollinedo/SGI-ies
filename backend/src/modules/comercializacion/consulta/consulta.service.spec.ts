@@ -1,6 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { EstadoComercial, EstadoConsulta } from '../../../../generated/prisma/enums';
+import {
+  EstadoComercial,
+  EstadoConsulta,
+} from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ConsultaService } from './consulta.service';
 
@@ -32,7 +35,9 @@ describe('ConsultaService', () => {
     proyecto: { nombre: 'Torre Nogal' },
   };
 
-  const consultaClienteMock = (overrides: Partial<Record<string, unknown>> = {}) => ({
+  const consultaClienteMock = (
+    overrides: Partial<Record<string, unknown>> = {},
+  ) => ({
     id_consulta: 1,
     texto: '¿Tiene cochera?',
     estado: EstadoConsulta.PENDIENTE,
@@ -56,7 +61,10 @@ describe('ConsultaService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ConsultaService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        ConsultaService,
+        { provide: PrismaService, useValue: prisma },
+      ],
     }).compile();
 
     service = module.get(ConsultaService);
@@ -64,10 +72,15 @@ describe('ConsultaService', () => {
 
   describe('crear', () => {
     it('crea la consulta contra la publicación vigente y disponible de la unidad', async () => {
-      prisma.pUBLICACIONUNIDAD.findFirst.mockResolvedValue({ id_publicacion: 99 });
+      prisma.pUBLICACIONUNIDAD.findFirst.mockResolvedValue({
+        id_publicacion: 99,
+      });
       prisma.cONSULTAUNIDAD.create.mockResolvedValue(consultaClienteMock());
 
-      await service.crear({ FK_unidad_funcional: 12, texto: '¿Tiene cochera?' }, CLIENTE_ID);
+      await service.crear(
+        { FK_unidad_funcional: 12, texto: '¿Tiene cochera?' },
+        CLIENTE_ID,
+      );
 
       expect(primerArgumento(prisma.pUBLICACIONUNIDAD.findFirst)).toEqual({
         where: {
@@ -95,22 +108,37 @@ describe('ConsultaService', () => {
     });
 
     it('permite que el mismo cliente consulte dos veces la misma unidad: no valida unicidad', async () => {
-      prisma.pUBLICACIONUNIDAD.findFirst.mockResolvedValue({ id_publicacion: 99 });
+      prisma.pUBLICACIONUNIDAD.findFirst.mockResolvedValue({
+        id_publicacion: 99,
+      });
       prisma.cONSULTAUNIDAD.create.mockResolvedValue(consultaClienteMock());
 
-      await service.crear({ FK_unidad_funcional: 12, texto: 'Primera' }, CLIENTE_ID);
-      await service.crear({ FK_unidad_funcional: 12, texto: 'Segunda' }, CLIENTE_ID);
+      await service.crear(
+        { FK_unidad_funcional: 12, texto: 'Primera' },
+        CLIENTE_ID,
+      );
+      await service.crear(
+        { FK_unidad_funcional: 12, texto: 'Segunda' },
+        CLIENTE_ID,
+      );
 
       expect(prisma.cONSULTAUNIDAD.create).toHaveBeenCalledTimes(2);
     });
 
     it('la consulta nace en estado PENDIENTE (no se manda `estado` en el create: lo define el default del schema)', async () => {
-      prisma.pUBLICACIONUNIDAD.findFirst.mockResolvedValue({ id_publicacion: 99 });
+      prisma.pUBLICACIONUNIDAD.findFirst.mockResolvedValue({
+        id_publicacion: 99,
+      });
       prisma.cONSULTAUNIDAD.create.mockResolvedValue(consultaClienteMock());
 
-      await service.crear({ FK_unidad_funcional: 12, texto: 'Hola' }, CLIENTE_ID);
+      await service.crear(
+        { FK_unidad_funcional: 12, texto: 'Hola' },
+        CLIENTE_ID,
+      );
 
-      expect(primerArgumento(prisma.cONSULTAUNIDAD.create).data).not.toHaveProperty('estado');
+      expect(
+        primerArgumento(prisma.cONSULTAUNIDAD.create).data,
+      ).not.toHaveProperty('estado');
     });
   });
 
@@ -142,10 +170,8 @@ describe('ConsultaService', () => {
       // otra en este service: no hay ningún filtro de `vigente` que la saque.
       await service.listarDeCliente(CLIENTE_ID, 1, 10);
 
-      const where = primerArgumento(prisma.cONSULTAUNIDAD.findMany).where as Record<
-        string,
-        unknown
-      >;
+      const where = primerArgumento(prisma.cONSULTAUNIDAD.findMany)
+        .where as Record<string, unknown>;
       expect(where).not.toHaveProperty('publicacion');
       expect(JSON.stringify(where)).not.toContain('vigente');
     });
@@ -167,7 +193,10 @@ describe('ConsultaService', () => {
         FK_cliente: CLIENTE_ID,
         estado: EstadoConsulta.PENDIENTE,
         publicacion: { FK_unidad_funcional: 12 },
-        hora_creacion: { gte: new Date('2026-08-01'), lte: new Date('2026-08-31') },
+        hora_creacion: {
+          gte: new Date('2026-08-01'),
+          lte: new Date('2026-08-31'),
+        },
       });
     });
 
@@ -183,7 +212,15 @@ describe('ConsultaService', () => {
 
     it('incluye al cliente en cada fila, a diferencia de la vista del propio cliente', async () => {
       prisma.cONSULTAUNIDAD.findMany.mockResolvedValue([
-        { ...consultaClienteMock(), cliente: { id_cliente: 3, nombre: 'Ana', apellido: 'Pérez', email: 'a@a.com' } },
+        {
+          ...consultaClienteMock(),
+          cliente: {
+            id_cliente: 3,
+            nombre: 'Ana',
+            apellido: 'Pérez',
+            email: 'a@a.com',
+          },
+        },
       ]);
       prisma.cONSULTAUNIDAD.count.mockResolvedValue(1);
 
@@ -200,13 +237,24 @@ describe('ConsultaService', () => {
 
   describe('responder', () => {
     it('pasa la consulta pendiente a RESPONDIDA, con fecha y usuario', async () => {
-      prisma.cONSULTAUNIDAD.findUnique.mockResolvedValue({ estado: EstadoConsulta.PENDIENTE });
+      prisma.cONSULTAUNIDAD.findUnique.mockResolvedValue({
+        estado: EstadoConsulta.PENDIENTE,
+      });
       prisma.cONSULTAUNIDAD.update.mockResolvedValue({
         ...consultaClienteMock(),
-        cliente: { id_cliente: 3, nombre: 'Ana', apellido: null, email: 'a@a.com' },
+        cliente: {
+          id_cliente: 3,
+          nombre: 'Ana',
+          apellido: null,
+          email: 'a@a.com',
+        },
       });
 
-      await service.responder(1, { respuesta: 'Sí, tiene cochera' }, USUARIO_ID);
+      await service.responder(
+        1,
+        { respuesta: 'Sí, tiene cochera' },
+        USUARIO_ID,
+      );
 
       expect(primerArgumento(prisma.cONSULTAUNIDAD.update).data).toEqual({
         estado: EstadoConsulta.RESPONDIDA,
@@ -226,7 +274,9 @@ describe('ConsultaService', () => {
     });
 
     it('rechaza volver a responder una consulta ya respondida: no existe endpoint que edite la respuesta', async () => {
-      prisma.cONSULTAUNIDAD.findUnique.mockResolvedValue({ estado: EstadoConsulta.RESPONDIDA });
+      prisma.cONSULTAUNIDAD.findUnique.mockResolvedValue({
+        estado: EstadoConsulta.RESPONDIDA,
+      });
 
       await expect(
         service.responder(1, { respuesta: 'Otra respuesta' }, USUARIO_ID),

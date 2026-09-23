@@ -105,14 +105,21 @@ export class ClienteAuthService {
   }
 
   /**
-   * Actualiza dni_cuil y/o teléfono del cliente autenticado (HU-29 los exige
-   * completos antes de declarar un pago — ver clienteTieneDatosCompletos).
-   * Traduce el conflicto de unicidad de dni_cuil (P2002) a un mensaje en
-   * español en vez de dejar pasar el error crudo de Prisma.
+   * Actualiza nombre, apellido, dni_cuil y/o teléfono del cliente autenticado.
+   * dni_cuil y telefono los exige HU-29 completos antes de declarar un pago
+   * (ver clienteTieneDatosCompletos); nombre y apellido llegan de Google en el
+   * primer login, pero el cliente los puede corregir después. Traduce el
+   * conflicto de unicidad de dni_cuil (P2002) a un mensaje en español en vez
+   * de dejar pasar el error crudo de Prisma.
    */
   async actualizarDatos(
     clienteId: number,
-    datos: { dni_cuil?: string; telefono?: string },
+    datos: {
+      nombre?: string;
+      apellido?: string;
+      dni_cuil?: string;
+      telefono?: string;
+    },
   ) {
     if (datos.telefono !== undefined) {
       validarTelefonoSoloNumeros(datos.telefono);

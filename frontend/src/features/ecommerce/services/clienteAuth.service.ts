@@ -33,8 +33,9 @@ export async function getMeCliente(): Promise<Cliente> {
   return data
 }
 
-export async function completarDatosCliente(dni_cuil: string, telefono: string): Promise<Cliente> {
-  const payload: CompletarDatosClientePayload = { dni_cuil, telefono }
+export async function completarDatosCliente(
+  payload: CompletarDatosClientePayload
+): Promise<Cliente> {
   const { data } = await httpClientCliente.patch<Cliente>('/cliente/me', payload)
   return data
 }

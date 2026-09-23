@@ -38,27 +38,26 @@ export function CompletarDatosPage() {
   } = useForm<CompletarDatosFormValues, unknown, CompletarDatosFormOutput>({
     resolver: zodResolver(completarDatosFormSchema),
     defaultValues: {
+      nombre: cliente?.nombre ?? '',
+      apellido: cliente?.apellido ?? '',
       dni_cuil: cliente?.dni_cuil ?? '',
       telefono: cliente?.telefono ?? '',
     },
     mode: 'onChange',
   })
 
-  function enviar({ dni_cuil, telefono }: CompletarDatosFormOutput) {
+  function enviar(datos: CompletarDatosFormOutput) {
     if (isPending) return
 
     setErrorGeneral(null)
-    guardarDatos(
-      { dni_cuil, telefono },
-      {
-        onSuccess: () => {
-          navigate(destinoOriginal(location.state, PATHS.ECOMMERCE.PERFIL), { replace: true })
-        },
-        onError: (error) => {
-          setErrorGeneral(repartirErrorDelBackend(error, setError, setFocus))
-        },
-      }
-    )
+    guardarDatos(datos, {
+      onSuccess: () => {
+        navigate(destinoOriginal(location.state, PATHS.ECOMMERCE.PERFIL), { replace: true })
+      },
+      onError: (error) => {
+        setErrorGeneral(repartirErrorDelBackend(error, setError, setFocus))
+      },
+    })
   }
 
   function cancelar() {
@@ -91,8 +90,8 @@ export function CompletarDatosPage() {
       >
         <p className="text-light/70 mb-6 text-sm">
           {yaTeniaDatos
-            ? 'Actualizá tu DNI/CUIT y tu teléfono de contacto.'
-            : 'Necesitamos tu DNI/CUIT y un teléfono de contacto para poder continuar.'}
+            ? 'Actualizá tu nombre, tu DNI/CUIT y tu teléfono de contacto.'
+            : 'Revisá tu nombre y completá tu DNI/CUIT y un teléfono de contacto para poder continuar.'}
         </p>
 
         {/*
@@ -117,6 +116,26 @@ export function CompletarDatosPage() {
               </p>
             </div>
           )}
+
+          <Input
+            label="Nombre"
+            required
+            autoComplete="given-name"
+            maxLength={100}
+            disabled={isPending}
+            error={errors.nombre?.message}
+            {...register('nombre')}
+          />
+
+          <Input
+            label="Apellido"
+            required
+            autoComplete="family-name"
+            maxLength={100}
+            disabled={isPending}
+            error={errors.apellido?.message}
+            {...register('apellido')}
+          />
 
           <Input
             label="DNI / CUIT"
@@ -151,7 +170,7 @@ export function CompletarDatosPage() {
 }
 
 /** Los campos del formulario, para saber qué issues del backend son de campo. */
-const CAMPOS = ['dni_cuil', 'telefono'] as const
+const CAMPOS = ['nombre', 'apellido', 'dni_cuil', 'telefono'] as const
 type CampoDelFormulario = (typeof CAMPOS)[number]
 
 function esCampoDelFormulario(campo: string): campo is CampoDelFormulario {

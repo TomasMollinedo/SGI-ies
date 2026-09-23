@@ -345,5 +345,22 @@ describe('ClienteAuthService', () => {
         }),
       ).resolves.toBeDefined();
     });
+
+    it('actualiza nombre y apellido, aunque Google ya los haya completado en el login', async () => {
+      const datos = { nombre: 'Juana', apellido: 'Pérez' };
+      prisma.cLIENTE.update.mockResolvedValue({ ...clienteMock, ...datos });
+
+      const resultado = await service.actualizarDatos(
+        clienteMock.id_cliente,
+        datos,
+      );
+
+      expect(prisma.cLIENTE.update).toHaveBeenCalledWith({
+        where: { id_cliente: clienteMock.id_cliente },
+        data: datos,
+      });
+      expect(resultado.nombre).toBe(datos.nombre);
+      expect(resultado.apellido).toBe(datos.apellido);
+    });
   });
 });
