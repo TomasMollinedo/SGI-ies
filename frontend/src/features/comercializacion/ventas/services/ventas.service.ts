@@ -1,10 +1,10 @@
 import { httpClient } from '@/shared/api/httpClient'
 import type { PaginatedResponse } from '@/shared/types/api.types'
 import type {
-  BuscarClienteQuery,
   CancelarVentaPayload,
-  ClienteBuscado,
+  ClienteResumen,
   CrearVentaPayload,
+  QueryBuscarClientes,
   QueryVenta,
   VentaDetalle,
   VentaListItem,
@@ -14,6 +14,7 @@ export const VENTAS_QUERY_KEYS = {
   RAIZ: ['ventas'] as const,
   LISTA: (filtros: QueryVenta) => ['ventas', 'lista', filtros] as const,
   DETALLE: (id: number | null) => ['ventas', 'detalle', id] as const,
+  BUSQUEDA_CLIENTES: (busqueda: string) => ['ventas', 'buscar-clientes', busqueda] as const,
 }
 
 /** GET /ventas — listado interno paginado, con filtros combinables. */
@@ -25,7 +26,6 @@ export async function listarVentas(
     params: {
       FK_cliente: filtros.FK_cliente,
       FK_publicacion: filtros.FK_publicacion,
-      FK_unidad_funcional: filtros.FK_unidad_funcional,
       FK_proyecto: filtros.FK_proyecto,
       estado: filtros.estado,
       fechaDesde: filtros.fechaDesde,
@@ -65,14 +65,21 @@ export async function cancelarVenta(
 }
 
 /**
- * GET /ventas/buscar-cliente — para el buscador del formulario: si el cliente
- * ya existe, no se le vuelve a pedir nombre/teléfono. `encontrado: false` no
- * es un error, es el estado esperado la primera vez que compra.
+ * GET /ventas/buscar-clientes — búsqueda por texto libre (nombre, apellido,
+ * DNI/CUIL o email), paginada. Alimenta el `ClienteCombobox` del alta de
+ * venta; a diferencia de `buscarCliente`, puede devolver más de un cliente.
  */
-export async function buscarCliente(query: BuscarClienteQuery): Promise<ClienteBuscado> {
-  const { data } = await httpClient.get<ClienteBuscado>('/ventas/buscar-cliente', {
-    params: { dni_cuil: query.dni_cuil, email: query.email },
-  })
+export async function buscarClientes(
+  query: QueryBuscarClientes,
+  signal?: AbortSignal
+): Promise<PaginatedResponse<ClienteResumen>> {
+  const { data } = await httpClient.get<PaginatedResponse<ClienteResumen>>(
+    '/ventas/buscar-clientes',
+    {
+      params: { busqueda: query.busqueda, page: query.page, limit: query.limit },
+      signal,
+    }
+  )
 
   return data
 }

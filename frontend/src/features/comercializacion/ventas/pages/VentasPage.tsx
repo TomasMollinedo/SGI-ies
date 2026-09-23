@@ -15,6 +15,7 @@ import { finDelDiaIso, inicioDelDiaIso } from '@/shared/utils/fechaIso'
 import { formatearImporte } from '@/shared/utils/importe'
 import { CeldaUnidad } from '@/features/comercializacion/publicaciones/components/CeldaUnidad'
 import { FiltrosVentasBar } from '../components/FiltrosVentasBar'
+import { RegistrarVentaModal } from '../components/RegistrarVentaModal'
 import { badgeEstadoVenta, ESTADO_VENTA_POR_DEFECTO, LIMITE_PAGINA } from '../config/venta.config'
 import type { VentaListItem } from '../types/venta.types'
 import { useVentas } from '../hooks/useVentas'
@@ -22,24 +23,25 @@ import { useVentas } from '../hooks/useVentas'
 const FILTROS_VACIOS = {
   estado: ESTADO_VENTA_POR_DEFECTO,
   proyecto: '',
-  unidad: '',
   cliente: '',
   fechaDesde: '',
   fechaHasta: '',
 }
 
 /**
- * Listado interno de ventas (HU-27): filtrable por proyecto, unidad, cliente,
- * estado y período (PB), con paginación. El detalle de cada fila muestra el
- * cronograma completo de cuotas.
+ * Listado interno de ventas (HU-27): filtrable por proyecto, cliente, estado
+ * y período, con paginación. El detalle de cada fila muestra el cronograma
+ * completo de cuotas. Sin filtro de unidad: se sacó porque, con proyecto ya
+ * acotando el listado, no aportaba lo suficiente.
  */
 export function VentasPage() {
   const navigate = useNavigate()
 
   const [filtros, setFiltros] = useState(FILTROS_VACIOS)
   const [page, setPage] = useState(1)
+  const [registrarAbierto, setRegistrarAbierto] = useState(false)
 
-  const { estado, proyecto, unidad, cliente, fechaDesde, fechaHasta } = filtros
+  const { estado, proyecto, cliente, fechaDesde, fechaHasta } = filtros
 
   // Las dos fechas son ISO `YYYY-MM-DD`, así que alcanza con compararlas como texto.
   const rangoInvalido = fechaDesde !== '' && fechaHasta !== '' && fechaDesde > fechaHasta
@@ -63,7 +65,6 @@ export function VentasPage() {
   const { data, isLoading, isFetching, error, refetch } = useVentas({
     estado: estado === 'todos' ? undefined : estado,
     FK_proyecto: proyecto === '' ? undefined : Number(proyecto),
-    FK_unidad_funcional: unidad === '' ? undefined : Number(unidad),
     FK_cliente: cliente === '' ? undefined : Number(cliente),
     // Un rango al revés no se manda: el listado sigue mostrando el resto de
     // los filtros mientras el usuario corrige las fechas.
@@ -97,7 +98,8 @@ export function VentasPage() {
       render: (venta) => (
         <div className="min-w-0">
           <p className="text-content font-medium wrap-anywhere">
-            {venta.cliente.nombre} {venta.cliente.apellido ?? ''}
+            {venta.cliente.nombre} {venta.cliente.apellido ?? ''} —{' '}
+            {venta.cliente.dni_cuil ?? 'Sin DNI'}
           </p>
           <p className="text-content-muted text-xs wrap-anywhere">{venta.cliente.email}</p>
         </div>
@@ -107,10 +109,16 @@ export function VentasPage() {
       key: 'venta',
       label: 'Venta',
       render: (venta) => (
-        <div className="text-xs">
-          <p className="text-content font-medium">{formatearImporte(venta.precio_congelado)}</p>
-          <p className="text-content-muted">{formatearFecha(venta.fecha_adhesion)}</p>
-        </div>
+        <p className="text-content text-xs font-medium">
+          {formatearImporte(venta.precio_congelado)}
+        </p>
+      ),
+    },
+    {
+      key: 'fecha',
+      label: 'Fecha',
+      render: (venta) => (
+        <p className="text-content-muted text-xs">{formatearFecha(venta.fecha_adhesion)}</p>
       ),
     },
     {
@@ -157,8 +165,6 @@ export function VentasPage() {
         onEstadoChange={(valor) => cambiarFiltro('estado', valor)}
         proyecto={proyecto}
         onProyectoChange={(valor) => cambiarFiltro('proyecto', valor)}
-        unidad={unidad}
-        onUnidadChange={(valor) => cambiarFiltro('unidad', valor)}
         cliente={cliente}
         onClienteChange={(valor) => cambiarFiltro('cliente', valor)}
         fechaDesde={fechaDesde}
@@ -171,10 +177,7 @@ export function VentasPage() {
         onLimpiar={() => setFiltros(FILTROS_VACIOS)}
         hayFiltros={hayFiltros}
         acciones={
-          <Button
-            icon={<ShoppingCart />}
-            onClick={() => navigate(PATHS.COMERCIALIZACION.NUEVA_VENTA)}
-          >
+          <Button icon={<ShoppingCart />} onClick={() => setRegistrarAbierto(true)}>
             Registrar venta
           </Button>
         }
@@ -187,7 +190,9 @@ export function VentasPage() {
           {!isLoading && ventas.length === 0 && (
             <EmptyState
               titulo={
-                hayFiltros ? 'No se encontraron ventas con esos filtros' : 'No hay ventas registradas'
+                hayFiltros
+                  ? 'No se encontraron ventas con esos filtros'
+                  : 'No hay ventas registradas'
               }
               descripcion={
                 hayFiltros
@@ -221,6 +226,15 @@ export function VentasPage() {
           )}
         </>
       )}
+
+      <RegistrarVentaModal
+        open={registrarAbierto}
+        onClose={() => setRegistrarAbierto(false)}
+        onVentaRegistrada={(venta) => {
+          setRegistrarAbierto(false)
+          navigate(rutaDetalleVenta(venta.id_venta))
+        }}
+      />
     </div>
   )
 }

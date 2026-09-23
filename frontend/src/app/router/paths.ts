@@ -77,7 +77,8 @@ export const PATHS = {
     // concreta está `rutaPlanesPagoPublicacion`.
     PLANES_PAGO_PUBLICACION: '/sistema/comercializacion/publicaciones/:idPublicacion/planes-pago',
     VENTAS: '/sistema/comercializacion/ventas',
-    NUEVA_VENTA: '/sistema/comercializacion/ventas/nueva',
+    // "Registrar venta" es un modal sobre VENTAS (RegistrarVentaModal), sin
+    // ruta propia — a propósito, para no dejar una URL /nueva.
     // Patrón de ruta, no una URL navegable: para armar la de una venta
     // concreta está `rutaDetalleVenta`.
     VENTA_DETALLE: '/sistema/comercializacion/ventas/:idVenta',

@@ -1,11 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Search, UserCheck, X } from 'lucide-react'
-import { Button } from '@/shared/components/ui/Button'
+import { UserCheck, X } from 'lucide-react'
 import { IconButton } from '@/shared/components/ui/IconButton'
-import { Input } from '@/shared/components/ui/Input'
-import { useToast } from '@/shared/hooks/useToast'
-import { formatearMensajeError } from '@/shared/utils/apiError'
-import { useBuscarCliente } from '../hooks/useVentas'
+import { ClienteCombobox } from './ClienteCombobox'
 import type { ClienteResumen } from '../types/venta.types'
 
 interface FiltroClienteVentaProps {
@@ -15,54 +11,27 @@ interface FiltroClienteVentaProps {
 }
 
 /**
- * Filtro de cliente del listado de ventas. A diferencia de `ProyectoCombobox`
- * (con búsqueda server-side), no hay listado de clientes con búsqueda
- * parcial: el único endpoint disponible (`GET /ventas/buscar-cliente`, el
- * mismo del alta) exige DNI/CUIL o correo exacto. Por eso es
- * input + "Buscar" en vez de un combobox.
+ * Filtro de cliente del listado de ventas: mismo `ClienteCombobox` con
+ * búsqueda server-side por nombre/apellido/DNI/email que usa el alta de
+ * venta (antes buscaba solo por DNI/CUIL o correo exacto, vía
+ * `GET /ventas/buscar-cliente`).
  */
 export function FiltroClienteVenta({ value, onChange }: FiltroClienteVentaProps) {
-  const toast = useToast()
-  const buscar = useBuscarCliente()
-  const [termino, setTermino] = useState('')
   const [clienteResuelto, setClienteResuelto] = useState<ClienteResumen | null>(null)
-  const [noEncontrado, setNoEncontrado] = useState(false)
 
   // Si el filtro se limpia desde afuera (botón "Limpiar filtros"), este combo
   // también tiene que olvidarse del cliente resuelto.
   useEffect(() => {
-    if (value === '') {
-      setTermino('')
-      setClienteResuelto(null)
-      setNoEncontrado(false)
-    }
+    if (value === '') setClienteResuelto(null)
   }, [value])
 
-  function ejecutarBusqueda() {
-    const terminoLimpio = termino.trim()
-    if (terminoLimpio === '') return
-    const esCorreo = terminoLimpio.includes('@')
-
-    buscar.mutate(esCorreo ? { email: terminoLimpio } : { dni_cuil: terminoLimpio }, {
-      onSuccess: (resultado) => {
-        if (resultado.encontrado && resultado.cliente) {
-          setClienteResuelto(resultado.cliente)
-          setNoEncontrado(false)
-          onChange(String(resultado.cliente.id_cliente))
-          return
-        }
-        setClienteResuelto(null)
-        setNoEncontrado(true)
-        onChange('')
-      },
-      onError: (falla) => toast.error(formatearMensajeError(falla.message)),
-    })
+  function seleccionar(cliente: ClienteResumen) {
+    setClienteResuelto(cliente)
+    onChange(String(cliente.id_cliente))
   }
 
   function limpiar() {
-    setTermino('')
     setClienteResuelto(null)
-    setNoEncontrado(false)
     onChange('')
   }
 
@@ -85,35 +54,11 @@ export function FiltroClienteVenta({ value, onChange }: FiltroClienteVentaProps)
   }
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-end gap-2">
-        <Input
-          size="sm"
-          label="Cliente"
-          placeholder="DNI/CUIL o correo"
-          value={termino}
-          onChange={(evento) => {
-            setTermino(evento.target.value)
-            setNoEncontrado(false)
-          }}
-          onKeyDown={(evento) => {
-            if (evento.key === 'Enter') ejecutarBusqueda()
-          }}
-          className="w-48"
-        />
-        <Button
-          size="sm"
-          icon={<Search />}
-          onClick={ejecutarBusqueda}
-          loading={buscar.isPending}
-          disabled={termino.trim() === ''}
-        >
-          Buscar
-        </Button>
-      </div>
-      {noEncontrado && (
-        <p className="text-content-muted text-xs">No se encontró ningún cliente con ese dato.</p>
-      )}
-    </div>
+    <ClienteCombobox
+      onSeleccionar={seleccionar}
+      label="Cliente"
+      size="sm"
+      className="w-full sm:w-80"
+    />
   )
 }

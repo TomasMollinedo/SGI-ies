@@ -1,15 +1,15 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { DNI_CUIL_REGEX } from '../../../../common/validaciones/dni-cuil-valido';
 
 export const completarDatosClienteSchema = z
   .object({
-    // Acepta DNI (7 u 8 dígitos) o CUIT/CUIL (11 dígitos), sin guiones ni
-    // puntos — mismo criterio sin separadores que PROVEEDOR.cuit.
+    // Mismo criterio sin separadores que PROVEEDOR.cuit.
     dni_cuil: z
       .string()
       .trim()
       .regex(
-        /^(\d{7,8}|\d{11})$/,
+        DNI_CUIL_REGEX,
         'El DNI/CUIT debe tener 7 u 8 dígitos (DNI) u 11 dígitos (CUIT/CUIL), sin puntos ni guiones',
       )
       .optional()
