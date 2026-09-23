@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Building2, CreditCard, ShoppingCart } from 'lucide-react'
-import { rutaDetalleVenta } from '@/app/router/paths'
+import { PATHS, rutaDetalleVenta } from '@/app/router/paths'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/hooks/useToast'
@@ -127,7 +127,11 @@ export function RegistrarVentaPage() {
 
       <SelectorUnidadDisponibleModal
         open={selectorUnidadAbierto}
-        onClose={() => setSelectorUnidadAbierto(false)}
+        // Sin unidad elegida todavía, este modal es el único contenido de la
+        // pantalla (ver el `!unidad` de arriba): cerrarlo sin elegir dejaría
+        // una pantalla vacía. Con unidad ya elegida, es "Cambiar unidad" y
+        // cerrar solo tiene que ocultar el modal, no perder lo demás cargado.
+        onClose={() => (unidad ? setSelectorUnidadAbierto(false) : navigate(PATHS.COMERCIALIZACION.VENTAS))}
         onSeleccionar={elegirUnidad}
       />
 

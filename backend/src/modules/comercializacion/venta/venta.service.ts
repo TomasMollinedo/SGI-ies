@@ -12,6 +12,7 @@ import {
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { validarTelefonoSoloNumeros } from '../../../common/validaciones/telefono-solo-numeros';
+import { validarDniCuilValido } from '../../../common/validaciones/dni-cuil-valido';
 import { PublicacionService } from '../publicacion/publicacion.service';
 import { generarCuotas } from '../plan-pago/motor-cuotas';
 import { CreateVentaDto } from './dto/create-venta.dto';
@@ -162,6 +163,7 @@ export class VentaService {
     datos: CreateVentaDto['cliente'],
   ) {
     validarTelefonoSoloNumeros(datos.telefono);
+    validarDniCuilValido(datos.dni_cuil);
 
     const existente = await tx.cLIENTE.findFirst({
       where: this.clienteWhere({ dni_cuil: datos.dni_cuil, email: datos.email }),
