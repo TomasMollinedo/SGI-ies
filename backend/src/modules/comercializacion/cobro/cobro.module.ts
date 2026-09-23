@@ -10,5 +10,7 @@ import { PublicacionModule } from '../publicacion/publicacion.module';
   imports: [PublicacionModule],
   controllers: [CobroController],
   providers: [CobroService],
+  // DeclaracionPagoModule lo necesita para reusar crearInterno (HU-29).
+  exports: [CobroService],
 })
 export class CobroModule {}

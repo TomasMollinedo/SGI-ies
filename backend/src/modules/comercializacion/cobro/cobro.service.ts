@@ -75,6 +75,21 @@ type CuotaAImputar = Prisma.CUOTAGetPayload<{
 
 type LineaImputacionCobro = CreateCobroDto['detalle'][number];
 
+/**
+ * Lo mínimo que `crearInterno` necesita de cada cuota imputada — subconjunto
+ * de `CuotaAImputar`. Separado a propósito: `DeclaracionPagoService` arma su
+ * propio mapa con esta forma (a partir de su propia relectura de la cuota
+ * dentro de su transacción) sin depender del resto de los campos de
+ * `CuotaAImputar`, que son de uso exclusivo de las validaciones previas de
+ * `crear()`.
+ */
+export type LineaCuotaParaCobro = {
+  id_cuota: number;
+  numero: number;
+  saldo_pendiente: Prisma.Decimal;
+  FK_venta: number;
+};
+
 @Injectable()
 export class CobroService {
   constructor(
@@ -147,7 +162,8 @@ export class CobroService {
           venta: {
             id_venta: cuota.venta.id_venta,
             unidad: {
-              identificador: cuota.venta.publicacion.unidadFuncional.identificador,
+              identificador:
+                cuota.venta.publicacion.unidadFuncional.identificador,
             },
           },
         };
@@ -190,7 +206,9 @@ export class CobroService {
         venta: {
           select: {
             id_venta: true,
-            cliente: { select: { id_cliente: true, nombre: true, apellido: true } },
+            cliente: {
+              select: { id_cliente: true, nombre: true, apellido: true },
+            },
             publicacion: {
               select: {
                 unidadFuncional: {
@@ -355,7 +373,9 @@ export class CobroService {
   ) {
     const errores = detalle
       .filter((linea) => {
-        const saldo = cuotaPorId.get(linea.FK_cuota)!.saldo_pendiente.toNumber();
+        const saldo = cuotaPorId
+          .get(linea.FK_cuota)!
+          .saldo_pendiente.toNumber();
         return linea.importe_imputado > saldo;
       })
       .map((linea) => {
@@ -398,10 +418,9 @@ export class CobroService {
    * `usuarioId` (acá siempre el usuario de Comercialización autenticado).
    *
    * Corre las validaciones fuera de la transacción, para fallar barato antes
-   * de tocar la base. Dentro de una única `$transaction`: crea la cabecera,
-   * descuenta el saldo de cada cuota imputada con un lock optimista y
-   * registra la imputación con la foto de su saldo antes/después, y por
-   * cada venta afectada revisa si hay que transicionar la publicación.
+   * de tocar la base, y delega el resto (crear la cabecera, descontar saldo,
+   * registrar la imputación, transicionar la publicación) en `crearInterno`
+   * dentro de una `$transaction` propia — ver ese método para el detalle.
    */
   async crear(
     dto: CreateCobroDto,
@@ -420,74 +439,102 @@ export class CobroService {
     this.validarImportesImputados(dto.detalle, cuotaPorId);
     this.validarSumaTotal(dto.detalle, dto.importe_total);
 
-    const idCobro = await this.prisma.$transaction(async (tx) => {
-      const cobro = await tx.cOBRO.create({
+    const idCobro = await this.prisma.$transaction((tx) =>
+      this.crearInterno(dto, usuarioId, origen, tx, fechaCobro, cuotaPorId),
+    );
+
+    return this.obtenerDetalle(idCobro);
+  }
+
+  /**
+   * Cuerpo transaccional de `crear`, extraído para que
+   * `DeclaracionPagoService.validar` (HU-29) lo pueda invocar dentro de SU
+   * propia transacción — pasándole el `tx` que ya tiene abierto, en vez de
+   * que este método abra el suyo — y así el alta del `COBRO` y la
+   * actualización de la `DECLARACIONPAGO` a `VALIDADA` sean atómicas de
+   * verdad, sin tocar una sola línea de acá.
+   *
+   * Comportamiento idéntico al que tenía `crear` antes de este refactor:
+   * crea la cabecera, descuenta el saldo de cada cuota imputada con un lock
+   * optimista y registra la imputación con la foto de su saldo antes/después,
+   * y por cada venta afectada revisa si hay que transicionar la publicación.
+   * No valida nada por su cuenta (cliente, forma de pago, importes): eso es
+   * responsabilidad de quien arma `dto`, `fechaCobro` y `cuotaPorId` antes de
+   * llamarlo — `crear()` lo hace vía sus propias validaciones previas;
+   * `DeclaracionPagoService` lo hace con las suyas.
+   */
+  async crearInterno(
+    dto: CreateCobroDto,
+    usuarioId: number,
+    origen: OrigenCobro,
+    tx: Prisma.TransactionClient,
+    fechaCobro: Date,
+    cuotaPorId: ReadonlyMap<number, LineaCuotaParaCobro>,
+  ): Promise<number> {
+    const cobro = await tx.cOBRO.create({
+      data: {
+        fecha_cobro: fechaCobro,
+        numero_referencia: dto.numero_referencia,
+        importe_total: new Prisma.Decimal(dto.importe_total),
+        observaciones: dto.observaciones,
+        origen,
+        estado: 'CONFIRMADO',
+        FK_cliente: dto.FK_cliente,
+        FK_forma_pago: dto.FK_forma_pago,
+        FK_usuario_creador: usuarioId,
+        FK_usuario_actualizador: usuarioId,
+      },
+    });
+
+    const ventasAfectadas = new Set<number>();
+
+    for (const linea of dto.detalle) {
+      const cuota = cuotaPorId.get(linea.FK_cuota)!;
+      const saldoAnterior = cuota.saldo_pendiente;
+      const importeImputado = new Prisma.Decimal(linea.importe_imputado);
+      const saldoPosterior = saldoAnterior.minus(importeImputado);
+
+      // updateMany y no update: el WHERE lleva el saldo exacto que se leyó
+      // al validar, así que la base confirma atómicamente que nadie lo
+      // tocó entre esa lectura y esta escritura — lock optimista, mismo
+      // criterio que `PagoService.create`.
+      const { count } = await tx.cUOTA.updateMany({
+        where: {
+          id_cuota: cuota.id_cuota,
+          saldo_pendiente: saldoAnterior,
+        },
         data: {
-          fecha_cobro: fechaCobro,
-          numero_referencia: dto.numero_referencia,
-          importe_total: new Prisma.Decimal(dto.importe_total),
-          observaciones: dto.observaciones,
-          origen,
-          estado: 'CONFIRMADO',
-          FK_cliente: dto.FK_cliente,
-          FK_forma_pago: dto.FK_forma_pago,
-          FK_usuario_creador: usuarioId,
-          FK_usuario_actualizador: usuarioId,
+          saldo_pendiente: saldoPosterior,
+          estado: saldoPosterior.equals(0)
+            ? EstadoCuota.PAGADA
+            : EstadoCuota.PARCIAL,
         },
       });
 
-      const ventasAfectadas = new Set<number>();
-
-      for (const linea of dto.detalle) {
-        const cuota = cuotaPorId.get(linea.FK_cuota)!;
-        const saldoAnterior = cuota.saldo_pendiente;
-        const importeImputado = new Prisma.Decimal(linea.importe_imputado);
-        const saldoPosterior = saldoAnterior.minus(importeImputado);
-
-        // updateMany y no update: el WHERE lleva el saldo exacto que se leyó
-        // al validar, así que la base confirma atómicamente que nadie lo
-        // tocó entre esa lectura y esta escritura — lock optimista, mismo
-        // criterio que `PagoService.create`.
-        const { count } = await tx.cUOTA.updateMany({
-          where: {
-            id_cuota: cuota.id_cuota,
-            saldo_pendiente: saldoAnterior,
-          },
-          data: {
-            saldo_pendiente: saldoPosterior,
-            estado: saldoPosterior.equals(0)
-              ? EstadoCuota.PAGADA
-              : EstadoCuota.PARCIAL,
-          },
-        });
-
-        if (count === 0) {
-          throw new ConflictException(
-            `El saldo de la cuota ${cuota.numero} cambió mientras se procesaba el cobro; reintentá la operación`,
-          );
-        }
-
-        await tx.dETALLECOBRO.create({
-          data: {
-            FK_cobro: cobro.id_cobro,
-            FK_cuota: cuota.id_cuota,
-            importe_imputado: importeImputado,
-            saldo_anterior: saldoAnterior,
-            saldo_posterior: saldoPosterior,
-          },
-        });
-
-        ventasAfectadas.add(cuota.FK_venta);
+      if (count === 0) {
+        throw new ConflictException(
+          `El saldo de la cuota ${cuota.numero} cambió mientras se procesaba el cobro; reintentá la operación`,
+        );
       }
 
-      for (const idVenta of ventasAfectadas) {
-        await this.actualizarEstadoVentaSegunSaldo(tx, idVenta, usuarioId);
-      }
+      await tx.dETALLECOBRO.create({
+        data: {
+          FK_cobro: cobro.id_cobro,
+          FK_cuota: cuota.id_cuota,
+          importe_imputado: importeImputado,
+          saldo_anterior: saldoAnterior,
+          saldo_posterior: saldoPosterior,
+        },
+      });
 
-      return cobro.id_cobro;
-    });
+      ventasAfectadas.add(cuota.FK_venta);
+    }
 
-    return this.obtenerDetalle(idCobro);
+    for (const idVenta of ventasAfectadas) {
+      await this.actualizarEstadoVentaSegunSaldo(tx, idVenta, usuarioId);
+    }
+
+    return cobro.id_cobro;
   }
 
   /**
@@ -545,8 +592,15 @@ export class CobroService {
    * juntos; `null` en caso contrario.
    */
   async listar(query: QueryCobroDto) {
-    const { FK_cliente, FK_forma_pago, estado, fechaDesde, fechaHasta, page, limit } =
-      query;
+    const {
+      FK_cliente,
+      FK_forma_pago,
+      estado,
+      fechaDesde,
+      fechaHasta,
+      page,
+      limit,
+    } = query;
 
     const where: Prisma.COBROWhereInput = {
       ...(FK_cliente !== undefined && { FK_cliente }),

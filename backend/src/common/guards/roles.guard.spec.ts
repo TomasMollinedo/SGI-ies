@@ -23,6 +23,7 @@ import { CuentaCorrienteController } from '../../modules/tesoreria/cuenta-corrie
 import { PublicacionController } from '../../modules/comercializacion/publicacion/publicacion.controller';
 import { PlanPagoController } from '../../modules/comercializacion/plan-pago/plan-pago.controller';
 import { CobroController } from '../../modules/comercializacion/cobro/cobro.controller';
+import { DeclaracionPagoAdminController } from '../../modules/comercializacion/declaracion-pago/declaracion-pago-admin.controller';
 
 import { ProyectoController } from '../../modules/proyectos/proyecto.controller';
 import { UnidadFuncionalController } from '../../modules/comercializacion/unidades-funcionales/unidad-funcional.controller';
@@ -220,6 +221,7 @@ describe('RolesGuard', () => {
       ['PlanPagoController', PlanPagoController],
       ['CobroController', CobroController],
       ['VentaController', VentaController],
+      ['DeclaracionPagoAdminController', DeclaracionPagoAdminController],
     ];
 
     it.each(controllersDeComercializacion)(

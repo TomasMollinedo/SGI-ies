@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { DeclaracionPagoService } from '../src/modules/comercializacion/declaracion-pago/declaracion-pago.service';
 import { Prisma } from '../generated/prisma/client';
 
 interface DeclaracionPagoBody {
@@ -250,5 +251,151 @@ describe('Declaración de pago (e2e)', () => {
     expect(typeof body.error).toBe('string');
     expect(body.timestamp).toEqual(expect.any(String));
     expect(body.path).toBe(ENDPOINT);
+  });
+
+  /**
+   * Integración contra la base real de desarrollo (no mockeada): el test
+   * estructural con mocks de `declaracion-pago.service.spec.ts` prueba que
+   * `crearInterno` y el update final comparten el mismo `tx`, pero no puede
+   * probar el rollback en sí — eso es una garantía de Postgres, no de
+   * JavaScript. Acá se fuerza una excepción real DESPUÉS de que
+   * `crearInterno` ya escribió dentro de la transacción (parcheando solo
+   * `tx.dECLARACIONPAGO.update`, el único paso que falla — todo lo demás
+   * corre contra la base de verdad) y se relee la base directamente (no la
+   * respuesta del service) para confirmar que el rollback deshizo todo.
+   *
+   * No hay un patrón `*.integration-spec.ts` en el proyecto: va acá, en el
+   * mismo archivo e2e de este dominio, porque ya monta el mismo `AppModule`
+   * contra Postgres real y ya tiene el fixture de cliente/forma de pago
+   * armado — un archivo aparte solo para este test hubiera sido duplicar
+   * ese setup sin necesidad.
+   */
+  describe('Atomicidad de validar() — integración con Postgres real', () => {
+    let declaracionPagoService: DeclaracionPagoService;
+    let idUsuarioAdmin: number;
+    let idCuotaAtomicidad: number;
+    let idDeclaracionAtomicidad: number;
+
+    beforeAll(async () => {
+      declaracionPagoService = app.get(DeclaracionPagoService);
+
+      const admin = await prisma.uSUARIO.findUniqueOrThrow({
+        where: { email: 'admin@axontech.test' },
+      });
+      idUsuarioAdmin = admin.id_usuario;
+
+      // Cuota propia, separada de la que usan los tests de arriba, para no
+      // depender del orden en que corran.
+      const cuota = await prisma.cUOTA.create({
+        data: {
+          FK_venta: idVenta,
+          numero: 2,
+          importe: new Prisma.Decimal(1000),
+          fecha_vencimiento: new Date('2027-01-01'),
+          saldo_pendiente: new Prisma.Decimal(1000),
+          estado: 'PENDIENTE',
+        },
+      });
+      idCuotaAtomicidad = cuota.id_cuota;
+
+      const declaracion = await prisma.dECLARACIONPAGO.create({
+        data: {
+          FK_cliente: idCliente,
+          FK_cuota: idCuotaAtomicidad,
+          FK_forma_pago: idFormaPago,
+          importe: new Prisma.Decimal(500),
+        },
+      });
+      idDeclaracionAtomicidad = declaracion.id_declaracion_pago;
+    });
+
+    afterAll(async () => {
+      await prisma.dECLARACIONPAGO.deleteMany({
+        where: { id_declaracion_pago: idDeclaracionAtomicidad },
+      });
+      await prisma.cUOTA.delete({ where: { id_cuota: idCuotaAtomicidad } });
+    });
+
+    it('si el update final de DECLARACIONPAGO falla, el rollback real de Postgres deshace también el COBRO y el descuento de saldo que ya había escrito crearInterno', async () => {
+      type CallbackTransaccion = (
+        tx: Prisma.TransactionClient,
+      ) => Promise<unknown>;
+      type FnTransaccion = (callback: CallbackTransaccion) => Promise<unknown>;
+      // El método real de Prisma es genérico (`<T extends ...>`); acá alcanza
+      // con una firma simple para lo único que este test necesita: leer
+      // `data.estado` y reenviar el resto tal cual.
+      type ArgsUpdateDeclaracion = {
+        where: { id_declaracion_pago: number };
+        data: { estado?: string; [key: string]: unknown };
+      };
+      type FnUpdateDeclaracion = (
+        args: ArgsUpdateDeclaracion,
+      ) => Promise<unknown>;
+
+      // `.bind()` sobre un método sobrecargado/genérico de Prisma pierde su
+      // tipo específico (TS lo colapsa a algo laxo) — se reafirma el tipo
+      // real acá (pasando por `unknown` porque el método original es
+      // genérico y TS no deja convertir directo) para no perder el chequeo
+      // estático en el resto del test.
+      const transaccionOriginal = prisma.$transaction.bind(
+        prisma,
+      ) as unknown as FnTransaccion;
+      const mensajeFallo =
+        'Fallo forzado para probar atomicidad (test de integración)';
+
+      const spy = jest
+        .spyOn(prisma, '$transaction')
+        .mockImplementation((callback: CallbackTransaccion) =>
+          transaccionOriginal((tx) => {
+            const updateOriginal = tx.dECLARACIONPAGO.update.bind(
+              tx.dECLARACIONPAGO,
+            ) as unknown as FnUpdateDeclaracion;
+
+            // Solo intercepta el update FINAL (el que marca VALIDADA): el
+            // updateMany del lock y el resto de las escrituras de
+            // crearInterno pasan de largo, sin tocar.
+            tx.dECLARACIONPAGO.update = ((args: ArgsUpdateDeclaracion) => {
+              if (args.data.estado === 'VALIDADA') {
+                throw new Error(mensajeFallo);
+              }
+              return updateOriginal(args);
+            }) as unknown as Prisma.TransactionClient['dECLARACIONPAGO']['update'];
+
+            return callback(tx);
+          }),
+        );
+
+      try {
+        await expect(
+          declaracionPagoService.validar(
+            idDeclaracionAtomicidad,
+            idUsuarioAdmin,
+          ),
+        ).rejects.toThrow(mensajeFallo);
+      } finally {
+        spy.mockRestore();
+      }
+
+      // Las tres confirmaciones, leyendo la base directamente — no la
+      // respuesta del service, que en este escenario ni siquiera existe.
+      const cobros = await prisma.cOBRO.findMany({
+        where: {
+          FK_cliente: idCliente,
+          detalles: { some: { FK_cuota: idCuotaAtomicidad } },
+        },
+      });
+      expect(cobros).toHaveLength(0);
+
+      const cuotaEnBase = await prisma.cUOTA.findUniqueOrThrow({
+        where: { id_cuota: idCuotaAtomicidad },
+      });
+      expect(cuotaEnBase.saldo_pendiente.toNumber()).toBe(1000);
+      expect(cuotaEnBase.estado).toBe('PENDIENTE');
+
+      const declaracionEnBase = await prisma.dECLARACIONPAGO.findUniqueOrThrow({
+        where: { id_declaracion_pago: idDeclaracionAtomicidad },
+      });
+      expect(declaracionEnBase.estado).toBe('PENDIENTE');
+    });
   });
 });
