@@ -105,6 +105,29 @@ export class FormaPagoService {
   }
 
   /**
+   * Revalida una forma de pago para autogestión (HU-29): la usa
+   * DeclaracionPagoService al declarar, porque nunca hay que confiar en lo
+   * que el cliente mandó sin cruzarlo — el catálogo que vio pudo cambiar
+   * entre que cargó la pantalla y que envió el formulario.
+   */
+  async buscarActivaHabilitadaAutogestion(id: number) {
+    const formaPago = await this.prisma.fORMAPAGO.findUnique({
+      where: { id_forma_pago: id },
+    });
+
+    if (!formaPago) {
+      throw new NotFoundException(`No existe una forma de pago con id ${id}`);
+    }
+    if (!formaPago.estado || !formaPago.habilitada_autogestion) {
+      throw new ConflictException(
+        `La forma de pago "${formaPago.nombre}" no está disponible para autogestión`,
+      );
+    }
+
+    return formaPago;
+  }
+
+  /**
    * Detalle de una forma de pago: a diferencia del listado, incluye nombre y
    * apellido de quién la creó y de quién la modificó por última vez.
    */

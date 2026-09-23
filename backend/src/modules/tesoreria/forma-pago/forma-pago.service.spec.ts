@@ -144,8 +144,9 @@ describe('FormaPagoService', () => {
     });
 
     // HU-29 (Sprint 3): el default `false` cuando no viaja en el body lo
-    // resuelve el schema de Zod (createFormaPagoSchema), no el service —
-    // acá solo se prueba que lo que llega se persiste tal cual.
+    // resuelve el `@default(false)` de la columna en Postgres, no el DTO ni
+    // el service — acá solo se prueba que lo que sí llega se persiste tal
+    // cual.
     it('persiste habilitada_autogestion tal como vino, en true', async () => {
       prisma.fORMAPAGO.create.mockResolvedValue(formaPagoMock);
 
@@ -403,6 +404,53 @@ describe('FormaPagoService', () => {
           metadata: { requiere_referencia: true },
         },
       ]);
+    });
+  });
+
+  describe('buscarActivaHabilitadaAutogestion', () => {
+    it('tira 404 si no existe', async () => {
+      prisma.fORMAPAGO.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.buscarActivaHabilitadaAutogestion(99),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rechaza si existe pero está dada de baja', async () => {
+      prisma.fORMAPAGO.findUnique.mockResolvedValue({
+        ...formaPagoMock,
+        estado: false,
+        habilitada_autogestion: true,
+      });
+
+      await expect(
+        service.buscarActivaHabilitadaAutogestion(1),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('rechaza si está activa pero no habilitada para autogestión', async () => {
+      prisma.fORMAPAGO.findUnique.mockResolvedValue({
+        ...formaPagoMock,
+        estado: true,
+        habilitada_autogestion: false,
+      });
+
+      await expect(
+        service.buscarActivaHabilitadaAutogestion(1),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('devuelve la forma de pago si está activa y habilitada', async () => {
+      const formaPagoHabilitada = {
+        ...formaPagoMock,
+        estado: true,
+        habilitada_autogestion: true,
+      };
+      prisma.fORMAPAGO.findUnique.mockResolvedValue(formaPagoHabilitada);
+
+      await expect(
+        service.buscarActivaHabilitadaAutogestion(1),
+      ).resolves.toEqual(formaPagoHabilitada);
     });
   });
 });
