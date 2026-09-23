@@ -15,6 +15,7 @@ import { finDelDiaIso, inicioDelDiaIso } from '@/shared/utils/fechaIso'
 import { formatearImporte } from '@/shared/utils/importe'
 import { CeldaUnidad } from '@/features/comercializacion/publicaciones/components/CeldaUnidad'
 import { FiltrosVentasBar } from '../components/FiltrosVentasBar'
+import { RegistrarVentaModal } from '../components/RegistrarVentaModal'
 import { badgeEstadoVenta, ESTADO_VENTA_POR_DEFECTO, LIMITE_PAGINA } from '../config/venta.config'
 import type { VentaListItem } from '../types/venta.types'
 import { useVentas } from '../hooks/useVentas'
@@ -38,6 +39,7 @@ export function VentasPage() {
 
   const [filtros, setFiltros] = useState(FILTROS_VACIOS)
   const [page, setPage] = useState(1)
+  const [registrarAbierto, setRegistrarAbierto] = useState(false)
 
   const { estado, proyecto, unidad, cliente, fechaDesde, fechaHasta } = filtros
 
@@ -171,10 +173,7 @@ export function VentasPage() {
         onLimpiar={() => setFiltros(FILTROS_VACIOS)}
         hayFiltros={hayFiltros}
         acciones={
-          <Button
-            icon={<ShoppingCart />}
-            onClick={() => navigate(PATHS.COMERCIALIZACION.NUEVA_VENTA)}
-          >
+          <Button icon={<ShoppingCart />} onClick={() => setRegistrarAbierto(true)}>
             Registrar venta
           </Button>
         }
@@ -221,6 +220,15 @@ export function VentasPage() {
           )}
         </>
       )}
+
+      <RegistrarVentaModal
+        open={registrarAbierto}
+        onClose={() => setRegistrarAbierto(false)}
+        onVentaRegistrada={(venta) => {
+          setRegistrarAbierto(false)
+          navigate(rutaDetalleVenta(venta.id_venta))
+        }}
+      />
     </div>
   )
 }
