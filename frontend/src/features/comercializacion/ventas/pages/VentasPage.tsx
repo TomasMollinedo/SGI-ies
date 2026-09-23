@@ -23,16 +23,16 @@ import { useVentas } from '../hooks/useVentas'
 const FILTROS_VACIOS = {
   estado: ESTADO_VENTA_POR_DEFECTO,
   proyecto: '',
-  unidad: '',
   cliente: '',
   fechaDesde: '',
   fechaHasta: '',
 }
 
 /**
- * Listado interno de ventas (HU-27): filtrable por proyecto, unidad, cliente,
- * estado y período (PB), con paginación. El detalle de cada fila muestra el
- * cronograma completo de cuotas.
+ * Listado interno de ventas (HU-27): filtrable por proyecto, cliente, estado
+ * y período, con paginación. El detalle de cada fila muestra el cronograma
+ * completo de cuotas. Sin filtro de unidad: se sacó porque, con proyecto ya
+ * acotando el listado, no aportaba lo suficiente.
  */
 export function VentasPage() {
   const navigate = useNavigate()
@@ -41,7 +41,7 @@ export function VentasPage() {
   const [page, setPage] = useState(1)
   const [registrarAbierto, setRegistrarAbierto] = useState(false)
 
-  const { estado, proyecto, unidad, cliente, fechaDesde, fechaHasta } = filtros
+  const { estado, proyecto, cliente, fechaDesde, fechaHasta } = filtros
 
   // Las dos fechas son ISO `YYYY-MM-DD`, así que alcanza con compararlas como texto.
   const rangoInvalido = fechaDesde !== '' && fechaHasta !== '' && fechaDesde > fechaHasta
@@ -65,7 +65,6 @@ export function VentasPage() {
   const { data, isLoading, isFetching, error, refetch } = useVentas({
     estado: estado === 'todos' ? undefined : estado,
     FK_proyecto: proyecto === '' ? undefined : Number(proyecto),
-    FK_unidad_funcional: unidad === '' ? undefined : Number(unidad),
     FK_cliente: cliente === '' ? undefined : Number(cliente),
     // Un rango al revés no se manda: el listado sigue mostrando el resto de
     // los filtros mientras el usuario corrige las fechas.
@@ -159,8 +158,6 @@ export function VentasPage() {
         onEstadoChange={(valor) => cambiarFiltro('estado', valor)}
         proyecto={proyecto}
         onProyectoChange={(valor) => cambiarFiltro('proyecto', valor)}
-        unidad={unidad}
-        onUnidadChange={(valor) => cambiarFiltro('unidad', valor)}
         cliente={cliente}
         onClienteChange={(valor) => cambiarFiltro('cliente', valor)}
         fechaDesde={fechaDesde}
@@ -186,7 +183,9 @@ export function VentasPage() {
           {!isLoading && ventas.length === 0 && (
             <EmptyState
               titulo={
-                hayFiltros ? 'No se encontraron ventas con esos filtros' : 'No hay ventas registradas'
+                hayFiltros
+                  ? 'No se encontraron ventas con esos filtros'
+                  : 'No hay ventas registradas'
               }
               descripcion={
                 hayFiltros

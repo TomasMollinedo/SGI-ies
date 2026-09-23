@@ -7,15 +7,12 @@ import { Select } from '@/shared/components/ui/Select'
 import { esFiltroEstadoVenta, OPCIONES_ESTADO_VENTA } from '../config/venta.config'
 import type { FiltroEstadoVenta } from '../config/venta.config'
 import { FiltroClienteVenta } from './FiltroClienteVenta'
-import { UnidadFuncionalSelect } from './UnidadFuncionalSelect'
 
 interface FiltrosVentasBarProps {
   estado: FiltroEstadoVenta
   onEstadoChange: (valor: FiltroEstadoVenta) => void
   proyecto: string
   onProyectoChange: (valor: string) => void
-  unidad: string
-  onUnidadChange: (valor: string) => void
   cliente: string
   onClienteChange: (valor: string) => void
   fechaDesde: string
@@ -31,18 +28,16 @@ interface FiltrosVentasBarProps {
 }
 
 /**
- * Barra de filtros del listado de ventas (HU-27): proyecto, unidad, cliente,
- * estado y período — los cuatro que pide el PB más el estado que ya existía.
- * Unidad queda deshabilitada hasta elegir proyecto (`UnidadFuncionalSelect`),
- * porque `GET /unidades-funcionales` no tiene búsqueda por texto.
+ * Barra de filtros del listado de ventas (HU-27): proyecto, cliente, estado y
+ * período. Se sacó el filtro de unidad (cascadeado por proyecto): con
+ * proyecto ya acotando el listado, filtrar además por una unidad puntual no
+ * aportaba lo suficiente para justificar un segundo combo dependiente.
  */
 export function FiltrosVentasBar({
   estado,
   onEstadoChange,
   proyecto,
   onProyectoChange,
-  unidad,
-  onUnidadChange,
   cliente,
   onClienteChange,
   fechaDesde,
@@ -57,21 +52,7 @@ export function FiltrosVentasBar({
   return (
     <div className="flex w-full flex-wrap items-end justify-between gap-3">
       <div className="flex min-w-0 flex-wrap items-end gap-3">
-        <ProyectoCombobox
-          value={proyecto}
-          onChange={(valor) => {
-            onProyectoChange(valor)
-            onUnidadChange('')
-          }}
-          className="w-full sm:w-60"
-        />
-
-        <UnidadFuncionalSelect
-          proyecto={proyecto}
-          value={unidad}
-          onChange={onUnidadChange}
-          className="w-full sm:w-44"
-        />
+        <ProyectoCombobox value={proyecto} onChange={onProyectoChange} className="w-full sm:w-60" />
 
         <FiltroClienteVenta value={cliente} onChange={onClienteChange} />
 

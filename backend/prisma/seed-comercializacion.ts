@@ -367,7 +367,7 @@ async function main() {
       nombre: 'Valentina',
       apellido: 'Roldán',
       dni_cuil: '27389451260',
-      telefono: '3624-512345',
+      telefono: '3624512345',
     },
     {
       google_sub: '108234459812340002',
@@ -383,7 +383,7 @@ async function main() {
       nombre: 'Camila',
       apellido: 'Ferreyra',
       dni_cuil: null, // caso borde pedido: cliente sin DNI/CUIL, no compró todavía
-      telefono: '3624-778899',
+      telefono: '3624778899',
     },
     {
       google_sub: '108234459812340004',
@@ -391,7 +391,7 @@ async function main() {
       nombre: 'Braian',
       apellido: 'Sosa',
       dni_cuil: '23412345678',
-      telefono: '3624-223344',
+      telefono: '3624223344',
     },
     {
       google_sub: '108234459812340005',
@@ -399,7 +399,7 @@ async function main() {
       nombre: 'Micaela',
       apellido: 'Benítez',
       dni_cuil: '24567891230',
-      telefono: '3624-556611',
+      telefono: '3624556611',
     },
     {
       google_sub: '108234459812340006',
@@ -407,7 +407,7 @@ async function main() {
       nombre: 'Rodrigo',
       apellido: 'Acosta',
       dni_cuil: '25678912340',
-      telefono: '3624-998877',
+      telefono: '3624998877',
     },
   ];
   for (const cliente of clientesDatos) {

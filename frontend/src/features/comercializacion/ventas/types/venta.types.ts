@@ -30,15 +30,11 @@ export interface ClienteResumen {
   telefono: string | null
 }
 
-export interface BuscarClienteQuery {
-  dni_cuil?: string
-  email?: string
-}
-
-/** Respuesta de GET /ventas/buscar-cliente. No encontrarlo no es un error. */
-export interface ClienteBuscado {
-  encontrado: boolean
-  cliente: ClienteResumen | null
+/** GET /ventas/buscar-clientes: búsqueda por texto libre (nombre/apellido/DNI/email), paginada. */
+export interface QueryBuscarClientes {
+  busqueda: string
+  page?: number
+  limit?: number
 }
 
 export interface CrearVentaPayload {
@@ -54,7 +50,6 @@ export interface CancelarVentaPayload {
 export interface QueryVenta {
   FK_cliente?: number
   FK_publicacion?: number
-  FK_unidad_funcional?: number
   FK_proyecto?: number
   estado?: EstadoVenta
   /** ISO 8601. Filtran `fecha_adhesion`. */
