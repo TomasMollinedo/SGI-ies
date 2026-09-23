@@ -7,6 +7,7 @@ import {
 import { CobroService } from './cobro.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { PublicacionService } from '../publicacion/publicacion.service';
+import { validarNumeroReferencia } from '../../../common/validaciones/validar-numero-referencia';
 import { Prisma } from '../../../../generated/prisma/client';
 import { EstadoComercial } from '../../../../generated/prisma/enums';
 import { CreateCobroDto, createCobroSchema } from './dto/create-cobro.dto';
@@ -53,10 +54,6 @@ type CobroServicePrivado = {
   buscarFormaPagoActiva(
     id: number,
   ): Promise<{ estado: boolean; requiere_referencia: boolean; nombre: string }>;
-  validarNumeroReferencia(
-    numeroReferencia: string | undefined,
-    formaPago: { requiere_referencia: boolean; nombre: string },
-  ): void;
   resolverFechaCobro(fecha: Date | undefined): Date;
   buscarCuotasImputables(
     FK_cliente: number,
@@ -111,7 +108,11 @@ describe('CobroService', () => {
   let service: CobroService;
   let tx: {
     cOBRO: { create: jest.Mock; update: jest.Mock };
-    cUOTA: { updateMany: jest.Mock; update: jest.Mock; findUniqueOrThrow: jest.Mock };
+    cUOTA: {
+      updateMany: jest.Mock;
+      update: jest.Mock;
+      findUniqueOrThrow: jest.Mock;
+    };
     dETALLECOBRO: { create: jest.Mock };
     vENTA: { findUniqueOrThrow: jest.Mock };
   };
@@ -151,7 +152,11 @@ describe('CobroService', () => {
       dni_cuil: '20111111112',
       email: 'valen@test.com',
     },
-    formaPago: { id_forma_pago: 1, nombre: 'Efectivo', requiere_referencia: false },
+    formaPago: {
+      id_forma_pago: 1,
+      nombre: 'Efectivo',
+      requiere_referencia: false,
+    },
     usuarioCreador: { nombre: 'Ana', apellido: 'Gómez' },
     usuarioActualizador: { nombre: 'Ana', apellido: 'Gómez' },
     detalles: [],
@@ -295,7 +300,10 @@ describe('CobroService', () => {
         FK_cliente: ID_CLIENTE,
       });
 
-      expect(resultado.data[0]).toMatchObject({ vencido: true, dias_vencido: 20 });
+      expect(resultado.data[0]).toMatchObject({
+        vencido: true,
+        dias_vencido: 20,
+      });
     });
   });
 
@@ -333,7 +341,11 @@ describe('CobroService', () => {
         saldo_pendiente: new Prisma.Decimal(1000),
         venta: {
           id_venta: 1,
-          cliente: { id_cliente: 1, nombre: 'Valentina', apellido: 'Fernández' },
+          cliente: {
+            id_cliente: 1,
+            nombre: 'Valentina',
+            apellido: 'Fernández',
+          },
           publicacion: {
             unidadFuncional: {
               identificador: 'UF-1',
@@ -378,10 +390,13 @@ describe('CobroService', () => {
     });
   });
 
+  // Extraída a common/validaciones/validar-numero-referencia.ts (compartida
+  // con PagoService y DeclaracionPagoService): ya no es un método privado de
+  // CobroService, se prueba llamando a la función standalone directamente.
   describe('validarNumeroReferencia (rechazo: referencia faltante)', () => {
     it('rechaza si la forma de pago requiere referencia y no vino ninguna', () => {
       expect(() =>
-        privado(service).validarNumeroReferencia(undefined, {
+        validarNumeroReferencia(undefined, {
           requiere_referencia: true,
           nombre: 'Transferencia',
         }),
@@ -390,13 +405,13 @@ describe('CobroService', () => {
 
     it('pasa si vino una referencia, o si la forma de pago no la requiere', () => {
       expect(() =>
-        privado(service).validarNumeroReferencia('TR-001', {
+        validarNumeroReferencia('TR-001', {
           requiere_referencia: true,
           nombre: 'Transferencia',
         }),
       ).not.toThrow();
       expect(() =>
-        privado(service).validarNumeroReferencia(undefined, {
+        validarNumeroReferencia(undefined, {
           requiere_referencia: false,
           nombre: 'Efectivo',
         }),
@@ -436,7 +451,9 @@ describe('CobroService', () => {
 
     it('rechaza una cuota que pertenece a una venta de otro cliente', async () => {
       prisma.cUOTA.findMany.mockResolvedValue([
-        cuotaAImputar(1, { venta: { FK_cliente: 2, estado: 'VIGENTE', FK_publicacion: 1 } }),
+        cuotaAImputar(1, {
+          venta: { FK_cliente: 2, estado: 'VIGENTE', FK_publicacion: 1 },
+        }),
       ]);
 
       await expect(
@@ -461,7 +478,11 @@ describe('CobroService', () => {
     it('rechaza una cuota de una venta CANCELADA', async () => {
       prisma.cUOTA.findMany.mockResolvedValue([
         cuotaAImputar(1, {
-          venta: { FK_cliente: ID_CLIENTE, estado: 'CANCELADA', FK_publicacion: 1 },
+          venta: {
+            FK_cliente: ID_CLIENTE,
+            estado: 'CANCELADA',
+            FK_publicacion: 1,
+          },
         }),
       ]);
 
@@ -527,7 +548,9 @@ describe('CobroService', () => {
         fail('Tenía que rechazar');
       } catch (error) {
         expect(error).toBeInstanceOf(BadRequestException);
-        expect((error as { message: string }).message.split(';').length).toBe(2);
+        expect((error as { message: string }).message.split(';').length).toBe(
+          2,
+        );
       }
     });
 
@@ -620,7 +643,9 @@ describe('CobroService', () => {
       );
 
       const argUpdate = argumentoTx(tx.cUOTA.updateMany);
-      expect(argUpdate.where?.saldo_pendiente).toEqual(new Prisma.Decimal(1000));
+      expect(argUpdate.where?.saldo_pendiente).toEqual(
+        new Prisma.Decimal(1000),
+      );
       expect(argUpdate.data.saldo_pendiente).toEqual(new Prisma.Decimal(700));
       expect(argUpdate.data.estado).toBe('PARCIAL');
 
@@ -651,10 +676,7 @@ describe('CobroService', () => {
       ]);
 
       await service.crear(
-        crearCobroDto(
-          [lineaImputacion(1, 500), lineaImputacion(2, 100)],
-          600,
-        ),
+        crearCobroDto([lineaImputacion(1, 500), lineaImputacion(2, 100)], 600),
         USUARIO_ID,
       );
 
@@ -677,7 +699,10 @@ describe('CobroService', () => {
       tx.cUOTA.updateMany.mockResolvedValue({ count: 0 });
 
       await expect(
-        service.crear(crearCobroDto([lineaImputacion(1, 100)], 100), USUARIO_ID),
+        service.crear(
+          crearCobroDto([lineaImputacion(1, 100)], 100),
+          USUARIO_ID,
+        ),
       ).rejects.toBeInstanceOf(ConflictException);
 
       expect(tx.dETALLECOBRO.create).not.toHaveBeenCalled();
@@ -989,8 +1014,18 @@ describe('CobroService', () => {
     /** Fila cruda tal como la selecciona `calcularResumenPeriodo`. */
     const cobroDelPeriodo = (
       importeTotal: number,
-      cliente: { id_cliente: number; nombre: string; apellido: string; dni_cuil: string; email: string },
-      formaPago: { id_forma_pago: number; nombre: string; requiere_referencia: boolean },
+      cliente: {
+        id_cliente: number;
+        nombre: string;
+        apellido: string;
+        dni_cuil: string;
+        email: string;
+      },
+      formaPago: {
+        id_forma_pago: number;
+        nombre: string;
+        requiere_referencia: boolean;
+      },
     ) => ({
       importe_total: new Prisma.Decimal(importeTotal),
       cliente,

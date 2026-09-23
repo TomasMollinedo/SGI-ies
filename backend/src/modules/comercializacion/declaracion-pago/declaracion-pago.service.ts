@@ -12,6 +12,7 @@ import {
   OrigenCobro,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { validarNumeroReferencia } from '../../../common/validaciones/validar-numero-referencia';
 import { clienteTieneDatosCompletos } from '../cliente-auth/cliente-tiene-datos-completos';
 import { FormaPagoService } from '../../tesoreria/forma-pago/forma-pago.service';
 import { CobroService, type LineaCuotaParaCobro } from '../cobro/cobro.service';
@@ -62,7 +63,7 @@ export class DeclaracionPagoService {
       await this.formaPagoService.buscarActivaHabilitadaAutogestion(
         dto.FK_forma_pago,
       );
-    this.validarNumeroReferencia(dto.numero_referencia, formaPago);
+    validarNumeroReferencia(dto.numero_referencia, formaPago);
     this.validarImporteNoSuperaSaldo(dto.importe, cuota);
 
     const declaracion = await this.prisma.dECLARACIONPAGO.create({
@@ -130,17 +131,6 @@ export class DeclaracionPagoService {
     ) {
       throw new ConflictException(
         `La cuota no admite una nueva declaración de pago (estado actual: ${cuota.estado})`,
-      );
-    }
-  }
-
-  private validarNumeroReferencia(
-    numeroReferencia: string | undefined,
-    formaPago: { requiere_referencia: boolean; nombre: string },
-  ) {
-    if (formaPago.requiere_referencia && !numeroReferencia) {
-      throw new BadRequestException(
-        `La forma de pago "${formaPago.nombre}" requiere un número de referencia`,
       );
     }
   }
