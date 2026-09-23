@@ -11,6 +11,7 @@ import { UnidadesMedidaPage } from '@/features/almacen/unidades-medida/pages/Uni
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { CompletarDatosPage } from '@/features/ecommerce/pages/CompletarDatosPage'
 import { LoginClientePage } from '@/features/ecommerce/pages/LoginClientePage'
+import { CatalogoPage } from '@/features/ecommerce/catalogo/CatalogoPage'
 import { LandingPage } from '@/features/ecommerce/landing/LandingPage'
 import { PerfilPage } from '@/features/ecommerce/pages/PerfilPage'
 import { PublicLayout } from '@/features/ecommerce/layout/PublicLayout'
@@ -46,6 +47,7 @@ export const router = createBrowserRouter([
     element: <SitioPublicoLayout />,
     children: [
       { path: PATHS.HOME, element: <LandingPage /> },
+      { path: PATHS.ECOMMERCE.CATALOGO.ROOT, element: <CatalogoPage /> },
       {
         element: <ClienteProtectedRoute requiereDatosCompletos />,
         children: [
@@ -70,15 +72,10 @@ export const router = createBrowserRouter([
       },
     ],
   },
-  // Placeholders del catálogo (HU-25): siguen con el layout anterior hasta que
-  // esa historia arme sus pantallas.
+  // Placeholder del detalle de unidad (HU-25), todavía con el layout anterior.
   {
     element: <PublicLayout />,
     children: [
-      {
-        path: PATHS.ECOMMERCE.CATALOGO.ROOT,
-        element: <PlaceholderPage titulo="Catálogo" historia="HU-25" />,
-      },
       {
         path: PATHS.ECOMMERCE.CATALOGO.DETALLE,
         element: <PlaceholderPage titulo="Detalle de unidad" historia="HU-25" />,
@@ -269,7 +266,7 @@ export const router = createBrowserRouter([
               },
             ],
           },
-                    {
+          {
             path: PATHS.COMERCIALIZACION.ROOT,
             children: [
               {
@@ -291,7 +288,6 @@ export const router = createBrowserRouter([
                 element: <PlanesPagoPublicacionPage />,
                 handle: { title: 'Planes de Pago' },
               },
-
             ],
           },
 
