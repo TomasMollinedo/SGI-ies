@@ -82,7 +82,7 @@ function PortadaUnidad({ url, identificador }: { url: string | null; identificad
       <div
         role="img"
         aria-label={TARJETA.sinImagen}
-        className="bg-light/5 text-light/40 flex aspect-4/3 items-center justify-center"
+        className="bg-light/5 text-light/50 flex aspect-4/3 items-center justify-center"
       >
         <ImageOff size={32} aria-hidden="true" />
       </div>

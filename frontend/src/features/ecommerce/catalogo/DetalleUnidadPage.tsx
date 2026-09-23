@@ -62,9 +62,10 @@ export function DetalleUnidadPage() {
 
   return (
     <Contenedor>
+      {/* `py-2 -my-2`: área táctil de ~45px sin mover el diseño. */}
       <Link
         to={rutaCatalogo}
-        className="text-light/70 hover:text-secondary focus-visible:outline-light inline-flex items-center gap-2 rounded font-mono text-xs tracking-widest uppercase transition-colors focus-visible:outline-2 focus-visible:outline-offset-4"
+        className="text-light/70 hover:text-secondary focus-visible:outline-light -my-2 inline-flex items-center gap-2 rounded py-2 font-mono text-xs tracking-widest uppercase transition-colors focus-visible:outline-2 focus-visible:outline-offset-4"
       >
         <ArrowLeft size={16} aria-hidden="true" />
         {DETALLE.volver}

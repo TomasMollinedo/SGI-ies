@@ -63,7 +63,7 @@ export function GaleriaUnidad({ imagenes, identificador }: GaleriaUnidadProps) {
                 )}
               >
                 {fallidas.has(indice) ? (
-                  <span className="bg-light/5 text-light/40 flex size-full items-center justify-center">
+                  <span className="bg-light/5 text-light/50 flex size-full items-center justify-center">
                     <ImageOff size={16} aria-hidden="true" />
                   </span>
                 ) : (
@@ -89,9 +89,9 @@ function SinImagenes() {
     <div
       role="img"
       aria-label={DETALLE.sinImagenes}
-      className="bg-light/5 text-light/40 flex aspect-4/3 size-full flex-col items-center justify-center gap-2"
+      className="bg-light/5 text-light/60 flex aspect-4/3 size-full flex-col items-center justify-center gap-2"
     >
-      <ImageOff size={40} aria-hidden="true" />
+      <ImageOff size={40} aria-hidden="true" className="opacity-70" />
       <p className="text-xs">{DETALLE.sinImagenes}</p>
     </div>
   )

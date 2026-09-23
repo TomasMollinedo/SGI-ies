@@ -55,13 +55,17 @@ export function CatalogoPage() {
         />
       </div>
 
+      {/*
+        El contador es además el encabezado de la lista: sin él, un lector de
+        pantalla saltaría del <h1> de la página a los <h3> de cada tarjeta.
+      */}
       {!isLoading && !isError && (
-        <p
+        <h2
           aria-live="polite"
           className="text-light/60 mt-8 font-mono text-xs tracking-widest uppercase"
         >
           {CATALOGO.resultados(total)}
-        </p>
+        </h2>
       )}
 
       {isError ? (

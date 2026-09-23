@@ -36,7 +36,7 @@ export function EnviarConsulta({ idUnidadFuncional }: EnviarConsultaProps) {
 
       <p className="text-light/70 mt-3 text-sm">{CONSULTA.descripcion}</p>
 
-      <p className="text-light/50 mt-5 font-mono text-xs tracking-widest uppercase">
+      <p className="text-light/60 mt-5 font-mono text-xs tracking-widest uppercase">
         {CONSULTA.proximamente}
       </p>
     </section>
