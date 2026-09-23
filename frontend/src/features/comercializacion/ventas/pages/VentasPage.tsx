@@ -98,7 +98,8 @@ export function VentasPage() {
       render: (venta) => (
         <div className="min-w-0">
           <p className="text-content font-medium wrap-anywhere">
-            {venta.cliente.nombre} {venta.cliente.apellido ?? ''}
+            {venta.cliente.nombre} {venta.cliente.apellido ?? ''} —{' '}
+            {venta.cliente.dni_cuil ?? 'Sin DNI'}
           </p>
           <p className="text-content-muted text-xs wrap-anywhere">{venta.cliente.email}</p>
         </div>
@@ -108,10 +109,16 @@ export function VentasPage() {
       key: 'venta',
       label: 'Venta',
       render: (venta) => (
-        <div className="text-xs">
-          <p className="text-content font-medium">{formatearImporte(venta.precio_congelado)}</p>
-          <p className="text-content-muted">{formatearFecha(venta.fecha_adhesion)}</p>
-        </div>
+        <p className="text-content text-xs font-medium">
+          {formatearImporte(venta.precio_congelado)}
+        </p>
+      ),
+    },
+    {
+      key: 'fecha',
+      label: 'Fecha',
+      render: (venta) => (
+        <p className="text-content-muted text-xs">{formatearFecha(venta.fecha_adhesion)}</p>
       ),
     },
     {
