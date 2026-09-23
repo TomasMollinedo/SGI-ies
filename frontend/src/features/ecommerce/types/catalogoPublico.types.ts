@@ -60,6 +60,38 @@ export interface ProyectoDestacado {
   precio_desde: number
 }
 
+/** Tipo de plan de pago, tal como lo expone el catálogo. */
+export type TipoPlanPago = 'CONTADO' | 'FINANCIADO'
+
+export type Periodicidad = 'MENSUAL' | 'BIMESTRAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL'
+
+/** Plan de pago activo de una unidad. Solo lectura: el catálogo no opera sobre ellos. */
+export interface PlanPagoPublico {
+  nombre: string
+  tipo: TipoPlanPago
+  precio: number
+  anticipo_porcentaje: number | null
+  anticipo_monto: number | null
+  cantidad_cuotas: number | null
+  periodicidad: Periodicidad | null
+}
+
+export interface ImagenUnidad {
+  url: string
+  orden: number
+}
+
+/**
+ * `GET /catalogo/:id`: todo lo del listado, más lo que no entra en una tarjeta
+ * (comodidades, galería y los planes de pago activos con su precio).
+ */
+export interface UnidadCatalogoDetalle extends UnidadCatalogo {
+  comodidades: string | null
+  observaciones: string | null
+  imagenes: ImagenUnidad[]
+  planes: PlanPagoPublico[]
+}
+
 /** `GET /catalogo/destacados`: hasta 4 proyectos, `[]` si no hay ninguno disponible. */
 export interface ProyectosDestacadosResponse {
   data: ProyectoDestacado[]

@@ -4,11 +4,13 @@ import type {
   FiltrosCatalogo,
   ProyectosDestacadosResponse,
   UnidadCatalogo,
+  UnidadCatalogoDetalle,
 } from '../types/catalogoPublico.types'
 
 export const CATALOGO_PUBLICO_QUERY_KEYS = {
   DESTACADOS: ['catalogo-publico', 'destacados'] as const,
   LISTA: (filtros: FiltrosCatalogo) => ['catalogo-publico', 'lista', filtros] as const,
+  DETALLE: (id: number) => ['catalogo-publico', 'detalle', id] as const,
 }
 
 /**
@@ -49,6 +51,26 @@ export async function obtenerProyectosDestacados(
     {
       signal,
     }
+  )
+
+  return data
+}
+
+/**
+ * GET /catalogo/:id (T107): el detalle público de una unidad, con su galería y
+ * sus planes de pago activos.
+ *
+ * Responde 404 tanto si la unidad no existe como si existe pero no está
+ * publicada o ya no está disponible: de cara al visitante es lo mismo, y el
+ * backend no distingue el motivo a propósito.
+ */
+export async function obtenerDetalleUnidad(
+  idUnidadFuncional: number,
+  signal?: AbortSignal
+): Promise<UnidadCatalogoDetalle> {
+  const { data } = await httpClientCliente.get<UnidadCatalogoDetalle>(
+    `/catalogo/${idUnidadFuncional}`,
+    { signal }
   )
 
   return data

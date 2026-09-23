@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ImageOff, MapPin } from 'lucide-react'
-import { Link } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { rutaDetalleUnidad } from '@/app/router/paths'
 import type { UnidadCatalogo } from '@/features/ecommerce/types/catalogoPublico.types'
 import { TIPOLOGIA_LABEL } from '@/shared/config/tipologiaUnidad.config'
@@ -19,6 +19,10 @@ interface TarjetaUnidadProps {
  * línea terracota arriba y realce dorado al pasar por encima.
  */
 export function TarjetaUnidad({ unidad }: TarjetaUnidadProps) {
+  // Los filtros actuales viajan en el state para que el detalle pueda volver
+  // exactamente a esta búsqueda.
+  const { search } = useLocation()
+
   const superficies = [
     `${TARJETA.superficieCubierta} ${formatearSuperficie(unidad.superficie_cubierta)}`,
     unidad.superficie_descubierta !== null
@@ -31,6 +35,7 @@ export function TarjetaUnidad({ unidad }: TarjetaUnidadProps) {
   return (
     <Link
       to={rutaDetalleUnidad(unidad.id_unidad_funcional)}
+      state={{ busqueda: search.startsWith('?') ? search.slice(1) : search }}
       className="group border-light/15 hover:border-secondary focus-visible:outline-light flex w-full flex-col border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
     >
       <span aria-hidden="true" className="bg-primary h-1 w-full" />

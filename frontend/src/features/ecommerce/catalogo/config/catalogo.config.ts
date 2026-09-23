@@ -46,6 +46,58 @@ export const TARJETA = {
   verDetalle: 'Ver unidad',
 } as const
 
+export const DETALLE = {
+  volver: 'Volver al catálogo',
+  galeriaEtiqueta: 'Imágenes de la unidad',
+  miniatura: (indice: number, total: number) => `Ver imagen ${indice} de ${total}`,
+  sinImagenes: 'Esta unidad todavía no tiene imágenes',
+  datosTitulo: 'La unidad',
+  comodidades: 'Comodidades',
+  observaciones: 'Observaciones',
+  identificador: 'Unidad',
+  planesTitulo: 'Planes de pago',
+  planesSubtitulo: 'Precios vigentes. Coordinamos la forma de pago cuando nos consultes.',
+  anticipo: 'Anticipo',
+  cuotas: (cantidad: number, periodicidad: string) => `${cantidad} cuotas ${periodicidad}`,
+  noEncontradaTitulo: 'No encontramos esta unidad',
+  noEncontradaDescripcion:
+    'Puede que se haya vendido o que ya no esté publicada. Mirá el resto del catálogo.',
+} as const
+
+/** Textos de los planes, espejo de los del panel interno (candidatos a compartir). */
+export const TIPO_PLAN_LABEL = {
+  CONTADO: 'Contado',
+  FINANCIADO: 'Financiado',
+} as const
+
+export const PERIODICIDAD_LABEL = {
+  MENSUAL: 'Mensual',
+  BIMESTRAL: 'Bimestral',
+  TRIMESTRAL: 'Trimestral',
+  SEMESTRAL: 'Semestral',
+  ANUAL: 'Anual',
+} as const
+
+/**
+ * Para acompañar a "12 cuotas …". Se escriben enteros en vez de derivarlos del
+ * singular: "mensual" + "s" daría "mensuals".
+ */
+export const PERIODICIDAD_PLURAL = {
+  MENSUAL: 'mensuales',
+  BIMESTRAL: 'bimestrales',
+  TRIMESTRAL: 'trimestrales',
+  SEMESTRAL: 'semestrales',
+  ANUAL: 'anuales',
+} as const
+
+/** Bloque de envío de consulta. Lo completa T119; ver `EnviarConsulta.tsx`. */
+export const CONSULTA = {
+  titulo: '¿Te interesa esta unidad?',
+  descripcion:
+    'Dejanos tu consulta y un asesor te contacta para coordinar una visita o contarte las formas de pago.',
+  proximamente: 'Disponible próximamente',
+} as const
+
 export const ESTADOS = {
   vacioTitulo: 'No encontramos unidades con esos filtros',
   vacioDescripcion: 'Probá quitando algún filtro para ver más resultados.',
