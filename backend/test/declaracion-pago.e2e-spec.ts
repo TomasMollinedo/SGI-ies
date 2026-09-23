@@ -7,6 +7,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { DeclaracionPagoService } from '../src/modules/comercializacion/declaracion-pago/declaracion-pago.service';
+import { CobroService } from '../src/modules/comercializacion/cobro/cobro.service';
 import { Prisma } from '../generated/prisma/client';
 
 interface DeclaracionPagoBody {
@@ -396,6 +397,145 @@ describe('Declaración de pago (e2e)', () => {
         where: { id_declaracion_pago: idDeclaracionAtomicidad },
       });
       expect(declaracionEnBase.estado).toBe('PENDIENTE');
+    });
+  });
+
+  /**
+   * Integración contra Postgres real (sin mocks de Prisma): cruza HU-29
+   * (validar) con HU-30 (anular un cobro). El único test de este describe
+   * confirma dos cosas en dos momentos distintos:
+   * 1) Justo después de validar (antes de anular): que crearInterno generó
+   *    de verdad un COBRO CONFIRMADO de origen ECOMMERCE, con su
+   *    DETALLECOBRO (snapshot de saldo correcto) y la CUOTA ya descontada
+   *    — no solo mockeado, como en el spec unitario.
+   * 2) Después de anular: que DeclaracionPagoService no interfiere con el
+   *    mecanismo de anulación ya existente de CobroService — la
+   *    declaración queda como registro histórico de que en algún momento
+   *    SÍ fue validada, aunque el cobro que generó después se haya anulado
+   *    (ver comentario de `FK_cobro` en el schema de DECLARACIONPAGO: "si
+   *    ese cobro se anula después, esta declaración sigue VALIDADA como
+   *    registro histórico").
+   */
+  describe('validar() → anular() (integración con Postgres real, HU-29 + HU-30)', () => {
+    let declaracionPagoService: DeclaracionPagoService;
+    let cobroService: CobroService;
+    let idUsuarioAdmin: number;
+    let idCuotaValidarAnular: number;
+    let idDeclaracionValidarAnular: number;
+    let idCobroValidarAnular: number | undefined;
+
+    beforeAll(async () => {
+      declaracionPagoService = app.get(DeclaracionPagoService);
+      cobroService = app.get(CobroService);
+
+      const admin = await prisma.uSUARIO.findUniqueOrThrow({
+        where: { email: 'admin@axontech.test' },
+      });
+      idUsuarioAdmin = admin.id_usuario;
+
+      // Cuota y declaración propias, separadas de las que usan los demás
+      // tests de este archivo, para no depender del orden en que corran.
+      const cuota = await prisma.cUOTA.create({
+        data: {
+          FK_venta: idVenta,
+          numero: 4,
+          importe: new Prisma.Decimal(1000),
+          fecha_vencimiento: new Date('2027-01-01'),
+          saldo_pendiente: new Prisma.Decimal(1000),
+          estado: 'PENDIENTE',
+        },
+      });
+      idCuotaValidarAnular = cuota.id_cuota;
+
+      const declaracion = await prisma.dECLARACIONPAGO.create({
+        data: {
+          FK_cliente: idCliente,
+          FK_cuota: idCuotaValidarAnular,
+          FK_forma_pago: idFormaPago,
+          importe: new Prisma.Decimal(500),
+        },
+      });
+      idDeclaracionValidarAnular = declaracion.id_declaracion_pago;
+    });
+
+    afterAll(async () => {
+      // Orden inverso al de creación, por las FK con onDelete Restrict —
+      // DETALLECOBRO antes que COBRO, COBRO antes que CUOTA.
+      await prisma.dECLARACIONPAGO.deleteMany({
+        where: { id_declaracion_pago: idDeclaracionValidarAnular },
+      });
+      if (idCobroValidarAnular !== undefined) {
+        await prisma.dETALLECOBRO.deleteMany({
+          where: { FK_cobro: idCobroValidarAnular },
+        });
+        await prisma.cOBRO.delete({
+          where: { id_cobro: idCobroValidarAnular },
+        });
+      }
+      await prisma.cUOTA.delete({ where: { id_cuota: idCuotaValidarAnular } });
+    });
+
+    it('anular el cobro generado al validar no revierte ni "desconecta" la declaración: queda VALIDADA, con el mismo FK_cobro, apuntando a un cobro ANULADO — y el saldo vuelve al valor previo a la validación', async () => {
+      const declaracionValidada = await declaracionPagoService.validar(
+        idDeclaracionValidarAnular,
+        idUsuarioAdmin,
+      );
+      expect(declaracionValidada.estado).toBe('VALIDADA');
+      expect(declaracionValidada.FK_cobro).not.toBeNull();
+      idCobroValidarAnular = declaracionValidada.FK_cobro!;
+
+      // Punto intermedio, ANTES de anular: confirma que crearInterno generó
+      // de verdad un cobro CONFIRMADO de origen ECOMMERCE, con su detalle
+      // (snapshot de saldo correcto), y que la cuota quedó con el saldo
+      // posterior ya descontado — no solo que "volvió a estar bien después
+      // de anular", sino que estuvo bien inmediatamente después de validar.
+      const cobroTrasValidar = await prisma.cOBRO.findUniqueOrThrow({
+        where: { id_cobro: idCobroValidarAnular },
+      });
+      expect(cobroTrasValidar.origen).toBe('ECOMMERCE');
+      expect(cobroTrasValidar.estado).toBe('CONFIRMADO');
+
+      const detallesTrasValidar = await prisma.dETALLECOBRO.findMany({
+        where: { FK_cobro: idCobroValidarAnular },
+      });
+      expect(detallesTrasValidar).toHaveLength(1);
+      const detalle = detallesTrasValidar[0];
+      expect(detalle.FK_cuota).toBe(idCuotaValidarAnular);
+      expect(detalle.importe_imputado.toNumber()).toBe(500);
+      expect(detalle.saldo_anterior.toNumber()).toBe(1000);
+      expect(detalle.saldo_posterior.toNumber()).toBe(500);
+
+      const cuotaTrasValidar = await prisma.cUOTA.findUniqueOrThrow({
+        where: { id_cuota: idCuotaValidarAnular },
+      });
+      expect(cuotaTrasValidar.saldo_pendiente.toNumber()).toBe(
+        detalle.saldo_posterior.toNumber(),
+      );
+
+      // Mecanismo real de HU-30, sin tocarlo.
+      await cobroService.anular(
+        idCobroValidarAnular,
+        { motivo_anulacion: 'Anulado para probar la integración con HU-29' },
+        idUsuarioAdmin,
+      );
+
+      // Las tres confirmaciones (a, b, c) y el saldo, leyendo la base
+      // directamente — no la respuesta cacheada de `validar()`.
+      const declaracionEnBase = await prisma.dECLARACIONPAGO.findUniqueOrThrow({
+        where: { id_declaracion_pago: idDeclaracionValidarAnular },
+      });
+      expect(declaracionEnBase.estado).toBe('VALIDADA');
+      expect(declaracionEnBase.FK_cobro).toBe(idCobroValidarAnular);
+
+      const cobroEnBase = await prisma.cOBRO.findUniqueOrThrow({
+        where: { id_cobro: idCobroValidarAnular },
+      });
+      expect(cobroEnBase.estado).toBe('ANULADO');
+
+      const cuotaEnBase = await prisma.cUOTA.findUniqueOrThrow({
+        where: { id_cuota: idCuotaValidarAnular },
+      });
+      expect(cuotaEnBase.saldo_pendiente.toNumber()).toBe(1000);
     });
   });
 });

@@ -396,5 +396,46 @@ describe('Cliente (e2e)', () => {
       );
       expect(item?.metadata).toEqual({ requiere_referencia: true });
     });
+
+    /**
+     * Sin ninguna forma habilitada, el endpoint tiene que informar
+     * indisponibilidad con una lista vacía (no un error) — es el contrato
+     * que T117 va a usar para decidir si mostrar el mensaje de "solo pago
+     * presencial". El seed ya trae formas de pago habilitadas (además de la
+     * que crea este mismo describe), así que hay que desactivarlas
+     * temporalmente para probar el caso — se restauran en el `finally`
+     * antes de que corra cualquier otro test, porque dentro de un mismo
+     * `describe` Jest corre los `it` en secuencia, nunca en paralelo (solo
+     * archivos `.e2e-spec.ts` distintos podrían correr en paralelo, y esos
+     * crean sus propias formas de pago con nombres únicos, sin tocar estas).
+     */
+    it('sin ninguna forma de pago habilitada, responde 200 con lista vacía', async () => {
+      const habilitadasActuales = await prisma.fORMAPAGO.findMany({
+        where: { estado: true, habilitada_autogestion: true },
+        select: { id_forma_pago: true },
+      });
+      const idsHabilitadasActuales = habilitadasActuales.map(
+        (forma) => forma.id_forma_pago,
+      );
+
+      await prisma.fORMAPAGO.updateMany({
+        where: { id_forma_pago: { in: idsHabilitadasActuales } },
+        data: { habilitada_autogestion: false },
+      });
+
+      try {
+        const response = await request(app.getHttpServer())
+          .get('/api/cliente/formas-pago-autogestion')
+          .set('Authorization', `Bearer ${accessTokenCliente}`)
+          .expect(200);
+
+        expect(response.body).toEqual([]);
+      } finally {
+        await prisma.fORMAPAGO.updateMany({
+          where: { id_forma_pago: { in: idsHabilitadasActuales } },
+          data: { habilitada_autogestion: true },
+        });
+      }
+    });
   });
 });

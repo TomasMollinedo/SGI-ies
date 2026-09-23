@@ -405,6 +405,18 @@ describe('FormaPagoService', () => {
         },
       ]);
     });
+
+    // Ítem del "Listo cuando": sin ninguna forma activa+habilitada, el
+    // catálogo informa indisponibilidad con un array vacío, no un error ni
+    // null — es el contrato que consume el frontend (T117) para decidir si
+    // mostrar el mensaje de "solo pago presencial".
+    it('devuelve un array vacío si ninguna forma de pago cumple las dos condiciones a la vez', async () => {
+      prisma.fORMAPAGO.findMany.mockResolvedValue([]);
+
+      const resultado = await service.listarAutogestion();
+
+      expect(resultado).toEqual([]);
+    });
   });
 
   describe('buscarActivaHabilitadaAutogestion', () => {

@@ -317,6 +317,38 @@ describe('DeclaracionPagoService', () => {
     expect(prisma.cUOTA.findFirst).toHaveBeenCalledTimes(1);
   });
 
+  it('flujo: declarar → rechazar → declarar de nuevo sobre la misma cuota no está bloqueado, y no pisa la declaración anterior', async () => {
+    const primeraDeclaracionCreada = declaracionPendiente();
+    const segundaDeclaracionCreada = declaracionPendiente({
+      id_declaracion_pago: 2,
+    });
+    prisma.dECLARACIONPAGO.create
+      .mockResolvedValueOnce(primeraDeclaracionCreada)
+      .mockResolvedValueOnce(segundaDeclaracionCreada);
+
+    const primera = await service.declarar(dtoBase, CLIENTE_ID);
+    expect(primera.id_declaracion_pago).toBe(1);
+    expect(primera.estado).toBe('PENDIENTE');
+
+    // buscarDeclaracionPendiente relee vía findUnique, ya mockeado para
+    // devolver la declaración PENDIENTE por defecto.
+    await service.rechazar(1, dtoRechazar, USUARIO_ID);
+    expect(prisma.dECLARACIONPAGO.update).toHaveBeenCalledTimes(1);
+
+    // declarar() no consulta el historial de declaraciones previas de la
+    // cuota, así que una RECHAZADA no bloquea volver a declarar: no tira
+    // excepción, y crea una fila NUEVA (segundo `create`) en vez de
+    // pisar/actualizar la anterior.
+    const segunda = await service.declarar(dtoBase, CLIENTE_ID);
+    expect(segunda.id_declaracion_pago).toBe(2);
+    expect(segunda.estado).toBe('PENDIENTE');
+
+    expect(prisma.dECLARACIONPAGO.create).toHaveBeenCalledTimes(2);
+    // La primera declaración (ahora RECHAZADA) nunca se vuelve a tocar: el
+    // único update de todo el flujo es el del rechazo.
+    expect(prisma.dECLARACIONPAGO.update).toHaveBeenCalledTimes(1);
+  });
+
   describe('rechazar', () => {
     it('caso feliz: persiste el motivo y pasa a RECHAZADA', async () => {
       const resultado = await service.rechazar(
