@@ -65,7 +65,7 @@ export function ControlesFiltros({
         options={OPCIONES_ENTREGA}
         value={entrega}
         onChange={(evento) => onEntrega(evento.target.value)}
-        className="lg:max-w-48"
+        className="lg:max-w-60"
       />
 
       <Button
