@@ -8,6 +8,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { validarNombreUnicoEntreActivos } from '../../../common/validaciones/nombre-unico-entre-activos';
 import { reactivarEntidad } from '../../../common/validaciones/reactivar-entidad';
 import { condicionBusquedaPorPalabras } from '../../../common/validaciones/busqueda-por-palabras';
+import { CatalogoItemDto } from '../../../common/dto/catalogo-item.dto';
 import { CreateFormaPagoDto } from './dto/create-forma-pago.dto';
 import { UpdateFormaPagoDto } from './dto/update-forma-pago.dto';
 import { QueryFormaPagoDto } from './dto/query-forma-pago.dto';
@@ -68,6 +69,7 @@ export class FormaPagoService {
           nombre: true,
           descripcion: true,
           requiere_referencia: true,
+          habilitada_autogestion: true,
           estado: true,
         },
         skip: (page - 1) * limit,
@@ -78,6 +80,51 @@ export class FormaPagoService {
     ]);
 
     return { data, meta: { total, page, limit } };
+  }
+
+  /**
+   * Catálogo para `<select>` (HU-29): formas de pago activas y habilitadas
+   * para autogestión, para que el cliente elija con cuál declara un pago.
+   * Las dos condiciones a la vez — una forma habilitada que se dio de baja no
+   * tiene que aparecer. `requiere_referencia` viaja en `metadata` para que el
+   * frontend de declaración (T117) sepa si pedir el número de referencia sin
+   * otra consulta.
+   */
+  async listarAutogestion(): Promise<CatalogoItemDto[]> {
+    const formasPago = await this.prisma.fORMAPAGO.findMany({
+      where: { estado: true, habilitada_autogestion: true },
+      select: { id_forma_pago: true, nombre: true, requiere_referencia: true },
+      orderBy: { nombre: 'asc' },
+    });
+
+    return formasPago.map((formaPago) => ({
+      id: String(formaPago.id_forma_pago),
+      code: formaPago.nombre,
+      metadata: { requiere_referencia: formaPago.requiere_referencia },
+    }));
+  }
+
+  /**
+   * Revalida una forma de pago para autogestión (HU-29): la usa
+   * DeclaracionPagoService al declarar, porque nunca hay que confiar en lo
+   * que el cliente mandó sin cruzarlo — el catálogo que vio pudo cambiar
+   * entre que cargó la pantalla y que envió el formulario.
+   */
+  async buscarActivaHabilitadaAutogestion(id: number) {
+    const formaPago = await this.prisma.fORMAPAGO.findUnique({
+      where: { id_forma_pago: id },
+    });
+
+    if (!formaPago) {
+      throw new NotFoundException(`No existe una forma de pago con id ${id}`);
+    }
+    if (!formaPago.estado || !formaPago.habilitada_autogestion) {
+      throw new ConflictException(
+        `La forma de pago "${formaPago.nombre}" no está disponible para autogestión`,
+      );
+    }
+
+    return formaPago;
   }
 
   /**

@@ -7,6 +7,7 @@ import {
 import { PagoService } from './pago.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { Prisma } from '../../../../generated/prisma/client';
+import { validarNumeroReferencia } from '../../../common/validaciones/validar-numero-referencia';
 import { CreatePagoDto } from './dto/create-pago.dto';
 import { AnularPagoDto } from './dto/anular-pago.dto';
 import { QueryPagoDto } from './dto/query-pago.dto';
@@ -80,10 +81,6 @@ type PagoServicePrivado = {
   buscarFormaPagoActiva(
     id: number,
   ): Promise<{ estado: boolean; requiere_referencia: boolean }>;
-  validarNumeroReferencia(
-    numeroReferencia: string | undefined,
-    formaPago: { requiere_referencia: boolean; nombre: string },
-  ): void;
   resolverFechaPago(fecha: Date | undefined): Date;
   buscarComprobantesImputables(
     FK_proveedor: number,
@@ -459,10 +456,15 @@ describe('PagoService', () => {
     });
   });
 
+  // Extraída a common/validaciones/validar-numero-referencia.ts (compartida
+  // con CobroService y DeclaracionPagoService): ya no es un método privado
+  // de PagoService, así que se prueba llamando a la función standalone
+  // directamente en vez de vía `privado(service)`. Misma cobertura de
+  // siempre, solo cambia cómo se invoca.
   describe('validarNumeroReferencia', () => {
     it('rechaza si la forma de pago requiere referencia y no vino ninguna', () => {
       expect(() =>
-        privado(service).validarNumeroReferencia(undefined, {
+        validarNumeroReferencia(undefined, {
           requiere_referencia: true,
           nombre: 'Transferencia',
         }),
@@ -471,7 +473,7 @@ describe('PagoService', () => {
 
     it('pasa si la forma de pago requiere referencia y vino una', () => {
       expect(() =>
-        privado(service).validarNumeroReferencia('TR-001', {
+        validarNumeroReferencia('TR-001', {
           requiere_referencia: true,
           nombre: 'Transferencia',
         }),
@@ -480,7 +482,7 @@ describe('PagoService', () => {
 
     it('pasa sin referencia si la forma de pago no la requiere', () => {
       expect(() =>
-        privado(service).validarNumeroReferencia(undefined, {
+        validarNumeroReferencia(undefined, {
           requiere_referencia: false,
           nombre: 'Efectivo',
         }),
