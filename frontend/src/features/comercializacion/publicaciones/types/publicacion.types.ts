@@ -1,23 +1,7 @@
 import type { EstadoProyecto } from '@/features/proyectos/types/proyecto.types'
+import type { CondicionEntrega, TipologiaUnidad } from '@/shared/types/unidadFuncional.types'
 
 export type EstadoComercial = 'EN_PREPARACION' | 'DISPONIBLE' | 'EN_PLAN_DE_PAGO' | 'VENDIDA'
-
-export type TipologiaUnidad =
-  | 'MONOAMBIENTE'
-  | 'UN_DORMITORIO'
-  | 'DOS_DORMITORIOS'
-  | 'TRES_DORMITORIOS'
-  | 'LOCAL_COMERCIAL'
-  | 'COCHERA'
-  | 'OTRO'
-
-export type CodigoCondicionEntrega = 'TERMINADA' | 'A_ENTREGAR_CON_FECHA' | 'A_ENTREGAR_SIN_FECHA'
-
-export interface CondicionEntrega {
-  codigo: CodigoCondicionEntrega
-  texto: string
-  fecha_referencia: string | null
-}
 
 export interface UnidadResumen {
   id_unidad_funcional: number

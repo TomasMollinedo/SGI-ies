@@ -10,19 +10,19 @@ import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
 import { Spinner } from '@/shared/components/estados-pantalla/Spinner'
 import { Button } from '@/shared/components/ui/Button'
+import { TIPOLOGIA_LABEL } from '@/shared/config/tipologiaUnidad.config'
 import { formatearMensajeError } from '@/shared/utils/apiError'
+import { textoCondicionEntrega } from '@/shared/utils/condicionEntrega'
 import { formatearFechaSinHora } from '@/shared/utils/fecha'
 import { DespublicarPublicacionModal } from '../components/DespublicarPublicacionModal'
 import { GaleriaUnidad } from '../components/GaleriaUnidad'
 import { SeccionPublicacion } from '../components/SeccionPublicacion'
 import {
-  TIPOLOGIA_LABEL,
   badgeEstadoPublicacion,
   estadoAnteriorTexto,
   puedeDespublicarse,
 } from '../config/publicacion.config'
 import { usePublicacionDetalle } from '../hooks/usePublicaciones'
-import { textoCondicionEntrega } from '../utils/condicionEntrega'
 import { formatearSuperficie } from '../utils/formatearSuperficie'
 
 /** Texto largo (motivo, observaciones): alineado a la izquierda, con saltos de línea y sin desbordar. */

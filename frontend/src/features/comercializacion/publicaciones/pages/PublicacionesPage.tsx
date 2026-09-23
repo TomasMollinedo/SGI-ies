@@ -8,6 +8,7 @@ import { Pagination } from '@/shared/components/common/Pagination'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
 import { Button } from '@/shared/components/ui/Button'
+import { esTipologia } from '@/shared/config/tipologiaUnidad.config'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { formatearFecha } from '@/shared/utils/fecha'
 import { AccionesPublicacionRow } from '../components/AccionesPublicacionRow'
@@ -22,7 +23,6 @@ import {
   badgeEstadoPublicacion,
   esEstadoComercial,
   esFiltroVigencia,
-  esTipologia,
   estadoAnteriorTexto,
   vigenteDeFiltro,
 } from '../config/publicacion.config'

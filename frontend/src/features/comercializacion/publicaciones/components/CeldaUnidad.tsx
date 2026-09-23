@@ -1,5 +1,5 @@
-import { TIPOLOGIA_LABEL } from '../config/publicacion.config'
-import type { TipologiaUnidad } from '../types/publicacion.types'
+import { TIPOLOGIA_LABEL } from '@/shared/config/tipologiaUnidad.config'
+import type { TipologiaUnidad } from '@/shared/types/unidadFuncional.types'
 
 interface CeldaUnidadProps {
   identificador: string

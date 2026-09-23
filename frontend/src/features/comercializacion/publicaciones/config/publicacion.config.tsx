@@ -1,11 +1,7 @@
 import { Badge } from '@/shared/components/ui/Badge'
 import type { BadgeVariant } from '@/shared/components/ui/Badge'
 import type { SelectOption } from '@/shared/components/ui/Select'
-import type {
-  EstadoComercial,
-  PublicacionListItem,
-  TipologiaUnidad,
-} from '../types/publicacion.types'
+import type { EstadoComercial, PublicacionListItem } from '../types/publicacion.types'
 
 /** Resultados por página del listado. */
 export const LIMITE_PAGINA = 10
@@ -28,25 +24,6 @@ export const ETIQUETA_DESPUBLICADA = 'Despublicada'
 
 /** Deja que el badge parta línea ("Publicación en preparación" es largo) para que la tabla entre en mobile. */
 export const CLASES_BADGE_MOBILE = 'whitespace-normal text-left wrap-anywhere'
-
-export const TIPOLOGIA_LABEL: Record<TipologiaUnidad, string> = {
-  MONOAMBIENTE: 'Monoambiente',
-  UN_DORMITORIO: '1 dormitorio',
-  DOS_DORMITORIOS: '2 dormitorios',
-  TRES_DORMITORIOS: '3 dormitorios',
-  LOCAL_COMERCIAL: 'Local comercial',
-  COCHERA: 'Cochera',
-  OTRO: 'Otro',
-}
-
-/** Opciones del `<Select>` de tipología. `''` = todas. */
-export const OPCIONES_TIPOLOGIA: SelectOption[] = [
-  { value: '', label: 'Todas las tipologías' },
-  ...(Object.entries(TIPOLOGIA_LABEL) as [TipologiaUnidad, string][]).map(([value, label]) => ({
-    value,
-    label,
-  })),
-]
 
 /** Opciones del `<Select>` de estado comercial. `''` = todos. */
 export const OPCIONES_ESTADO_COMERCIAL: SelectOption[] = [
@@ -75,10 +52,6 @@ export function vigenteDeFiltro(filtro: FiltroVigencia): boolean | undefined {
   if (filtro === 'vigentes') return true
   if (filtro === 'despublicadas') return false
   return undefined
-}
-
-export function esTipologia(valor: string): valor is TipologiaUnidad {
-  return valor in TIPOLOGIA_LABEL
 }
 
 export function esEstadoComercial(valor: string): valor is EstadoComercial {
