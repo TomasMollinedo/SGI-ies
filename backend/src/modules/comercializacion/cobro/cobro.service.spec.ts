@@ -7,6 +7,7 @@ import {
 import { CobroService } from './cobro.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { PublicacionService } from '../publicacion/publicacion.service';
+import { validarNumeroReferencia } from '../../../common/validaciones/validar-numero-referencia';
 import { Prisma } from '../../../../generated/prisma/client';
 import { EstadoComercial } from '../../../../generated/prisma/enums';
 import { CreateCobroDto, createCobroSchema } from './dto/create-cobro.dto';
@@ -53,10 +54,6 @@ type CobroServicePrivado = {
   buscarFormaPagoActiva(
     id: number,
   ): Promise<{ estado: boolean; requiere_referencia: boolean; nombre: string }>;
-  validarNumeroReferencia(
-    numeroReferencia: string | undefined,
-    formaPago: { requiere_referencia: boolean; nombre: string },
-  ): void;
   resolverFechaCobro(fecha: Date | undefined): Date;
   buscarCuotasImputables(
     FK_cliente: number,
@@ -393,10 +390,13 @@ describe('CobroService', () => {
     });
   });
 
+  // Extraída a common/validaciones/validar-numero-referencia.ts (compartida
+  // con PagoService y DeclaracionPagoService): ya no es un método privado de
+  // CobroService, se prueba llamando a la función standalone directamente.
   describe('validarNumeroReferencia (rechazo: referencia faltante)', () => {
     it('rechaza si la forma de pago requiere referencia y no vino ninguna', () => {
       expect(() =>
-        privado(service).validarNumeroReferencia(undefined, {
+        validarNumeroReferencia(undefined, {
           requiere_referencia: true,
           nombre: 'Transferencia',
         }),
@@ -405,13 +405,13 @@ describe('CobroService', () => {
 
     it('pasa si vino una referencia, o si la forma de pago no la requiere', () => {
       expect(() =>
-        privado(service).validarNumeroReferencia('TR-001', {
+        validarNumeroReferencia('TR-001', {
           requiere_referencia: true,
           nombre: 'Transferencia',
         }),
       ).not.toThrow();
       expect(() =>
-        privado(service).validarNumeroReferencia(undefined, {
+        validarNumeroReferencia(undefined, {
           requiere_referencia: false,
           nombre: 'Efectivo',
         }),

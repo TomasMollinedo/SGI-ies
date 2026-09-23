@@ -8,6 +8,7 @@ import {
   EstadoCobro,
   EstadoComercial,
   EstadoCuota,
+  EstadoDeclaracionPago,
   EstadoVenta,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -284,9 +285,10 @@ export class VentaService {
 
   /**
    * Cancela una venta vigente: exige motivo, solo si no hay un cobro
-   * CONFIRMADO sobre alguna de sus cuotas. Las cuotas quedan ANULADA sin
-   * borrarse, y la publicación vuelve a DISPONIBLE — misma transacción, mismo
-   * mecanismo de `transicionarEstadoComercial` que en `crear`.
+   * CONFIRMADO ni una declaración de pago (HU-29) PENDIENTE de resolver
+   * sobre alguna de sus cuotas. Las cuotas quedan ANULADA sin borrarse, y la
+   * publicación vuelve a DISPONIBLE — misma transacción, mismo mecanismo de
+   * `transicionarEstadoComercial` que en `crear`.
    */
   async cancelar(idVenta: number, dto: CancelarVentaDto, usuarioId: number) {
     await this.prisma.$transaction(async (tx) => {
@@ -310,9 +312,17 @@ export class VentaService {
         );
       }
 
-      // TODO(HU-29): antes de cancelar, verificar que no haya
-      // DECLARACIONPAGO en estado PENDIENTE sobre las cuotas de esta venta.
-      // HU-29 todavía no está integrada — hueco documentado a propósito.
+      const declaracionPendiente = await tx.dECLARACIONPAGO.findFirst({
+        where: {
+          cuota: { FK_venta: idVenta },
+          estado: EstadoDeclaracionPago.PENDIENTE,
+        },
+      });
+      if (declaracionPendiente) {
+        throw new ConflictException(
+          'No se puede cancelar: hay declaraciones de pago pendientes de resolver (validar o rechazar) sobre esta venta',
+        );
+      }
 
       await tx.vENTA.update({
         where: { id_venta: idVenta },

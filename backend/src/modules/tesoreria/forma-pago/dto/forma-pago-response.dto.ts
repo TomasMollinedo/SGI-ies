@@ -7,6 +7,9 @@ export const formaPagoResponseSchema = z.object({
   nombre: z.string(),
   descripcion: z.string().nullable(),
   requiere_referencia: z.boolean(),
+  // Sprint 3 (HU-29): subconjunto de las activas ofrecido al cliente para
+  // autogestión de pagos online. Se administra desde este mismo ABM.
+  habilitada_autogestion: z.boolean(),
   estado: z.boolean(),
   // Prisma devuelve Date, pero sobre HTTP viaja como string ISO 8601 —
   // el DTO de respuesta documenta lo que realmente recibe el frontend.

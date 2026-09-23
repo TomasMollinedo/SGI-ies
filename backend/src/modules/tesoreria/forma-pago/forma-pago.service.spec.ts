@@ -9,6 +9,7 @@ import { queryFormaPagoSchema } from './dto/query-forma-pago.dto';
 type ArgumentoPrisma = {
   data?: Record<string, unknown>;
   where?: Record<string, unknown>;
+  select?: Record<string, unknown>;
 };
 
 const primerArgumento = (mock: jest.Mock): ArgumentoPrisma =>
@@ -141,6 +142,27 @@ describe('FormaPagoService', () => {
         },
       });
     });
+
+    // HU-29 (Sprint 3): el default `false` cuando no viaja en el body lo
+    // resuelve el `@default(false)` de la columna en Postgres, no el DTO ni
+    // el service — acá solo se prueba que lo que sí llega se persiste tal
+    // cual.
+    it('persiste habilitada_autogestion tal como vino, en true', async () => {
+      prisma.fORMAPAGO.create.mockResolvedValue(formaPagoMock);
+
+      await service.create(
+        {
+          nombre: 'Mercado Pago',
+          requiere_referencia: false,
+          habilitada_autogestion: true,
+        },
+        USUARIO_ID,
+      );
+
+      expect(
+        primerArgumento(prisma.fORMAPAGO.create).data?.habilitada_autogestion,
+      ).toBe(true);
+    });
   });
 
   describe('update', () => {
@@ -200,6 +222,19 @@ describe('FormaPagoService', () => {
       await expect(
         service.update(99, { nombre: 'Efectivo' }, USUARIO_ID),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    // A diferencia de requiere_referencia, habilitada_autogestion no está
+    // bloqueada: Tesorería la prende/apaga cuando quiera.
+    it('edita habilitada_autogestion libremente', async () => {
+      prisma.fORMAPAGO.findUnique.mockResolvedValue(formaPagoMock);
+      prisma.fORMAPAGO.update.mockResolvedValue(formaPagoMock);
+
+      await service.update(1, { habilitada_autogestion: true }, USUARIO_ID);
+
+      expect(
+        primerArgumento(prisma.fORMAPAGO.update).data?.habilitada_autogestion,
+      ).toBe(true);
     });
   });
 
@@ -333,6 +368,101 @@ describe('FormaPagoService', () => {
         skip: 5,
         take: 5,
       });
+    });
+
+    // HU-29 (Sprint 3): Tesorería administra el campo desde este mismo
+    // listado, así que tiene que viajar en la respuesta.
+    it('incluye habilitada_autogestion en el listado administrativo', async () => {
+      await service.findAll(queryFormaPagoSchema.parse({}));
+
+      expect(primerArgumento(prisma.fORMAPAGO.findMany).select).toMatchObject({
+        habilitada_autogestion: true,
+      });
+    });
+  });
+
+  describe('listarAutogestion', () => {
+    it('filtra por activas Y habilitadas a la vez, y mapea a CatalogoItemDto', async () => {
+      prisma.fORMAPAGO.findMany.mockResolvedValue([
+        {
+          id_forma_pago: 2,
+          nombre: 'Transferencia bancaria',
+          requiere_referencia: true,
+        },
+      ]);
+
+      const resultado = await service.listarAutogestion();
+
+      expect(primerArgumento(prisma.fORMAPAGO.findMany).where).toEqual({
+        estado: true,
+        habilitada_autogestion: true,
+      });
+      expect(resultado).toEqual([
+        {
+          id: '2',
+          code: 'Transferencia bancaria',
+          metadata: { requiere_referencia: true },
+        },
+      ]);
+    });
+
+    // Ítem del "Listo cuando": sin ninguna forma activa+habilitada, el
+    // catálogo informa indisponibilidad con un array vacío, no un error ni
+    // null — es el contrato que consume el frontend (T117) para decidir si
+    // mostrar el mensaje de "solo pago presencial".
+    it('devuelve un array vacío si ninguna forma de pago cumple las dos condiciones a la vez', async () => {
+      prisma.fORMAPAGO.findMany.mockResolvedValue([]);
+
+      const resultado = await service.listarAutogestion();
+
+      expect(resultado).toEqual([]);
+    });
+  });
+
+  describe('buscarActivaHabilitadaAutogestion', () => {
+    it('tira 404 si no existe', async () => {
+      prisma.fORMAPAGO.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.buscarActivaHabilitadaAutogestion(99),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rechaza si existe pero está dada de baja', async () => {
+      prisma.fORMAPAGO.findUnique.mockResolvedValue({
+        ...formaPagoMock,
+        estado: false,
+        habilitada_autogestion: true,
+      });
+
+      await expect(
+        service.buscarActivaHabilitadaAutogestion(1),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('rechaza si está activa pero no habilitada para autogestión', async () => {
+      prisma.fORMAPAGO.findUnique.mockResolvedValue({
+        ...formaPagoMock,
+        estado: true,
+        habilitada_autogestion: false,
+      });
+
+      await expect(
+        service.buscarActivaHabilitadaAutogestion(1),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('devuelve la forma de pago si está activa y habilitada', async () => {
+      const formaPagoHabilitada = {
+        ...formaPagoMock,
+        estado: true,
+        habilitada_autogestion: true,
+      };
+      prisma.fORMAPAGO.findUnique.mockResolvedValue(formaPagoHabilitada);
+
+      await expect(
+        service.buscarActivaHabilitadaAutogestion(1),
+      ).resolves.toEqual(formaPagoHabilitada);
     });
   });
 });
