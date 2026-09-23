@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiConflictResponse,
@@ -46,7 +55,10 @@ export class VentaController {
     description:
       'Busca o crea al cliente, valida la publicación y el plan, genera el cronograma de cuotas (motor de T105) y pasa la publicación a En Plan de Pago. Todo en una transacción: si algo falla, no queda nada creado.',
   })
-  @ApiCreatedResponse({ description: 'Venta registrada', type: VentaDetalleResponseDto })
+  @ApiCreatedResponse({
+    description: 'Venta registrada',
+    type: VentaDetalleResponseDto,
+  })
   @ApiConflictResponse({
     description:
       'Publicación no vigente, no disponible, plan inactivado, plan de otra publicación, o ya existe una venta vigente sobre la publicación',
@@ -58,10 +70,14 @@ export class VentaController {
   @Patch(':id/cancelar')
   @ApiOperation({ summary: 'Cancela una venta vigente' })
   @ApiParam({ name: 'id', type: Number, description: 'id_venta' })
-  @ApiOkResponse({ description: 'Venta cancelada', type: VentaDetalleResponseDto })
+  @ApiOkResponse({
+    description: 'Venta cancelada',
+    type: VentaDetalleResponseDto,
+  })
   @ApiNotFoundResponse({ description: 'No existe una venta con ese id' })
   @ApiConflictResponse({
-    description: 'La venta ya está cancelada, o ya hay un cobro confirmado sobre ella',
+    description:
+      'La venta ya está cancelada, o ya hay un cobro confirmado sobre ella',
   })
   cancelar(
     @Param('id', ParseIntPipe) id: number,
@@ -88,21 +104,45 @@ export class VentaController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listado interno de ventas, con filtros y paginación' })
+  @ApiOperation({
+    summary: 'Listado interno de ventas, con filtros y paginación',
+  })
   @ApiQuery({ name: 'FK_cliente', required: false, type: Number })
   @ApiQuery({ name: 'FK_publicacion', required: false, type: Number })
+  @ApiQuery({ name: 'FK_unidad_funcional', required: false, type: Number })
+  @ApiQuery({ name: 'FK_proyecto', required: false, type: Number })
   @ApiQuery({ name: 'estado', required: false, enum: ['VIGENTE', 'CANCELADA'] })
+  @ApiQuery({
+    name: 'fechaDesde',
+    required: false,
+    type: String,
+    description: 'Filtra por fecha_adhesion >= (ISO 8601)',
+  })
+  @ApiQuery({
+    name: 'fechaHasta',
+    required: false,
+    type: String,
+    description: 'Filtra por fecha_adhesion <= (ISO 8601)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
-  @ApiOkResponse({ description: 'Listado paginado de ventas', type: VentaListResponseDto })
+  @ApiOkResponse({
+    description: 'Listado paginado de ventas',
+    type: VentaListResponseDto,
+  })
   listar(@Query() query: QueryVentaDto) {
     return this.ventaService.listar(query);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Detalle de una venta, con su cronograma de cuotas completo' })
+  @ApiOperation({
+    summary: 'Detalle de una venta, con su cronograma de cuotas completo',
+  })
   @ApiParam({ name: 'id', type: Number, description: 'id_venta' })
-  @ApiOkResponse({ description: 'Detalle de la venta', type: VentaDetalleResponseDto })
+  @ApiOkResponse({
+    description: 'Detalle de la venta',
+    type: VentaDetalleResponseDto,
+  })
   @ApiNotFoundResponse({ description: 'No existe una venta con ese id' })
   detalle(@Param('id', ParseIntPipe) id: number) {
     return this.ventaService.obtenerDetalle(id);

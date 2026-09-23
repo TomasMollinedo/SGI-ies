@@ -795,9 +795,11 @@ describe('ComprobanteService', () => {
       );
 
       const { where } = primerArgumento(prisma.cOMPROBANTEPROVEEDOR.findMany);
+      // Una fecha sola se ancla a la medianoche de Argentina (UTC-3), no a la
+      // medianoche UTC: ver `fechaIsoSchema`.
       expect(where.fecha_emision).toEqual({
-        gte: new Date('2026-08-01'),
-        lte: new Date('2026-08-31'),
+        gte: new Date('2026-08-01T03:00:00.000Z'),
+        lte: new Date('2026-08-31T03:00:00.000Z'),
       });
     });
   });

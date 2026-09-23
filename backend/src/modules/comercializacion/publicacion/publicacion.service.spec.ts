@@ -561,7 +561,9 @@ describe('PublicacionService', () => {
 
       // Sigue siendo un Decimal: serializa a string por HTTP, igual que
       // `precio` en los planes de pago (ver `unidadDetalleSchema`).
-      expect(resultado.unidad.costo).toStrictEqual(new Prisma.Decimal(15000000));
+      expect(resultado.unidad.costo).toStrictEqual(
+        new Prisma.Decimal(15000000),
+      );
     });
   });
 

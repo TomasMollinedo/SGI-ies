@@ -5,6 +5,7 @@ import {
   EstadoVenta,
   Periodicidad,
   TipoPlanPago,
+  TipologiaUnidad,
 } from '../../../../../generated/prisma/enums';
 
 export const clienteResumenSchema = z.object({
@@ -19,6 +20,19 @@ export const clienteResumenSchema = z.object({
 const usuarioResumenSchema = z.object({
   nombre: z.string(),
   apellido: z.string(),
+});
+
+/** Mismo shape que `UnidadResumen`/`ProyectoPublicacion` de `PublicacionListItem` (`publicacion.service.ts`). */
+const unidadResumenSchema = z.object({
+  id_unidad_funcional: z.number(),
+  identificador: z.string(),
+  tipologia: z.enum(TipologiaUnidad),
+});
+
+const proyectoResumenSchema = z.object({
+  id_proyecto: z.number(),
+  codigo: z.string(),
+  nombre: z.string(),
 });
 
 /**
@@ -39,6 +53,8 @@ export const ventaListItemSchema = z.object({
   cliente: clienteResumenSchema,
   FK_publicacion: z.number(),
   FK_plan_pago: z.number(),
+  unidad: unidadResumenSchema,
+  proyecto: proyectoResumenSchema,
 });
 
 export const ventaListResponseSchema = z.object({
@@ -50,7 +66,9 @@ export const ventaListResponseSchema = z.object({
   }),
 });
 
-export class VentaListResponseDto extends createZodDto(ventaListResponseSchema) {}
+export class VentaListResponseDto extends createZodDto(
+  ventaListResponseSchema,
+) {}
 
 const cuotaVentaSchema = z.object({
   numero: z.number(),
@@ -69,4 +87,6 @@ export const ventaDetalleResponseSchema = ventaListItemSchema.extend({
   cuotas: z.array(cuotaVentaSchema),
 });
 
-export class VentaDetalleResponseDto extends createZodDto(ventaDetalleResponseSchema) {}
+export class VentaDetalleResponseDto extends createZodDto(
+  ventaDetalleResponseSchema,
+) {}

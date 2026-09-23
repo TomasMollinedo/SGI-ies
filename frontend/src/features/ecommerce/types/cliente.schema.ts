@@ -18,7 +18,8 @@ export const completarDatosFormSchema = z.object({
     .string()
     .trim()
     .min(1, 'El teléfono es obligatorio')
-    .max(30, 'El teléfono no puede superar los 30 caracteres'),
+    .max(30, 'El teléfono no puede superar los 30 caracteres')
+    .regex(/^\d+$/, 'El teléfono solo puede contener números, sin espacios ni guiones'),
 })
 
 export type CompletarDatosFormValues = z.input<typeof completarDatosFormSchema>

@@ -57,7 +57,16 @@ export const PATHS = {
   },
   ALERTAS: { ROOT: '/sistema/alertas' },
 
-  PROYECTOS: { ROOT: '/sistema/proyectos' },
+  PROYECTOS: {
+    ROOT: '/sistema/proyectos',
+    UNIDADES_FUNCIONALES: '/sistema/proyectos/unidades-funcionales',
+    UNIDADES_FUNCIONALES_NUEVA: '/sistema/proyectos/unidades-funcionales/nueva',
+    // Patrones de ruta, no URLs navegables: para armar las de una unidad
+    // concreta están `rutaDetalleUnidadFuncional` y `rutaEditarUnidadFuncional`.
+    UNIDADES_FUNCIONALES_DETALLE: '/sistema/proyectos/unidades-funcionales/:id',
+    UNIDADES_FUNCIONALES_EDITAR: '/sistema/proyectos/unidades-funcionales/:id/editar',
+  },
+
   COMERCIALIZACION: {
     ROOT: '/sistema/comercializacion',
     PUBLICACIONES: '/sistema/comercializacion/publicaciones',
@@ -67,6 +76,11 @@ export const PATHS = {
     // Patrón de ruta, no una URL navegable: para armar la de una publicación
     // concreta está `rutaPlanesPagoPublicacion`.
     PLANES_PAGO_PUBLICACION: '/sistema/comercializacion/publicaciones/:idPublicacion/planes-pago',
+    VENTAS: '/sistema/comercializacion/ventas',
+    NUEVA_VENTA: '/sistema/comercializacion/ventas/nueva',
+    // Patrón de ruta, no una URL navegable: para armar la de una venta
+    // concreta está `rutaDetalleVenta`.
+    VENTA_DETALLE: '/sistema/comercializacion/ventas/:idVenta',
   },
 
   // Sitio público del ecommerce (HU-23/24/25). Convive con el resto de las
@@ -95,6 +109,16 @@ export function rutaCardexCuentaCorriente(idProveedor: number): string {
   return PATHS.TESORERIA.CUENTAS_CORRIENTES_CARDEX.replace(':idProveedor', String(idProveedor))
 }
 
+/** La ruta del detalle de una unidad funcional puntual (ej. 42 → /proyectos/unidades-funcionales/42). */
+export function rutaDetalleUnidadFuncional(idUnidadFuncional: number): string {
+  return PATHS.PROYECTOS.UNIDADES_FUNCIONALES_DETALLE.replace(':id', String(idUnidadFuncional))
+}
+
+/** La ruta de edición de una unidad funcional puntual (ej. 42 → /proyectos/unidades-funcionales/42/editar). */
+export function rutaEditarUnidadFuncional(idUnidadFuncional: number): string {
+  return PATHS.PROYECTOS.UNIDADES_FUNCIONALES_EDITAR.replace(':id', String(idUnidadFuncional))
+}
+
 /**
  * La ruta del catálogo filtrado por un proyecto (ej. 42 → /catalogo?FK_proyecto=42).
  * El nombre del parámetro es el que acepta GET /catalogo, no uno propio del front.
@@ -111,6 +135,11 @@ export function rutaDetalleUnidad(idPublicacion: number): string {
 /** La ruta del detalle de una publicación puntual (ej. 42 → /comercializacion/publicaciones/42). */
 export function rutaDetallePublicacion(idPublicacion: number): string {
   return PATHS.COMERCIALIZACION.PUBLICACION_DETALLE.replace(':idPublicacion', String(idPublicacion))
+}
+
+/** La ruta del detalle de una venta puntual (ej. 7 → /comercializacion/ventas/7). */
+export function rutaDetalleVenta(idVenta: number): string {
+  return PATHS.COMERCIALIZACION.VENTA_DETALLE.replace(':idVenta', String(idVenta))
 }
 
 /** La ruta de los planes de pago de una publicación (ej. 42 → /comercializacion/publicaciones/42/planes-pago). */
