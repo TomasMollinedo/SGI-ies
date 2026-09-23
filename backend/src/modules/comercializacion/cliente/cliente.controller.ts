@@ -29,6 +29,8 @@ import { PublicCliente } from '../cliente-auth/decorators/public-cliente.decorat
 import { CurrentCliente } from '../cliente-auth/decorators/current-cliente.decorator';
 import type { AuthenticatedCliente } from '../cliente-auth/strategies/cliente-jwt.strategy';
 import { Public } from '../../../common/decorators/public.decorator';
+import { CatalogoItemDto } from '../../../common/dto/catalogo-item.dto';
+import { FormaPagoService } from '../../tesoreria/forma-pago/forma-pago.service';
 import { LoginClienteDto } from './dto/login-cliente.dto';
 import { CompletarDatosClienteDto } from './dto/completar-datos-cliente.dto';
 import {
@@ -59,6 +61,7 @@ export class ClienteController {
   constructor(
     private readonly clienteAuthService: ClienteAuthService,
     private readonly configService: ConfigService<EnvConfig, true>,
+    private readonly formaPagoService: FormaPagoService,
   ) {}
 
   @PublicCliente()
@@ -187,6 +190,23 @@ Lee el refresh token de la cookie \`httpOnly\` \`${REFRESH_TOKEN_COOKIE}\` (no h
     @CurrentCliente() cliente: AuthenticatedCliente,
   ) {
     return this.clienteAuthService.actualizarDatos(cliente.id, dto);
+  }
+
+  @Get('formas-pago-autogestion')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Catálogo de formas de pago habilitadas para autogestión, para el <select> del formulario de declaración de pago (HU-29)',
+    description:
+      'Solo formas de pago activas Y habilitadas para autogestión a la vez. `metadata.requiere_referencia` indica si el formulario tiene que pedir número de referencia.',
+  })
+  @ApiOkResponse({
+    description: 'Formas de pago disponibles para autogestión, sin paginar',
+    type: [CatalogoItemDto],
+  })
+  @ApiUnauthorizedResponse({ description: MENSAJE_NO_AUTENTICADO })
+  formasPagoAutogestion() {
+    return this.formaPagoService.listarAutogestion();
   }
 
   private setRefreshCookie(res: Response, refreshToken: string) {

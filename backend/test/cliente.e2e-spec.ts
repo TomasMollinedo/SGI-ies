@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { ClienteAuthService } from '../src/modules/comercializacion/cliente-auth/cliente-auth.service';
+import { PrismaService } from '../src/prisma/prisma.service';
 
 interface LoginResponseBody {
   accessToken: string;
@@ -14,6 +15,20 @@ interface LoginResponseBody {
 
 interface RefreshResponseBody {
   accessToken: string;
+}
+
+interface UsuarioLoginResponseBody {
+  accessToken: string;
+}
+
+interface FormaPagoCreadaBody {
+  id_forma_pago: number;
+}
+
+interface CatalogoItemBody {
+  id: string;
+  code: string;
+  metadata: Record<string, unknown>;
 }
 
 /**
@@ -257,6 +272,129 @@ describe('Cliente (e2e)', () => {
         clientePerfilMock.id,
         { dni_cuil: '20123456789', telefono: '1122223333' },
       );
+    });
+  });
+
+  /**
+   * HU-29 (Sprint 3): a diferencia del resto de este archivo, acá
+   * FormaPagoService NO está mockeado — pega contra la base real (seed +
+   * datos que crea el propio test), porque lo que se verifica es el filtro
+   * `estado AND habilitada_autogestion`, no el wiring de auth (eso ya lo
+   * prueban los describe de arriba con el mismo patrón de JWT firmado a
+   * mano).
+   */
+  describe('GET /api/cliente/formas-pago-autogestion', () => {
+    let prisma: PrismaService;
+    let accessTokenCliente: string;
+    let idActivaHabilitada: number;
+    let idActivaSinHabilitar: number;
+    let idHabilitadaInactiva: number;
+
+    const crearFormaPago = async (
+      tokenAdmin: string,
+      overrides: { nombre: string; habilitada_autogestion: boolean },
+    ) => {
+      const respuesta = await request(app.getHttpServer())
+        .post('/api/formas-pago')
+        .set('Authorization', `Bearer ${tokenAdmin}`)
+        .send({
+          nombre: overrides.nombre,
+          requiere_referencia: true,
+          habilitada_autogestion: overrides.habilitada_autogestion,
+        })
+        .expect(201);
+
+      return (respuesta.body as FormaPagoCreadaBody).id_forma_pago;
+    };
+
+    beforeAll(async () => {
+      prisma = app.get(PrismaService);
+
+      const loginAdmin = await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send({ email: 'admin@axontech.test', password: 'Password123!' })
+        .expect(200);
+      const tokenAdmin = (loginAdmin.body as UsuarioLoginResponseBody)
+        .accessToken;
+
+      const sufijo = Date.now();
+      idActivaHabilitada = await crearFormaPago(tokenAdmin, {
+        nombre: `Autogestión activa habilitada ${sufijo}`,
+        habilitada_autogestion: true,
+      });
+      idActivaSinHabilitar = await crearFormaPago(tokenAdmin, {
+        nombre: `Autogestión activa sin habilitar ${sufijo}`,
+        habilitada_autogestion: false,
+      });
+      idHabilitadaInactiva = await crearFormaPago(tokenAdmin, {
+        nombre: `Autogestión habilitada inactiva ${sufijo}`,
+        habilitada_autogestion: true,
+      });
+      // El caso explícito del "Listo cuando": dar de baja una habilitada la
+      // tiene que sacar de la lista.
+      await request(app.getHttpServer())
+        .patch(`/api/formas-pago/${idHabilitadaInactiva}/baja`)
+        .set('Authorization', `Bearer ${tokenAdmin}`)
+        .expect(200);
+
+      accessTokenCliente = jwtService.sign(
+        { sub: clientePerfilMock.id, email: clientePerfilMock.email },
+        { secret: jwtClientSecret, expiresIn: '15m' },
+      );
+    });
+
+    afterAll(async () => {
+      await prisma.fORMAPAGO.deleteMany({
+        where: {
+          id_forma_pago: {
+            in: [
+              idActivaHabilitada,
+              idActivaSinHabilitar,
+              idHabilitadaInactiva,
+            ],
+          },
+        },
+      });
+    });
+
+    it('devuelve 401 sin token', async () => {
+      const response = await request(app.getHttpServer()).get(
+        '/api/cliente/formas-pago-autogestion',
+      );
+
+      expect(response.status).toBe(401);
+    });
+
+    it('devuelve 401 con un accessToken de USUARIO interno (firmado con JWT_SECRET, no JWT_CLIENT_SECRET)', async () => {
+      const accessTokenUsuario = jwtService.sign(
+        { sub: 1, email: 'interno@test.com', rol: 'Administrador' },
+        { secret: jwtSecret, expiresIn: '15m' },
+      );
+
+      const response = await request(app.getHttpServer())
+        .get('/api/cliente/formas-pago-autogestion')
+        .set('Authorization', `Bearer ${accessTokenUsuario}`);
+
+      expect(response.status).toBe(401);
+    });
+
+    it('con un accessToken de CLIENTE válido, lista solo las activas Y habilitadas', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/cliente/formas-pago-autogestion')
+        .set('Authorization', `Bearer ${accessTokenCliente}`)
+        .expect(200);
+
+      const catalogo = response.body as CatalogoItemBody[];
+      const ids = catalogo.map((item) => item.id);
+
+      expect(ids).toContain(String(idActivaHabilitada));
+      expect(ids).not.toContain(String(idActivaSinHabilitar));
+      expect(ids).not.toContain(String(idHabilitadaInactiva));
+
+      const item = catalogo.find(
+        (item) => item.id === String(idActivaHabilitada),
+      );
+      expect(item?.metadata).toEqual({ requiere_referencia: true });
     });
   });
 });
