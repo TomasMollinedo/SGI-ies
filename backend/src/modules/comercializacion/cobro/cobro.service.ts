@@ -50,11 +50,26 @@ const COBRO_LIST_ITEM_SELECT = {
   formaPago: { select: FORMA_PAGO_RESUMEN_SELECT },
 } as const;
 
-/** Datos identificatorios de la cuota imputada en una línea (detalle del cobro). */
+/**
+ * Datos identificatorios de la cuota imputada en una línea (detalle del
+ * cobro), con la unidad de su venta: el recibo imprimible muestra cada cuota
+ * junto a su unidad. `obtenerDetalle` lo aplana al mismo shape de
+ * `venta.unidad` que ya usa `listarCuotasImputables`.
+ */
 const CUOTA_RESUMEN_SELECT = {
   id_cuota: true,
   numero: true,
   FK_venta: true,
+  venta: {
+    select: {
+      id_venta: true,
+      publicacion: {
+        select: {
+          unidadFuncional: { select: { identificador: true } },
+        },
+      },
+    },
+  },
 } as const;
 
 /** Selección usada al validar las cuotas que se imputan en un cobro. */
@@ -742,7 +757,18 @@ export class CobroService {
         importe_imputado: linea.importe_imputado.toNumber(),
         saldo_anterior: linea.saldo_anterior.toNumber(),
         saldo_posterior: linea.saldo_posterior.toNumber(),
-        cuota: linea.cuota,
+        cuota: {
+          id_cuota: linea.cuota.id_cuota,
+          numero: linea.cuota.numero,
+          FK_venta: linea.cuota.FK_venta,
+          venta: {
+            id_venta: linea.cuota.venta.id_venta,
+            unidad: {
+              identificador:
+                linea.cuota.venta.publicacion.unidadFuncional.identificador,
+            },
+          },
+        },
       })),
     };
   }

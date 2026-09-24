@@ -129,6 +129,33 @@ describe('CobroService', () => {
   const ID_COBRO = 200;
   const USUARIO_ID = 7;
 
+  /**
+   * Una línea de `detalles` tal como la devuelve Prisma en `obtenerDetalle`
+   * (Decimal sin convertir, y la cuota con su venta → publicación → unidad
+   * anidadas, antes de aplanarlas a `venta.unidad`).
+   */
+  const lineaDetalleCruda = (
+    idCuota = 1,
+    identificador = 'UF-101',
+    extra: Partial<Record<string, unknown>> = {},
+  ) => ({
+    id_detalle_cobro: idCuota,
+    FK_cuota: idCuota,
+    importe_imputado: new Prisma.Decimal(1000),
+    saldo_anterior: new Prisma.Decimal(1000),
+    saldo_posterior: new Prisma.Decimal(0),
+    cuota: {
+      id_cuota: idCuota,
+      numero: idCuota,
+      FK_venta: 1,
+      venta: {
+        id_venta: 1,
+        publicacion: { unidadFuncional: { identificador } },
+      },
+    },
+    ...extra,
+  });
+
   /** Cabecera completa devuelta por `obtenerDetalle` al final de `crear`/`anular`. */
   const cobroCompleto = (extra: Partial<Record<string, unknown>> = {}) => ({
     id_cobro: ID_COBRO,
@@ -159,7 +186,7 @@ describe('CobroService', () => {
     },
     usuarioCreador: { nombre: 'Ana', apellido: 'Gómez' },
     usuarioActualizador: { nombre: 'Ana', apellido: 'Gómez' },
-    detalles: [],
+    detalles: [lineaDetalleCruda()],
     ...extra,
   });
 
@@ -764,6 +791,9 @@ describe('CobroService', () => {
         expect.objectContaining({ where: { id_cobro: ID_COBRO } }),
       );
       expect(resultado.id_cobro).toBe(ID_COBRO);
+      expect(resultado.detalle[0].cuota.venta.unidad.identificador).toBe(
+        'UF-101',
+      );
     });
   });
 
@@ -883,6 +913,9 @@ describe('CobroService', () => {
       });
       expect(prisma.cOBRO.findUnique).toHaveBeenCalledTimes(2);
       expect(resultado.id_cobro).toBe(ID_COBRO);
+      expect(resultado.detalle[0].cuota.venta.unidad.identificador).toBe(
+        'UF-101',
+      );
     });
 
     it('transición: si el saldo restituido reabre la venta, la publicación vuelve de VENDIDA a EN_PLAN_DE_PAGO', async () => {
@@ -1136,14 +1169,11 @@ describe('CobroService', () => {
         cobroCompleto({
           importe_total: new Prisma.Decimal(1500),
           detalles: [
-            {
-              id_detalle_cobro: 1,
-              FK_cuota: 1,
+            lineaDetalleCruda(1, 'UF-101', {
               importe_imputado: new Prisma.Decimal(300),
               saldo_anterior: new Prisma.Decimal(1000),
               saldo_posterior: new Prisma.Decimal(700),
-              cuota: { id_cuota: 1, numero: 1, FK_venta: 1 },
-            },
+            }),
           ],
         }),
       );
@@ -1155,6 +1185,54 @@ describe('CobroService', () => {
         importe_imputado: 300,
         saldo_anterior: 1000,
         saldo_posterior: 700,
+      });
+    });
+
+    it('trae la unidad de cada cuota imputada, con el mismo shape que las cuotas imputables', async () => {
+      prisma.cOBRO.findUnique.mockResolvedValueOnce(
+        cobroCompleto({
+          detalles: [
+            lineaDetalleCruda(1, 'UF-101'),
+            lineaDetalleCruda(2, 'UF-202'),
+          ],
+        }),
+      );
+
+      const resultado = await service.obtenerDetalle(ID_COBRO);
+
+      expect(resultado.detalle.map((linea) => linea.cuota)).toEqual([
+        {
+          id_cuota: 1,
+          numero: 1,
+          FK_venta: 1,
+          venta: { id_venta: 1, unidad: { identificador: 'UF-101' } },
+        },
+        {
+          id_cuota: 2,
+          numero: 2,
+          FK_venta: 1,
+          venta: { id_venta: 1, unidad: { identificador: 'UF-202' } },
+        },
+      ]);
+    });
+
+    it('pide la unidad de cada cuota vía venta → publicación → unidad funcional', async () => {
+      await service.obtenerDetalle(ID_COBRO);
+
+      const argumento = (
+        prisma.cOBRO.findUnique.mock.calls as {
+          include: {
+            detalles: { select: { cuota: { select: { venta: unknown } } } };
+          };
+        }[][]
+      )[0][0];
+      expect(argumento.include.detalles.select.cuota.select.venta).toEqual({
+        select: {
+          id_venta: true,
+          publicacion: {
+            select: { unidadFuncional: { select: { identificador: true } } },
+          },
+        },
       });
     });
   });

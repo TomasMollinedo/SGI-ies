@@ -18,7 +18,6 @@ import { PerfilPage } from '@/features/ecommerce/pages/PerfilPage'
 import { SitioPublicoLayout } from '@/features/ecommerce/layout/SitioPublicoLayout'
 import { MainLayout } from '@/layouts/MainLayout'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { ClienteProtectedRoute } from './ClienteProtectedRoute'
 import { PATHS } from './paths'
 import { ProtectedRoute } from './ProtectedRoute'
@@ -30,6 +29,9 @@ import { PublicacionDetallePage } from '@/features/comercializacion/publicacione
 import { PublicacionesPage } from '@/features/comercializacion/publicaciones/pages/PublicacionesPage'
 import { VentaDetallePage } from '@/features/comercializacion/ventas/pages/VentaDetallePage'
 import { VentasPage } from '@/features/comercializacion/ventas/pages/VentasPage'
+import { CobranzasPage } from '@/features/tesoreria/cobranzas/pages/CobranzasPage'
+import { CobroDetallePage } from '@/features/tesoreria/cobranzas/pages/CobroDetallePage'
+import { NuevoCobroPage } from '@/features/tesoreria/cobranzas/pages/NuevoCobroPage'
 import { ComprobantesPage } from '@/features/tesoreria/comprobantes/pages/ComprobantesPage'
 import { TiposComprobantePage } from '@/features/tesoreria/tipos-comprobante/pages/TiposComprobantePage'
 import { NuevoPagoPage } from '@/features/tesoreria/pagos/pages/NuevoPagoPage'
@@ -219,9 +221,20 @@ export const router = createBrowserRouter([
                 handle: { title: 'Reporte de Egresos' },
               },
               {
-                path: PATHS.TESORERIA.COBRANZAS,
-                element: <PlaceholderPage titulo="Cobranzas" historia="HU-30" />,
+                path: PATHS.TESORERIA.COBRANZAS.ROOT,
+                element: <CobranzasPage />,
                 handle: { title: 'Cobranzas' },
+              },
+              // NUEVO antes que DETALLE, para que "nuevo" no se lea como un :idCobro.
+              {
+                path: PATHS.TESORERIA.COBRANZAS.NUEVO,
+                element: <NuevoCobroPage />,
+                handle: { title: 'Registrar cobro' },
+              },
+              {
+                path: PATHS.TESORERIA.COBRANZAS.DETALLE,
+                element: <CobroDetallePage />,
+                handle: { title: 'Detalle del cobro' },
               },
             ],
           },

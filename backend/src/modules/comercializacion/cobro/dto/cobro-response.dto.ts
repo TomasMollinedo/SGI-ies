@@ -30,11 +30,19 @@ const usuarioResumenSchema = z.object({
   apellido: z.string(),
 });
 
-/** Datos identificatorios de la cuota imputada en una línea del cobro. */
+/**
+ * Datos identificatorios de la cuota imputada en una línea del cobro, con la
+ * unidad de su venta (el recibo muestra cada cuota con su unidad). `venta`
+ * tiene el mismo shape que en `cuotaImputableSchema`.
+ */
 const cuotaResumenSchema = z.object({
   id_cuota: z.number(),
   numero: z.number(),
   FK_venta: z.number(),
+  venta: z.object({
+    id_venta: z.number(),
+    unidad: z.object({ identificador: z.string() }),
+  }),
 });
 
 /**
