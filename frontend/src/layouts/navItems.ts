@@ -1,5 +1,6 @@
 import {
   ArrowLeftRight,
+  BadgeCheck,
   Banknote,
   BookOpen,
   Boxes,
@@ -114,6 +115,11 @@ export const NAV_ITEMS: NavNode[] = [
       { label: 'Cuentas Corrientes', to: PATHS.TESORERIA.CUENTAS_CORRIENTES, icon: Landmark },
       { label: 'Reporte de Egresos', to: PATHS.TESORERIA.REPORTE_EGRESOS, icon: TrendingDown },
       { label: 'Cobranzas', to: PATHS.TESORERIA.COBRANZAS.ROOT, icon: HandCoins },
+      {
+        label: 'Declaraciones de Pago',
+        to: PATHS.TESORERIA.DECLARACIONES_PAGO,
+        icon: BadgeCheck,
+      },
     ],
   },
   {

@@ -34,6 +34,7 @@ import { VentasPage } from '@/features/comercializacion/ventas/pages/VentasPage'
 import { CobranzasPage } from '@/features/tesoreria/cobranzas/pages/CobranzasPage'
 import { CobroDetallePage } from '@/features/tesoreria/cobranzas/pages/CobroDetallePage'
 import { NuevoCobroPage } from '@/features/tesoreria/cobranzas/pages/NuevoCobroPage'
+import { DeclaracionesPagoPage } from '@/features/tesoreria/declaraciones-pago/pages/DeclaracionesPagoPage'
 import { ComprobantesPage } from '@/features/tesoreria/comprobantes/pages/ComprobantesPage'
 import { TiposComprobantePage } from '@/features/tesoreria/tipos-comprobante/pages/TiposComprobantePage'
 import { NuevoPagoPage } from '@/features/tesoreria/pagos/pages/NuevoPagoPage'
@@ -245,6 +246,11 @@ export const router = createBrowserRouter([
                 path: PATHS.TESORERIA.COBRANZAS.DETALLE,
                 element: <CobroDetallePage />,
                 handle: { title: 'Detalle del cobro' },
+              },
+              {
+                path: PATHS.TESORERIA.DECLARACIONES_PAGO,
+                element: <DeclaracionesPagoPage />,
+                handle: { title: 'Declaraciones de Pago' },
               },
             ],
           },

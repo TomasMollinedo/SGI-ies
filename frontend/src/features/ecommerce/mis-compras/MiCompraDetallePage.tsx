@@ -1,30 +1,74 @@
 import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
-import { Link, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { PATHS } from '@/app/router/paths'
 import { FichaUnidad } from '@/features/ecommerce/components/FichaUnidad'
 import { LinkButton } from '@/features/ecommerce/components/LinkButton'
+import { useClienteAuthUser } from '@/features/ecommerce/hooks/useClienteAuthUser'
 import { Spinner } from '@/shared/components/ui/Spinner'
 import { TIPOLOGIA_LABEL } from '@/shared/config/tipologiaUnidad.config'
+import { useToast } from '@/shared/hooks/useToast'
 import { formatearImporte } from '@/shared/utils/importe'
+import { DeclaracionesPago } from './components/DeclaracionesPago'
+import { DeclararPagoModal } from './components/DeclararPagoModal'
 import { HistorialPagos } from './components/HistorialPagos'
 import { PlanDePagoResumen } from './components/PlanDePagoResumen'
 import { TablaCuotas } from './components/TablaCuotas'
-import { MI_COMPRA_DETALLE, MIS_COMPRAS } from './config/misCompras.config'
+import type { DisponibilidadDeclaracion } from './components/TablaCuotas'
+import { DECLARAR_PAGO, MI_COMPRA_DETALLE, MIS_COMPRAS } from './config/misCompras.config'
+import { useFormasPagoAutogestion } from './hooks/useFormasPagoAutogestion'
 import { useMiVentaDetalle } from './hooks/useMiVentaDetalle'
+import type { FormaPagoAutogestion } from './types/declaracionPago.types'
+import type { CuotaMiVenta } from './types/miVenta.types'
+import { puedeDeclararCuota } from './utils/cuotaDeclarable'
+import { tieneDatosIncompletos } from './utils/datosCliente'
+
+/** Referencia estable mientras el catálogo carga: el schema del modal se memoiza sobre ella. */
+const SIN_FORMAS_PAGO: FormaPagoAutogestion[] = []
 
 /**
  * Detalle de una compra propia (T112, HU-28): unidad, plan de pago,
- * cronograma completo de cuotas e historial de pagos paginado. Es de solo
- * lectura.
+ * cronograma completo de cuotas, pagos declarados e historial de pagos
+ * paginado. Desde el cronograma (o desde una declaración rechazada) el
+ * cliente puede declarar un pago sobre una cuota pendiente o parcial (T117,
+ * HU-29).
  */
 export function MiCompraDetallePage() {
   const { idVenta } = useParams()
   const id = Number(idVenta)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const toast = useToast()
   const { data: venta, isLoading, isError } = useMiVentaDetalle(id)
-  // Página propia del historial: no se resetea si el resto de la pantalla se
-  // vuelve a pedir (ej. al volver de otra pestaña), solo si se cambia de venta.
+  const { data: cliente } = useClienteAuthUser()
+  const { data: formasPago, isSuccess: formasPagoCargadas } = useFormasPagoAutogestion()
+  // Páginas propias de cada listado: no se resetean si el resto de la
+  // pantalla se vuelve a pedir (ej. al volver de otra pestaña), solo si se
+  // cambia de venta.
   const [paginaHistorial, setPaginaHistorial] = useState(1)
+  const [paginaDeclaraciones, setPaginaDeclaraciones] = useState(1)
+  // Se guarda el id y no la cuota: si el detalle se refresca con el modal
+  // abierto (ej. después de un 409), el modal toma el saldo actualizado.
+  const [idCuotaADeclarar, setIdCuotaADeclarar] = useState<number | null>(null)
+
+  const declaracion: DisponibilidadDeclaracion = !formasPagoCargadas
+    ? 'desconocida'
+    : formasPago.length > 0
+      ? 'disponible'
+      : 'presencial'
+
+  /**
+   * Sin DNI/CUIT o teléfono el backend rechaza la declaración: se manda a
+   * completarlos antes de abrir el formulario (y vuelve acá después).
+   */
+  function abrirDeclaracion(cuota: CuotaMiVenta) {
+    if (tieneDatosIncompletos(cliente)) {
+      toast.info(DECLARAR_PAGO.completarDatos)
+      navigate(PATHS.ECOMMERCE.COMPLETAR_DATOS, { state: { from: location } })
+      return
+    }
+    setIdCuotaADeclarar(cuota.id_cuota)
+  }
 
   if (isLoading) {
     return (
@@ -97,12 +141,28 @@ export function MiCompraDetallePage() {
       </div>
 
       <div className="mt-14">
-        <TablaCuotas cuotas={venta.cuotas} />
-        {/*
-          T116/T117 (declarar un pago sobre una cuota vencida) se engancha
-          adentro de `TablaCuotas`/`FilaCuota`, junto a la cuota vencida — ver
-          el comentario ahí. No hay nada visible todavía, a propósito.
-        */}
+        <TablaCuotas
+          cuotas={venta.cuotas}
+          puedeDeclarar={(cuota) => puedeDeclararCuota(cuota, venta)}
+          onDeclarar={abrirDeclaracion}
+          declaracion={declaracion}
+        />
+      </div>
+
+      <div className="mt-14">
+        <DeclaracionesPago
+          idVenta={id}
+          page={paginaDeclaraciones}
+          onPageChange={setPaginaDeclaraciones}
+          puedeVolverADeclarar={(idCuota) => {
+            const cuota = venta.cuotas.find((item) => item.id_cuota === idCuota)
+            return declaracion === 'disponible' && !!cuota && puedeDeclararCuota(cuota, venta)
+          }}
+          onVolverADeclarar={(idCuota) => {
+            const cuota = venta.cuotas.find((item) => item.id_cuota === idCuota)
+            if (cuota) abrirDeclaracion(cuota)
+          }}
+        />
       </div>
 
       <div className="mt-14">
@@ -114,6 +174,13 @@ export function MiCompraDetallePage() {
         acá, como una sección más de la página. No hay nada visible todavía,
         a propósito.
       */}
+
+      <DeclararPagoModal
+        idVenta={id}
+        cuota={venta.cuotas.find((cuota) => cuota.id_cuota === idCuotaADeclarar) ?? null}
+        formasPago={formasPago ?? SIN_FORMAS_PAGO}
+        onClose={() => setIdCuotaADeclarar(null)}
+      />
     </Contenedor>
   )
 }
