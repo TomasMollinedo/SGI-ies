@@ -8,6 +8,10 @@ const LIMITE_PAGINA = 10
 /**
  * Historial de pagos de una unidad, paginado. `keepPreviousData` deja la
  * página anterior a la vista mientras llega la nueva, igual que `useCatalogo`.
+ *
+ * `staleTime: 0` + refetch al montar, mismo criterio que `useVentaDetalle`:
+ * Tesorería puede registrar o anular un cobro de esta unidad desde el panel
+ * interno.
  */
 export function useHistorialPagos(idVenta: number, page: number) {
   return useQuery<HistorialPagosResponse, ApiErrorResponse>({
@@ -15,5 +19,7 @@ export function useHistorialPagos(idVenta: number, page: number) {
     queryFn: ({ signal }) => obtenerHistorialPagos(idVenta, page, LIMITE_PAGINA, signal),
     enabled: Number.isInteger(idVenta) && idVenta > 0,
     placeholderData: keepPreviousData,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 }

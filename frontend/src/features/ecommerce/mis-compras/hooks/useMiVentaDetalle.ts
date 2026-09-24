@@ -8,6 +8,10 @@ import type { MiVentaDetalle } from '../types/miVenta.types'
  * este cliente, o no está vigente) es una respuesta válida que la pantalla
  * muestra como "no encontramos esta compra", no un fallo que convenga
  * reintentar.
+ *
+ * `staleTime: 0` + refetch al montar, mismo criterio que `useVentaDetalle`:
+ * el saldo de cada cuota puede cambiar por un cobro que Tesorería registra o
+ * anula desde el panel interno.
  */
 export function useMiVentaDetalle(idVenta: number) {
   return useQuery<MiVentaDetalle, ApiErrorResponse>({
@@ -15,5 +19,7 @@ export function useMiVentaDetalle(idVenta: number) {
     queryFn: ({ signal }) => obtenerDetalleMiVenta(idVenta, signal),
     enabled: Number.isInteger(idVenta) && idVenta > 0,
     retry: false,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 }

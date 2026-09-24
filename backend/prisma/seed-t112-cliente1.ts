@@ -67,6 +67,35 @@ function diasDesdeHoy(dias: number): Date {
   );
 }
 
+/**
+ * Offset fijo de Argentina (UTC-3, sin horario de verano), el mismo que usa
+ * `fechaIsoSchema` (src/common/validaciones/fecha-iso.schema.ts).
+ */
+const OFFSET_ARGENTINA_HORAS = 3;
+
+/**
+ * Fecha de cobro a `dias` de hoy, anclada a la medianoche de Argentina
+ * (03:00Z) — exactamente lo que guarda un cobro registrado desde la pantalla,
+ * porque `fechaIsoSchema` ancla así la fecha sola que manda el formulario. No
+ * se usa `diasDesdeHoy` (medianoche UTC) para cobros: en horario de Argentina
+ * esa medianoche es las 21:00 del día anterior, y el historial de "Mis
+ * compras" (que formatea en horario de Argentina) los mostraría un día antes.
+ * "Hoy" también se toma en horario de Argentina, no en UTC.
+ */
+function fechaCobroDesdeHoy(dias: number): Date {
+  const ahoraEnArgentina = new Date(
+    Date.now() - OFFSET_ARGENTINA_HORAS * 60 * 60 * 1000,
+  );
+  return new Date(
+    Date.UTC(
+      ahoraEnArgentina.getUTCFullYear(),
+      ahoraEnArgentina.getUTCMonth(),
+      ahoraEnArgentina.getUTCDate() + dias,
+      OFFSET_ARGENTINA_HORAS,
+    ),
+  );
+}
+
 async function main() {
   const cliente = await prisma.cLIENTE.findUnique({
     where: { id_cliente: ID_CLIENTE_PRUEBA },
@@ -433,7 +462,7 @@ async function main() {
   if (!yaTieneCobros) {
     // Cuota 0 de A-101 (4.800.000), pagada en 3 partes.
     await crearCobroSimple({
-      fecha_cobro: diasDesdeHoy(-140),
+      fecha_cobro: fechaCobroDesdeHoy(-140),
       origen: OrigenCobro.ECOMMERCE,
       estado: EstadoCobro.CONFIRMADO,
       FK_forma_pago: transferencia.id_forma_pago,
@@ -444,7 +473,7 @@ async function main() {
       saldo_posterior: 2_800_000,
     });
     await crearCobroSimple({
-      fecha_cobro: diasDesdeHoy(-135),
+      fecha_cobro: fechaCobroDesdeHoy(-135),
       origen: OrigenCobro.PRESENCIAL,
       estado: EstadoCobro.CONFIRMADO,
       FK_forma_pago: efectivo.id_forma_pago,
@@ -455,7 +484,7 @@ async function main() {
       saldo_posterior: 1_000_000,
     });
     await crearCobroSimple({
-      fecha_cobro: diasDesdeHoy(-130),
+      fecha_cobro: fechaCobroDesdeHoy(-130),
       origen: OrigenCobro.ECOMMERCE,
       estado: EstadoCobro.CONFIRMADO,
       FK_forma_pago: transferencia.id_forma_pago,
@@ -468,7 +497,7 @@ async function main() {
 
     // Cuota 1 de A-101 (3.840.000), pagada en 3 partes.
     await crearCobroSimple({
-      fecha_cobro: diasDesdeHoy(-112),
+      fecha_cobro: fechaCobroDesdeHoy(-112),
       origen: OrigenCobro.ECOMMERCE,
       estado: EstadoCobro.CONFIRMADO,
       FK_forma_pago: transferencia.id_forma_pago,
@@ -479,7 +508,7 @@ async function main() {
       saldo_posterior: 1_840_000,
     });
     await crearCobroSimple({
-      fecha_cobro: diasDesdeHoy(-108),
+      fecha_cobro: fechaCobroDesdeHoy(-108),
       origen: OrigenCobro.ECOMMERCE,
       estado: EstadoCobro.CONFIRMADO,
       FK_forma_pago: transferencia.id_forma_pago,
@@ -490,7 +519,7 @@ async function main() {
       saldo_posterior: 840_000,
     });
     await crearCobroSimple({
-      fecha_cobro: diasDesdeHoy(-100),
+      fecha_cobro: fechaCobroDesdeHoy(-100),
       origen: OrigenCobro.PRESENCIAL,
       estado: EstadoCobro.CONFIRMADO,
       FK_forma_pago: efectivo.id_forma_pago,
@@ -504,7 +533,7 @@ async function main() {
     // Cuota 2 de A-101: 4 pagos parciales confirmados (2.000.000 de
     // 3.840.000) + 1 cobro ANULADO que nunca llegó a descontar saldo.
     await crearCobroSimple({
-      fecha_cobro: diasDesdeHoy(-82),
+      fecha_cobro: fechaCobroDesdeHoy(-82),
       origen: OrigenCobro.ECOMMERCE,
       estado: EstadoCobro.CONFIRMADO,
       FK_forma_pago: transferencia.id_forma_pago,
@@ -515,7 +544,7 @@ async function main() {
       saldo_posterior: 3_340_000,
     });
     await crearCobroSimple({
-      fecha_cobro: diasDesdeHoy(-70),
+      fecha_cobro: fechaCobroDesdeHoy(-70),
       origen: OrigenCobro.ECOMMERCE,
       estado: EstadoCobro.CONFIRMADO,
       FK_forma_pago: transferencia.id_forma_pago,
@@ -526,7 +555,7 @@ async function main() {
       saldo_posterior: 2_840_000,
     });
     await crearCobroSimple({
-      fecha_cobro: diasDesdeHoy(-55),
+      fecha_cobro: fechaCobroDesdeHoy(-55),
       origen: OrigenCobro.PRESENCIAL,
       estado: EstadoCobro.CONFIRMADO,
       FK_forma_pago: efectivo.id_forma_pago,
@@ -537,7 +566,7 @@ async function main() {
       saldo_posterior: 2_340_000,
     });
     await crearCobroSimple({
-      fecha_cobro: diasDesdeHoy(-40),
+      fecha_cobro: fechaCobroDesdeHoy(-40),
       origen: OrigenCobro.ECOMMERCE,
       estado: EstadoCobro.CONFIRMADO,
       FK_forma_pago: transferencia.id_forma_pago,
@@ -552,7 +581,7 @@ async function main() {
     // sigue con saldo_pendiente 1.840.000 — la anulación restituyó lo que
     // este cobro había descontado, exactamente como haría CobroService.anular.
     await crearCobroSimple({
-      fecha_cobro: diasDesdeHoy(-38),
+      fecha_cobro: fechaCobroDesdeHoy(-38),
       origen: OrigenCobro.ECOMMERCE,
       estado: EstadoCobro.ANULADO,
       FK_forma_pago: transferencia.id_forma_pago,
@@ -569,7 +598,7 @@ async function main() {
     // en cada sección"). Se arma con dos DETALLECOBRO sobre un mismo COBRO.
     await prisma.cOBRO.create({
       data: {
-        fecha_cobro: diasDesdeHoy(-15),
+        fecha_cobro: fechaCobroDesdeHoy(-15),
         FK_cliente: ID_CLIENTE_PRUEBA,
         FK_forma_pago: transferencia.id_forma_pago,
         numero_referencia: 'TR-MIXTO-001',

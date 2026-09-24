@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Pagination } from '@/shared/components/common/Pagination'
 import { Spinner } from '@/shared/components/ui/Spinner'
 import { formatearFecha } from '@/shared/utils/fecha'
@@ -11,8 +12,6 @@ const LIMITE_PAGINA = 10
 
 interface HistorialPagosProps {
   idVenta: number
-  page: number
-  onPageChange: (page: number) => void
 }
 
 /**
@@ -20,8 +19,16 @@ interface HistorialPagosProps {
  * paginado (T112, HU-28). Un cobro que imputó a cuotas de otra unidad del
  * mismo cliente aparece acá partido: `importe_imputado` es solo el subtotal
  * de esta venta, nunca el total del cobro completo.
+ *
+ * La página es estado propio y arranca en 1: quien lo usa lo monta con
+ * `key={idVenta}`, así que al cambiar de venta se remonta en la página 1
+ * antes de pedir nada — sin un pedido de más por la página vieja de la venta
+ * nueva, y sin que `keepPreviousData` muestre el historial de la anterior.
+ * Si solo se vuelve a pedir el detalle de la misma venta, no se remonta y la
+ * página se conserva.
  */
-export function HistorialPagos({ idVenta, page, onPageChange }: HistorialPagosProps) {
+export function HistorialPagos({ idVenta }: HistorialPagosProps) {
+  const [page, setPage] = useState(1)
   const { data, isLoading, isFetching, isError } = useHistorialPagos(idVenta, page)
   const pagos = data?.data ?? []
   const total = data?.meta.total ?? 0
@@ -61,7 +68,7 @@ export function HistorialPagos({ idVenta, page, onPageChange }: HistorialPagosPr
             totalPages={totalPaginas}
             totalItems={total}
             pageSize={LIMITE_PAGINA}
-            onPageChange={onPageChange}
+            onPageChange={setPage}
             disabled={isFetching}
             className="[&>p]:text-light/70 [&>p_span]:text-light [&_nav>span]:text-light/70"
           />

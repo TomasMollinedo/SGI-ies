@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { Link, useParams } from 'react-router'
 import { PATHS } from '@/app/router/paths'
@@ -22,9 +21,6 @@ export function MiCompraDetallePage() {
   const { idVenta } = useParams()
   const id = Number(idVenta)
   const { data: venta, isLoading, isError } = useMiVentaDetalle(id)
-  // Página propia del historial: no se resetea si el resto de la pantalla se
-  // vuelve a pedir (ej. al volver de otra pestaña), solo si se cambia de venta.
-  const [paginaHistorial, setPaginaHistorial] = useState(1)
 
   if (isLoading) {
     return (
@@ -106,7 +102,12 @@ export function MiCompraDetallePage() {
       </div>
 
       <div className="mt-14">
-        <HistorialPagos idVenta={id} page={paginaHistorial} onPageChange={setPaginaHistorial} />
+        {/*
+          `key={id}`: al cambiar de venta, el historial se remonta y vuelve a
+          la página 1 (la página es estado propio del componente). Si solo se
+          vuelve a pedir el detalle de esta misma venta, conserva su página.
+        */}
+        <HistorialPagos key={id} idVenta={id} />
       </div>
 
       {/*
