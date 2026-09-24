@@ -178,9 +178,10 @@ describe('ConsultaService', () => {
   });
 
   describe('listar (cola interna)', () => {
-    it('combina los cuatro filtros: unidad, cliente, estado y período', async () => {
+    it('combina los filtros: proyecto, identificador, cliente, estado y período', async () => {
       await service.listar({
-        FK_unidad_funcional: 12,
+        FK_proyecto: 1,
+        identificador: '3A',
         FK_cliente: CLIENTE_ID,
         estado: EstadoConsulta.PENDIENTE,
         fechaDesde: new Date('2026-08-01'),
@@ -192,11 +193,36 @@ describe('ConsultaService', () => {
       expect(primerArgumento(prisma.cONSULTAUNIDAD.findMany).where).toEqual({
         FK_cliente: CLIENTE_ID,
         estado: EstadoConsulta.PENDIENTE,
-        publicacion: { FK_unidad_funcional: 12 },
+        publicacion: {
+          unidadFuncional: {
+            FK_proyecto: 1,
+            AND: [{ identificador: { contains: '3A', mode: 'insensitive' } }],
+          },
+        },
         hora_creacion: {
           gte: new Date('2026-08-01'),
           lte: new Date('2026-08-31'),
         },
+      });
+    });
+
+    it('filtra por identificador solo, sin exigir un proyecto (puede traer unidades de proyectos distintos a propósito)', async () => {
+      await service.listar({ identificador: '3A', page: 1, limit: 10 });
+
+      expect(primerArgumento(prisma.cONSULTAUNIDAD.findMany).where).toEqual({
+        publicacion: {
+          unidadFuncional: {
+            AND: [{ identificador: { contains: '3A', mode: 'insensitive' } }],
+          },
+        },
+      });
+    });
+
+    it('filtra por proyecto solo, sin exigir un identificador', async () => {
+      await service.listar({ FK_proyecto: 1, page: 1, limit: 10 });
+
+      expect(primerArgumento(prisma.cONSULTAUNIDAD.findMany).where).toEqual({
+        publicacion: { unidadFuncional: { FK_proyecto: 1 } },
       });
     });
 

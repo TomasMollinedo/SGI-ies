@@ -59,7 +59,14 @@ export class ConsultaAdminController {
     description:
       'Es una cola de trabajo, no un dashboard: sin indicadores ni resúmenes, solo el listado paginado, más reciente primero. Incluye las consultas de unidades ya despublicadas: no se borran nunca.',
   })
-  @ApiQuery({ name: 'FK_unidad_funcional', required: false, type: Number })
+   @ApiQuery({ name: 'FK_proyecto', required: false, type: Number })
+  @ApiQuery({
+    name: 'identificador',
+    required: false,
+    type: String,
+    description:
+      'Coincidencia parcial contra el identificador de la unidad (ej. "3A"), sin importar mayúsculas ni el proyecto — combinar con FK_proyecto para acotar a una unidad puntual, porque el identificador solo es único dentro de su proyecto',
+  })
   @ApiQuery({ name: 'FK_cliente', required: false, type: Number })
   @ApiQuery({ name: 'estado', required: false, enum: EstadoConsulta })
   @ApiQuery({
