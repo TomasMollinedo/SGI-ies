@@ -9,6 +9,7 @@ import {
   EstadoConsulta,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { condicionBusquedaPorPalabras } from '../../../common/validaciones/busqueda-por-palabras';
 import { CreateConsultaDto } from './dto/create-consulta.dto';
 import { QueryConsultaDto } from './dto/query-consulta.dto';
 import { ResponderConsultaDto } from './dto/responder-consulta.dto';
@@ -123,14 +124,22 @@ export class ConsultaService {
 
   /**
    * Cola de trabajo de Comercialización para responder consultas (HU-26):
-   * filtros combinables por unidad, cliente, estado y período (sobre
-   * `hora_creacion`, la única fecha de la consulta). Es una cola, no un
+   * filtros combinables por proyecto, identificador de unidad (texto libre),
+   * cliente, estado y período (sobre `hora_creacion`). Es una cola, no un
    * dashboard: sin resúmenes ni indicadores, y mismo criterio que
    * `listarDeCliente` sobre no filtrar por vigencia de la publicación.
+   *
+   * `identificador` usa `condicionBusquedaPorPalabras` (mismo criterio que
+   * el resto de los listados con búsqueda de texto libre, ver Proveedor):
+   * coincidencia parcial, sin importar mayúsculas. Como el identificador
+   * solo es único dentro de su proyecto, buscar sin combinar con
+   * `FK_proyecto` puede traer unidades de proyectos distintos — es el
+   * comportamiento pedido, no un bug.
    */
   async listar(query: QueryConsultaDto) {
     const {
-      FK_unidad_funcional,
+      FK_proyecto,
+      identificador,
       FK_cliente,
       estado,
       fechaDesde,
@@ -142,8 +151,17 @@ export class ConsultaService {
     const where: Prisma.CONSULTAUNIDADWhereInput = {
       ...(FK_cliente !== undefined && { FK_cliente }),
       ...(estado !== undefined && { estado }),
-      ...(FK_unidad_funcional !== undefined && {
-        publicacion: { FK_unidad_funcional },
+      ...((FK_proyecto !== undefined || identificador !== undefined) && {
+        publicacion: {
+          unidadFuncional: {
+            ...(FK_proyecto !== undefined && { FK_proyecto }),
+            ...(identificador !== undefined &&
+              condicionBusquedaPorPalabras<Prisma.UNIDADFUNCIONALWhereInput>(
+                'identificador',
+                identificador,
+              )),
+          },
+        },
       }),
       ...((fechaDesde !== undefined || fechaHasta !== undefined) && {
         hora_creacion: {
