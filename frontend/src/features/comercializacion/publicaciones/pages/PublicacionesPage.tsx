@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Megaphone, ShieldAlert } from 'lucide-react'
-import { PATHS, rutaDetallePublicacion } from '@/app/router/paths'
+import { PATHS, rutaDetallePublicacion, rutaPlanesPagoPublicacion } from '@/app/router/paths'
 import { DataTable } from '@/shared/components/common/DataTable'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { Pagination } from '@/shared/components/common/Pagination'
@@ -125,6 +125,7 @@ export function PublicacionesPage() {
         <AccionesPublicacionRow
           publicacion={item}
           onVer={() => navigate(rutaDetallePublicacion(item.id_publicacion))}
+          onVerPlanesPago={() => navigate(rutaPlanesPagoPublicacion(item.id_publicacion))}
           onDespublicar={() =>
             setDespublicando({
               id_publicacion: item.id_publicacion,
