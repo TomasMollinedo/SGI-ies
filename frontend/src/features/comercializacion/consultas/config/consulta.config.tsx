@@ -1,45 +1,30 @@
-export type EstadoConsulta = 'PENDIENTE' | 'RESPONDIDA'
+import { Badge } from '@/shared/components/ui/Badge'
+import type { SelectOption } from '@/shared/components/ui/Select'
+import type { EstadoConsulta } from '../types/consulta.types'
 
-/** Valor del filtro de estado: `''` = todos, sin mandar el parámetro. */
-export type FiltroEstadoConsulta = EstadoConsulta | ''
+/** Resultados por página de la cola. Fijo, igual que en el resto de los listados. */
+export const LIMITE_PAGINA = 10
 
-export interface UnidadDeConsulta {
-  id_unidad_funcional: number
-  identificador: string
-  proyecto: { nombre: string }
+export const ESTADO_CONSULTA_LABEL: Record<EstadoConsulta, string> = {
+  PENDIENTE: 'Pendiente',
+  RESPONDIDA: 'Respondida',
 }
 
-export interface ClienteDeConsulta {
-  id_cliente: number
-  nombre: string
-  apellido: string | null
-  email: string
+export const OPCIONES_ESTADO: SelectOption[] = [
+  { value: '', label: 'Todos los estados' },
+  { value: 'PENDIENTE', label: 'Pendiente' },
+  { value: 'RESPONDIDA', label: 'Respondida' },
+]
+
+export function esEstadoConsulta(valor: string): valor is EstadoConsulta {
+  return valor === 'PENDIENTE' || valor === 'RESPONDIDA'
 }
 
-/** Fila de la cola interna (GET /consultas): la consulta completa, con el cliente que la hizo. */
-export interface ConsultaInterna {
-  id_consulta: number
-  texto: string
-  estado: EstadoConsulta
-  respuesta: string | null
-  fecha_respuesta: string | null
-  hora_creacion: string
-  unidad: UnidadDeConsulta
-  cliente: ClienteDeConsulta
-}
-
-/** Query params de GET /consultas. Los que van `undefined` no se envían. */
-export interface ConsultasQuery {
-  FK_unidad_funcional?: number
-  FK_cliente?: number
-  estado?: EstadoConsulta
-  fechaDesde?: string
-  fechaHasta?: string
-  page?: number
-  limit?: number
-}
-
-/** Body de PATCH /consultas/:id/responder. */
-export interface ResponderConsultaPayload {
-  respuesta: string
+/** Pendiente en amarillo (necesita acción); Respondida en verde (resuelta). */
+export function badgeEstadoConsulta(estado: EstadoConsulta) {
+  return (
+    <Badge variant={estado === 'RESPONDIDA' ? 'active' : 'warning'}>
+      {ESTADO_CONSULTA_LABEL[estado]}
+    </Badge>
+  )
 }

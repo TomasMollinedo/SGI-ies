@@ -42,6 +42,7 @@ import { CardexCuentaCorrientePage } from '@/features/tesoreria/cuentas-corrient
 import { CuentasCorrientesPage } from '@/features/tesoreria/cuentas-corrientes/pages/CuentasCorrientesPage'
 import { UnidadesFuncionalesPage } from '@/features/proyectos/unidades-funcionales/pages/UnidadesFuncionalesPage'
 import { UnidadFuncionalFormPage } from '@/features/proyectos/unidades-funcionales/pages/UnidadFuncionalFormPage'
+import { ConsultasPage } from '@/features/comercializacion/consultas/pages/ConsultasPage'
 
 export const router = createBrowserRouter([
   { path: PATHS.LOGIN, element: <LoginPage /> },
@@ -272,7 +273,7 @@ export const router = createBrowserRouter([
               },
             ],
           },
-          {
+                    {
             path: PATHS.COMERCIALIZACION.ROOT,
             children: [
               {
@@ -303,6 +304,12 @@ export const router = createBrowserRouter([
                 path: PATHS.COMERCIALIZACION.VENTA_DETALLE,
                 element: <VentaDetallePage />,
                 handle: { title: 'Detalle de venta' },
+              },
+
+              {
+                path: PATHS.COMERCIALIZACION.CONSULTAS,
+                element: <ConsultasPage />,
+                handle: { title: 'Consultas' },
               },
             ],
           },

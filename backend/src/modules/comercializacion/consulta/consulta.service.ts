@@ -157,7 +157,7 @@ export class ConsultaService {
       this.prisma.cONSULTAUNIDAD.findMany({
         where,
         select: CONSULTA_INTERNA_SELECT,
-        orderBy: { hora_creacion: 'desc' },
+        orderBy: { hora_creacion: 'asc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
