@@ -1,13 +1,24 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { VentaService } from './venta.service';
-import { MisVentasResponseDto } from './dto/venta-cliente-response.dto';
+import {
+  MisVentasResponseDto,
+  VentaClienteDetalleResponseDto,
+} from './dto/venta-cliente-response.dto';
 import { ClienteAuthGuard } from '../cliente-auth/guards/cliente-auth.guard';
 import { CurrentCliente } from '../cliente-auth/decorators/current-cliente.decorator';
 import type { AuthenticatedCliente } from '../cliente-auth/strategies/cliente-jwt.strategy';
@@ -49,5 +60,30 @@ export class VentaClienteController {
   @ApiUnauthorizedResponse({ description: MENSAJE_NO_AUTENTICADO })
   misVentas(@CurrentCliente() cliente: AuthenticatedCliente) {
     return this.ventaService.misVentas(cliente.id);
+  }
+
+  @Get(':id')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Detalle de una unidad del cliente autenticado: plan de pago y cronograma completo de cuotas (HU-28)',
+    description:
+      'El historial de pagos vive aparte, paginado (GET /cliente/ventas/:id/historial-pagos). "id" es id_venta.',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'id_venta' })
+  @ApiOkResponse({
+    description: 'Detalle de la venta',
+    type: VentaClienteDetalleResponseDto,
+  })
+  @ApiUnauthorizedResponse({ description: MENSAJE_NO_AUTENTICADO })
+  @ApiNotFoundResponse({
+    description:
+      'No existe una venta con ese id para este cliente (o no está vigente)',
+  })
+  detalle(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentCliente() cliente: AuthenticatedCliente,
+  ) {
+    return this.ventaService.detalleVentaCliente(id, cliente.id);
   }
 }

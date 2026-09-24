@@ -47,6 +47,7 @@ describe('VentaService', () => {
     vENTA: {
       findUnique: jest.Mock;
       findMany: jest.Mock;
+      findFirst: jest.Mock;
     };
     $transaction: jest.Mock;
   };
@@ -160,6 +161,7 @@ describe('VentaService', () => {
       vENTA: {
         findUnique: jest.fn().mockResolvedValue(ventaDetalleCompleta),
         findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
       },
 
       $transaction: jest.fn((callback: (transaction: typeof tx) => unknown) =>
@@ -550,6 +552,160 @@ describe('VentaService', () => {
       expect(resultado.data[0].condicion_entrega.codigo).toBe(
         'A_ENTREGAR_CON_FECHA',
       );
+    });
+  });
+
+  describe('detalleVentaCliente', () => {
+    const proyectoBase = {
+      id_proyecto: 4,
+      nombre: 'Torres del Sur',
+      localidad: 'Salta',
+      estado: 'EN_EJECUCION',
+      fecha_fin_estimada: new Date('2027-01-01T00:00:00Z'),
+    };
+
+    const ventaDetalleBase = {
+      id_venta: 20,
+      estado: 'VIGENTE',
+      fecha_adhesion: new Date('2026-01-10T00:00:00Z'),
+      precio_congelado: new Prisma.Decimal(120000),
+      anticipo_congelado: new Prisma.Decimal(20000),
+      tipo_plan_congelado: 'FINANCIADO',
+      cantidad_cuotas_congelada: 10,
+      periodicidad_congelada: 'MENSUAL',
+      planPago: { nombre: 'Financiado 10 cuotas' },
+      publicacion: {
+        unidadFuncional: {
+          id_unidad_funcional: 30,
+          identificador: '4A',
+          tipologia: 'DOS_DORMITORIOS',
+          superficie_cubierta: new Prisma.Decimal(55),
+          superficie_descubierta: null,
+          piso: '4',
+          comodidades: null,
+          observaciones: null,
+          proyecto: proyectoBase,
+        },
+      },
+      cuotas: [] as {
+        numero: number;
+        importe: Prisma.Decimal;
+        fecha_vencimiento: Date;
+        saldo_pendiente: Prisma.Decimal;
+        estado: string;
+      }[],
+    };
+
+    it('tira 404 si no existe una venta VIGENTE con ese id para este cliente', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue(null);
+
+      await expect(service.detalleVentaCliente(20, 1)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+
+      expect(prisma.vENTA.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id_venta: 20, FK_cliente: 1, estado: 'VIGENTE' },
+        }) as unknown,
+      );
+    });
+
+    it('mapea el plan con las condiciones congeladas de la venta, no las de PLANPAGO', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue(ventaDetalleBase);
+
+      const resultado = await service.detalleVentaCliente(20, 1);
+
+      expect(resultado.plan).toEqual({
+        nombre: 'Financiado 10 cuotas',
+        tipo: 'FINANCIADO',
+        precio: 120000,
+        anticipo: 20000,
+        cantidad_cuotas: 10,
+        periodicidad: 'MENSUAL',
+      });
+    });
+
+    it('marca vencido y calcula dias_vencido en una cuota PENDIENTE con fecha pasada', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({
+        ...ventaDetalleBase,
+        cuotas: [
+          {
+            numero: 3,
+            importe: new Prisma.Decimal(10000),
+            fecha_vencimiento: new Date('2020-01-01T00:00:00Z'),
+            saldo_pendiente: new Prisma.Decimal(10000),
+            estado: 'PENDIENTE',
+          },
+        ],
+      });
+
+      const resultado = await service.detalleVentaCliente(20, 1);
+
+      expect(resultado.cuotas[0].vencido).toBe(true);
+      expect(resultado.cuotas[0].dias_vencido).toBeGreaterThan(0);
+    });
+
+    it('una cuota PAGADA (saldo cero) con fecha pasada nunca queda vencida', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({
+        ...ventaDetalleBase,
+        cuotas: [
+          {
+            numero: 0,
+            importe: new Prisma.Decimal(20000),
+            fecha_vencimiento: new Date('2020-01-01T00:00:00Z'),
+            saldo_pendiente: new Prisma.Decimal(0),
+            estado: 'PAGADA',
+          },
+        ],
+      });
+
+      const resultado = await service.detalleVentaCliente(20, 1);
+
+      expect(resultado.cuotas[0].vencido).toBe(false);
+      expect(resultado.cuotas[0].dias_vencido).toBe(0);
+    });
+
+    it('calcula saldo_total_pendiente como la suma de saldo_pendiente de las cuotas', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({
+        ...ventaDetalleBase,
+        cuotas: [
+          {
+            numero: 1,
+            importe: new Prisma.Decimal(10000),
+            fecha_vencimiento: new Date('2099-01-01'),
+            saldo_pendiente: new Prisma.Decimal(10000),
+            estado: 'PENDIENTE',
+          },
+          {
+            numero: 2,
+            importe: new Prisma.Decimal(10000),
+            fecha_vencimiento: new Date('2099-01-01'),
+            saldo_pendiente: new Prisma.Decimal(4000),
+            estado: 'PARCIAL',
+          },
+        ],
+      });
+
+      const resultado = await service.detalleVentaCliente(20, 1);
+
+      expect(resultado.saldo_total_pendiente).toBe(14000);
+    });
+
+    it('mapea unidad completa (superficies, piso, comodidades, observaciones)', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue(ventaDetalleBase);
+
+      const resultado = await service.detalleVentaCliente(20, 1);
+
+      expect(resultado.unidad).toEqual({
+        id_unidad_funcional: 30,
+        identificador: '4A',
+        tipologia: 'DOS_DORMITORIOS',
+        superficie_cubierta: 55,
+        superficie_descubierta: null,
+        piso: '4',
+        comodidades: null,
+        observaciones: null,
+      });
     });
   });
 });

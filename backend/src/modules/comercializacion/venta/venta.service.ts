@@ -598,6 +598,140 @@ export class VentaService {
     };
   }
 
+  /**
+   * Detalle de una unidad del cliente autenticado (T112, HU-28): la misma
+   * cabecera de `misVentas` + la unidad ampliada, el plan (condiciones
+   * congeladas de la VENTA, nunca las de PLANPAGO) y el cronograma completo
+   * de cuotas con `vencido`/`dias_vencido` ya resueltos.
+   *
+   * `NotFoundException` genérico si la venta no existe, no es de este
+   * cliente, o no está VIGENTE (una cancelada ya no aparece en `misVentas`,
+   * así que tampoco se puede entrar a su detalle por URL): nunca hay que
+   * distinguirle al cliente cuál de los tres motivos fue.
+   */
+  async detalleVentaCliente(idVenta: number, clienteId: number) {
+    const venta = await this.prisma.vENTA.findFirst({
+      where: {
+        id_venta: idVenta,
+        FK_cliente: clienteId,
+        estado: EstadoVenta.VIGENTE,
+      },
+      select: {
+        id_venta: true,
+        estado: true,
+        fecha_adhesion: true,
+        precio_congelado: true,
+        anticipo_congelado: true,
+        tipo_plan_congelado: true,
+        cantidad_cuotas_congelada: true,
+        periodicidad_congelada: true,
+        planPago: { select: { nombre: true } },
+        publicacion: {
+          select: {
+            unidadFuncional: {
+              select: {
+                id_unidad_funcional: true,
+                identificador: true,
+                tipologia: true,
+                superficie_cubierta: true,
+                superficie_descubierta: true,
+                piso: true,
+                comodidades: true,
+                observaciones: true,
+                proyecto: {
+                  select: {
+                    id_proyecto: true,
+                    nombre: true,
+                    localidad: true,
+                    estado: true,
+                    fecha_fin_estimada: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        cuotas: {
+          where: { estado: { not: EstadoCuota.ANULADA } },
+          select: {
+            numero: true,
+            importe: true,
+            fecha_vencimiento: true,
+            saldo_pendiente: true,
+            estado: true,
+          },
+          orderBy: { numero: 'asc' },
+        },
+      },
+    });
+
+    if (!venta) {
+      throw new NotFoundException('No existe una venta con ese id');
+    }
+
+    const { unidadFuncional } = venta.publicacion;
+    const { proyecto, ...unidad } = unidadFuncional;
+    const hoy = new Date();
+
+    const cuotas = venta.cuotas.map((cuota) => {
+      const { vencido, dias_vencido } = calcularDiasVencido(
+        cuota.fecha_vencimiento,
+        hoy,
+      );
+      // Saldada nunca está vencida aunque su fecha ya haya pasado — mismo
+      // criterio que `mapearVentaCliente`.
+      const vencidoEfectivo = cuota.saldo_pendiente.greaterThan(0) && vencido;
+
+      return {
+        numero: cuota.numero,
+        importe: cuota.importe.toNumber(),
+        fecha_vencimiento: cuota.fecha_vencimiento.toISOString(),
+        saldo_pendiente: cuota.saldo_pendiente.toNumber(),
+        estado: cuota.estado,
+        vencido: vencidoEfectivo,
+        dias_vencido: vencidoEfectivo ? dias_vencido : 0,
+      };
+    });
+
+    const saldoTotalPendiente = venta.cuotas.reduce(
+      (acumulado, cuota) => acumulado.plus(cuota.saldo_pendiente),
+      new Prisma.Decimal(0),
+    );
+
+    return {
+      id_venta: venta.id_venta,
+      estado: venta.estado,
+      fecha_adhesion: venta.fecha_adhesion.toISOString(),
+      unidad: {
+        id_unidad_funcional: unidad.id_unidad_funcional,
+        identificador: unidad.identificador,
+        tipologia: unidad.tipologia,
+        superficie_cubierta: unidad.superficie_cubierta.toNumber(),
+        superficie_descubierta:
+          unidad.superficie_descubierta?.toNumber() ?? null,
+        piso: unidad.piso,
+        comodidades: unidad.comodidades,
+        observaciones: unidad.observaciones,
+      },
+      proyecto: {
+        id_proyecto: proyecto.id_proyecto,
+        nombre: proyecto.nombre,
+        localidad: proyecto.localidad,
+      },
+      condicion_entrega: this.mapearCondicionEntregaVenta(proyecto),
+      plan: {
+        nombre: venta.planPago.nombre,
+        tipo: venta.tipo_plan_congelado,
+        precio: venta.precio_congelado.toNumber(),
+        anticipo: venta.anticipo_congelado.toNumber(),
+        cantidad_cuotas: venta.cantidad_cuotas_congelada,
+        periodicidad: venta.periodicidad_congelada,
+      },
+      cuotas,
+      saldo_total_pendiente: saldoTotalPendiente.toNumber(),
+    };
+  }
+
   private mapearVenta(venta: {
     id_venta: number;
     fecha_adhesion: Date;

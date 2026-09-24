@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
 import {
+  EstadoCuota,
   EstadoVenta,
+  Periodicidad,
+  TipoPlanPago,
   TipologiaUnidad,
 } from '../../../../../generated/prisma/enums';
 
@@ -52,4 +55,57 @@ export const misVentasResponseSchema = z.object({
 
 export class MisVentasResponseDto extends createZodDto(
   misVentasResponseSchema,
+) {}
+
+const unidadClienteDetalleSchema = unidadClienteResumenSchema.extend({
+  superficie_cubierta: z.number(),
+  superficie_descubierta: z.number().nullable(),
+  piso: z.string().nullable(),
+  comodidades: z.string().nullable(),
+  observaciones: z.string().nullable(),
+});
+
+/**
+ * Condiciones congeladas de `VENTA` (nunca las de `PLANPAGO`, que puede haber
+ * cambiado después) + el nombre del plan, solo para mostrarlo.
+ */
+const planClienteSchema = z.object({
+  nombre: z.string(),
+  tipo: z.enum(TipoPlanPago),
+  precio: z.number(),
+  anticipo: z.number(),
+  cantidad_cuotas: z.number(),
+  periodicidad: z.enum(Periodicidad).nullable(),
+});
+
+/**
+ * `vencido`/`dias_vencido` ya vienen resueltos (`calcularDiasVencido` +
+ * "saldada nunca está vencida"): el frontend nunca compara fechas a mano.
+ */
+const cuotaClienteSchema = z.object({
+  numero: z.number(),
+  importe: z.number(),
+  fecha_vencimiento: z.iso.datetime(),
+  saldo_pendiente: z.number(),
+  estado: z.enum(EstadoCuota),
+  vencido: z.boolean(),
+  dias_vencido: z.number(),
+});
+
+/**
+ * Detalle de una venta propia: la cabecera del listado (`ventaClienteResumenSchema`)
+ * con la unidad ampliada, el plan y el cronograma completo de cuotas. El
+ * historial de pagos vive aparte (`GET /cliente/ventas/:id/historial-pagos`,
+ * paginado — T112 fase 3), igual que el cardex de Cuenta Corriente.
+ */
+export const ventaClienteDetalleSchema = ventaClienteResumenSchema
+  .omit({ unidad: true })
+  .extend({
+    unidad: unidadClienteDetalleSchema,
+    plan: planClienteSchema,
+    cuotas: z.array(cuotaClienteSchema),
+  });
+
+export class VentaClienteDetalleResponseDto extends createZodDto(
+  ventaClienteDetalleSchema,
 ) {}
