@@ -34,7 +34,7 @@ export function TarjetaPublica({ icon, title, footer, className, children }: Tar
       <div className="text-light px-6 py-6">{children}</div>
 
       {footer && (
-        <footer className="border-light/10 flex items-center justify-end gap-3 border-t px-6 py-5">
+        <footer className="border-light/10 flex flex-wrap items-center justify-end gap-3 border-t px-6 py-5">
           {footer}
         </footer>
       )}

@@ -44,7 +44,7 @@ export function PerfilPage() {
   const totalPaginas = meta ? Math.ceil(meta.total / meta.limit) : 0
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-8 px-4 py-12 sm:px-6">
+    <div className="mx-auto flex w-full max-w-lg flex-col gap-8 px-4 py-12 sm:px-6">
       <TarjetaPublica
         icon={<User />}
         title="Mi perfil"
