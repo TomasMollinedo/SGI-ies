@@ -46,6 +46,7 @@ describe('VentaService', () => {
     };
     vENTA: {
       findUnique: jest.Mock;
+      findMany: jest.Mock;
     };
     $transaction: jest.Mock;
   };
@@ -158,6 +159,7 @@ describe('VentaService', () => {
 
       vENTA: {
         findUnique: jest.fn().mockResolvedValue(ventaDetalleCompleta),
+        findMany: jest.fn().mockResolvedValue([]),
       },
 
       $transaction: jest.fn((callback: (transaction: typeof tx) => unknown) =>
@@ -427,6 +429,127 @@ describe('VentaService', () => {
       );
 
       expect(resultado.estado).toBe('CANCELADA');
+    });
+  });
+
+  describe('misVentas', () => {
+    const proyectoBase = {
+      id_proyecto: 4,
+      nombre: 'Torres del Sur',
+      localidad: 'Salta',
+      estado: 'EN_EJECUCION',
+      fecha_fin_estimada: new Date('2027-01-01T00:00:00Z'),
+    };
+
+    const ventaBase = {
+      id_venta: 20,
+      estado: 'VIGENTE',
+      fecha_adhesion: new Date('2026-01-10T00:00:00Z'),
+      publicacion: {
+        unidadFuncional: {
+          id_unidad_funcional: 30,
+          identificador: '4A',
+          tipologia: 'DOS_DORMITORIOS',
+          proyecto: proyectoBase,
+        },
+      },
+      cuotas: [] as {
+        saldo_pendiente: Prisma.Decimal;
+        fecha_vencimiento: Date;
+      }[],
+    };
+
+    it('devuelve data: [] si el cliente no tiene ventas vigentes', async () => {
+      prisma.vENTA.findMany.mockResolvedValue([]);
+
+      const resultado = await service.misVentas(1);
+
+      expect(prisma.vENTA.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { FK_cliente: 1, estado: 'VIGENTE' },
+        }) as unknown,
+      );
+      expect(resultado).toEqual({ data: [] });
+    });
+
+    it('calcula saldo_total_pendiente como la suma de saldo_pendiente de las cuotas', async () => {
+      prisma.vENTA.findMany.mockResolvedValue([
+        {
+          ...ventaBase,
+          cuotas: [
+            {
+              saldo_pendiente: new Prisma.Decimal(1000),
+              fecha_vencimiento: new Date('2099-01-01'),
+            },
+            {
+              saldo_pendiente: new Prisma.Decimal(500),
+              fecha_vencimiento: new Date('2099-01-01'),
+            },
+          ],
+        },
+      ]);
+
+      const resultado = await service.misVentas(1);
+
+      expect(resultado.data[0].saldo_total_pendiente).toBe(1500);
+    });
+
+    it('marca tiene_cuotas_vencidas si alguna cuota con saldo tiene fecha de vencimiento pasada', async () => {
+      prisma.vENTA.findMany.mockResolvedValue([
+        {
+          ...ventaBase,
+          cuotas: [
+            {
+              saldo_pendiente: new Prisma.Decimal(1000),
+              fecha_vencimiento: new Date('2020-01-01'),
+            },
+          ],
+        },
+      ]);
+
+      const resultado = await service.misVentas(1);
+
+      expect(resultado.data[0].tiene_cuotas_vencidas).toBe(true);
+    });
+
+    it('no marca tiene_cuotas_vencidas si la cuota vencida ya está saldada (saldo_pendiente = 0)', async () => {
+      prisma.vENTA.findMany.mockResolvedValue([
+        {
+          ...ventaBase,
+          cuotas: [
+            {
+              saldo_pendiente: new Prisma.Decimal(0),
+              fecha_vencimiento: new Date('2020-01-01'),
+            },
+          ],
+        },
+      ]);
+
+      const resultado = await service.misVentas(1);
+
+      expect(resultado.data[0].tiene_cuotas_vencidas).toBe(false);
+    });
+
+    it('mapea unidad, proyecto y condición de entrega de la unidad', async () => {
+      prisma.vENTA.findMany.mockResolvedValue([ventaBase]);
+
+      const resultado = await service.misVentas(1);
+
+      expect(resultado.data[0].unidad).toEqual({
+        id_unidad_funcional: 30,
+        identificador: '4A',
+        tipologia: 'DOS_DORMITORIOS',
+      });
+      expect(resultado.data[0].proyecto).toEqual({
+        id_proyecto: 4,
+        nombre: 'Torres del Sur',
+        localidad: 'Salta',
+      });
+      // proyecto EN_EJECUCION con fecha_fin_estimada → A_ENTREGAR_CON_FECHA
+      // (ver calcularCondicionEntrega).
+      expect(resultado.data[0].condicion_entrega.codigo).toBe(
+        'A_ENTREGAR_CON_FECHA',
+      );
     });
   });
 });

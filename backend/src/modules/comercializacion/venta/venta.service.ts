@@ -9,11 +9,14 @@ import {
   EstadoComercial,
   EstadoCuota,
   EstadoDeclaracionPago,
+  EstadoProyecto,
   EstadoVenta,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { validarTelefonoSoloNumeros } from '../../../common/validaciones/telefono-solo-numeros';
 import { validarDniCuilValido } from '../../../common/validaciones/dni-cuil-valido';
+import { calcularDiasVencido } from '../../../common/validaciones/dias-vencido';
+import { calcularCondicionEntrega } from '../common/condicion-entrega';
 import { PublicacionService } from '../publicacion/publicacion.service';
 import { generarCuotas } from '../plan-pago/motor-cuotas';
 import { CreateVentaDto } from './dto/create-venta.dto';
@@ -473,6 +476,126 @@ export class VentaService {
         },
       },
     } as const;
+  }
+
+  /**
+   * Unidades del cliente autenticado (T112, HU-28): solo ventas VIGENTE — una
+   * cancelada ya no es "mi unidad comprada". Nunca recibe un id de cliente
+   * por parámetro: siempre el del token (`ClienteAuthGuard`/`@CurrentCliente`
+   * en el controller). Sin paginar, mismo criterio que `buscarClientes` de
+   * un catálogo chico: un cliente no acumula unidades como para justificarla.
+   */
+  async misVentas(clienteId: number) {
+    const ventas = await this.prisma.vENTA.findMany({
+      where: { FK_cliente: clienteId, estado: EstadoVenta.VIGENTE },
+      select: {
+        id_venta: true,
+        estado: true,
+        fecha_adhesion: true,
+        publicacion: {
+          select: {
+            unidadFuncional: {
+              select: {
+                id_unidad_funcional: true,
+                identificador: true,
+                tipologia: true,
+                proyecto: {
+                  select: {
+                    id_proyecto: true,
+                    nombre: true,
+                    localidad: true,
+                    estado: true,
+                    fecha_fin_estimada: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        // ANULADA queda afuera: son cuotas de una venta cancelada, no cuentan
+        // para el saldo ni para la alerta de vencidas de una venta vigente.
+        cuotas: {
+          where: { estado: { not: EstadoCuota.ANULADA } },
+          select: { saldo_pendiente: true, fecha_vencimiento: true },
+        },
+      },
+      orderBy: { fecha_adhesion: 'desc' },
+    });
+
+    const hoy = new Date();
+
+    return { data: ventas.map((venta) => this.mapearVentaCliente(venta, hoy)) };
+  }
+
+  private mapearVentaCliente(
+    venta: {
+      id_venta: number;
+      estado: string;
+      fecha_adhesion: Date;
+      publicacion: {
+        unidadFuncional: {
+          id_unidad_funcional: number;
+          identificador: string;
+          tipologia: string;
+          proyecto: {
+            id_proyecto: number;
+            nombre: string;
+            localidad: string;
+            estado: EstadoProyecto;
+            fecha_fin_estimada: Date | null;
+          };
+        };
+      };
+      cuotas: { saldo_pendiente: Prisma.Decimal; fecha_vencimiento: Date }[];
+    },
+    hoy: Date,
+  ) {
+    const { unidadFuncional } = venta.publicacion;
+    const { proyecto, ...unidad } = unidadFuncional;
+
+    const saldoTotalPendiente = venta.cuotas.reduce(
+      (acumulado, cuota) => acumulado.plus(cuota.saldo_pendiente),
+      new Prisma.Decimal(0),
+    );
+
+    // Saldada (saldo_pendiente <= 0) nunca cuenta como vencida aunque su
+    // fecha ya haya pasado — mismo criterio documentado en `calcularDiasVencido`.
+    const tieneCuotasVencidas = venta.cuotas.some(
+      (cuota) =>
+        cuota.saldo_pendiente.greaterThan(0) &&
+        calcularDiasVencido(cuota.fecha_vencimiento, hoy).vencido,
+    );
+
+    return {
+      id_venta: venta.id_venta,
+      estado: venta.estado,
+      fecha_adhesion: venta.fecha_adhesion.toISOString(),
+      unidad: {
+        id_unidad_funcional: unidad.id_unidad_funcional,
+        identificador: unidad.identificador,
+        tipologia: unidad.tipologia,
+      },
+      proyecto: {
+        id_proyecto: proyecto.id_proyecto,
+        nombre: proyecto.nombre,
+        localidad: proyecto.localidad,
+      },
+      condicion_entrega: this.mapearCondicionEntregaVenta(proyecto),
+      saldo_total_pendiente: saldoTotalPendiente.toNumber(),
+      tiene_cuotas_vencidas: tieneCuotasVencidas,
+    };
+  }
+
+  /** Mismo mapeo que `CatalogoService.mapearCondicionEntrega`, repetido acá porque ahí es privado del módulo. */
+  private mapearCondicionEntregaVenta(proyecto: {
+    estado: EstadoProyecto;
+    fecha_fin_estimada: Date | null;
+  }) {
+    const condicion = calcularCondicionEntrega(proyecto);
+    return {
+      ...condicion,
+      fecha_referencia: condicion.fecha_referencia?.toISOString() ?? null,
+    };
   }
 
   private mapearVenta(venta: {
