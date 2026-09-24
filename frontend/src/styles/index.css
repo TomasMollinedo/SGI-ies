@@ -29,7 +29,16 @@ input:-webkit-autofill:focus {
  * ese nodo (el modal es un portal a `document.body`), y se lo reposiciona al
  * origen de la hoja para que no arrastre el espacio en blanco que dejan los
  * elementos ocultos.
+ *
+ * Con margen de hoja en 0 el navegador no tiene dónde dibujar sus
+ * encabezados y pies (URL, título, fecha, n.º de página); el margen visual
+ * lo da el padding del documento, repetido en cada hoja con
+ * `box-decoration-break: clone`.
  */
+@page {
+  margin: 0;
+}
+
 @media print {
   body * {
     visibility: hidden;
@@ -44,5 +53,7 @@ input:-webkit-autofill:focus {
     position: absolute;
     inset: 0;
     width: 100%;
+    padding: 15mm;
+    box-decoration-break: clone;
   }
 }
