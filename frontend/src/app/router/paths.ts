@@ -97,6 +97,10 @@ export const PATHS = {
     LOGIN: '/ingresar',
     COMPLETAR_DATOS: '/completar-datos',
     PERFIL: '/mi-perfil',
+    MIS_COMPRAS: '/mi-perfil/compras',
+    // Patrón de ruta, no una URL navegable: para armar la de una compra
+    // concreta está `rutaMiCompraDetalle`.
+    MI_COMPRA_DETALLE: '/mi-perfil/compras/:idVenta',
   },
 } as const
 
@@ -149,4 +153,9 @@ export function rutaPlanesPagoPublicacion(idPublicacion: number): string {
     ':idPublicacion',
     String(idPublicacion)
   )
+}
+
+/** La ruta del detalle de una compra propia del cliente (ej. 20 → /mi-perfil/compras/20). */
+export function rutaMiCompraDetalle(idVenta: number): string {
+  return PATHS.ECOMMERCE.MI_COMPRA_DETALLE.replace(':idVenta', String(idVenta))
 }

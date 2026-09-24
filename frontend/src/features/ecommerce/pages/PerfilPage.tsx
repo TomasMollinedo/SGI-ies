@@ -1,4 +1,4 @@
-import { Pencil, User } from 'lucide-react'
+import { Building2, Pencil, User } from 'lucide-react'
 import { PATHS } from '@/app/router/paths'
 import { FilaDato } from '../components/FilaDato'
 import { LinkButton } from '../components/LinkButton'
@@ -21,14 +21,24 @@ export function PerfilPage() {
         icon={<User />}
         title="Mi perfil"
         footer={
-          <LinkButton
-            to={PATHS.ECOMMERCE.COMPLETAR_DATOS}
-            variant="secondary"
-            icon={<Pencil />}
-            className="font-mono tracking-widest uppercase"
-          >
-            Editar mis datos
-          </LinkButton>
+          <>
+            <LinkButton
+              to={PATHS.ECOMMERCE.MIS_COMPRAS}
+              variant="primary"
+              icon={<Building2 />}
+              className="font-mono tracking-widest uppercase"
+            >
+              Mis compras
+            </LinkButton>
+            <LinkButton
+              to={PATHS.ECOMMERCE.COMPLETAR_DATOS}
+              variant="secondary"
+              icon={<Pencil />}
+              className="font-mono tracking-widest uppercase"
+            >
+              Editar mis datos
+            </LinkButton>
+          </>
         }
       >
         <FilaDato etiqueta="Nombre" valor={cliente.nombre} />
