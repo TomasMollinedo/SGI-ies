@@ -31,3 +31,14 @@ export const MI_COMPRA_DETALLE = {
   noEncontradaDescripcion:
     'Puede que la venta haya sido cancelada o que no te pertenezca. Volvé a "Mis compras".',
 } as const
+
+export const HISTORIAL_PAGOS = {
+  titulo: 'Historial de pagos',
+  vacio: 'Todavía no registrás pagos sobre esta unidad.',
+  error: 'No pudimos cargar el historial de pagos.',
+} as const
+
+export const ORIGEN_COBRO_LABEL = {
+  PRESENCIAL: 'Presencial',
+  ECOMMERCE: 'Ecommerce',
+} as const

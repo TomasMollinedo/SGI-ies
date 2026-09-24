@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { Link, useParams } from 'react-router'
 import { PATHS } from '@/app/router/paths'
@@ -6,20 +7,24 @@ import { Spinner } from '@/shared/components/ui/Spinner'
 import { TIPOLOGIA_LABEL } from '@/shared/config/tipologiaUnidad.config'
 import { formatearImporte } from '@/shared/utils/importe'
 import { FichaUnidadCompra } from './components/FichaUnidadCompra'
+import { HistorialPagos } from './components/HistorialPagos'
 import { PlanDePagoResumen } from './components/PlanDePagoResumen'
 import { TablaCuotas } from './components/TablaCuotas'
 import { MI_COMPRA_DETALLE, MIS_COMPRAS } from './config/misCompras.config'
 import { useMiVentaDetalle } from './hooks/useMiVentaDetalle'
 
 /**
- * Detalle de una compra propia (T112, HU-28): unidad, plan de pago y
- * cronograma completo de cuotas. Es de solo lectura. El historial de pagos
- * vive aparte, paginado (T112 fase 6).
+ * Detalle de una compra propia (T112, HU-28): unidad, plan de pago,
+ * cronograma completo de cuotas e historial de pagos paginado. Es de solo
+ * lectura.
  */
 export function MiCompraDetallePage() {
   const { idVenta } = useParams()
   const id = Number(idVenta)
   const { data: venta, isLoading, isError } = useMiVentaDetalle(id)
+  // Página propia del historial: no se resetea si el resto de la pantalla se
+  // vuelve a pedir (ej. al volver de otra pestaña), solo si se cambia de venta.
+  const [paginaHistorial, setPaginaHistorial] = useState(1)
 
   if (isLoading) {
     return (
@@ -98,6 +103,10 @@ export function MiCompraDetallePage() {
           adentro de `TablaCuotas`/`FilaCuota`, junto a la cuota vencida — ver
           el comentario ahí. No hay nada visible todavía, a propósito.
         */}
+      </div>
+
+      <div className="mt-14">
+        <HistorialPagos idVenta={id} page={paginaHistorial} onPageChange={setPaginaHistorial} />
       </div>
 
       {/*

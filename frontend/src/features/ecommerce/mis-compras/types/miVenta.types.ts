@@ -83,3 +83,36 @@ export interface MiVentaDetalle {
   cuotas: CuotaMiVenta[]
   saldo_total_pendiente: number
 }
+
+interface FormaPagoResumen {
+  nombre: string
+}
+
+export type OrigenCobro = 'PRESENCIAL' | 'ECOMMERCE'
+export type EstadoCobro = 'CONFIRMADO' | 'ANULADO'
+
+/**
+ * Un cobro en el historial de ESTA unidad: `importe_imputado` es el subtotal
+ * de lo que tocó a esta venta, nunca el total del cobro completo — un cobro
+ * que imputó a cuotas de dos unidades del mismo cliente aparece partido, con
+ * su propio subtotal en cada historial.
+ */
+export interface PagoHistorial {
+  id_cobro: number
+  fecha_cobro: string
+  origen: OrigenCobro
+  estado: EstadoCobro
+  forma_pago: FormaPagoResumen
+  numero_referencia: string | null
+  importe_imputado: number
+}
+
+/** `GET /cliente/ventas/:id/historial-pagos`: paginado, del más reciente al más antiguo. */
+export interface HistorialPagosResponse {
+  data: PagoHistorial[]
+  meta: {
+    total: number
+    page: number
+    limit: number
+  }
+}
