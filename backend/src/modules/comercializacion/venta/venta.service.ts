@@ -23,6 +23,7 @@ import { CreateVentaDto } from './dto/create-venta.dto';
 import { CancelarVentaDto } from './dto/cancelar-venta.dto';
 import { QueryVentaDto } from './dto/query-venta.dto';
 import { QueryHistorialPagosClienteDto } from './dto/query-historial-pagos-cliente.dto';
+import { QueryDeclaracionesPagoClienteDto } from './dto/query-declaraciones-pago-cliente.dto';
 
 /** Decimales de todo importe/porcentaje, igual que las columnas del schema. */
 const DECIMALES = 2;
@@ -643,6 +644,7 @@ export class VentaService {
         cuotas: {
           where: { estado: { not: EstadoCuota.ANULADA } },
           select: {
+            id_cuota: true,
             numero: true,
             importe: true,
             fecha_vencimiento: true,
@@ -672,6 +674,7 @@ export class VentaService {
       const vencidoEfectivo = cuota.saldo_pendiente.greaterThan(0) && vencido;
 
       return {
+        id_cuota: cuota.id_cuota,
         numero: cuota.numero,
         importe: cuota.importe.toNumber(),
         fecha_vencimiento: cuota.fecha_vencimiento.toISOString(),
@@ -814,6 +817,70 @@ export class VentaService {
         forma_pago: entrada.cobro.formaPago,
         numero_referencia: entrada.cobro.numero_referencia,
         importe_imputado: entrada.importeImputado.toNumber(),
+      })),
+      meta: { total, page, limit },
+    };
+  }
+
+  /**
+   * Declaraciones de pago de UNA unidad del cliente (T117, HU-29), de la más
+   * reciente a la más antigua, paginadas en la base. Mismo 404 genérico que
+   * `historialPagosVenta` si la venta no es propia o no está VIGENTE.
+   *
+   * Se listan todas, cualquiera sea su estado: el cliente tiene que ver las
+   * pendientes (todavía sin efecto en el saldo), las rechazadas (con el
+   * motivo, para volver a declarar) y las validadas (con el estado del cobro
+   * que generaron). El `FK_cliente` va también en el `where` además de la
+   * venta, por las dudas: una declaración siempre es del dueño de la venta.
+   */
+  async declaracionesPagoVenta(
+    idVenta: number,
+    clienteId: number,
+    query: QueryDeclaracionesPagoClienteDto,
+  ) {
+    await this.validarVentaDeCliente(idVenta, clienteId);
+
+    const { page, limit } = query;
+    const where: Prisma.DECLARACIONPAGOWhereInput = {
+      FK_cliente: clienteId,
+      cuota: { FK_venta: idVenta },
+    };
+
+    const [declaraciones, total] = await Promise.all([
+      this.prisma.dECLARACIONPAGO.findMany({
+        where,
+        select: {
+          id_declaracion_pago: true,
+          estado: true,
+          importe: true,
+          numero_referencia: true,
+          motivo_rechazo: true,
+          hora_creacion: true,
+          fecha_resolucion: true,
+          cuota: { select: { id_cuota: true, numero: true } },
+          formaPago: { select: { nombre: true } },
+          cobro: { select: { id_cobro: true, estado: true } },
+        },
+        // Desempate por id: dos declaraciones pueden compartir hora_creacion.
+        orderBy: [{ hora_creacion: 'desc' }, { id_declaracion_pago: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.dECLARACIONPAGO.count({ where }),
+    ]);
+
+    return {
+      data: declaraciones.map((declaracion) => ({
+        id_declaracion_pago: declaracion.id_declaracion_pago,
+        estado: declaracion.estado,
+        importe: declaracion.importe.toNumber(),
+        numero_referencia: declaracion.numero_referencia,
+        motivo_rechazo: declaracion.motivo_rechazo,
+        hora_creacion: declaracion.hora_creacion.toISOString(),
+        fecha_resolucion: declaracion.fecha_resolucion?.toISOString() ?? null,
+        cuota: declaracion.cuota,
+        forma_pago: declaracion.formaPago,
+        cobro: declaracion.cobro,
       })),
       meta: { total, page, limit },
     };

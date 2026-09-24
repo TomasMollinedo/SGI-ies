@@ -60,6 +60,7 @@ export const PATHS = {
       // concreto está `rutaDetalleCobro`.
       DETALLE: '/sistema/tesoreria/cobranzas/:idCobro',
     },
+    DECLARACIONES_PAGO: '/sistema/tesoreria/declaraciones-pago',
   },
   ALERTAS: { ROOT: '/sistema/alertas' },
 

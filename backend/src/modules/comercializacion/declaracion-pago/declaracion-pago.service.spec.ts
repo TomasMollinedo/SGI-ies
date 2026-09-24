@@ -9,9 +9,14 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { FormaPagoService } from '../../tesoreria/forma-pago/forma-pago.service';
 import { CobroService } from '../cobro/cobro.service';
 import { Prisma } from '../../../../generated/prisma/client';
-import { EstadoCuota, EstadoVenta } from '../../../../generated/prisma/enums';
+import {
+  EstadoCuota,
+  EstadoVenta,
+  TipoPlanPago,
+} from '../../../../generated/prisma/enums';
 import { CreateDeclaracionPagoDto } from './dto/create-declaracion-pago.dto';
 import { RechazarDeclaracionPagoDto } from './dto/rechazar-declaracion-pago.dto';
+import { QueryDeclaracionPagoDto } from './dto/query-declaracion-pago.dto';
 
 describe('DeclaracionPagoService', () => {
   let service: DeclaracionPagoService;
@@ -22,6 +27,8 @@ describe('DeclaracionPagoService', () => {
       create: jest.Mock;
       findUnique: jest.Mock;
       update: jest.Mock;
+      findMany: jest.Mock;
+      count: jest.Mock;
     };
     $transaction: jest.Mock;
   };
@@ -52,7 +59,10 @@ describe('DeclaracionPagoService', () => {
     id_cuota: 10,
     estado: EstadoCuota.PENDIENTE,
     saldo_pendiente: new Prisma.Decimal(1000),
-    venta: { estado: EstadoVenta.VIGENTE },
+    venta: {
+      estado: EstadoVenta.VIGENTE,
+      tipo_plan_congelado: TipoPlanPago.FINANCIADO,
+    },
   };
 
   const formaPagoHabilitada = {
@@ -138,6 +148,8 @@ describe('DeclaracionPagoService', () => {
             FK_usuario_validador: USUARIO_ID,
           }),
         ),
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
       },
       $transaction: jest.fn((callback: (t: typeof tx) => unknown) =>
         callback(tx),
@@ -200,12 +212,30 @@ describe('DeclaracionPagoService', () => {
   it('rechaza si la venta de la cuota está cancelada', async () => {
     prisma.cUOTA.findFirst.mockResolvedValue({
       ...cuotaBase,
-      venta: { estado: EstadoVenta.CANCELADA },
+      venta: { ...cuotaBase.venta, estado: EstadoVenta.CANCELADA },
     });
 
     await expect(service.declarar(dtoBase, CLIENTE_ID)).rejects.toBeInstanceOf(
       ConflictException,
     );
+    expect(prisma.dECLARACIONPAGO.create).not.toHaveBeenCalled();
+  });
+
+  it('rechaza con 409 si la venta es de contado (se paga de forma presencial), aunque la cuota esté PENDIENTE', async () => {
+    prisma.cUOTA.findFirst.mockResolvedValue({
+      ...cuotaBase,
+      venta: { ...cuotaBase.venta, tipo_plan_congelado: TipoPlanPago.CONTADO },
+    });
+
+    await expect(service.declarar(dtoBase, CLIENTE_ID)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+
+    // Se corta antes de consultar la forma de pago: la regla es de la venta,
+    // no depende de con qué pagó.
+    expect(
+      formaPagoService.buscarActivaHabilitadaAutogestion,
+    ).not.toHaveBeenCalled();
     expect(prisma.dECLARACIONPAGO.create).not.toHaveBeenCalled();
   });
 
@@ -535,6 +565,167 @@ describe('DeclaracionPagoService', () => {
       // que falla comparten el mismo `tx`, así que el mismo rollback los
       // deshace a los dos.
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('listar', () => {
+    const queryBase: QueryDeclaracionPagoDto = { page: 1, limit: 10 };
+
+    /** Ítem tal como lo devuelve el `select` de Prisma de la bandeja. */
+    const itemBandeja = (extra: Partial<Record<string, unknown>> = {}) => ({
+      ...declaracionPendiente(),
+      cliente: {
+        id_cliente: CLIENTE_ID,
+        nombre: 'Valentina',
+        apellido: 'Fernández',
+        dni_cuil: '20123456789',
+        email: 'valen@test.com',
+      },
+      cuota: {
+        id_cuota: cuotaBase.id_cuota,
+        numero: 3,
+        saldo_pendiente: new Prisma.Decimal(1000),
+        venta: {
+          id_venta: 20,
+          publicacion: {
+            unidadFuncional: {
+              identificador: '4A',
+              proyecto: { nombre: 'Torres del Sur' },
+            },
+          },
+        },
+      },
+      formaPago: { nombre: 'Transferencia bancaria' },
+      cobro: null,
+      ...extra,
+    });
+
+    it('sin filtros: where vacío, de la más antigua a la más reciente', async () => {
+      await service.listar(queryBase);
+
+      expect(prisma.dECLARACIONPAGO.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {},
+          orderBy: [{ hora_creacion: 'asc' }, { id_declaracion_pago: 'asc' }],
+        }),
+      );
+      expect(prisma.dECLARACIONPAGO.count).toHaveBeenCalledWith({ where: {} });
+    });
+
+    it('combina cliente, forma de pago, estado y período (sobre hora_creacion)', async () => {
+      const fechaDesde = new Date('2026-09-01T03:00:00.000Z');
+      const fechaHasta = new Date('2026-09-30T23:59:59.999Z');
+
+      await service.listar({
+        ...queryBase,
+        FK_cliente: CLIENTE_ID,
+        FK_forma_pago: 5,
+        estado: 'PENDIENTE',
+        fechaDesde,
+        fechaHasta,
+      });
+
+      const whereEsperado = {
+        FK_cliente: CLIENTE_ID,
+        FK_forma_pago: 5,
+        estado: 'PENDIENTE',
+        hora_creacion: { gte: fechaDesde, lte: fechaHasta },
+      };
+      expect(prisma.dECLARACIONPAGO.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: whereEsperado }),
+      );
+      expect(prisma.dECLARACIONPAGO.count).toHaveBeenCalledWith({
+        where: whereEsperado,
+      });
+    });
+
+    it('con un solo borde del período, filtra solo por ese borde', async () => {
+      const fechaHasta = new Date('2026-09-30T23:59:59.999Z');
+
+      await service.listar({ ...queryBase, estado: 'RECHAZADA', fechaHasta });
+
+      expect(prisma.dECLARACIONPAGO.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { estado: 'RECHAZADA', hora_creacion: { lte: fechaHasta } },
+        }),
+      );
+    });
+
+    it('pagina en la base según page/limit y devuelve meta con el total', async () => {
+      prisma.dECLARACIONPAGO.count.mockResolvedValue(45);
+
+      const resultado = await service.listar({ page: 3, limit: 20 });
+
+      expect(prisma.dECLARACIONPAGO.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 40, take: 20 }),
+      );
+      expect(resultado.meta).toEqual({ total: 45, page: 3, limit: 20 });
+    });
+
+    it('mapea cada ítem con cliente, cuota con su saldo actual, venta y forma de pago, sin resumen', async () => {
+      prisma.dECLARACIONPAGO.findMany.mockResolvedValue([itemBandeja()]);
+      prisma.dECLARACIONPAGO.count.mockResolvedValue(1);
+
+      const resultado = await service.listar(queryBase);
+
+      expect(resultado).not.toHaveProperty('resumenPeriodo');
+      expect(resultado.data[0]).toEqual({
+        ...declaracionPendiente(),
+        importe: 500,
+        cliente: {
+          id_cliente: CLIENTE_ID,
+          nombre: 'Valentina',
+          apellido: 'Fernández',
+          dni_cuil: '20123456789',
+          email: 'valen@test.com',
+        },
+        cuota: {
+          id_cuota: cuotaBase.id_cuota,
+          numero: 3,
+          saldo_pendiente: 1000,
+        },
+        venta: {
+          id_venta: 20,
+          unidad: { identificador: '4A' },
+          proyecto: { nombre: 'Torres del Sur' },
+        },
+        forma_pago: { nombre: 'Transferencia bancaria' },
+        cobro: null,
+      });
+    });
+
+    it('una VALIDADA trae el cobro que generó con su estado, también si después se anuló', async () => {
+      prisma.dECLARACIONPAGO.findMany.mockResolvedValue([
+        itemBandeja({
+          estado: 'VALIDADA',
+          FK_cobro: ID_COBRO,
+          cobro: { id_cobro: ID_COBRO, estado: 'CONFIRMADO' },
+        }),
+        itemBandeja({
+          id_declaracion_pago: 2,
+          estado: 'VALIDADA',
+          FK_cobro: 1000,
+          cobro: { id_cobro: 1000, estado: 'ANULADO' },
+        }),
+      ]);
+      prisma.dECLARACIONPAGO.count.mockResolvedValue(2);
+
+      const resultado = await service.listar({
+        ...queryBase,
+        estado: 'VALIDADA',
+      });
+
+      expect(resultado.data[0].cobro).toEqual({
+        id_cobro: ID_COBRO,
+        estado: 'CONFIRMADO',
+      });
+      // El cobro anulado no cambia el estado de la declaración: sigue
+      // VALIDADA apuntando a ese cobro.
+      expect(resultado.data[1].estado).toBe('VALIDADA');
+      expect(resultado.data[1].cobro).toEqual({
+        id_cobro: 1000,
+        estado: 'ANULADO',
+      });
     });
   });
 });

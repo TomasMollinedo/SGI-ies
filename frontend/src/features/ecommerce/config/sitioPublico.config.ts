@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import type {
   DatoContacto,
+  IdSeccion,
   ItemNavegacion,
   LineaTitulo,
   NumeroDestacado,
@@ -38,6 +39,17 @@ export const NAVEGACION: ItemNavegacion[] = [
   { id: 'obras', label: 'Obras' },
   { id: 'consultanos', label: 'Consultanos' },
 ]
+
+/**
+ * Ítem del menú que lleva a una ruta propia (`/catalogo`), no a un ancla de la
+ * landing: por eso no vive en `NAVEGACION`, que es la lista de secciones que
+ * observa `useSeccionActiva`. Se muestra a continuación de "Obras".
+ */
+export const NAVEGACION_CATALOGO = {
+  label: 'Catálogo',
+  /** Sección detrás de la cual se inserta en el menú. */
+  despuesDe: 'obras',
+} as const satisfies { label: string; despuesDe: IdSeccion }
 
 export const HERO = {
   badge: 'Desde 2010 • Obras públicas y privadas',

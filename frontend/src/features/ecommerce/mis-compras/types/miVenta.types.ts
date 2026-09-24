@@ -62,6 +62,8 @@ interface PlanMiVenta {
 
 /** `vencido`/`dias_vencido` ya vienen resueltos del backend: nunca se comparan fechas a mano acá. */
 export interface CuotaMiVenta {
+  /** Lo que viaja como `FK_cuota` al declarar un pago sobre esta cuota (HU-29). */
+  id_cuota: number
   numero: number
   importe: number
   fecha_vencimiento: string

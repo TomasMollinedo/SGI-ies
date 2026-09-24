@@ -38,6 +38,56 @@ export const HISTORIAL_PAGOS = {
   error: 'No pudimos cargar el historial de pagos.',
 } as const
 
+export const CRONOGRAMA = {
+  titulo: 'Cronograma de cuotas',
+  declararPago: 'Declarar un pago',
+  pagoPresencial:
+    'Por ahora no se pueden declarar pagos desde la web. Acercate a nuestras oficinas para pagar tus cuotas de forma presencial.',
+  pagoContado:
+    'Tu compra es de contado: el pago se hace de forma presencial en nuestras oficinas, no se declara desde la web.',
+} as const
+
+export const DECLARAR_PAGO = {
+  titulo: 'Declarar un pago',
+  volverADeclarar: 'Volver a declarar',
+  saldoPendiente: 'Saldo pendiente',
+  formaPago: 'Forma de pago',
+  formaPagoPlaceholder: 'Elegí cómo pagaste',
+  importe: 'Importe',
+  importePlaceholder: 'Ej. 1.600.000,50',
+  importeAyuda: 'Usá coma para los decimales. El punto de los miles es opcional.',
+  importeInterpretado: 'Vas a declarar',
+  referencia: 'Número de referencia',
+  referenciaPlaceholder: 'Ej. número de operación o de transferencia',
+  avisoValidacion:
+    'Tesorería valida tu pago contra el extracto bancario, por eso el número de referencia tiene que ser exacto. No hace falta adjuntar ningún comprobante.',
+  cancelar: 'Cancelar',
+  confirmar: 'Declarar pago',
+  exito: 'Registramos tu pago. Queda pendiente hasta que Tesorería lo valide.',
+  completarDatos: 'Antes de declarar un pago necesitamos tu DNI/CUIT y tu teléfono.',
+} as const
+
+export const DECLARACIONES_PAGO = {
+  titulo: 'Pagos declarados',
+  descripcion:
+    'Los pagos que declaraste desde la web. Mientras Tesorería no los valide, no descuentan el saldo de la cuota.',
+  vacio: 'Todavía no declaraste pagos sobre esta unidad.',
+  error: 'No pudimos cargar tus pagos declarados.',
+  referencia: 'Ref.',
+  declaradoEl: 'Declarado el',
+  motivoRechazo: 'Motivo del rechazo',
+  pendiente:
+    'Tesorería todavía no revisó este pago. El saldo de la cuota no cambia hasta que lo valide.',
+  validada: 'Validado: el pago ya figura en tu historial de pagos.',
+  cobroAnulado: 'El pago que se había registrado a partir de esta declaración fue anulado.',
+} as const
+
+export const ESTADO_DECLARACION_LABEL = {
+  PENDIENTE: 'Pendiente de validación',
+  VALIDADA: 'Validado',
+  RECHAZADA: 'Rechazado',
+} as const
+
 export const ORIGEN_COBRO_LABEL = {
   PRESENCIAL: 'Presencial',
   ECOMMERCE: 'Ecommerce',
