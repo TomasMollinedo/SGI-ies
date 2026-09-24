@@ -77,7 +77,7 @@ export class CobroController {
   @Get('cuotas-vencidas')
   @ApiOperation({
     summary:
-      'Consulta de seguimiento: cuotas vencidas con saldo pendiente, filtrables por cliente y por proyecto, ordenadas por días de atraso descendente',
+      'Consulta de seguimiento: cuotas vencidas con saldo pendiente, filtrables por cliente y por proyecto, ordenadas por días de atraso descendente. Una cuota que vence hoy todavía no figura (recién al día siguiente)',
   })
   @ApiQuery({ name: 'FK_cliente', required: false, type: Number })
   @ApiQuery({ name: 'FK_proyecto', required: false, type: Number })
@@ -147,7 +147,7 @@ export class CobroController {
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
   @ApiOkResponse({
     description:
-      'Listado paginado de cobros, más recientes primero. resumenPeriodo viaja null salvo que la query traiga fechaDesde y fechaHasta juntas; cuando viene, ignora el filtro de estado (siempre excluye los cobros anulados)',
+      'Listado paginado de cobros, más recientes primero (a igual fecha_cobro, por id_cobro descendente). resumenPeriodo viaja null salvo que la query traiga fechaDesde y fechaHasta juntas; cuando viene, ignora el filtro de estado (siempre excluye los cobros anulados)',
     type: CobroListResponseDto,
   })
   @ApiBadRequestResponse({

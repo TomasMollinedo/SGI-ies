@@ -358,29 +358,34 @@ describe('CobroService', () => {
       });
     });
 
-    it('ordena por días de atraso descendente (la más vencida primero)', async () => {
-      jest.useFakeTimers().setSystemTime(new Date('2026-09-21T12:00:00Z'));
-      const cuotaCon = (id: number, fechaVencimiento: string) => ({
-        id_cuota: id,
-        numero: id,
-        fecha_vencimiento: new Date(fechaVencimiento),
-        importe: new Prisma.Decimal(1000),
-        saldo_pendiente: new Prisma.Decimal(1000),
-        venta: {
-          id_venta: 1,
-          cliente: {
-            id_cliente: 1,
-            nombre: 'Valentina',
-            apellido: 'Fernández',
-          },
-          publicacion: {
-            unidadFuncional: {
-              identificador: 'UF-1',
-              proyecto: { id_proyecto: 1, nombre: 'Proyecto A' },
-            },
+    /** Cliente completo, tal como lo selecciona `CLIENTE_RESUMEN_SELECT`. */
+    const cliente = {
+      id_cliente: 1,
+      nombre: 'Valentina',
+      apellido: 'Fernández',
+      dni_cuil: '20111111112',
+      email: 'valen@test.com',
+    };
+    const cuotaCon = (id: number, fechaVencimiento: string) => ({
+      id_cuota: id,
+      numero: id,
+      fecha_vencimiento: new Date(fechaVencimiento),
+      importe: new Prisma.Decimal(1000),
+      saldo_pendiente: new Prisma.Decimal(1000),
+      venta: {
+        id_venta: 1,
+        cliente,
+        publicacion: {
+          unidadFuncional: {
+            identificador: 'UF-1',
+            proyecto: { id_proyecto: 1, nombre: 'Proyecto A' },
           },
         },
-      });
+      },
+    });
+
+    it('ordena por días de atraso descendente (la más vencida primero)', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-09-21T12:00:00Z'));
       // Poco atrasada, muy atrasada, mediana — a propósito desordenadas.
       prisma.cUOTA.findMany.mockResolvedValue([
         cuotaCon(1, '2026-09-15T00:00:00Z'),
@@ -391,6 +396,44 @@ describe('CobroService', () => {
       const resultado = await service.listarCuotasVencidas({});
 
       expect(resultado.data.map((c) => c.id_cuota)).toEqual([2, 3, 1]);
+    });
+
+    it('una cuota que vence hoy todavía no está vencida; la de ayer sí, con 1 día', async () => {
+      // 10:00 de Argentina del 24/09. Ambas pasan el `lt: hoy` del where
+      // (están guardadas a las 00:00 de Argentina = 03:00Z).
+      jest.useFakeTimers().setSystemTime(new Date('2026-09-24T13:00:00Z'));
+      prisma.cUOTA.findMany.mockResolvedValue([
+        cuotaCon(1, '2026-09-23T03:00:00Z'), // venció ayer
+        cuotaCon(2, '2026-09-24T03:00:00Z'), // vence hoy
+      ]);
+
+      const resultado = await service.listarCuotasVencidas({});
+
+      expect(resultado.data).toHaveLength(1);
+      expect(resultado.data[0]).toMatchObject({ id_cuota: 1, dias_vencido: 1 });
+    });
+
+    it('devuelve el cliente completo (con DNI/CUIL y correo)', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-09-21T12:00:00Z'));
+      prisma.cUOTA.findMany.mockResolvedValue([
+        cuotaCon(1, '2026-09-01T03:00:00Z'),
+      ]);
+
+      const resultado = await service.listarCuotasVencidas({});
+
+      expect(resultado.data[0].cliente).toEqual(cliente);
+      const argumento = primerArgumento(prisma.cUOTA.findMany) as {
+        select: { venta: { select: { cliente: unknown } } };
+      };
+      expect(argumento.select.venta.select.cliente).toEqual({
+        select: {
+          id_cliente: true,
+          nombre: true,
+          apellido: true,
+          dni_cuil: true,
+          email: true,
+        },
+      });
     });
   });
 
@@ -1146,12 +1189,22 @@ describe('CobroService', () => {
         prisma.cOBRO.findMany.mock.calls as {
           skip?: number;
           take?: number;
-          orderBy?: Record<string, unknown>;
         }[][]
       )[0][0];
       expect(llamada.skip).toBe(5);
       expect(llamada.take).toBe(5);
-      expect(llamada.orderBy).toEqual({ fecha_cobro: 'desc' });
+    });
+
+    it('ordena por fecha_cobro descendente, con desempate por id_cobro para una paginación estable', async () => {
+      await service.listar(query());
+
+      const llamada = (
+        prisma.cOBRO.findMany.mock.calls as { orderBy?: unknown }[][]
+      )[0][0];
+      expect(llamada.orderBy).toEqual([
+        { fecha_cobro: 'desc' },
+        { id_cobro: 'desc' },
+      ]);
     });
   });
 
