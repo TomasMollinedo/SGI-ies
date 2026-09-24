@@ -34,6 +34,7 @@ import { UnidadFuncionalModule } from './modules/comercializacion/unidades-funci
 import { VentaModule } from './modules/comercializacion/venta/venta.module';
 import { DeclaracionPagoModule } from './modules/comercializacion/declaracion-pago/declaracion-pago.module';
 import { ProyectoModule } from './modules/proyectos/proyecto.module';
+import { ConsultaModule } from './modules/comercializacion/consulta/consulta.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
@@ -68,6 +69,7 @@ import { ProyectoModule } from './modules/proyectos/proyecto.module';
     UnidadFuncionalModule,
     VentaModule,
     DeclaracionPagoModule,
+    ConsultaModule,
     ProyectoModule,
   ],
   providers: [
