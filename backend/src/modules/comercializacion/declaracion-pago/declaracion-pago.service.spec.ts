@@ -9,7 +9,11 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { FormaPagoService } from '../../tesoreria/forma-pago/forma-pago.service';
 import { CobroService } from '../cobro/cobro.service';
 import { Prisma } from '../../../../generated/prisma/client';
-import { EstadoCuota, EstadoVenta } from '../../../../generated/prisma/enums';
+import {
+  EstadoCuota,
+  EstadoVenta,
+  TipoPlanPago,
+} from '../../../../generated/prisma/enums';
 import { CreateDeclaracionPagoDto } from './dto/create-declaracion-pago.dto';
 import { RechazarDeclaracionPagoDto } from './dto/rechazar-declaracion-pago.dto';
 import { QueryDeclaracionPagoDto } from './dto/query-declaracion-pago.dto';
@@ -55,7 +59,10 @@ describe('DeclaracionPagoService', () => {
     id_cuota: 10,
     estado: EstadoCuota.PENDIENTE,
     saldo_pendiente: new Prisma.Decimal(1000),
-    venta: { estado: EstadoVenta.VIGENTE },
+    venta: {
+      estado: EstadoVenta.VIGENTE,
+      tipo_plan_congelado: TipoPlanPago.FINANCIADO,
+    },
   };
 
   const formaPagoHabilitada = {
@@ -205,12 +212,30 @@ describe('DeclaracionPagoService', () => {
   it('rechaza si la venta de la cuota está cancelada', async () => {
     prisma.cUOTA.findFirst.mockResolvedValue({
       ...cuotaBase,
-      venta: { estado: EstadoVenta.CANCELADA },
+      venta: { ...cuotaBase.venta, estado: EstadoVenta.CANCELADA },
     });
 
     await expect(service.declarar(dtoBase, CLIENTE_ID)).rejects.toBeInstanceOf(
       ConflictException,
     );
+    expect(prisma.dECLARACIONPAGO.create).not.toHaveBeenCalled();
+  });
+
+  it('rechaza con 409 si la venta es de contado (se paga de forma presencial), aunque la cuota esté PENDIENTE', async () => {
+    prisma.cUOTA.findFirst.mockResolvedValue({
+      ...cuotaBase,
+      venta: { ...cuotaBase.venta, tipo_plan_congelado: TipoPlanPago.CONTADO },
+    });
+
+    await expect(service.declarar(dtoBase, CLIENTE_ID)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+
+    // Se corta antes de consultar la forma de pago: la regla es de la venta,
+    // no depende de con qué pagó.
+    expect(
+      formaPagoService.buscarActivaHabilitadaAutogestion,
+    ).not.toHaveBeenCalled();
     expect(prisma.dECLARACIONPAGO.create).not.toHaveBeenCalled();
   });
 

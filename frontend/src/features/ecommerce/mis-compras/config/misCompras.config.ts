@@ -43,6 +43,8 @@ export const CRONOGRAMA = {
   declararPago: 'Declarar un pago',
   pagoPresencial:
     'Por ahora no se pueden declarar pagos desde la web. Acercate a nuestras oficinas para pagar tus cuotas de forma presencial.',
+  pagoContado:
+    'Tu compra es de contado: el pago se hace de forma presencial en nuestras oficinas, no se declara desde la web.',
 } as const
 
 export const DECLARAR_PAGO = {

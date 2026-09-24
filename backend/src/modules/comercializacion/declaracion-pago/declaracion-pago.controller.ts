@@ -39,7 +39,7 @@ export class DeclaracionPagoController {
     summary:
       'Declara un pago sobre una cuota propia, pendiente de validación por Tesorería (HU-29)',
     description:
-      'Nace en estado PENDIENTE y no afecta el saldo de la cuota — eso ocurre recién si Tesorería la valida y la convierte en un cobro.',
+      'Nace en estado PENDIENTE y no afecta el saldo de la cuota — eso ocurre recién si Tesorería la valida y la convierte en un cobro. No se admite sobre cuotas de una venta de contado.',
   })
   @ApiCreatedResponse({
     description: 'Declaración registrada, pendiente de validación',
@@ -56,7 +56,7 @@ export class DeclaracionPagoController {
   })
   @ApiConflictResponse({
     description:
-      'La venta de la cuota está cancelada, la cuota no está pendiente ni parcial, o la forma de pago no está activa/habilitada para autogestión',
+      'La venta de la cuota está cancelada, la venta es de contado (plan CONTADO: se paga de forma presencial, nunca por autogestión), la cuota no está pendiente ni parcial, o la forma de pago no está activa/habilitada para autogestión',
   })
   declarar(
     @Body() dto: CreateDeclaracionPagoDto,

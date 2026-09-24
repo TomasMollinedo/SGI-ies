@@ -20,7 +20,7 @@ import { useFormasPagoAutogestion } from './hooks/useFormasPagoAutogestion'
 import { useMiVentaDetalle } from './hooks/useMiVentaDetalle'
 import type { FormaPagoAutogestion } from './types/declaracionPago.types'
 import type { CuotaMiVenta } from './types/miVenta.types'
-import { puedeDeclararCuota } from './utils/cuotaDeclarable'
+import { esVentaDeContado, puedeDeclararCuota } from './utils/cuotaDeclarable'
 import { tieneDatosIncompletos } from './utils/datosCliente'
 
 /** Referencia estable mientras el catálogo carga: el schema del modal se memoiza sobre ella. */
@@ -51,11 +51,16 @@ export function MiCompraDetallePage() {
   // abierto (ej. después de un 409), el modal toma el saldo actualizado.
   const [idCuotaADeclarar, setIdCuotaADeclarar] = useState<number | null>(null)
 
-  const declaracion: DisponibilidadDeclaracion = !formasPagoCargadas
-    ? 'desconocida'
-    : formasPago.length > 0
-      ? 'disponible'
-      : 'presencial'
+  // La regla de contado va primero: aunque haya formas habilitadas, una venta
+  // de contado se paga presencialmente y no admite declaraciones.
+  const declaracion: DisponibilidadDeclaracion =
+    venta && esVentaDeContado(venta)
+      ? 'contado'
+      : !formasPagoCargadas
+        ? 'desconocida'
+        : formasPago.length > 0
+          ? 'disponible'
+          : 'presencial'
 
   /**
    * Sin DNI/CUIT o teléfono el backend rechaza la declaración: se manda a
@@ -149,21 +154,25 @@ export function MiCompraDetallePage() {
         />
       </div>
 
-      <div className="mt-14">
-        <DeclaracionesPago
-          idVenta={id}
-          page={paginaDeclaraciones}
-          onPageChange={setPaginaDeclaraciones}
-          puedeVolverADeclarar={(idCuota) => {
-            const cuota = venta.cuotas.find((item) => item.id_cuota === idCuota)
-            return declaracion === 'disponible' && !!cuota && puedeDeclararCuota(cuota, venta)
-          }}
-          onVolverADeclarar={(idCuota) => {
-            const cuota = venta.cuotas.find((item) => item.id_cuota === idCuota)
-            if (cuota) abrirDeclaracion(cuota)
-          }}
-        />
-      </div>
+      {/* Una venta de contado no admite declaraciones: la sección no tiene
+        nada que mostrar (ni se pide), el aviso del cronograma ya explica por qué. */}
+      {declaracion !== 'contado' && (
+        <div className="mt-14">
+          <DeclaracionesPago
+            idVenta={id}
+            page={paginaDeclaraciones}
+            onPageChange={setPaginaDeclaraciones}
+            puedeVolverADeclarar={(idCuota) => {
+              const cuota = venta.cuotas.find((item) => item.id_cuota === idCuota)
+              return declaracion === 'disponible' && !!cuota && puedeDeclararCuota(cuota, venta)
+            }}
+            onVolverADeclarar={(idCuota) => {
+              const cuota = venta.cuotas.find((item) => item.id_cuota === idCuota)
+              if (cuota) abrirDeclaracion(cuota)
+            }}
+          />
+        </div>
+      )}
 
       <div className="mt-14">
         <HistorialPagos idVenta={id} page={paginaHistorial} onPageChange={setPaginaHistorial} />

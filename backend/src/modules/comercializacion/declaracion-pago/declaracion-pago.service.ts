@@ -10,6 +10,7 @@ import {
   EstadoDeclaracionPago,
   EstadoVenta,
   OrigenCobro,
+  TipoPlanPago,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { validarNumeroReferencia } from '../../../common/validaciones/validar-numero-referencia';
@@ -25,7 +26,7 @@ const CUOTA_DECLARABLE_SELECT = {
   id_cuota: true,
   estado: true,
   saldo_pendiente: true,
-  venta: { select: { estado: true } },
+  venta: { select: { estado: true, tipo_plan_congelado: true } },
 } as const;
 
 type CuotaDeclarable = Prisma.CUOTAGetPayload<{
@@ -96,7 +97,8 @@ export class DeclaracionPagoService {
   /**
    * Declara un pago sobre una cuota propia (HU-29). Valida en orden, de más
    * barato a más caro: datos del cliente completos, que la cuota exista y
-   * sea de este cliente, que su venta no esté cancelada, que la cuota admita
+   * sea de este cliente, que su venta no esté cancelada ni sea de contado
+   * (una venta de contado se paga presencialmente), que la cuota admita
    * una nueva declaración, que la forma de pago siga habilitada para
    * autogestión, que traiga referencia si la forma de pago la exige, y que
    * el importe no supere el saldo pendiente.
@@ -111,6 +113,7 @@ export class DeclaracionPagoService {
 
     const cuota = await this.buscarCuotaPropia(dto.FK_cuota, clienteId);
     this.validarVentaNoCancelada(cuota);
+    this.validarVentaNoContado(cuota);
     this.validarCuotaDeclarable(cuota);
 
     const formaPago =
@@ -240,6 +243,19 @@ export class DeclaracionPagoService {
   private validarVentaNoCancelada(cuota: CuotaDeclarable) {
     if (cuota.venta.estado === EstadoVenta.CANCELADA) {
       throw new ConflictException('La venta de esta cuota está cancelada');
+    }
+  }
+
+  /**
+   * Regla de negocio: una venta de contado se paga en una sola cuota, de forma
+   * presencial — nunca por autogestión. Se mira el plan congelado en la
+   * VENTA, no el de PLANPAGO (que pudo haber cambiado después de la venta).
+   */
+  private validarVentaNoContado(cuota: CuotaDeclarable) {
+    if (cuota.venta.tipo_plan_congelado === TipoPlanPago.CONTADO) {
+      throw new ConflictException(
+        'La venta de esta cuota es de contado: el pago se hace de forma presencial y no admite declaraciones',
+      );
     }
   }
 

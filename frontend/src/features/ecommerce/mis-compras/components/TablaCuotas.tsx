@@ -1,4 +1,5 @@
 import { AlertTriangle, Info, Receipt } from 'lucide-react'
+import { Button } from '@/shared/components/ui/Button'
 import { formatearFechaSinHora } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
 import { cn } from '@/shared/utils/cn'
@@ -13,16 +14,24 @@ interface TablaCuotasProps {
   puedeDeclarar: (cuota: CuotaMiVenta) => boolean
   onDeclarar: (cuota: CuotaMiVenta) => void
   /**
-   * `'presencial'` si no hay ninguna forma de pago habilitada para
-   * autogestión: no se ofrece declarar en ninguna cuota y se avisa una sola
-   * vez, arriba del cronograma, que el pago es presencial. Mientras el
-   * catálogo carga (o si falló) es `'desconocida'`: tampoco se ofrece
-   * declarar, pero no se afirma nada.
+   * Si se ofrece declarar pagos en este cronograma:
+   * - `'contado'`: la venta es de contado, se paga presencialmente (regla de
+   *   negocio). No se ofrece declarar y se avisa por qué.
+   * - `'presencial'`: no hay ninguna forma de pago habilitada para
+   *   autogestión. No se ofrece declarar y se avisa que el pago es presencial.
+   * - `'desconocida'`: el catálogo de formas todavía carga (o falló). Tampoco
+   *   se ofrece declarar, pero no se afirma nada.
+   * Los avisos van una sola vez, arriba del cronograma.
    */
   declaracion: DisponibilidadDeclaracion
 }
 
-export type DisponibilidadDeclaracion = 'disponible' | 'presencial' | 'desconocida'
+export type DisponibilidadDeclaracion = 'disponible' | 'contado' | 'presencial' | 'desconocida'
+
+const AVISO_SIN_DECLARACION: Partial<Record<DisponibilidadDeclaracion, string>> = {
+  contado: CRONOGRAMA.pagoContado,
+  presencial: CRONOGRAMA.pagoPresencial,
+}
 
 /**
  * Cronograma completo de cuotas. Una cuota vencida se resalta con borde y
@@ -30,16 +39,18 @@ export type DisponibilidadDeclaracion = 'disponible' | 'presencial' | 'desconoci
  * que darse cuenta sin leer fechas, no alcanza con la pastilla de estado.
  */
 export function TablaCuotas({ cuotas, puedeDeclarar, onDeclarar, declaracion }: TablaCuotasProps) {
+  const aviso = AVISO_SIN_DECLARACION[declaracion]
+
   return (
     <section aria-labelledby="titulo-cuotas" className="flex flex-col gap-6">
       <h2 id="titulo-cuotas" className="text-light text-titulo-modal font-bold">
         {CRONOGRAMA.titulo}
       </h2>
 
-      {declaracion === 'presencial' && (
+      {aviso && (
         <p className="border-light/15 text-light/70 flex gap-2 border p-4 text-sm">
           <Info size={16} aria-hidden="true" className="text-secondary mt-0.5 shrink-0" />
-          {CRONOGRAMA.pagoPresencial}
+          {aviso}
         </p>
       )}
 
@@ -87,15 +98,20 @@ function FilaCuota({ cuota, onDeclarar }: FilaCuotaProps) {
           </span>
         )}
         {onDeclarar && (
-          <button
-            type="button"
+          // `primary` (terracota sólido) es la variante que ya usa el sitio
+          // público para sus botones: se distingue del fondo oscuro y también
+          // del tinte rojo de una cuota vencida. El outline de foco por defecto
+          // es oscuro y se pierde acá: se pasa a claro.
+          <Button
+            size="sm"
+            variant="primary"
+            icon={<Receipt />}
             onClick={() => onDeclarar(cuota)}
-            className="text-secondary hover:text-light focus-visible:outline-light mt-1 inline-flex w-fit items-center gap-2 rounded py-1 font-mono text-xs tracking-widest uppercase transition-colors focus-visible:outline-2 focus-visible:outline-offset-4"
+            className="focus-visible:outline-light mt-2 self-start"
           >
-            <Receipt size={14} aria-hidden="true" className="shrink-0" />
             {CRONOGRAMA.declararPago}
             <span className="sr-only"> — {etiquetaCuota(cuota.numero)}</span>
-          </button>
+          </Button>
         )}
       </div>
 
