@@ -12,7 +12,7 @@ import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/hooks/useToast'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { formatearMensajeError } from '@/shared/utils/apiError'
-import { formatearFechaSinHora } from '@/shared/utils/fecha'
+import { formatearFecha } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
 import { AnularCobroModal } from '../components/AnularCobroModal'
 import { ReciboCobroImpresion } from '../components/ReciboCobroImpresion'
@@ -155,7 +155,13 @@ export function CobroDetallePage() {
         </div>
 
         <div className="flex flex-col">
-          <DetailRow label="Fecha de cobro" value={formatearFechaSinHora(cobro.fecha_cobro)} />
+          {/*
+            `formatearFecha` (horario de Argentina) y no `formatearFechaSinHora`:
+            un cobro presencial guarda la medianoche de Argentina (03:00Z) y uno
+            de ecommerce la hora exacta de la validación, que después de las
+            21:00 ya cae en el día siguiente en UTC. Ver `ReciboCobroImpresion`.
+          */}
+          <DetailRow label="Fecha de cobro" value={formatearFecha(cobro.fecha_cobro)} />
           <DetailRow
             label="Cliente"
             value={

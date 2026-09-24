@@ -873,5 +873,81 @@ describe('VentaService', () => {
       // Más reciente primero: id_cobro 3 (03/01) y 2 (02/01).
       expect(resultado.data.map((item) => item.id_cobro)).toEqual([3, 2]);
     });
+
+    describe('cobros con la misma fecha_cobro (varios presenciales del mismo día)', () => {
+      // Medianoche de Argentina: la fecha que guarda un cobro presencial.
+      const MISMO_DIA = new Date('2026-09-24T03:00:00Z');
+
+      /** Líneas de DETALLECOBRO con los cobros en el orden en que "los devolvió la base". */
+      const detallesEnOrden = (ids: number[]) =>
+        ids.map((id_cobro) => ({
+          importe_imputado: new Prisma.Decimal(1000),
+          cobro: { ...cobroBase, id_cobro, fecha_cobro: MISMO_DIA },
+        }));
+
+      /** Recorre todas las páginas y devuelve los id_cobro en el orden en que se vieron. */
+      const recorrerPaginas = async (ids: number[], limit: number) => {
+        const vistos: number[] = [];
+        for (let page = 1; page <= Math.ceil(ids.length / limit); page++) {
+          prisma.dETALLECOBRO.findMany.mockResolvedValueOnce(
+            detallesEnOrden(ids),
+          );
+          const resultado = await service.historialPagosVenta(20, 1, {
+            page,
+            limit,
+          });
+          vistos.push(...resultado.data.map((item) => item.id_cobro));
+        }
+        return vistos;
+      };
+
+      beforeEach(() => {
+        prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      });
+
+      it('desempata por id_cobro descendente (el último registrado primero)', async () => {
+        prisma.dETALLECOBRO.findMany.mockResolvedValue(
+          detallesEnOrden([2, 5, 1, 4, 3]),
+        );
+
+        const resultado = await service.historialPagosVenta(20, 1, {
+          page: 1,
+          limit: 10,
+        });
+
+        expect(resultado.data.map((item) => item.id_cobro)).toEqual([
+          5, 4, 3, 2, 1,
+        ]);
+      });
+
+      it('el orden entre páginas no depende del orden en que los devuelva la base: ningún cobro se repite ni se pierde', async () => {
+        const unOrden = await recorrerPaginas([2, 5, 1, 4, 3], 2);
+        const otroOrden = await recorrerPaginas([3, 1, 4, 5, 2], 2);
+
+        expect(unOrden).toEqual([5, 4, 3, 2, 1]);
+        expect(otroOrden).toEqual(unOrden);
+      });
+
+      it('la fecha sigue mandando: un cobro más reciente va primero aunque tenga un id_cobro menor', async () => {
+        prisma.dETALLECOBRO.findMany.mockResolvedValue([
+          ...detallesEnOrden([8, 9]),
+          {
+            importe_imputado: new Prisma.Decimal(1000),
+            cobro: {
+              ...cobroBase,
+              id_cobro: 3,
+              fecha_cobro: new Date('2026-09-25T03:00:00Z'),
+            },
+          },
+        ]);
+
+        const resultado = await service.historialPagosVenta(20, 1, {
+          page: 1,
+          limit: 10,
+        });
+
+        expect(resultado.data.map((item) => item.id_cobro)).toEqual([3, 9, 8]);
+      });
+    });
   });
 });

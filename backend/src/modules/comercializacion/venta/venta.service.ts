@@ -794,8 +794,15 @@ export class VentaService {
       porCobro.set(detalle.cobro.id_cobro, entrada);
     }
 
+    // Desempate por id_cobro descendente: todos los cobros presenciales de un
+    // mismo día comparten la misma `fecha_cobro` (medianoche de Argentina,
+    // ver `fechaIsoSchema`), y el findMany no tiene orderBy — sin desempate,
+    // su orden dependería de cómo los devuelva la base y un cobro podría
+    // cambiar de página entre dos consultas. Con id_cobro el orden es total.
     const historialOrdenado = [...porCobro.values()].sort(
-      (a, b) => b.cobro.fecha_cobro.getTime() - a.cobro.fecha_cobro.getTime(),
+      (a, b) =>
+        b.cobro.fecha_cobro.getTime() - a.cobro.fecha_cobro.getTime() ||
+        b.cobro.id_cobro - a.cobro.id_cobro,
     );
 
     const { page, limit } = query;
