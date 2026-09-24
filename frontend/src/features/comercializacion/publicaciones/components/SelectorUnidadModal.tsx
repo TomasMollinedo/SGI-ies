@@ -46,14 +46,9 @@ const COLUMNAS: DataTableColumn<UnidadPublicable>[] = [
           Publicable
         </Badge>
       ) : (
-        <div className="flex flex-col items-start gap-1">
-          <Badge variant="warning" className={CLASES_BADGE_MOBILE}>
-            No publicable
-          </Badge>
-          {u.motivo_no_publicable && (
-            <p className="text-content-muted text-xs wrap-anywhere">{u.motivo_no_publicable}</p>
-          )}
-        </div>
+        <Badge variant="warning" className={CLASES_BADGE_MOBILE}>
+          No publicable
+        </Badge>
       ),
   },
 ]
@@ -124,6 +119,16 @@ export function SelectorUnidadModal({ open, onClose, onSeleccionar }: SelectorUn
             onChange={(evento) => setTipologia(evento.target.value)}
             className="w-full sm:w-48"
           />
+          {/* El backend solo marca `publicable: false` por proyecto En planificación, así que el motivo va una sola vez acá en vez de repetirse en cada fila. */}
+          <div className="flex min-w-0 flex-1 items-start text-xs sm:min-w-64">
+            <Badge variant="warning" className={`${CLASES_BADGE_MOBILE} shrink-0`}>
+              No publicable
+            </Badge>
+            <p className="text-content-muted ml-0.5 wrap-anywhere">
+              : su proyecto está En planificación. Solo pueden publicarse unidades de proyectos En
+              ejecución (venta en pozo) o Finalizados (unidad terminada).
+            </p>
+          </div>
         </div>
       }
     />
