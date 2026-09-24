@@ -114,6 +114,14 @@ describe('VentaService', () => {
       email: 'valen@test.com',
       telefono: '1122223333',
     },
+    publicacion: {
+      unidadFuncional: {
+        id_unidad_funcional: 30,
+        identificador: '4A',
+        tipologia: 'DOS_DORMITORIOS',
+        proyecto: { id_proyecto: 4, codigo: 'TDS', nombre: 'Torres del Sur' },
+      },
+    },
     usuarioCreador: {
       nombre: 'Ana',
       apellido: 'Gómez',

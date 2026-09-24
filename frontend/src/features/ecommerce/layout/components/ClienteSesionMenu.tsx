@@ -107,9 +107,10 @@ export function ClienteSesionMenu({
     </span>
   )
 
-  // Las dos opciones se definen una sola vez y se acomodan al contenedor: en el
-  // desplegable ocupan todo el ancho, y fuera de él conservan el estilo de los
-  // enlaces del header. La ruta y el logout son los mismos en los dos casos.
+  // Las tres opciones se definen una sola vez y se acomodan al contenedor: en
+  // el desplegable ocupan todo el ancho, y fuera de él conservan el estilo de
+  // los enlaces del header. La ruta y el logout son los mismos en los dos
+  // casos.
   const enlacePerfil = (
     <NavLink
       to={PATHS.ECOMMERCE.PERFIL}
@@ -125,6 +126,26 @@ export function ClienteSesionMenu({
       }}
     >
       Mi perfil
+    </NavLink>
+  )
+
+  // Acceso directo (T112): antes solo se llegaba a través de "Mi perfil", con
+  // un clic de más para algo que se consulta seguido.
+  const enlaceMisCompras = (
+    <NavLink
+      to={PATHS.ECOMMERCE.MIS_COMPRAS}
+      className={({ isActive }) =>
+        cn(
+          esLanding ? claseEnlaceNavLanding({ isActive }) : claseEnlaceNav({ isActive }),
+          desplegable && CLASE_ITEM_DESPLEGABLE
+        )
+      }
+      onClick={() => {
+        cerrar()
+        onNavegar()
+      }}
+    >
+      Mis compras
     </NavLink>
   )
 
@@ -198,6 +219,7 @@ export function ClienteSesionMenu({
               {nombreCompleto}
             </p>
             {enlacePerfil}
+            {enlaceMisCompras}
             {botonCerrarSesion}
           </div>
         )}
@@ -232,6 +254,7 @@ export function ClienteSesionMenu({
       </div>
 
       {enlacePerfil}
+      {enlaceMisCompras}
       {botonCerrarSesion}
     </div>
   )
