@@ -49,6 +49,9 @@ describe('VentaService', () => {
       findMany: jest.Mock;
       findFirst: jest.Mock;
     };
+    dETALLECOBRO: {
+      findMany: jest.Mock;
+    };
     $transaction: jest.Mock;
   };
 
@@ -162,6 +165,10 @@ describe('VentaService', () => {
         findUnique: jest.fn().mockResolvedValue(ventaDetalleCompleta),
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn().mockResolvedValue(null),
+      },
+
+      dETALLECOBRO: {
+        findMany: jest.fn().mockResolvedValue([]),
       },
 
       $transaction: jest.fn((callback: (transaction: typeof tx) => unknown) =>
@@ -706,6 +713,157 @@ describe('VentaService', () => {
         comodidades: null,
         observaciones: null,
       });
+    });
+  });
+
+  describe('historialPagosVenta', () => {
+    const cobroBase = {
+      id_cobro: 100,
+      fecha_cobro: new Date('2025-09-01T00:00:00Z'),
+      origen: 'ECOMMERCE',
+      estado: 'CONFIRMADO',
+      numero_referencia: 'TR-8891',
+      formaPago: { nombre: 'Transferencia' },
+    };
+
+    it('tira 404 si la venta no existe, no es de este cliente, o no está vigente', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.historialPagosVenta(20, 1, { page: 1, limit: 10 }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(prisma.dETALLECOBRO.findMany).not.toHaveBeenCalled();
+    });
+
+    it('devuelve data: [] con meta.total 0 si la unidad no tiene pagos', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dETALLECOBRO.findMany.mockResolvedValue([]);
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(resultado).toEqual({
+        data: [],
+        meta: { total: 0, page: 1, limit: 10 },
+      });
+    });
+
+    it('agrupa varias líneas del mismo cobro en un único ítem, sumando el importe imputado', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dETALLECOBRO.findMany.mockResolvedValue([
+        { importe_imputado: new Prisma.Decimal(300000), cobro: cobroBase },
+        { importe_imputado: new Prisma.Decimal(150000), cobro: cobroBase },
+      ]);
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(resultado.data).toHaveLength(1);
+      expect(resultado.data[0]).toEqual({
+        id_cobro: 100,
+        fecha_cobro: '2025-09-01T00:00:00.000Z',
+        origen: 'ECOMMERCE',
+        estado: 'CONFIRMADO',
+        forma_pago: { nombre: 'Transferencia' },
+        numero_referencia: 'TR-8891',
+        importe_imputado: 450000,
+      });
+    });
+
+    it('un cobro partido entre dos unidades solo suma acá el subtotal de esta venta', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      // Simula que DETALLECOBRO ya viene filtrado por FK_venta=20 (así lo
+      // pide el where del service): la línea de la otra unidad ni aparece.
+      prisma.dETALLECOBRO.findMany.mockResolvedValue([
+        { importe_imputado: new Prisma.Decimal(80000), cobro: cobroBase },
+      ]);
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(prisma.dETALLECOBRO.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { cuota: { FK_venta: 20 } },
+        }) as unknown,
+      );
+      expect(resultado.data[0].importe_imputado).toBe(80000);
+    });
+
+    it('incluye un cobro ANULADO en el historial, con su estado', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dETALLECOBRO.findMany.mockResolvedValue([
+        {
+          importe_imputado: new Prisma.Decimal(50000),
+          cobro: { ...cobroBase, id_cobro: 101, estado: 'ANULADO' },
+        },
+      ]);
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(resultado.data[0].estado).toBe('ANULADO');
+    });
+
+    it('ordena del cobro más reciente al más antiguo', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dETALLECOBRO.findMany.mockResolvedValue([
+        {
+          importe_imputado: new Prisma.Decimal(10000),
+          cobro: {
+            ...cobroBase,
+            id_cobro: 1,
+            fecha_cobro: new Date('2025-01-01'),
+          },
+        },
+        {
+          importe_imputado: new Prisma.Decimal(10000),
+          cobro: {
+            ...cobroBase,
+            id_cobro: 2,
+            fecha_cobro: new Date('2025-06-01'),
+          },
+        },
+      ]);
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(resultado.data.map((item) => item.id_cobro)).toEqual([2, 1]);
+    });
+
+    it('pagina el historial ya agrupado según page/limit', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dETALLECOBRO.findMany.mockResolvedValue(
+        Array.from({ length: 3 }, (_, indice) => ({
+          importe_imputado: new Prisma.Decimal(1000),
+          cobro: {
+            ...cobroBase,
+            id_cobro: indice + 1,
+            fecha_cobro: new Date(2025, 0, indice + 1),
+          },
+        })),
+      );
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 2,
+      });
+
+      expect(resultado.meta).toEqual({ total: 3, page: 1, limit: 2 });
+      expect(resultado.data).toHaveLength(2);
+      // Más reciente primero: id_cobro 3 (03/01) y 2 (02/01).
+      expect(resultado.data.map((item) => item.id_cobro)).toEqual([3, 2]);
     });
   });
 });

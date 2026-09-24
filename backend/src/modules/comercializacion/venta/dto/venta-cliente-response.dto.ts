@@ -109,3 +109,36 @@ export const ventaClienteDetalleSchema = ventaClienteResumenSchema
 export class VentaClienteDetalleResponseDto extends createZodDto(
   ventaClienteDetalleSchema,
 ) {}
+
+const formaPagoClienteResumenSchema = z.object({ nombre: z.string() });
+
+/**
+ * Un cobro tal como lo ve el cliente en el historial de SU unidad: solo el
+ * subtotal (`importe_imputado`) de las líneas que tocaron cuotas de esta
+ * venta — nunca `importe_total` del cobro completo, que puede haber
+ * financiado cuotas de otra unidad del mismo cliente (ver
+ * `VentaService.historialPagosVenta`, el criterio "partido por unidad" de la
+ * HU). Mismos valores de `origen`/`estado` que `cobroResponseSchema`.
+ */
+const pagoHistorialClienteSchema = z.object({
+  id_cobro: z.number(),
+  fecha_cobro: z.iso.datetime(),
+  origen: z.enum(['PRESENCIAL', 'ECOMMERCE']),
+  estado: z.enum(['CONFIRMADO', 'ANULADO']),
+  forma_pago: formaPagoClienteResumenSchema,
+  numero_referencia: z.string().nullable(),
+  importe_imputado: z.number(),
+});
+
+export const historialPagosClienteResponseSchema = z.object({
+  data: z.array(pagoHistorialClienteSchema),
+  meta: z.object({
+    total: z.number(),
+    page: z.number(),
+    limit: z.number(),
+  }),
+});
+
+export class HistorialPagosClienteResponseDto extends createZodDto(
+  historialPagosClienteResponseSchema,
+) {}

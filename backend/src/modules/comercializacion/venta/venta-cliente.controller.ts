@@ -3,6 +3,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -11,14 +12,17 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { VentaService } from './venta.service';
 import {
+  HistorialPagosClienteResponseDto,
   MisVentasResponseDto,
   VentaClienteDetalleResponseDto,
 } from './dto/venta-cliente-response.dto';
+import { QueryHistorialPagosClienteDto } from './dto/query-historial-pagos-cliente.dto';
 import { ClienteAuthGuard } from '../cliente-auth/guards/cliente-auth.guard';
 import { CurrentCliente } from '../cliente-auth/decorators/current-cliente.decorator';
 import type { AuthenticatedCliente } from '../cliente-auth/strategies/cliente-jwt.strategy';
@@ -85,5 +89,33 @@ export class VentaClienteController {
     @CurrentCliente() cliente: AuthenticatedCliente,
   ) {
     return this.ventaService.detalleVentaCliente(id, cliente.id);
+  }
+
+  @Get(':id/historial-pagos')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Historial de pagos de una unidad del cliente autenticado, del más reciente al más antiguo (HU-28)',
+    description:
+      'Un cobro que imputó a cuotas de dos unidades del mismo cliente aparece partido: acá solo con el subtotal imputado a ESTA unidad. Incluye cobros ANULADOS (con su estado, sin afectar el saldo).',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'id_venta' })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiOkResponse({
+    description: 'Historial paginado de pagos de la unidad',
+    type: HistorialPagosClienteResponseDto,
+  })
+  @ApiUnauthorizedResponse({ description: MENSAJE_NO_AUTENTICADO })
+  @ApiNotFoundResponse({
+    description:
+      'No existe una venta con ese id para este cliente (o no está vigente)',
+  })
+  historialPagos(
+    @Param('id', ParseIntPipe) id: number,
+    @Query() query: QueryHistorialPagosClienteDto,
+    @CurrentCliente() cliente: AuthenticatedCliente,
+  ) {
+    return this.ventaService.historialPagosVenta(id, cliente.id, query);
   }
 }

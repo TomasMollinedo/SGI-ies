@@ -22,6 +22,7 @@ import { generarCuotas } from '../plan-pago/motor-cuotas';
 import { CreateVentaDto } from './dto/create-venta.dto';
 import { CancelarVentaDto } from './dto/cancelar-venta.dto';
 import { QueryVentaDto } from './dto/query-venta.dto';
+import { QueryHistorialPagosClienteDto } from './dto/query-historial-pagos-cliente.dto';
 
 /** Decimales de todo importe/porcentaje, igual que las columnas del schema. */
 const DECIMALES = 2;
@@ -729,6 +730,104 @@ export class VentaService {
       },
       cuotas,
       saldo_total_pendiente: saldoTotalPendiente.toNumber(),
+    };
+  }
+
+  /** `NotFoundException` genérico si la venta no existe, no es de este cliente, o no está VIGENTE — mismo criterio que `detalleVentaCliente`. */
+  private async validarVentaDeCliente(idVenta: number, clienteId: number) {
+    const venta = await this.prisma.vENTA.findFirst({
+      where: {
+        id_venta: idVenta,
+        FK_cliente: clienteId,
+        estado: EstadoVenta.VIGENTE,
+      },
+      select: { id_venta: true },
+    });
+
+    if (!venta) {
+      throw new NotFoundException('No existe una venta con ese id');
+    }
+  }
+
+  /**
+   * Historial de pagos de UNA unidad del cliente (T112, HU-28), paginado.
+   *
+   * Se arma desde `DETALLECOBRO` filtrando por `cuota.FK_venta`, y no desde
+   * `COBRO` filtrando por cliente: un cobro puede haber imputado a cuotas de
+   * dos unidades del mismo cliente en una sola operación, y acá tiene que
+   * aparecer "partido" — con el subtotal de lo que tocó a ESTA unidad, nunca
+   * con su `importe_total` completo (decisión explícita de la HU). Un cobro
+   * ANULADO se lista igual, con su estado: no hace falta excluirlo porque
+   * `CUOTA.saldo_pendiente` ya refleja la restitución hecha al anular.
+   *
+   * La agrupación por cobro y la paginación se hacen en memoria: el volumen
+   * de cobros de una sola unidad (como mucho, unos pocos por cuota) no
+   * justifica una consulta agregada en SQL.
+   */
+  async historialPagosVenta(
+    idVenta: number,
+    clienteId: number,
+    query: QueryHistorialPagosClienteDto,
+  ) {
+    await this.validarVentaDeCliente(idVenta, clienteId);
+
+    const detalles = await this.prisma.dETALLECOBRO.findMany({
+      where: { cuota: { FK_venta: idVenta } },
+      select: {
+        importe_imputado: true,
+        cobro: {
+          select: {
+            id_cobro: true,
+            fecha_cobro: true,
+            origen: true,
+            estado: true,
+            numero_referencia: true,
+            formaPago: { select: { nombre: true } },
+          },
+        },
+      },
+    });
+
+    type CobroResumen = (typeof detalles)[number]['cobro'];
+
+    const porCobro = new Map<
+      number,
+      { cobro: CobroResumen; importeImputado: Prisma.Decimal }
+    >();
+
+    for (const detalle of detalles) {
+      const entrada = porCobro.get(detalle.cobro.id_cobro) ?? {
+        cobro: detalle.cobro,
+        importeImputado: new Prisma.Decimal(0),
+      };
+      entrada.importeImputado = entrada.importeImputado.plus(
+        detalle.importe_imputado,
+      );
+      porCobro.set(detalle.cobro.id_cobro, entrada);
+    }
+
+    const historialOrdenado = [...porCobro.values()].sort(
+      (a, b) => b.cobro.fecha_cobro.getTime() - a.cobro.fecha_cobro.getTime(),
+    );
+
+    const { page, limit } = query;
+    const total = historialOrdenado.length;
+    const pagina = historialOrdenado.slice(
+      (page - 1) * limit,
+      (page - 1) * limit + limit,
+    );
+
+    return {
+      data: pagina.map((entrada) => ({
+        id_cobro: entrada.cobro.id_cobro,
+        fecha_cobro: entrada.cobro.fecha_cobro.toISOString(),
+        origen: entrada.cobro.origen,
+        estado: entrada.cobro.estado,
+        forma_pago: entrada.cobro.formaPago,
+        numero_referencia: entrada.cobro.numero_referencia,
+        importe_imputado: entrada.importeImputado.toNumber(),
+      })),
+      meta: { total, page, limit },
     };
   }
 
