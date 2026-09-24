@@ -28,9 +28,16 @@ export interface ConsultaInterna {
   cliente: ClienteDeConsulta
 }
 
-/** Query params de GET /consultas. Los que van `undefined` no se envían. */
+/**
+ * Query params de GET /consultas. Los que van `undefined` no se envían.
+ *
+ * `identificador` es independiente de `FK_proyecto`: busca por coincidencia
+ * parcial del identificador de la unidad sin importar el proyecto (puede
+ * traer resultados de proyectos distintos si no se combina con `FK_proyecto`).
+ */
 export interface ConsultasQuery {
-  FK_unidad_funcional?: number
+  FK_proyecto?: number
+  identificador?: string
   FK_cliente?: number
   estado?: EstadoConsulta
   fechaDesde?: string

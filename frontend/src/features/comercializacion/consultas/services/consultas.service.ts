@@ -12,8 +12,8 @@ export const CONSULTAS_QUERY_KEYS = {
 
 /**
  * GET /consultas — cola interna de Comercialización (ADMINISTRADOR), filtros
- * combinables por unidad, cliente, estado y período. El orden lo fija el
- * backend (ver README de esta entrega sobre el orden actual vs. el pedido).
+ * combinables por proyecto, identificador de unidad (texto libre), cliente,
+ * estado y período. El orden lo fija el backend.
  */
 export async function listarConsultas(
   filtros: ConsultasQuery,
@@ -21,7 +21,8 @@ export async function listarConsultas(
 ): Promise<PaginatedResponse<ConsultaInterna>> {
   const { data } = await httpClient.get<PaginatedResponse<ConsultaInterna>>('/consultas', {
     params: {
-      FK_unidad_funcional: filtros.FK_unidad_funcional,
+      FK_proyecto: filtros.FK_proyecto,
+      identificador: filtros.identificador,
       FK_cliente: filtros.FK_cliente,
       estado: filtros.estado,
       fechaDesde: filtros.fechaDesde,

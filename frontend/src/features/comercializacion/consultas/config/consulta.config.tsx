@@ -5,6 +5,9 @@ import type { EstadoConsulta } from '../types/consulta.types'
 /** Resultados por página de la cola. Fijo, igual que en el resto de los listados. */
 export const LIMITE_PAGINA = 10
 
+/** Cuánto espera el filtro de identificador antes de pegarle al backend. */
+export const DEBOUNCE_BUSQUEDA = 400
+
 export const ESTADO_CONSULTA_LABEL: Record<EstadoConsulta, string> = {
   PENDIENTE: 'Pendiente',
   RESPONDIDA: 'Respondida',
