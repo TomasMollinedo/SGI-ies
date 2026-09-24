@@ -96,20 +96,24 @@ export function PublicacionesPage() {
       render: (item) => (
         <div className="flex min-w-0 flex-col items-start gap-1 wrap-anywhere">
           {badgeEstadoPublicacion(item)}
-          <p className="text-content-muted text-xs">
-            Publicada el {formatearFecha(item.fecha_publicacion)}
-          </p>
           {!item.vigente && (
-            <>
-              {item.fecha_despublicacion && (
-                <p className="text-content-muted text-xs">
-                  Despublicada el {formatearFecha(item.fecha_despublicacion)}
-                </p>
-              )}
-              <p className="text-content-muted text-xs">
-                {estadoAnteriorTexto(item.estado_comercial)}
-              </p>
-            </>
+            <p className="text-content-muted text-xs">
+              {estadoAnteriorTexto(item.estado_comercial)}
+            </p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'fecha',
+      label: 'Fecha de publicación',
+      render: (item) => (
+        <div className="flex min-w-0 flex-col items-start gap-1 wrap-anywhere">
+          <p>{formatearFecha(item.fecha_publicacion)}</p>
+          {!item.vigente && item.fecha_despublicacion && (
+            <p className="text-content-muted text-xs">
+              Despublicada el {formatearFecha(item.fecha_despublicacion)}
+            </p>
           )}
         </div>
       ),
