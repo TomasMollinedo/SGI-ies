@@ -16,7 +16,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { validarTelefonoSoloNumeros } from '../../../common/validaciones/telefono-solo-numeros';
 import { validarDniCuilValido } from '../../../common/validaciones/dni-cuil-valido';
 import { calcularDiasVencido } from '../../../common/validaciones/dias-vencido';
-import { calcularCondicionEntrega } from '../common/condicion-entrega';
+import { calcularCondicionEntregaResponse } from '../common/condicion-entrega';
 import { PublicacionService } from '../publicacion/publicacion.service';
 import { generarCuotas } from '../plan-pago/motor-cuotas';
 import { CreateVentaDto } from './dto/create-venta.dto';
@@ -581,21 +581,9 @@ export class VentaService {
         nombre: proyecto.nombre,
         localidad: proyecto.localidad,
       },
-      condicion_entrega: this.mapearCondicionEntregaVenta(proyecto),
+      condicion_entrega: calcularCondicionEntregaResponse(proyecto),
       saldo_total_pendiente: saldoTotalPendiente.toNumber(),
       tiene_cuotas_vencidas: tieneCuotasVencidas,
-    };
-  }
-
-  /** Mismo mapeo que `CatalogoService.mapearCondicionEntrega`, repetido acá porque ahí es privado del módulo. */
-  private mapearCondicionEntregaVenta(proyecto: {
-    estado: EstadoProyecto;
-    fecha_fin_estimada: Date | null;
-  }) {
-    const condicion = calcularCondicionEntrega(proyecto);
-    return {
-      ...condicion,
-      fecha_referencia: condicion.fecha_referencia?.toISOString() ?? null,
     };
   }
 
@@ -719,7 +707,7 @@ export class VentaService {
         nombre: proyecto.nombre,
         localidad: proyecto.localidad,
       },
-      condicion_entrega: this.mapearCondicionEntregaVenta(proyecto),
+      condicion_entrega: calcularCondicionEntregaResponse(proyecto),
       plan: {
         nombre: venta.planPago.nombre,
         tipo: venta.tipo_plan_congelado,
