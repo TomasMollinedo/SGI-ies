@@ -17,6 +17,10 @@ export const COBROS_QUERY_KEYS = {
   LISTAS: ['cobros', 'lista'] as const,
   CUOTAS_IMPUTABLES: (FK_cliente: number) => ['cobros', 'cuotas-imputables', FK_cliente] as const,
   DETALLE: (id: number | null) => ['cobros', 'detalle', id] as const,
+  // Mismo endpoint que el buscador de Ventas (GET /ventas/buscar-clientes),
+  // pero paginado por página: key propia para no mezclarse con la de Ventas.
+  BUSQUEDA_CLIENTES: (busqueda: string, page: number) =>
+    ['cobros', 'buscar-clientes', busqueda, page] as const,
 }
 
 /**

@@ -1,7 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
-import { VENTAS_QUERY_KEYS } from '@/features/comercializacion/ventas/services/ventas.service'
-import type { ApiErrorResponse } from '@/shared/types/api.types'
+import {
+  VENTAS_QUERY_KEYS,
+  buscarClientes,
+} from '@/features/comercializacion/ventas/services/ventas.service'
+import type { ClienteResumen } from '@/features/comercializacion/ventas/types/venta.types'
+import type { ApiErrorResponse, PaginatedResponse } from '@/shared/types/api.types'
 import {
   COBROS_QUERY_KEYS,
   anularCobro,
@@ -16,6 +20,8 @@ import type {
   CuotasImputablesResponse,
 } from '../types/cobro.types'
 
+const LIMITE_BUSQUEDA_CLIENTES = 8
+
 /**
  * Cuotas imputables del cliente elegido, para el detalle del formulario de
  * cobro. Con `idCliente` en `null` (todavía no se eligió cliente) la query
@@ -27,6 +33,25 @@ export function useCuotasImputables(idCliente: number | null) {
     // El `!` es seguro: con `idCliente` en `null` la query no corre (`enabled`).
     queryFn: ({ signal }) => listarCuotasImputables(idCliente!, signal),
     enabled: idCliente !== null,
+  })
+}
+
+/**
+ * Búsqueda paginada de clientes para el `SelectorClienteModal`. Reusa la
+ * función del servicio de Ventas (el endpoint es de ese módulo), pero no su
+ * hook: `useBuscarClientes` trae solo la primera página para un combobox, y
+ * acá hace falta paginar. El backend exige `busqueda`, así que sin texto (o
+ * con el modal cerrado) la query queda deshabilitada.
+ */
+export function useBuscarClientesCobro(busqueda: string, page: number, habilitado: boolean) {
+  const terminoLimpio = busqueda.trim()
+
+  return useQuery<PaginatedResponse<ClienteResumen>, ApiErrorResponse>({
+    queryKey: COBROS_QUERY_KEYS.BUSQUEDA_CLIENTES(terminoLimpio, page),
+    queryFn: ({ signal }) =>
+      buscarClientes({ busqueda: terminoLimpio, page, limit: LIMITE_BUSQUEDA_CLIENTES }, signal),
+    enabled: habilitado && terminoLimpio.length > 0,
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -59,8 +84,12 @@ export function useCrearCobro() {
 
   return useMutation<CobroDetalle, ApiErrorResponse, CrearCobroPayload>({
     mutationFn: crearCobro,
-    onSuccess: (_cobro, payload) => {
+    onSuccess: (cobro, payload) => {
       invalidarAfectadosPorCobro(queryClient, payload.FK_cliente)
+      // La respuesta ya es el detalle completo: se siembra en la cache para
+      // que la pantalla de detalle (a la que se navega al confirmar) lo
+      // muestre al toque, sin un segundo request.
+      queryClient.setQueryData(COBROS_QUERY_KEYS.DETALLE(cobro.id_cobro), cobro)
     },
   })
 }
