@@ -90,12 +90,16 @@ export const PERIODICIDAD_PLURAL = {
   ANUAL: 'anuales',
 } as const
 
-/** Bloque de envío de consulta. Lo completa T119; ver `EnviarConsulta.tsx`. */
+/** Bloque de envío de consulta (HU-26 / T119). Ver `EnviarConsulta.tsx`. */
 export const CONSULTA = {
   titulo: '¿Te interesa esta unidad?',
   descripcion:
     'Dejanos tu consulta y un asesor te contacta para coordinar una visita o contarte las formas de pago.',
-  proximamente: 'Disponible próximamente',
+  loginBoton: 'Iniciá sesión para consultar',
+  campoLabel: 'Tu consulta',
+  campoPlaceholder: 'Ej. ¿Tiene cochera? ¿Qué formas de pago manejan?',
+  enviar: 'Enviar consulta',
+  exito: '¡Consulta enviada! Vas a poder ver la respuesta en tu perfil, en «Mis consultas».',
 } as const
 
 export const ESTADOS = {

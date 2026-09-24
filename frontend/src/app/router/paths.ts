@@ -88,6 +88,9 @@ export const PATHS = {
     // Patrón de ruta, no una URL navegable: para armar la de una venta
     // concreta está `rutaDetalleVenta`.
     VENTA_DETALLE: '/sistema/comercializacion/ventas/:idVenta',
+    // HU-26 / T119. Sin ruta de detalle: se opera desde un modal sobre el
+    // listado (DetalleConsultaModal), como "Registrar venta" en VENTAS.
+    CONSULTAS: '/sistema/comercializacion/consultas',
   },
 
   // Sitio público del ecommerce (HU-23/24/25). Convive con el resto de las
@@ -164,6 +167,7 @@ export function rutaPlanesPagoPublicacion(idPublicacion: number): string {
     ':idPublicacion',
     String(idPublicacion)
   )
+
 }
 
 /** La ruta del detalle de una compra propia del cliente (ej. 20 → /mi-perfil/compras/20). */

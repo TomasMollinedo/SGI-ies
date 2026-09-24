@@ -15,6 +15,7 @@ import {
   Layers,
   ListTree,
   Megaphone,
+  MessageSquare,
   Package,
   Receipt,
   Ruler,
@@ -131,6 +132,7 @@ export const NAV_ITEMS: NavNode[] = [
     children: [
       { label: 'Publicaciones', to: PATHS.COMERCIALIZACION.PUBLICACIONES, icon: Megaphone },
       { label: 'Ventas', to: PATHS.COMERCIALIZACION.VENTAS, icon: ShoppingCart },
+      { label: 'Consultas', to: PATHS.COMERCIALIZACION.CONSULTAS, icon: MessageSquare },
     ],
   },
 ]

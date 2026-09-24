@@ -60,6 +60,7 @@ describe('RolesGuard', () => {
     ['StockController', StockController],
     ['TipoMovimientoController', TipoMovimientoController],
     ['UnidadMedidaController', UnidadMedidaController],
+
   ];
 
   const usuario = (rol: RolNombre): AuthenticatedUser => ({
