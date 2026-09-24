@@ -16,7 +16,7 @@ import { Button } from '@/shared/components/ui/Button'
 import { Input } from '@/shared/components/ui/Input'
 import { Spinner } from '@/shared/components/ui/Spinner'
 import { formatearMensajeError } from '@/shared/utils/apiError'
-import { CONSULTA } from '../config/catalogo.config'
+import { CONSULTA } from '../catalogo/config//catalogo.config'
 
 const ID_FORM = 'form-enviar-consulta'
 
