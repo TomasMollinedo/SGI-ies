@@ -53,7 +53,13 @@ export const PATHS = {
     // concreto está `rutaCardexCuentaCorriente`.
     CUENTAS_CORRIENTES_CARDEX: '/sistema/tesoreria/cuentas-corrientes/:idProveedor/cardex',
     REPORTE_EGRESOS: '/sistema/tesoreria/reporte-egresos',
-    COBRANZAS: '/sistema/tesoreria/cobranzas',
+    COBRANZAS: {
+      ROOT: '/sistema/tesoreria/cobranzas',
+      NUEVO: '/sistema/tesoreria/cobranzas/nuevo',
+      // Patrón de ruta, no una URL navegable: para armar la de un cobro
+      // concreto está `rutaDetalleCobro`.
+      DETALLE: '/sistema/tesoreria/cobranzas/:idCobro',
+    },
   },
   ALERTAS: { ROOT: '/sistema/alertas' },
 
@@ -108,6 +114,11 @@ export function rutaCardexStock(idStock: number): string {
 /** La ruta del extracto de un proveedor puntual (ej. 42 → /tesoreria/cuentas-corrientes/42/cardex). */
 export function rutaCardexCuentaCorriente(idProveedor: number): string {
   return PATHS.TESORERIA.CUENTAS_CORRIENTES_CARDEX.replace(':idProveedor', String(idProveedor))
+}
+
+/** La ruta del detalle de un cobro puntual (ej. 42 → /tesoreria/cobranzas/42). */
+export function rutaDetalleCobro(idCobro: number): string {
+  return PATHS.TESORERIA.COBRANZAS.DETALLE.replace(':idCobro', String(idCobro))
 }
 
 /** La ruta del detalle de una unidad funcional puntual (ej. 42 → /proyectos/unidades-funcionales/42). */

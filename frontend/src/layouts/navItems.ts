@@ -113,7 +113,7 @@ export const NAV_ITEMS: NavNode[] = [
       },
       { label: 'Cuentas Corrientes', to: PATHS.TESORERIA.CUENTAS_CORRIENTES, icon: Landmark },
       { label: 'Reporte de Egresos', to: PATHS.TESORERIA.REPORTE_EGRESOS, icon: TrendingDown },
-      { label: 'Cobranzas', to: PATHS.TESORERIA.COBRANZAS, icon: HandCoins },
+      { label: 'Cobranzas', to: PATHS.TESORERIA.COBRANZAS.ROOT, icon: HandCoins },
     ],
   },
   {

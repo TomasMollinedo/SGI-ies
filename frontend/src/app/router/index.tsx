@@ -30,6 +30,7 @@ import { PublicacionDetallePage } from '@/features/comercializacion/publicacione
 import { PublicacionesPage } from '@/features/comercializacion/publicaciones/pages/PublicacionesPage'
 import { VentaDetallePage } from '@/features/comercializacion/ventas/pages/VentaDetallePage'
 import { VentasPage } from '@/features/comercializacion/ventas/pages/VentasPage'
+import { CobranzasPage } from '@/features/tesoreria/cobranzas/pages/CobranzasPage'
 import { ComprobantesPage } from '@/features/tesoreria/comprobantes/pages/ComprobantesPage'
 import { TiposComprobantePage } from '@/features/tesoreria/tipos-comprobante/pages/TiposComprobantePage'
 import { NuevoPagoPage } from '@/features/tesoreria/pagos/pages/NuevoPagoPage'
@@ -219,9 +220,20 @@ export const router = createBrowserRouter([
                 handle: { title: 'Reporte de Egresos' },
               },
               {
-                path: PATHS.TESORERIA.COBRANZAS,
-                element: <PlaceholderPage titulo="Cobranzas" historia="HU-30" />,
+                path: PATHS.TESORERIA.COBRANZAS.ROOT,
+                element: <CobranzasPage />,
                 handle: { title: 'Cobranzas' },
+              },
+              // NUEVO antes que DETALLE, para que "nuevo" no se lea como un :idCobro.
+              {
+                path: PATHS.TESORERIA.COBRANZAS.NUEVO,
+                element: <PlaceholderPage titulo="Registrar cobro" historia="HU-30" />,
+                handle: { title: 'Registrar cobro' },
+              },
+              {
+                path: PATHS.TESORERIA.COBRANZAS.DETALLE,
+                element: <PlaceholderPage titulo="Detalle del cobro" historia="HU-30" />,
+                handle: { title: 'Detalle del cobro' },
               },
             ],
           },
