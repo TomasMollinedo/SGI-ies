@@ -2,10 +2,10 @@ import { ArrowLeft } from 'lucide-react'
 import { Link, useLocation, useParams } from 'react-router'
 import { PATHS } from '@/app/router/paths'
 import { Spinner } from '@/shared/components/ui/Spinner'
+import { FichaUnidad } from '@/features/ecommerce/components/FichaUnidad'
 import { LinkButton } from '@/features/ecommerce/components/LinkButton'
 import { TIPOLOGIA_LABEL } from '@/shared/config/tipologiaUnidad.config'
 import { formatearImporte } from '@/shared/utils/importe'
-import { DatosUnidad } from './components/DatosUnidad'
 import { EnviarConsulta } from './components/EnviarConsulta'
 import { GaleriaUnidad } from './components/GaleriaUnidad'
 import { PlanesPagoUnidad } from './components/PlanesPagoUnidad'
@@ -90,7 +90,7 @@ export function DetalleUnidadPage() {
       {/* Una columna en móvil: galería, datos, planes y consulta, en ese orden. */}
       <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
         <GaleriaUnidad imagenes={unidad.imagenes} identificador={unidad.identificador} />
-        <DatosUnidad unidad={unidad} />
+        <FichaUnidad unidad={unidad} condicionEntrega={unidad.condicion_entrega} />
       </div>
 
       <div className="mt-14 flex flex-col gap-14">

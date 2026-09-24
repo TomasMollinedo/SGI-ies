@@ -9,16 +9,20 @@ import {
   EstadoComercial,
   EstadoCuota,
   EstadoDeclaracionPago,
+  EstadoProyecto,
   EstadoVenta,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { validarTelefonoSoloNumeros } from '../../../common/validaciones/telefono-solo-numeros';
 import { validarDniCuilValido } from '../../../common/validaciones/dni-cuil-valido';
+import { calcularDiasVencido } from '../../../common/validaciones/dias-vencido';
+import { calcularCondicionEntregaResponse } from '../common/condicion-entrega';
 import { PublicacionService } from '../publicacion/publicacion.service';
 import { generarCuotas } from '../plan-pago/motor-cuotas';
 import { CreateVentaDto } from './dto/create-venta.dto';
 import { CancelarVentaDto } from './dto/cancelar-venta.dto';
 import { QueryVentaDto } from './dto/query-venta.dto';
+import { QueryHistorialPagosClienteDto } from './dto/query-historial-pagos-cliente.dto';
 
 /** Decimales de todo importe/porcentaje, igual que las columnas del schema. */
 const DECIMALES = 2;
@@ -473,6 +477,346 @@ export class VentaService {
         },
       },
     } as const;
+  }
+
+  /**
+   * Unidades del cliente autenticado (T112, HU-28): solo ventas VIGENTE — una
+   * cancelada ya no es "mi unidad comprada". Nunca recibe un id de cliente
+   * por parámetro: siempre el del token (`ClienteAuthGuard`/`@CurrentCliente`
+   * en el controller). Sin paginar, mismo criterio que `buscarClientes` de
+   * un catálogo chico: un cliente no acumula unidades como para justificarla.
+   */
+  async misVentas(clienteId: number) {
+    const ventas = await this.prisma.vENTA.findMany({
+      where: { FK_cliente: clienteId, estado: EstadoVenta.VIGENTE },
+      select: {
+        id_venta: true,
+        estado: true,
+        fecha_adhesion: true,
+        publicacion: {
+          select: {
+            unidadFuncional: {
+              select: {
+                id_unidad_funcional: true,
+                identificador: true,
+                tipologia: true,
+                proyecto: {
+                  select: {
+                    id_proyecto: true,
+                    nombre: true,
+                    localidad: true,
+                    estado: true,
+                    fecha_fin_estimada: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        // ANULADA queda afuera: son cuotas de una venta cancelada, no cuentan
+        // para el saldo ni para la alerta de vencidas de una venta vigente.
+        cuotas: {
+          where: { estado: { not: EstadoCuota.ANULADA } },
+          select: { saldo_pendiente: true, fecha_vencimiento: true },
+        },
+      },
+      orderBy: { fecha_adhesion: 'desc' },
+    });
+
+    const hoy = new Date();
+
+    return { data: ventas.map((venta) => this.mapearVentaCliente(venta, hoy)) };
+  }
+
+  private mapearVentaCliente(
+    venta: {
+      id_venta: number;
+      estado: string;
+      fecha_adhesion: Date;
+      publicacion: {
+        unidadFuncional: {
+          id_unidad_funcional: number;
+          identificador: string;
+          tipologia: string;
+          proyecto: {
+            id_proyecto: number;
+            nombre: string;
+            localidad: string;
+            estado: EstadoProyecto;
+            fecha_fin_estimada: Date | null;
+          };
+        };
+      };
+      cuotas: { saldo_pendiente: Prisma.Decimal; fecha_vencimiento: Date }[];
+    },
+    hoy: Date,
+  ) {
+    const { unidadFuncional } = venta.publicacion;
+    const { proyecto, ...unidad } = unidadFuncional;
+
+    const saldoTotalPendiente = venta.cuotas.reduce(
+      (acumulado, cuota) => acumulado.plus(cuota.saldo_pendiente),
+      new Prisma.Decimal(0),
+    );
+
+    // Saldada (saldo_pendiente <= 0) nunca cuenta como vencida aunque su
+    // fecha ya haya pasado — mismo criterio documentado en `calcularDiasVencido`.
+    const tieneCuotasVencidas = venta.cuotas.some(
+      (cuota) =>
+        cuota.saldo_pendiente.greaterThan(0) &&
+        calcularDiasVencido(cuota.fecha_vencimiento, hoy).vencido,
+    );
+
+    return {
+      id_venta: venta.id_venta,
+      estado: venta.estado,
+      fecha_adhesion: venta.fecha_adhesion.toISOString(),
+      unidad: {
+        id_unidad_funcional: unidad.id_unidad_funcional,
+        identificador: unidad.identificador,
+        tipologia: unidad.tipologia,
+      },
+      proyecto: {
+        id_proyecto: proyecto.id_proyecto,
+        nombre: proyecto.nombre,
+        localidad: proyecto.localidad,
+      },
+      condicion_entrega: calcularCondicionEntregaResponse(proyecto),
+      saldo_total_pendiente: saldoTotalPendiente.toNumber(),
+      tiene_cuotas_vencidas: tieneCuotasVencidas,
+    };
+  }
+
+  /**
+   * Detalle de una unidad del cliente autenticado (T112, HU-28): la misma
+   * cabecera de `misVentas` + la unidad ampliada, el plan (condiciones
+   * congeladas de la VENTA, nunca las de PLANPAGO) y el cronograma completo
+   * de cuotas con `vencido`/`dias_vencido` ya resueltos.
+   *
+   * `NotFoundException` genérico si la venta no existe, no es de este
+   * cliente, o no está VIGENTE (una cancelada ya no aparece en `misVentas`,
+   * así que tampoco se puede entrar a su detalle por URL): nunca hay que
+   * distinguirle al cliente cuál de los tres motivos fue.
+   */
+  async detalleVentaCliente(idVenta: number, clienteId: number) {
+    const venta = await this.prisma.vENTA.findFirst({
+      where: {
+        id_venta: idVenta,
+        FK_cliente: clienteId,
+        estado: EstadoVenta.VIGENTE,
+      },
+      select: {
+        id_venta: true,
+        estado: true,
+        fecha_adhesion: true,
+        precio_congelado: true,
+        anticipo_congelado: true,
+        tipo_plan_congelado: true,
+        cantidad_cuotas_congelada: true,
+        periodicidad_congelada: true,
+        planPago: { select: { nombre: true } },
+        publicacion: {
+          select: {
+            unidadFuncional: {
+              select: {
+                id_unidad_funcional: true,
+                identificador: true,
+                tipologia: true,
+                superficie_cubierta: true,
+                superficie_descubierta: true,
+                piso: true,
+                comodidades: true,
+                observaciones: true,
+                proyecto: {
+                  select: {
+                    id_proyecto: true,
+                    nombre: true,
+                    localidad: true,
+                    estado: true,
+                    fecha_fin_estimada: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        cuotas: {
+          where: { estado: { not: EstadoCuota.ANULADA } },
+          select: {
+            numero: true,
+            importe: true,
+            fecha_vencimiento: true,
+            saldo_pendiente: true,
+            estado: true,
+          },
+          orderBy: { numero: 'asc' },
+        },
+      },
+    });
+
+    if (!venta) {
+      throw new NotFoundException('No existe una venta con ese id');
+    }
+
+    const { unidadFuncional } = venta.publicacion;
+    const { proyecto, ...unidad } = unidadFuncional;
+    const hoy = new Date();
+
+    const cuotas = venta.cuotas.map((cuota) => {
+      const { vencido, dias_vencido } = calcularDiasVencido(
+        cuota.fecha_vencimiento,
+        hoy,
+      );
+      // Saldada nunca está vencida aunque su fecha ya haya pasado — mismo
+      // criterio que `mapearVentaCliente`.
+      const vencidoEfectivo = cuota.saldo_pendiente.greaterThan(0) && vencido;
+
+      return {
+        numero: cuota.numero,
+        importe: cuota.importe.toNumber(),
+        fecha_vencimiento: cuota.fecha_vencimiento.toISOString(),
+        saldo_pendiente: cuota.saldo_pendiente.toNumber(),
+        estado: cuota.estado,
+        vencido: vencidoEfectivo,
+        dias_vencido: vencidoEfectivo ? dias_vencido : 0,
+      };
+    });
+
+    const saldoTotalPendiente = venta.cuotas.reduce(
+      (acumulado, cuota) => acumulado.plus(cuota.saldo_pendiente),
+      new Prisma.Decimal(0),
+    );
+
+    return {
+      id_venta: venta.id_venta,
+      estado: venta.estado,
+      fecha_adhesion: venta.fecha_adhesion.toISOString(),
+      unidad: {
+        id_unidad_funcional: unidad.id_unidad_funcional,
+        identificador: unidad.identificador,
+        tipologia: unidad.tipologia,
+        superficie_cubierta: unidad.superficie_cubierta.toNumber(),
+        superficie_descubierta:
+          unidad.superficie_descubierta?.toNumber() ?? null,
+        piso: unidad.piso,
+        comodidades: unidad.comodidades,
+        observaciones: unidad.observaciones,
+      },
+      proyecto: {
+        id_proyecto: proyecto.id_proyecto,
+        nombre: proyecto.nombre,
+        localidad: proyecto.localidad,
+      },
+      condicion_entrega: calcularCondicionEntregaResponse(proyecto),
+      plan: {
+        nombre: venta.planPago.nombre,
+        tipo: venta.tipo_plan_congelado,
+        precio: venta.precio_congelado.toNumber(),
+        anticipo: venta.anticipo_congelado.toNumber(),
+        cantidad_cuotas: venta.cantidad_cuotas_congelada,
+        periodicidad: venta.periodicidad_congelada,
+      },
+      cuotas,
+      saldo_total_pendiente: saldoTotalPendiente.toNumber(),
+    };
+  }
+
+  /** `NotFoundException` genérico si la venta no existe, no es de este cliente, o no está VIGENTE — mismo criterio que `detalleVentaCliente`. */
+  private async validarVentaDeCliente(idVenta: number, clienteId: number) {
+    const venta = await this.prisma.vENTA.findFirst({
+      where: {
+        id_venta: idVenta,
+        FK_cliente: clienteId,
+        estado: EstadoVenta.VIGENTE,
+      },
+      select: { id_venta: true },
+    });
+
+    if (!venta) {
+      throw new NotFoundException('No existe una venta con ese id');
+    }
+  }
+
+  /**
+   * Historial de pagos de UNA unidad del cliente (T112, HU-28), paginado.
+   *
+   * Se arma desde `DETALLECOBRO` filtrando por `cuota.FK_venta`, y no desde
+   * `COBRO` filtrando por cliente: un cobro puede haber imputado a cuotas de
+   * dos unidades del mismo cliente en una sola operación, y acá tiene que
+   * aparecer "partido" — con el subtotal de lo que tocó a ESTA unidad, nunca
+   * con su `importe_total` completo (decisión explícita de la HU). Un cobro
+   * ANULADO se lista igual, con su estado: no hace falta excluirlo porque
+   * `CUOTA.saldo_pendiente` ya refleja la restitución hecha al anular.
+   *
+   * La agrupación por cobro y la paginación se hacen en memoria: el volumen
+   * de cobros de una sola unidad (como mucho, unos pocos por cuota) no
+   * justifica una consulta agregada en SQL.
+   */
+  async historialPagosVenta(
+    idVenta: number,
+    clienteId: number,
+    query: QueryHistorialPagosClienteDto,
+  ) {
+    await this.validarVentaDeCliente(idVenta, clienteId);
+
+    const detalles = await this.prisma.dETALLECOBRO.findMany({
+      where: { cuota: { FK_venta: idVenta } },
+      select: {
+        importe_imputado: true,
+        cobro: {
+          select: {
+            id_cobro: true,
+            fecha_cobro: true,
+            origen: true,
+            estado: true,
+            numero_referencia: true,
+            formaPago: { select: { nombre: true } },
+          },
+        },
+      },
+    });
+
+    type CobroResumen = (typeof detalles)[number]['cobro'];
+
+    const porCobro = new Map<
+      number,
+      { cobro: CobroResumen; importeImputado: Prisma.Decimal }
+    >();
+
+    for (const detalle of detalles) {
+      const entrada = porCobro.get(detalle.cobro.id_cobro) ?? {
+        cobro: detalle.cobro,
+        importeImputado: new Prisma.Decimal(0),
+      };
+      entrada.importeImputado = entrada.importeImputado.plus(
+        detalle.importe_imputado,
+      );
+      porCobro.set(detalle.cobro.id_cobro, entrada);
+    }
+
+    const historialOrdenado = [...porCobro.values()].sort(
+      (a, b) => b.cobro.fecha_cobro.getTime() - a.cobro.fecha_cobro.getTime(),
+    );
+
+    const { page, limit } = query;
+    const total = historialOrdenado.length;
+    const pagina = historialOrdenado.slice(
+      (page - 1) * limit,
+      (page - 1) * limit + limit,
+    );
+
+    return {
+      data: pagina.map((entrada) => ({
+        id_cobro: entrada.cobro.id_cobro,
+        fecha_cobro: entrada.cobro.fecha_cobro.toISOString(),
+        origen: entrada.cobro.origen,
+        estado: entrada.cobro.estado,
+        forma_pago: entrada.cobro.formaPago,
+        numero_referencia: entrada.cobro.numero_referencia,
+        importe_imputado: entrada.importeImputado.toNumber(),
+      })),
+      meta: { total, page, limit },
+    };
   }
 
   private mapearVenta(venta: {

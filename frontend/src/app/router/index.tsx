@@ -15,6 +15,8 @@ import { CatalogoPage } from '@/features/ecommerce/catalogo/CatalogoPage'
 import { DetalleUnidadPage } from '@/features/ecommerce/catalogo/DetalleUnidadPage'
 import { LandingPage } from '@/features/ecommerce/landing/LandingPage'
 import { PerfilPage } from '@/features/ecommerce/pages/PerfilPage'
+import { MisComprasPage } from '@/features/ecommerce/mis-compras/MisComprasPage'
+import { MiCompraDetallePage } from '@/features/ecommerce/mis-compras/MiCompraDetallePage'
 import { SitioPublicoLayout } from '@/features/ecommerce/layout/SitioPublicoLayout'
 import { MainLayout } from '@/layouts/MainLayout'
 import { NotFoundPage } from '@/pages/NotFoundPage'
@@ -60,6 +62,14 @@ export const router = createBrowserRouter([
           {
             path: PATHS.ECOMMERCE.PERFIL,
             element: <PerfilPage />,
+          },
+          {
+            path: PATHS.ECOMMERCE.MIS_COMPRAS,
+            element: <MisComprasPage />,
+          },
+          {
+            path: PATHS.ECOMMERCE.MI_COMPRA_DETALLE,
+            element: <MiCompraDetallePage />,
           },
         ],
       },

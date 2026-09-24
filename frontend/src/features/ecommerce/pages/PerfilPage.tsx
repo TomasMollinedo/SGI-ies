@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MessageSquare, Pencil, User } from 'lucide-react'
+import { MessageSquare, Building2, Pencil, User } from 'lucide-react'
 import { PATHS } from '@/app/router/paths'
 import { Pagination } from '@/shared/components/common/Pagination'
 import { Spinner } from '@/shared/components/ui/Spinner'
@@ -49,14 +49,24 @@ export function PerfilPage() {
         icon={<User />}
         title="Mi perfil"
         footer={
-          <LinkButton
-            to={PATHS.ECOMMERCE.COMPLETAR_DATOS}
-            variant="secondary"
-            icon={<Pencil />}
-            className="font-mono tracking-widest uppercase"
-          >
-            Editar mis datos
-          </LinkButton>
+          <>
+            <LinkButton
+              to={PATHS.ECOMMERCE.MIS_COMPRAS}
+              variant="primary"
+              icon={<Building2 />}
+              className="font-mono tracking-widest uppercase"
+            >
+              Mis compras
+            </LinkButton>
+            <LinkButton
+              to={PATHS.ECOMMERCE.COMPLETAR_DATOS}
+              variant="secondary"
+              icon={<Pencil />}
+              className="font-mono tracking-widest uppercase"
+            >
+              Editar mis datos
+            </LinkButton>
+          </>
         }
       >
         <FilaDato etiqueta="Nombre" valor={cliente.nombre} />
