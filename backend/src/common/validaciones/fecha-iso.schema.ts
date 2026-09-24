@@ -1,10 +1,5 @@
 import { z } from 'zod';
-
-/**
- * Offset fijo de Argentina (UTC-3, sin horario de verano). Se usa para anclar
- * una fecha sola a un instante concreto — ver el comentario de más abajo.
- */
-const OFFSET_ARGENTINA = '-03:00';
+import { OFFSET_ARGENTINA_ISO } from './offset-argentina';
 
 /**
  * Fecha que llega del cliente como texto ISO 8601 y se convierte a `Date`.
@@ -35,6 +30,6 @@ export const fechaIsoSchema = z
   .transform((valor) => {
     const conOffset = valor.includes('T')
       ? valor
-      : `${valor}T00:00:00.000${OFFSET_ARGENTINA}`;
+      : `${valor}T00:00:00.000${OFFSET_ARGENTINA_ISO}`;
     return new Date(conOffset);
   });

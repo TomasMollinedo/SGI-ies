@@ -178,11 +178,9 @@ export const cuotaVencidaSchema = z.object({
   importe: z.number(),
   saldo_pendiente: z.number(),
   dias_vencido: z.number(),
-  cliente: z.object({
-    id_cliente: z.number(),
-    nombre: z.string(),
-    apellido: z.string().nullable(),
-  }),
+  // Cliente completo (con DNI/CUIL y correo): el frontend navega desde acá
+  // al registro de cobro con el cliente precargado.
+  cliente: clienteResumenSchema,
   venta: z.object({
     id_venta: z.number(),
     unidad: z.object({ identificador: z.string() }),

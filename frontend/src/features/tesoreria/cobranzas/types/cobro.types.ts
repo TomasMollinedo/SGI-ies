@@ -1,9 +1,12 @@
+import type { PaginatedResponse } from '@/shared/types/api.types'
+
 /**
- * Tipos de Cobros (HU-30), calcados de los DTOs de respuesta del backend
- * (`cobro-response.dto.ts`). Los importes viajan como `number`.
+ * Tipos de Cobros (HU-30), calcados de los DTOs del backend
+ * (`cobro-response.dto.ts` y `query-cobro.dto.ts`). Los importes viajan como
+ * `number`.
  *
- * El listado (GET /cobros), sus filtros y el resumen del período no están
- * acá: son de T115.
+ * El registro, el detalle y la anulación son de T114; el listado (GET
+ * /cobros), sus filtros y el resumen del período, de T115.
  */
 
 /** El cobro nace CONFIRMADO (no hay borrador) y solo puede pasar a ANULADO. */
@@ -103,6 +106,52 @@ export interface CobroDetalle {
   detalle: LineaCobro[]
   usuarioCreador: UsuarioResumenCobro
   usuarioActualizador: UsuarioResumenCobro
+}
+
+/** Fila del listado (GET /cobros). Las imputaciones y la auditoría están en GET /cobros/:id. */
+export interface CobroListItem {
+  id_cobro: number
+  fecha_cobro: string
+  numero_referencia: string | null
+  importe_total: number
+  origen: OrigenCobro
+  estado: EstadoCobro
+  cliente: ClienteResumenCobro
+  formaPago: FormaPagoResumenCobro
+}
+
+/**
+ * Control de ingresos del período: viaja embebido en la respuesta de GET
+ * /cobros cuando la query trae `fechaDesde` y `fechaHasta` juntas. El backend
+ * lo calcula sobre todas las páginas y solo con los cobros CONFIRMADO, sin
+ * importar qué filtro de estado se haya pedido.
+ */
+export interface ResumenPeriodoCobro {
+  totalIngresos: number
+  subtotalesPorCliente: { cliente: ClienteResumenCobro; total: number }[]
+  subtotalesPorFormaPago: { formaPago: FormaPagoResumenCobro; total: number }[]
+}
+
+/** Respuesta de GET /cobros: el listado paginado + el resumen del período (null salvo rango completo). */
+export type CobrosListResponse = PaginatedResponse<CobroListItem> & {
+  resumenPeriodo: ResumenPeriodoCobro | null
+}
+
+/**
+ * Valor del filtro de estado. Sin el parámetro el backend no filtra: trae
+ * confirmados y anulados.
+ */
+export type FiltroEstadoCobro = '' | EstadoCobro
+
+/** Query params de GET /cobros. Los que van `undefined` no se envían. */
+export interface FiltrosCobros {
+  FK_cliente?: number
+  FK_forma_pago?: number
+  estado?: EstadoCobro
+  fechaDesde?: string
+  fechaHasta?: string
+  page?: number
+  limit?: number
 }
 
 /** Una línea del detalle a enviar: cuánto de este cobro se imputa a una cuota puntual. */

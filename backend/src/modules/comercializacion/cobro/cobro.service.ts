@@ -191,7 +191,8 @@ export class CobroService {
    * Cuotas vencidas de todo el sistema, filtrables por cliente y por
    * proyecto — consulta de seguimiento para Comercialización, no un
    * formulario. Ordenadas por días de atraso descendente (las más
-   * atrasadas primero).
+   * atrasadas primero). Una cuota que vence hoy todavía no está vencida
+   * (mismo criterio que `calcularDiasVencido`).
    */
   async listarCuotasVencidas(query: QueryCuotasVencidasDto) {
     const hoy = new Date();
@@ -200,6 +201,12 @@ export class CobroService {
       where: {
         saldo_pendiente: { gt: 0 },
         estado: { not: EstadoCuota.ANULADA },
+        // Pre-filtro barato en la base, no el criterio final: deja pasar las
+        // que vencen hoy (se guardan a las 00:00 de Argentina, antes de
+        // "ahora"), que se descartan abajo con `calcularDiasVencido`. Nunca
+        // deja afuera una vencida: si el helper da `vencido`, el día UTC del
+        // vencimiento terminó antes de que empezara el día de hoy en
+        // Argentina, así que el vencimiento es anterior a `hoy`.
         fecha_vencimiento: { lt: hoy },
         venta: {
           estado: { not: 'CANCELADA' },
@@ -222,9 +229,7 @@ export class CobroService {
         venta: {
           select: {
             id_venta: true,
-            cliente: {
-              select: { id_cliente: true, nombre: true, apellido: true },
-            },
+            cliente: { select: CLIENTE_RESUMEN_SELECT },
             publicacion: {
               select: {
                 unidadFuncional: {
@@ -244,13 +249,18 @@ export class CobroService {
       orderBy: { fecha_vencimiento: 'asc' },
     });
 
+    // Criterio final de "vencida": el mismo helper que usa el resto del
+    // sistema, no el `lt` del where.
+    const vencidas = cuotas
+      .map((cuota) => ({
+        cuota,
+        ...calcularDiasVencido(cuota.fecha_vencimiento, hoy),
+      }))
+      .filter(({ vencido }) => vencido);
+
     return {
-      data: cuotas
-        .map((cuota) => {
-          const { dias_vencido } = calcularDiasVencido(
-            cuota.fecha_vencimiento,
-            hoy,
-          );
+      data: vencidas
+        .map(({ cuota, dias_vencido }) => {
           const unidad = cuota.venta.publicacion.unidadFuncional;
           return {
             id_cuota: cuota.id_cuota,
@@ -594,7 +604,10 @@ export class CobroService {
    * Listado paginado de cobros, con filtros combinables por cliente, forma
    * de pago, estado y período (sobre `fecha_cobro`). Suma `resumenPeriodo`
    * (control de ingresos) cuando la query trae `fechaDesde` y `fechaHasta`
-   * juntos; `null` en caso contrario.
+   * juntos; `null` en caso contrario. Ordenado por `fecha_cobro`
+   * descendente (más recientes primero), con desempate por `id_cobro`
+   * descendente para que la paginación sea estable entre cobros de la misma
+   * fecha.
    */
   async listar(query: QueryCobroDto) {
     const {
@@ -625,7 +638,7 @@ export class CobroService {
         select: COBRO_LIST_ITEM_SELECT,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { fecha_cobro: 'desc' },
+        orderBy: [{ fecha_cobro: 'desc' }, { id_cobro: 'desc' }],
       }),
       this.prisma.cOBRO.count({ where }),
       this.calcularResumenPeriodo(query),

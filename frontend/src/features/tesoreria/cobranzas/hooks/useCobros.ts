@@ -10,17 +10,36 @@ import {
   COBROS_QUERY_KEYS,
   anularCobro,
   crearCobro,
+  listarCobros,
   listarCuotasImputables,
   obtenerCobro,
 } from '../services/cobros.service'
 import type {
   AnularCobroPayload,
   CobroDetalle,
+  CobrosListResponse,
   CrearCobroPayload,
   CuotasImputablesResponse,
+  FiltrosCobros,
 } from '../types/cobro.types'
 
 const LIMITE_BUSQUEDA_CLIENTES = 8
+
+/**
+ * Listado paginado de cobros. Cada combinación de filtros es su propia
+ * entrada de cache, así que una respuesta vieja nunca puede pisar a la actual.
+ *
+ * `keepPreviousData` mantiene el paginador (y el resumen del período) en
+ * pantalla mientras llega la página siguiente: sin eso, `meta` desaparecería y
+ * el pie de la tabla saltaría. Mismo criterio que `usePagos`.
+ */
+export function useCobros(filtros: FiltrosCobros) {
+  return useQuery<CobrosListResponse, ApiErrorResponse>({
+    queryKey: COBROS_QUERY_KEYS.LISTA(filtros),
+    queryFn: ({ signal }) => listarCobros(filtros, signal),
+    placeholderData: keepPreviousData,
+  })
+}
 
 /**
  * Cuotas imputables del cliente elegido, para el detalle del formulario de
