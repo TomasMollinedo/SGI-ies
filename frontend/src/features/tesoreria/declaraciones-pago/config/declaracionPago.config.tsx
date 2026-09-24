@@ -75,10 +75,9 @@ export const COLUMNAS_DECLARACIONES: DataTableColumn<DeclaracionPago>[] = [
     key: 'fecha',
     label: 'Declarada',
     // `hora_creacion` es un instante real (no una fecha de negocio): se
-    // muestra con hora, en horario de Argentina.
-    render: (item) => (
-      <span className="whitespace-nowrap">{formatearFechaHora(item.hora_creacion)}</span>
-    ),
+    // muestra con hora, en horario de Argentina. Sin `whitespace-nowrap`: en
+    // una columna angosta la hora baja a la segunda línea.
+    render: (item) => formatearFechaHora(item.hora_creacion),
   },
   {
     key: 'cliente',
@@ -90,30 +89,34 @@ export const COLUMNAS_DECLARACIONES: DataTableColumn<DeclaracionPago>[] = [
       </div>
     ),
   },
-  { key: 'unidad', label: 'Unidad', render: (item) => etiquetaUnidad(item) },
   {
-    key: 'cuota',
-    label: 'Cuota',
-    headerTooltip: 'Número de cuota y su saldo pendiente actual',
+    key: 'unidad',
+    label: 'Unidad y cuota',
+    headerTooltip: 'Proyecto y unidad; debajo, la cuota y su saldo pendiente actual',
     render: (item) => (
       <div className="flex flex-col">
-        <span>{etiquetaNumeroCuota(item.cuota.numero)}</span>
-        <span className="text-content-muted text-xs whitespace-nowrap">
-          Saldo {formatearImporte(item.cuota.saldo_pendiente)}
+        <span>{etiquetaUnidad(item)}</span>
+        <span className="text-content-muted text-xs">
+          Cuota {etiquetaNumeroCuota(item.cuota.numero)} · saldo{' '}
+          <span className="whitespace-nowrap">{formatearImporte(item.cuota.saldo_pendiente)}</span>
         </span>
       </div>
     ),
   },
-  { key: 'formaPago', label: 'Forma de pago', render: (item) => item.forma_pago.nombre },
   {
-    key: 'referencia',
-    label: 'N.º de referencia',
-    render: (item) => <span className="break-all">{item.numero_referencia ?? SIN_DATO}</span>,
-  },
-  {
-    key: 'importe',
-    label: 'Importe',
-    render: (item) => <span className="whitespace-nowrap">{formatearImporte(item.importe)}</span>,
+    key: 'pago',
+    label: 'Pago declarado',
+    headerTooltip: 'Importe; debajo, la forma de pago y el número de referencia',
+    render: (item) => (
+      <div className="flex flex-col">
+        <span className="font-semibold whitespace-nowrap">{formatearImporte(item.importe)}</span>
+        <span className="text-content-muted text-xs">
+          {item.forma_pago.nombre} ·{' '}
+          {/* Una referencia larga sin espacios no tiene dónde cortar: se permite partirla. */}
+          <span className="break-all">{item.numero_referencia ?? SIN_DATO}</span>
+        </span>
+      </div>
+    ),
   },
   { key: 'estado', label: 'Estado', render: (item) => badgeEstadoDeclaracion(item.estado) },
 ]

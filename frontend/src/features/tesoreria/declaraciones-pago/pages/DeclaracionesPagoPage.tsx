@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { Ban, BadgeCheck, Receipt, ShieldAlert } from 'lucide-react'
+import { Ban, Check, Receipt, ShieldAlert } from 'lucide-react'
 import { PATHS, rutaDetalleCobro } from '@/app/router/paths'
 import type { ClienteResumen } from '@/features/comercializacion/ventas/types/venta.types'
 import { formatearCodigoCobro } from '@/features/tesoreria/cobranzas/utils/codigoCobro'
@@ -288,7 +288,7 @@ export function DeclaracionesPagoPage() {
       return (
         <div className="inline-flex items-center gap-1">
           <IconButton
-            icon={<BadgeCheck />}
+            icon={<Check />}
             ariaLabel="Validar declaración"
             title="Validar"
             variant="soft"

@@ -1,4 +1,4 @@
-import { AlertTriangle, BadgeCheck, Ban, X } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, Ban, Check, X } from 'lucide-react'
 import { Modal } from '@/shared/components/common/Modal'
 import { Button } from '@/shared/components/ui/Button'
 import type { DeclaracionPago } from '../types/declaracionPago.types'
@@ -59,7 +59,7 @@ export function ValidarDeclaracionModal({
           ) : (
             <Button
               variant="success"
-              icon={<BadgeCheck />}
+              icon={<Check />}
               onClick={onConfirm}
               loading={loading}
               disabled={loading}
