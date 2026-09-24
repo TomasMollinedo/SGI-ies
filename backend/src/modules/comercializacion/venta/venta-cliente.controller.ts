@@ -7,6 +7,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -18,11 +19,13 @@ import {
 } from '@nestjs/swagger';
 import { VentaService } from './venta.service';
 import {
+  DeclaracionesPagoClienteResponseDto,
   HistorialPagosClienteResponseDto,
   MisVentasResponseDto,
   VentaClienteDetalleResponseDto,
 } from './dto/venta-cliente-response.dto';
 import { QueryHistorialPagosClienteDto } from './dto/query-historial-pagos-cliente.dto';
+import { QueryDeclaracionesPagoClienteDto } from './dto/query-declaraciones-pago-cliente.dto';
 import { ClienteAuthGuard } from '../cliente-auth/guards/cliente-auth.guard';
 import { CurrentCliente } from '../cliente-auth/decorators/current-cliente.decorator';
 import type { AuthenticatedCliente } from '../cliente-auth/strategies/cliente-jwt.strategy';
@@ -117,5 +120,34 @@ export class VentaClienteController {
     @CurrentCliente() cliente: AuthenticatedCliente,
   ) {
     return this.ventaService.historialPagosVenta(id, cliente.id, query);
+  }
+
+  @Get(':id/declaraciones-pago')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Declaraciones de pago de una unidad del cliente autenticado, de la más reciente a la más antigua (HU-29)',
+    description:
+      'Todas, en cualquier estado. Una PENDIENTE todavía no afecta el saldo. Una RECHAZADA trae motivo_rechazo. Una VALIDADA trae el cobro que generó (que también figura en historial-pagos: no es un segundo pago); si ese cobro se anuló después, la declaración sigue VALIDADA y cobro.estado es ANULADO.',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'id_venta' })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiOkResponse({
+    description: 'Declaraciones paginadas de la unidad',
+    type: DeclaracionesPagoClienteResponseDto,
+  })
+  @ApiBadRequestResponse({ description: 'Parámetros de paginación inválidos' })
+  @ApiUnauthorizedResponse({ description: MENSAJE_NO_AUTENTICADO })
+  @ApiNotFoundResponse({
+    description:
+      'No existe una venta con ese id para este cliente (o no está vigente)',
+  })
+  declaracionesPago(
+    @Param('id', ParseIntPipe) id: number,
+    @Query() query: QueryDeclaracionesPagoClienteDto,
+    @CurrentCliente() cliente: AuthenticatedCliente,
+  ) {
+    return this.ventaService.declaracionesPagoVenta(id, cliente.id, query);
   }
 }

@@ -19,6 +19,7 @@ import { CobroService, type LineaCuotaParaCobro } from '../cobro/cobro.service';
 import { CreateCobroDto } from '../cobro/dto/create-cobro.dto';
 import { CreateDeclaracionPagoDto } from './dto/create-declaracion-pago.dto';
 import { RechazarDeclaracionPagoDto } from './dto/rechazar-declaracion-pago.dto';
+import { QueryDeclaracionPagoDto } from './dto/query-declaracion-pago.dto';
 
 const CUOTA_DECLARABLE_SELECT = {
   id_cuota: true,
@@ -30,6 +31,59 @@ const CUOTA_DECLARABLE_SELECT = {
 type CuotaDeclarable = Prisma.CUOTAGetPayload<{
   select: typeof CUOTA_DECLARABLE_SELECT;
 }>;
+
+/**
+ * Lo que la bandeja de Tesorería necesita para cotejar una declaración sin
+ * otra consulta. El cliente, con los mismos campos que
+ * `CLIENTE_RESUMEN_SELECT` del listado de cobros.
+ */
+const DECLARACION_LIST_ITEM_SELECT = {
+  id_declaracion_pago: true,
+  FK_cliente: true,
+  FK_cuota: true,
+  FK_forma_pago: true,
+  importe: true,
+  numero_referencia: true,
+  estado: true,
+  motivo_rechazo: true,
+  fecha_resolucion: true,
+  FK_usuario_validador: true,
+  FK_cobro: true,
+  hora_creacion: true,
+  cliente: {
+    select: {
+      id_cliente: true,
+      nombre: true,
+      apellido: true,
+      dni_cuil: true,
+      email: true,
+    },
+  },
+  cuota: {
+    select: {
+      id_cuota: true,
+      numero: true,
+      saldo_pendiente: true,
+      venta: {
+        select: {
+          id_venta: true,
+          publicacion: {
+            select: {
+              unidadFuncional: {
+                select: {
+                  identificador: true,
+                  proyecto: { select: { nombre: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  formaPago: { select: { nombre: true } },
+  cobro: { select: { id_cobro: true, estado: true } },
+} as const;
 
 @Injectable()
 export class DeclaracionPagoService {
@@ -77,6 +131,71 @@ export class DeclaracionPagoService {
     });
 
     return this.mapearRespuesta(declaracion);
+  }
+
+  /**
+   * Bandeja de Tesorería (T117, HU-29): declaraciones con filtros
+   * combinables por cliente, forma de pago, estado y período (sobre
+   * `hora_creacion`), paginadas. Orden fijo de la más antigua a la más
+   * reciente: es una cola de trabajo, lo primero que se declaró es lo
+   * primero que hay que resolver. Sin resumen ni totales a propósito.
+   */
+  async listar(query: QueryDeclaracionPagoDto) {
+    const {
+      FK_cliente,
+      FK_forma_pago,
+      estado,
+      fechaDesde,
+      fechaHasta,
+      page,
+      limit,
+    } = query;
+
+    const where: Prisma.DECLARACIONPAGOWhereInput = {
+      ...(FK_cliente !== undefined && { FK_cliente }),
+      ...(FK_forma_pago !== undefined && { FK_forma_pago }),
+      ...(estado !== undefined && { estado }),
+      ...((fechaDesde !== undefined || fechaHasta !== undefined) && {
+        hora_creacion: {
+          ...(fechaDesde !== undefined && { gte: fechaDesde }),
+          ...(fechaHasta !== undefined && { lte: fechaHasta }),
+        },
+      }),
+    };
+
+    const [declaraciones, total] = await Promise.all([
+      this.prisma.dECLARACIONPAGO.findMany({
+        where,
+        select: DECLARACION_LIST_ITEM_SELECT,
+        skip: (page - 1) * limit,
+        take: limit,
+        // Desempate por id: dos declaraciones pueden compartir hora_creacion.
+        orderBy: [{ hora_creacion: 'asc' }, { id_declaracion_pago: 'asc' }],
+      }),
+      this.prisma.dECLARACIONPAGO.count({ where }),
+    ]);
+
+    return {
+      data: declaraciones.map(({ cuota, formaPago, ...declaracion }) => {
+        const { unidadFuncional } = cuota.venta.publicacion;
+        return {
+          ...declaracion,
+          importe: declaracion.importe.toNumber(),
+          cuota: {
+            id_cuota: cuota.id_cuota,
+            numero: cuota.numero,
+            saldo_pendiente: cuota.saldo_pendiente.toNumber(),
+          },
+          venta: {
+            id_venta: cuota.venta.id_venta,
+            unidad: { identificador: unidadFuncional.identificador },
+            proyecto: { nombre: unidadFuncional.proyecto.nombre },
+          },
+          forma_pago: formaPago,
+        };
+      }),
+      meta: { total, page, limit },
+    };
   }
 
   private async buscarCliente(clienteId: number) {

@@ -83,6 +83,7 @@ const planClienteSchema = z.object({
  * "saldada nunca está vencida"): el frontend nunca compara fechas a mano.
  */
 const cuotaClienteSchema = z.object({
+  id_cuota: z.number(),
   numero: z.number(),
   importe: z.number(),
   fecha_vencimiento: z.iso.datetime(),
@@ -144,4 +145,42 @@ export const historialPagosClienteResponseSchema = z.object({
 
 export class HistorialPagosClienteResponseDto extends createZodDto(
   historialPagosClienteResponseSchema,
+) {}
+
+/**
+ * Una declaración de pago tal como la ve el cliente en SU unidad (T117,
+ * HU-29): sin datos internos (usuario validador, FK de auditoría). `cobro`
+ * solo viene en una VALIDADA — es el cobro que generó, que también figura en
+ * el historial de pagos; si después se anuló, la declaración sigue VALIDADA y
+ * `cobro.estado` lo refleja.
+ */
+const declaracionPagoClienteSchema = z.object({
+  id_declaracion_pago: z.number(),
+  estado: z.enum(['PENDIENTE', 'VALIDADA', 'RECHAZADA']),
+  importe: z.number(),
+  numero_referencia: z.string().nullable(),
+  motivo_rechazo: z.string().nullable(),
+  hora_creacion: z.iso.datetime(),
+  fecha_resolucion: z.iso.datetime().nullable(),
+  cuota: z.object({ id_cuota: z.number(), numero: z.number() }),
+  forma_pago: formaPagoClienteResumenSchema,
+  cobro: z
+    .object({
+      id_cobro: z.number(),
+      estado: z.enum(['CONFIRMADO', 'ANULADO']),
+    })
+    .nullable(),
+});
+
+export const declaracionesPagoClienteResponseSchema = z.object({
+  data: z.array(declaracionPagoClienteSchema),
+  meta: z.object({
+    total: z.number(),
+    page: z.number(),
+    limit: z.number(),
+  }),
+});
+
+export class DeclaracionesPagoClienteResponseDto extends createZodDto(
+  declaracionesPagoClienteResponseSchema,
 ) {}
