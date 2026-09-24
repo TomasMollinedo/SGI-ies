@@ -19,9 +19,9 @@ interface SitioPublicoNavLinksProps {
  * landing se intercepta el click para desplazar suavemente, y desde otra
  * página navega a la landing, que al montar va sola hasta el ancla.
  *
- * "Catálogo" es distinto: es una ruta propia, no una sección. Va después de
- * "Obras" (o donde iría, si la landing no tiene obras destacadas) y se marca
- * activo en el catálogo y en el detalle de una unidad.
+ * "Catálogo" es distinto: es una ruta propia, no una sección. Va al final,
+ * después de "Consultanos", y se marca activo en el catálogo y en el detalle
+ * de una unidad.
  */
 export function SitioPublicoNavLinks({
   seccionActiva,

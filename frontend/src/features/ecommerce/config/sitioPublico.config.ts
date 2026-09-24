@@ -43,12 +43,13 @@ export const NAVEGACION: ItemNavegacion[] = [
 /**
  * Ítem del menú que lleva a una ruta propia (`/catalogo`), no a un ancla de la
  * landing: por eso no vive en `NAVEGACION`, que es la lista de secciones que
- * observa `useSeccionActiva`. Se muestra a continuación de "Obras".
+ * observa `useSeccionActiva`. Se muestra al final, después de "Consultanos" —
+ * el label aclara que lleva a otra página, no es un ancla más de la landing.
  */
 export const NAVEGACION_CATALOGO = {
-  label: 'Catálogo',
+  label: 'Ir a catálogo',
   /** Sección detrás de la cual se inserta en el menú. */
-  despuesDe: 'obras',
+  despuesDe: 'consultanos',
 } as const satisfies { label: string; despuesDe: IdSeccion }
 
 export const HERO = {
