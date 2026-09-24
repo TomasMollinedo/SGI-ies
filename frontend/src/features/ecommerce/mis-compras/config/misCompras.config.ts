@@ -22,3 +22,12 @@ export const ESTADOS_MIS_COMPRAS = {
   errorDescripcion: 'Volvé a intentarlo en un momento.',
   reintentar: 'Reintentar',
 } as const
+
+export const MI_COMPRA_DETALLE = {
+  volver: 'Volver a mis compras',
+  saldoTotalPendiente: 'Saldo total pendiente',
+  sinSaldoPendiente: 'Sin saldo pendiente',
+  noEncontradaTitulo: 'No encontramos esta compra',
+  noEncontradaDescripcion:
+    'Puede que la venta haya sido cancelada o que no te pertenezca. Volvé a "Mis compras".',
+} as const

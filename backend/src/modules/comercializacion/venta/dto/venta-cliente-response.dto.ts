@@ -97,9 +97,12 @@ const cuotaClienteSchema = z.object({
  * con la unidad ampliada, el plan y el cronograma completo de cuotas. El
  * historial de pagos vive aparte (`GET /cliente/ventas/:id/historial-pagos`,
  * paginado — T112 fase 3), igual que el cardex de Cuenta Corriente.
+ *
+ * Sin `tiene_cuotas_vencidas`: acá el frontend ya ve el `vencido` de cada
+ * cuota una por una, ese resumen solo hace falta en la tarjeta del listado.
  */
 export const ventaClienteDetalleSchema = ventaClienteResumenSchema
-  .omit({ unidad: true })
+  .omit({ unidad: true, tiene_cuotas_vencidas: true })
   .extend({
     unidad: unidadClienteDetalleSchema,
     plan: planClienteSchema,

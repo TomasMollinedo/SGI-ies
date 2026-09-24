@@ -37,3 +37,49 @@ export interface MiVentaResumen {
 export interface MisVentasResponse {
   data: MiVentaResumen[]
 }
+
+export type EstadoCuota = 'PENDIENTE' | 'PARCIAL' | 'PAGADA' | 'ANULADA'
+export type TipoPlanPago = 'CONTADO' | 'FINANCIADO'
+export type Periodicidad = 'MENSUAL' | 'BIMESTRAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL'
+
+interface UnidadDetalle extends UnidadResumen {
+  superficie_cubierta: number
+  superficie_descubierta: number | null
+  piso: string | null
+  comodidades: string | null
+  observaciones: string | null
+}
+
+/** Condiciones congeladas al momento de la adhesión, no las de `PLANPAGO` (que puede haber cambiado). */
+interface PlanMiVenta {
+  nombre: string
+  tipo: TipoPlanPago
+  precio: number
+  anticipo: number
+  cantidad_cuotas: number
+  periodicidad: Periodicidad | null
+}
+
+/** `vencido`/`dias_vencido` ya vienen resueltos del backend: nunca se comparan fechas a mano acá. */
+export interface CuotaMiVenta {
+  numero: number
+  importe: number
+  fecha_vencimiento: string
+  saldo_pendiente: number
+  estado: EstadoCuota
+  vencido: boolean
+  dias_vencido: number
+}
+
+/** `GET /cliente/ventas/:id`: la cabecera del resumen + unidad ampliada, plan y cronograma completo. */
+export interface MiVentaDetalle {
+  id_venta: number
+  estado: EstadoVenta
+  fecha_adhesion: string
+  unidad: UnidadDetalle
+  proyecto: ProyectoResumen
+  condicion_entrega: CondicionEntrega
+  plan: PlanMiVenta
+  cuotas: CuotaMiVenta[]
+  saldo_total_pendiente: number
+}
