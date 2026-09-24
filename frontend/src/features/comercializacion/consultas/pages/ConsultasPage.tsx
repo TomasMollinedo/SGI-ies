@@ -8,19 +8,20 @@ import { Pagination } from '@/shared/components/common/Pagination'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
 import { Button } from '@/shared/components/ui/Button'
+import { useDebounce } from '@/shared/hooks/useDebounce'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { formatearFecha } from '@/shared/utils/fecha'
 import { DetalleConsultaModal } from '../components/DetalleConsultaModal'
 import { FiltrosConsultasBar } from '../components/FiltrosConsultasBar'
-import { LIMITE_PAGINA, badgeEstadoConsulta } from '../config/consulta.config'
+import { DEBOUNCE_BUSQUEDA, LIMITE_PAGINA, badgeEstadoConsulta } from '../config/consulta.config'
 import { useConsultas } from '../hooks/useConsultas'
 import type { ConsultaInterna, FiltroEstadoConsulta } from '../types/consulta.types'
 
 /**
  * Cola de trabajo de Comercialización para responder consultas de clientes
- * (HU-26): filtros combinables por unidad, cliente, estado y período,
- * paginada. No es un dashboard: sin indicadores ni gráficos, solo el
- * listado — mismo criterio que `PublicacionesPage`.
+ * (HU-26): filtros combinables por proyecto, identificador de unidad,
+ * cliente, estado y período, paginada. No es un dashboard: sin indicadores
+ * ni gráficos, solo el listado — mismo criterio que `PublicacionesPage`.
  *
  * Incluye las consultas de unidades ya despublicadas: `ConsultaService.listar`
  * no filtra por vigencia de la publicación (no se borran nunca).
@@ -28,7 +29,8 @@ import type { ConsultaInterna, FiltroEstadoConsulta } from '../types/consulta.ty
 export function ConsultasPage() {
   const navigate = useNavigate()
 
-  const [unidad, setUnidad] = useState('')
+  const [proyecto, setProyecto] = useState('')
+  const [identificador, setIdentificador] = useState('')
   const [cliente, setCliente] = useState('')
   const [estado, setEstado] = useState<FiltroEstadoConsulta>('')
   const [fechaDesde, setFechaDesde] = useState('')
@@ -36,8 +38,15 @@ export function ConsultasPage() {
   const [page, setPage] = useState(1)
   const [consultaAbierta, setConsultaAbierta] = useState<ConsultaInterna | null>(null)
 
+  const identificadorDebounced = useDebounce(identificador.trim(), DEBOUNCE_BUSQUEDA)
+
   const hayFiltros =
-    unidad !== '' || cliente !== '' || estado !== '' || fechaDesde !== '' || fechaHasta !== ''
+    proyecto !== '' ||
+    identificador !== '' ||
+    cliente !== '' ||
+    estado !== '' ||
+    fechaDesde !== '' ||
+    fechaHasta !== ''
 
   const errorRango =
     fechaDesde && fechaHasta && fechaDesde > fechaHasta
@@ -47,10 +56,11 @@ export function ConsultasPage() {
   // Con otro filtro, la página en la que estaba el usuario puede no existir más.
   useEffect(() => {
     setPage(1)
-  }, [unidad, cliente, estado, fechaDesde, fechaHasta])
+  }, [proyecto, identificadorDebounced, cliente, estado, fechaDesde, fechaHasta])
 
   const { data, isLoading, isFetching, error, refetch } = useConsultas({
-    FK_unidad_funcional: unidad ? Number(unidad) : undefined,
+    FK_proyecto: proyecto ? Number(proyecto) : undefined,
+    identificador: identificadorDebounced || undefined,
     FK_cliente: cliente ? Number(cliente) : undefined,
     estado: estado || undefined,
     fechaDesde: !errorRango && fechaDesde ? fechaDesde : undefined,
@@ -66,7 +76,8 @@ export function ConsultasPage() {
   }, [statusCode, navigate])
 
   function limpiarFiltros() {
-    setUnidad('')
+    setProyecto('')
+    setIdentificador('')
     setCliente('')
     setEstado('')
     setFechaDesde('')
@@ -148,8 +159,10 @@ export function ConsultasPage() {
   return (
     <div className="space-y-4">
       <FiltrosConsultasBar
-        unidad={unidad}
-        onUnidadChange={setUnidad}
+        proyecto={proyecto}
+        onProyectoChange={setProyecto}
+        identificador={identificador}
+        onIdentificadorChange={setIdentificador}
         cliente={cliente}
         onClienteChange={setCliente}
         estado={estado}
@@ -176,7 +189,7 @@ export function ConsultasPage() {
               }
               descripcion={
                 hayFiltros
-                  ? 'Probá ajustar la unidad, el cliente, el estado o el período.'
+                  ? 'Probá ajustar el proyecto, el identificador, el cliente, el estado o el período.'
                   : 'Las consultas de los clientes sobre unidades publicadas van a aparecer acá.'
               }
             />

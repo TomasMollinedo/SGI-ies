@@ -1,4 +1,5 @@
-import { FilterX } from 'lucide-react'
+import { FilterX, Search } from 'lucide-react'
+import { ProyectoCombobox } from '@/features/comercializacion/publicaciones/components/ProyectoCombobox'
 import { FiltroClienteVenta } from '@/features/comercializacion/ventas/components/FiltroClienteVenta'
 import { Button } from '@/shared/components/ui/Button'
 import { Input } from '@/shared/components/ui/Input'
@@ -7,8 +8,10 @@ import { OPCIONES_ESTADO } from '../config/consulta.config'
 import type { FiltroEstadoConsulta } from '../types/consulta.types'
 
 interface FiltrosConsultasBarProps {
-  unidad: string
-  onUnidadChange: (valor: string) => void
+  proyecto: string
+  onProyectoChange: (valor: string) => void
+  identificador: string
+  onIdentificadorChange: (valor: string) => void
   cliente: string
   onClienteChange: (valor: string) => void
   estado: FiltroEstadoConsulta
@@ -24,21 +27,25 @@ interface FiltrosConsultasBarProps {
 }
 
 /**
- * Filtros de la cola de consultas (HU-26): unidad, cliente, estado y período.
+ * Filtros de la cola de consultas (HU-26): proyecto, identificador de
+ * unidad, cliente, estado y período.
  *
- * El filtro de unidad es el `id_unidad_funcional` a mano, con un `<input
- * type="number">`: hoy no existe un endpoint que busque unidades por
- * identificador de texto libre (el `SelectorUnidadModal` de Publicaciones
- * filtra "publicables", no cualquier unidad — no sirve para este caso, que
- * necesita encontrar cualquiera, incluso despublicada). Se puede cambiar por
- * un combo de búsqueda el día que ese endpoint exista.
+ * `proyecto` e `identificador` son independientes entre sí — no es un combo
+ * en cascada. El identificador busca por coincidencia parcial (ej. "3A")
+ * sin importar el proyecto: como el identificador solo es único DENTRO de
+ * su proyecto (dos obras distintas pueden tener cada una una unidad "3A"),
+ * buscar sin combinar con "Proyecto" puede traer resultados de más de una
+ * obra — es el comportamiento pedido, no hace falta un combo en cascada ni
+ * un endpoint nuevo de búsqueda de unidades.
  *
  * El filtro de cliente reusa `FiltroClienteVenta` (mismo `ClienteCombobox`
  * con búsqueda server-side que ya usa el listado de Ventas).
  */
 export function FiltrosConsultasBar({
-  unidad,
-  onUnidadChange,
+  proyecto,
+  onProyectoChange,
+  identificador,
+  onIdentificadorChange,
   cliente,
   onClienteChange,
   estado,
@@ -53,15 +60,17 @@ export function FiltrosConsultasBar({
 }: FiltrosConsultasBarProps) {
   return (
     <div className="flex w-full flex-wrap items-end gap-3">
+      <ProyectoCombobox value={proyecto} onChange={onProyectoChange} className="w-full sm:w-60" />
+
       <Input
         size="sm"
-        type="number"
-        min={1}
-        label="ID de unidad"
-        placeholder="Ej. 42"
-        value={unidad}
-        onChange={(evento) => onUnidadChange(evento.target.value)}
-        className="w-full sm:w-32"
+        type="search"
+        label="Identificador de unidad"
+        placeholder="Ej. 3A"
+        iconLeft={<Search />}
+        value={identificador}
+        onChange={(evento) => onIdentificadorChange(evento.target.value)}
+        className="w-full sm:w-44"
       />
 
       <FiltroClienteVenta value={cliente} onChange={onClienteChange} />
@@ -72,7 +81,7 @@ export function FiltrosConsultasBar({
         options={OPCIONES_ESTADO}
         value={estado}
         onChange={(evento) => onEstadoChange(evento.target.value as FiltroEstadoConsulta)}
-        className="w-full sm:w-40"
+        className="w-full sm:w-45"
       />
 
       {/* `<input type="date">` nativo: trae el calendario del navegador y devuelve el valor en ISO (YYYY-MM-DD). */}
