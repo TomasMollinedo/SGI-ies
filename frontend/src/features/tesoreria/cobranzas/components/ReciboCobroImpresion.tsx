@@ -1,4 +1,4 @@
-import { formatearFechaSinHora } from '@/shared/utils/fecha'
+import { formatearFecha } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
 import { etiquetaNumeroCuota, SIN_DATO, textoOSinDato } from '../config/cobro.config'
 import type { CobroDetalle } from '../types/cobro.types'
@@ -43,7 +43,8 @@ export function ReciboCobroImpresion({ cobro }: ReciboCobroImpresionProps) {
       )}
 
       <dl className="mt-4 grid grid-cols-2 gap-x-8 gap-y-1.5 text-sm">
-        <CampoImpresion label="Fecha" value={formatearFechaSinHora(cobro.fecha_cobro)} />
+        {/* Con hora real (ECOMMERCE): `formatearFechaSinHora` podría correr el día. */}
+        <CampoImpresion label="Fecha" value={formatearFecha(cobro.fecha_cobro)} />
         <CampoImpresion label="Cliente" value={nombreCliente(cobro.cliente)} />
         <CampoImpresion label="DNI/CUIL" value={cobro.cliente.dni_cuil ?? SIN_DATO} />
         <CampoImpresion label="Forma de pago" value={cobro.formaPago.nombre} />
