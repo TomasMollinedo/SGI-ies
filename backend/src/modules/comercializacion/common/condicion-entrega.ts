@@ -52,3 +52,27 @@ export function calcularCondicionEntrega(proyecto: {
     fecha_referencia: null,
   };
 }
+
+export interface CondicionEntregaResponse {
+  codigo: CondicionEntregaCodigo;
+  texto: string;
+  fecha_referencia: string | null;
+}
+
+/**
+ * Igual que `calcularCondicionEntrega`, pero con `fecha_referencia` ya
+ * convertida a ISO string — el shape exacto que espera cada DTO de
+ * respuesta (`catalogoListItemSchema`, `ventaClienteResumenSchema`, etc.).
+ * Vivía duplicada como una función privada idéntica en `CatalogoService` y en
+ * `VentaService`; se subió acá al encontrar la segunda copia (T112).
+ */
+export function calcularCondicionEntregaResponse(proyecto: {
+  estado: EstadoProyecto;
+  fecha_fin_estimada: Date | null;
+}): CondicionEntregaResponse {
+  const condicion = calcularCondicionEntrega(proyecto);
+  return {
+    ...condicion,
+    fecha_referencia: condicion.fecha_referencia?.toISOString() ?? null,
+  };
+}

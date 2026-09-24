@@ -7,7 +7,7 @@ import { TIPOLOGIA_LABEL } from '@/shared/config/tipologiaUnidad.config'
 import { textoCondicionEntrega } from '@/shared/utils/condicionEntrega'
 import { formatearImporte } from '@/shared/utils/importe'
 import { TARJETA } from '../config/catalogo.config'
-import { formatearSuperficie } from '../utils/formatearSuperficie'
+import { formatearSuperficie } from '@/features/ecommerce/utils/formatearSuperficie'
 
 interface TarjetaUnidadProps {
   unidad: UnidadCatalogo

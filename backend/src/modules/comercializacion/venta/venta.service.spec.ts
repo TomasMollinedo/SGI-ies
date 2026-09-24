@@ -46,6 +46,11 @@ describe('VentaService', () => {
     };
     vENTA: {
       findUnique: jest.Mock;
+      findMany: jest.Mock;
+      findFirst: jest.Mock;
+    };
+    dETALLECOBRO: {
+      findMany: jest.Mock;
     };
     $transaction: jest.Mock;
   };
@@ -109,6 +114,14 @@ describe('VentaService', () => {
       email: 'valen@test.com',
       telefono: '1122223333',
     },
+    publicacion: {
+      unidadFuncional: {
+        id_unidad_funcional: 30,
+        identificador: '4A',
+        tipologia: 'DOS_DORMITORIOS',
+        proyecto: { id_proyecto: 4, codigo: 'TDS', nombre: 'Torres del Sur' },
+      },
+    },
     usuarioCreador: {
       nombre: 'Ana',
       apellido: 'Gómez',
@@ -158,6 +171,12 @@ describe('VentaService', () => {
 
       vENTA: {
         findUnique: jest.fn().mockResolvedValue(ventaDetalleCompleta),
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+
+      dETALLECOBRO: {
+        findMany: jest.fn().mockResolvedValue([]),
       },
 
       $transaction: jest.fn((callback: (transaction: typeof tx) => unknown) =>
@@ -427,6 +446,432 @@ describe('VentaService', () => {
       );
 
       expect(resultado.estado).toBe('CANCELADA');
+    });
+  });
+
+  describe('misVentas', () => {
+    const proyectoBase = {
+      id_proyecto: 4,
+      nombre: 'Torres del Sur',
+      localidad: 'Salta',
+      estado: 'EN_EJECUCION',
+      fecha_fin_estimada: new Date('2027-01-01T00:00:00Z'),
+    };
+
+    const ventaBase = {
+      id_venta: 20,
+      estado: 'VIGENTE',
+      fecha_adhesion: new Date('2026-01-10T00:00:00Z'),
+      publicacion: {
+        unidadFuncional: {
+          id_unidad_funcional: 30,
+          identificador: '4A',
+          tipologia: 'DOS_DORMITORIOS',
+          proyecto: proyectoBase,
+        },
+      },
+      cuotas: [] as {
+        saldo_pendiente: Prisma.Decimal;
+        fecha_vencimiento: Date;
+      }[],
+    };
+
+    it('devuelve data: [] si el cliente no tiene ventas vigentes', async () => {
+      prisma.vENTA.findMany.mockResolvedValue([]);
+
+      const resultado = await service.misVentas(1);
+
+      expect(prisma.vENTA.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { FK_cliente: 1, estado: 'VIGENTE' },
+        }) as unknown,
+      );
+      expect(resultado).toEqual({ data: [] });
+    });
+
+    it('calcula saldo_total_pendiente como la suma de saldo_pendiente de las cuotas', async () => {
+      prisma.vENTA.findMany.mockResolvedValue([
+        {
+          ...ventaBase,
+          cuotas: [
+            {
+              saldo_pendiente: new Prisma.Decimal(1000),
+              fecha_vencimiento: new Date('2099-01-01'),
+            },
+            {
+              saldo_pendiente: new Prisma.Decimal(500),
+              fecha_vencimiento: new Date('2099-01-01'),
+            },
+          ],
+        },
+      ]);
+
+      const resultado = await service.misVentas(1);
+
+      expect(resultado.data[0].saldo_total_pendiente).toBe(1500);
+    });
+
+    it('marca tiene_cuotas_vencidas si alguna cuota con saldo tiene fecha de vencimiento pasada', async () => {
+      prisma.vENTA.findMany.mockResolvedValue([
+        {
+          ...ventaBase,
+          cuotas: [
+            {
+              saldo_pendiente: new Prisma.Decimal(1000),
+              fecha_vencimiento: new Date('2020-01-01'),
+            },
+          ],
+        },
+      ]);
+
+      const resultado = await service.misVentas(1);
+
+      expect(resultado.data[0].tiene_cuotas_vencidas).toBe(true);
+    });
+
+    it('no marca tiene_cuotas_vencidas si la cuota vencida ya está saldada (saldo_pendiente = 0)', async () => {
+      prisma.vENTA.findMany.mockResolvedValue([
+        {
+          ...ventaBase,
+          cuotas: [
+            {
+              saldo_pendiente: new Prisma.Decimal(0),
+              fecha_vencimiento: new Date('2020-01-01'),
+            },
+          ],
+        },
+      ]);
+
+      const resultado = await service.misVentas(1);
+
+      expect(resultado.data[0].tiene_cuotas_vencidas).toBe(false);
+    });
+
+    it('mapea unidad, proyecto y condición de entrega de la unidad', async () => {
+      prisma.vENTA.findMany.mockResolvedValue([ventaBase]);
+
+      const resultado = await service.misVentas(1);
+
+      expect(resultado.data[0].unidad).toEqual({
+        id_unidad_funcional: 30,
+        identificador: '4A',
+        tipologia: 'DOS_DORMITORIOS',
+      });
+      expect(resultado.data[0].proyecto).toEqual({
+        id_proyecto: 4,
+        nombre: 'Torres del Sur',
+        localidad: 'Salta',
+      });
+      // proyecto EN_EJECUCION con fecha_fin_estimada → A_ENTREGAR_CON_FECHA
+      // (ver calcularCondicionEntrega).
+      expect(resultado.data[0].condicion_entrega.codigo).toBe(
+        'A_ENTREGAR_CON_FECHA',
+      );
+    });
+  });
+
+  describe('detalleVentaCliente', () => {
+    const proyectoBase = {
+      id_proyecto: 4,
+      nombre: 'Torres del Sur',
+      localidad: 'Salta',
+      estado: 'EN_EJECUCION',
+      fecha_fin_estimada: new Date('2027-01-01T00:00:00Z'),
+    };
+
+    const ventaDetalleBase = {
+      id_venta: 20,
+      estado: 'VIGENTE',
+      fecha_adhesion: new Date('2026-01-10T00:00:00Z'),
+      precio_congelado: new Prisma.Decimal(120000),
+      anticipo_congelado: new Prisma.Decimal(20000),
+      tipo_plan_congelado: 'FINANCIADO',
+      cantidad_cuotas_congelada: 10,
+      periodicidad_congelada: 'MENSUAL',
+      planPago: { nombre: 'Financiado 10 cuotas' },
+      publicacion: {
+        unidadFuncional: {
+          id_unidad_funcional: 30,
+          identificador: '4A',
+          tipologia: 'DOS_DORMITORIOS',
+          superficie_cubierta: new Prisma.Decimal(55),
+          superficie_descubierta: null,
+          piso: '4',
+          comodidades: null,
+          observaciones: null,
+          proyecto: proyectoBase,
+        },
+      },
+      cuotas: [] as {
+        numero: number;
+        importe: Prisma.Decimal;
+        fecha_vencimiento: Date;
+        saldo_pendiente: Prisma.Decimal;
+        estado: string;
+      }[],
+    };
+
+    it('tira 404 si no existe una venta VIGENTE con ese id para este cliente', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue(null);
+
+      await expect(service.detalleVentaCliente(20, 1)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+
+      expect(prisma.vENTA.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id_venta: 20, FK_cliente: 1, estado: 'VIGENTE' },
+        }) as unknown,
+      );
+    });
+
+    it('mapea el plan con las condiciones congeladas de la venta, no las de PLANPAGO', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue(ventaDetalleBase);
+
+      const resultado = await service.detalleVentaCliente(20, 1);
+
+      expect(resultado.plan).toEqual({
+        nombre: 'Financiado 10 cuotas',
+        tipo: 'FINANCIADO',
+        precio: 120000,
+        anticipo: 20000,
+        cantidad_cuotas: 10,
+        periodicidad: 'MENSUAL',
+      });
+    });
+
+    it('marca vencido y calcula dias_vencido en una cuota PENDIENTE con fecha pasada', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({
+        ...ventaDetalleBase,
+        cuotas: [
+          {
+            numero: 3,
+            importe: new Prisma.Decimal(10000),
+            fecha_vencimiento: new Date('2020-01-01T00:00:00Z'),
+            saldo_pendiente: new Prisma.Decimal(10000),
+            estado: 'PENDIENTE',
+          },
+        ],
+      });
+
+      const resultado = await service.detalleVentaCliente(20, 1);
+
+      expect(resultado.cuotas[0].vencido).toBe(true);
+      expect(resultado.cuotas[0].dias_vencido).toBeGreaterThan(0);
+    });
+
+    it('una cuota PAGADA (saldo cero) con fecha pasada nunca queda vencida', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({
+        ...ventaDetalleBase,
+        cuotas: [
+          {
+            numero: 0,
+            importe: new Prisma.Decimal(20000),
+            fecha_vencimiento: new Date('2020-01-01T00:00:00Z'),
+            saldo_pendiente: new Prisma.Decimal(0),
+            estado: 'PAGADA',
+          },
+        ],
+      });
+
+      const resultado = await service.detalleVentaCliente(20, 1);
+
+      expect(resultado.cuotas[0].vencido).toBe(false);
+      expect(resultado.cuotas[0].dias_vencido).toBe(0);
+    });
+
+    it('calcula saldo_total_pendiente como la suma de saldo_pendiente de las cuotas', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({
+        ...ventaDetalleBase,
+        cuotas: [
+          {
+            numero: 1,
+            importe: new Prisma.Decimal(10000),
+            fecha_vencimiento: new Date('2099-01-01'),
+            saldo_pendiente: new Prisma.Decimal(10000),
+            estado: 'PENDIENTE',
+          },
+          {
+            numero: 2,
+            importe: new Prisma.Decimal(10000),
+            fecha_vencimiento: new Date('2099-01-01'),
+            saldo_pendiente: new Prisma.Decimal(4000),
+            estado: 'PARCIAL',
+          },
+        ],
+      });
+
+      const resultado = await service.detalleVentaCliente(20, 1);
+
+      expect(resultado.saldo_total_pendiente).toBe(14000);
+    });
+
+    it('mapea unidad completa (superficies, piso, comodidades, observaciones)', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue(ventaDetalleBase);
+
+      const resultado = await service.detalleVentaCliente(20, 1);
+
+      expect(resultado.unidad).toEqual({
+        id_unidad_funcional: 30,
+        identificador: '4A',
+        tipologia: 'DOS_DORMITORIOS',
+        superficie_cubierta: 55,
+        superficie_descubierta: null,
+        piso: '4',
+        comodidades: null,
+        observaciones: null,
+      });
+    });
+  });
+
+  describe('historialPagosVenta', () => {
+    const cobroBase = {
+      id_cobro: 100,
+      fecha_cobro: new Date('2025-09-01T00:00:00Z'),
+      origen: 'ECOMMERCE',
+      estado: 'CONFIRMADO',
+      numero_referencia: 'TR-8891',
+      formaPago: { nombre: 'Transferencia' },
+    };
+
+    it('tira 404 si la venta no existe, no es de este cliente, o no está vigente', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.historialPagosVenta(20, 1, { page: 1, limit: 10 }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(prisma.dETALLECOBRO.findMany).not.toHaveBeenCalled();
+    });
+
+    it('devuelve data: [] con meta.total 0 si la unidad no tiene pagos', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dETALLECOBRO.findMany.mockResolvedValue([]);
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(resultado).toEqual({
+        data: [],
+        meta: { total: 0, page: 1, limit: 10 },
+      });
+    });
+
+    it('agrupa varias líneas del mismo cobro en un único ítem, sumando el importe imputado', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dETALLECOBRO.findMany.mockResolvedValue([
+        { importe_imputado: new Prisma.Decimal(300000), cobro: cobroBase },
+        { importe_imputado: new Prisma.Decimal(150000), cobro: cobroBase },
+      ]);
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(resultado.data).toHaveLength(1);
+      expect(resultado.data[0]).toEqual({
+        id_cobro: 100,
+        fecha_cobro: '2025-09-01T00:00:00.000Z',
+        origen: 'ECOMMERCE',
+        estado: 'CONFIRMADO',
+        forma_pago: { nombre: 'Transferencia' },
+        numero_referencia: 'TR-8891',
+        importe_imputado: 450000,
+      });
+    });
+
+    it('un cobro partido entre dos unidades solo suma acá el subtotal de esta venta', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      // Simula que DETALLECOBRO ya viene filtrado por FK_venta=20 (así lo
+      // pide el where del service): la línea de la otra unidad ni aparece.
+      prisma.dETALLECOBRO.findMany.mockResolvedValue([
+        { importe_imputado: new Prisma.Decimal(80000), cobro: cobroBase },
+      ]);
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(prisma.dETALLECOBRO.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { cuota: { FK_venta: 20 } },
+        }) as unknown,
+      );
+      expect(resultado.data[0].importe_imputado).toBe(80000);
+    });
+
+    it('incluye un cobro ANULADO en el historial, con su estado', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dETALLECOBRO.findMany.mockResolvedValue([
+        {
+          importe_imputado: new Prisma.Decimal(50000),
+          cobro: { ...cobroBase, id_cobro: 101, estado: 'ANULADO' },
+        },
+      ]);
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(resultado.data[0].estado).toBe('ANULADO');
+    });
+
+    it('ordena del cobro más reciente al más antiguo', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dETALLECOBRO.findMany.mockResolvedValue([
+        {
+          importe_imputado: new Prisma.Decimal(10000),
+          cobro: {
+            ...cobroBase,
+            id_cobro: 1,
+            fecha_cobro: new Date('2025-01-01'),
+          },
+        },
+        {
+          importe_imputado: new Prisma.Decimal(10000),
+          cobro: {
+            ...cobroBase,
+            id_cobro: 2,
+            fecha_cobro: new Date('2025-06-01'),
+          },
+        },
+      ]);
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(resultado.data.map((item) => item.id_cobro)).toEqual([2, 1]);
+    });
+
+    it('pagina el historial ya agrupado según page/limit', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dETALLECOBRO.findMany.mockResolvedValue(
+        Array.from({ length: 3 }, (_, indice) => ({
+          importe_imputado: new Prisma.Decimal(1000),
+          cobro: {
+            ...cobroBase,
+            id_cobro: indice + 1,
+            fecha_cobro: new Date(2025, 0, indice + 1),
+          },
+        })),
+      );
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 2,
+      });
+
+      expect(resultado.meta).toEqual({ total: 3, page: 1, limit: 2 });
+      expect(resultado.data).toHaveLength(2);
+      // Más reciente primero: id_cobro 3 (03/01) y 2 (02/01).
+      expect(resultado.data.map((item) => item.id_cobro)).toEqual([3, 2]);
     });
   });
 });

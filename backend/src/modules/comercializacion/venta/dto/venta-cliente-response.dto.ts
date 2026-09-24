@@ -1,0 +1,147 @@
+import { z } from 'zod';
+import { createZodDto } from 'nestjs-zod';
+import {
+  EstadoCuota,
+  EstadoVenta,
+  Periodicidad,
+  TipoPlanPago,
+  TipologiaUnidad,
+} from '../../../../../generated/prisma/enums';
+
+const unidadClienteResumenSchema = z.object({
+  id_unidad_funcional: z.number(),
+  identificador: z.string(),
+  tipologia: z.enum(TipologiaUnidad),
+});
+
+const proyectoClienteResumenSchema = z.object({
+  id_proyecto: z.number(),
+  nombre: z.string(),
+  localidad: z.string(),
+});
+
+/** Ver `calcularCondicionEntrega` (única fuente de estos textos, T103). */
+const condicionEntregaSchema = z.object({
+  codigo: z.enum(['TERMINADA', 'A_ENTREGAR_CON_FECHA', 'A_ENTREGAR_SIN_FECHA']),
+  texto: z.string(),
+  fecha_referencia: z.iso.datetime().nullable(),
+});
+
+/**
+ * Vista del cliente sobre su propia venta (T112, HU-28): solo lo que necesita
+ * para reconocer la unidad y su situación de pago, sin ningún dato interno
+ * (usuarioCreador, FK_plan_pago, motivo_cancelacion, etc. — eso es de la vista
+ * admin en `venta-response.dto.ts`). Por eso no reusa `ventaListItemSchema`.
+ */
+export const ventaClienteResumenSchema = z.object({
+  id_venta: z.number(),
+  estado: z.enum(EstadoVenta),
+  fecha_adhesion: z.iso.datetime(),
+  unidad: unidadClienteResumenSchema,
+  proyecto: proyectoClienteResumenSchema,
+  condicion_entrega: condicionEntregaSchema,
+  saldo_total_pendiente: z.number(),
+  /**
+   * Evita que el frontend tenga que pedir el detalle completo de cada venta
+   * solo para pintar la alerta de la tarjeta del listado.
+   */
+  tiene_cuotas_vencidas: z.boolean(),
+});
+
+/** Sin paginar: un cliente no acumula un volumen de unidades que lo justifique. */
+export const misVentasResponseSchema = z.object({
+  data: z.array(ventaClienteResumenSchema),
+});
+
+export class MisVentasResponseDto extends createZodDto(
+  misVentasResponseSchema,
+) {}
+
+const unidadClienteDetalleSchema = unidadClienteResumenSchema.extend({
+  superficie_cubierta: z.number(),
+  superficie_descubierta: z.number().nullable(),
+  piso: z.string().nullable(),
+  comodidades: z.string().nullable(),
+  observaciones: z.string().nullable(),
+});
+
+/**
+ * Condiciones congeladas de `VENTA` (nunca las de `PLANPAGO`, que puede haber
+ * cambiado después) + el nombre del plan, solo para mostrarlo.
+ */
+const planClienteSchema = z.object({
+  nombre: z.string(),
+  tipo: z.enum(TipoPlanPago),
+  precio: z.number(),
+  anticipo: z.number(),
+  cantidad_cuotas: z.number(),
+  periodicidad: z.enum(Periodicidad).nullable(),
+});
+
+/**
+ * `vencido`/`dias_vencido` ya vienen resueltos (`calcularDiasVencido` +
+ * "saldada nunca está vencida"): el frontend nunca compara fechas a mano.
+ */
+const cuotaClienteSchema = z.object({
+  numero: z.number(),
+  importe: z.number(),
+  fecha_vencimiento: z.iso.datetime(),
+  saldo_pendiente: z.number(),
+  estado: z.enum(EstadoCuota),
+  vencido: z.boolean(),
+  dias_vencido: z.number(),
+});
+
+/**
+ * Detalle de una venta propia: la cabecera del listado (`ventaClienteResumenSchema`)
+ * con la unidad ampliada, el plan y el cronograma completo de cuotas. El
+ * historial de pagos vive aparte (`GET /cliente/ventas/:id/historial-pagos`,
+ * paginado — T112 fase 3), igual que el cardex de Cuenta Corriente.
+ *
+ * Sin `tiene_cuotas_vencidas`: acá el frontend ya ve el `vencido` de cada
+ * cuota una por una, ese resumen solo hace falta en la tarjeta del listado.
+ */
+export const ventaClienteDetalleSchema = ventaClienteResumenSchema
+  .omit({ unidad: true, tiene_cuotas_vencidas: true })
+  .extend({
+    unidad: unidadClienteDetalleSchema,
+    plan: planClienteSchema,
+    cuotas: z.array(cuotaClienteSchema),
+  });
+
+export class VentaClienteDetalleResponseDto extends createZodDto(
+  ventaClienteDetalleSchema,
+) {}
+
+const formaPagoClienteResumenSchema = z.object({ nombre: z.string() });
+
+/**
+ * Un cobro tal como lo ve el cliente en el historial de SU unidad: solo el
+ * subtotal (`importe_imputado`) de las líneas que tocaron cuotas de esta
+ * venta — nunca `importe_total` del cobro completo, que puede haber
+ * financiado cuotas de otra unidad del mismo cliente (ver
+ * `VentaService.historialPagosVenta`, el criterio "partido por unidad" de la
+ * HU). Mismos valores de `origen`/`estado` que `cobroResponseSchema`.
+ */
+const pagoHistorialClienteSchema = z.object({
+  id_cobro: z.number(),
+  fecha_cobro: z.iso.datetime(),
+  origen: z.enum(['PRESENCIAL', 'ECOMMERCE']),
+  estado: z.enum(['CONFIRMADO', 'ANULADO']),
+  forma_pago: formaPagoClienteResumenSchema,
+  numero_referencia: z.string().nullable(),
+  importe_imputado: z.number(),
+});
+
+export const historialPagosClienteResponseSchema = z.object({
+  data: z.array(pagoHistorialClienteSchema),
+  meta: z.object({
+    total: z.number(),
+    page: z.number(),
+    limit: z.number(),
+  }),
+});
+
+export class HistorialPagosClienteResponseDto extends createZodDto(
+  historialPagosClienteResponseSchema,
+) {}
