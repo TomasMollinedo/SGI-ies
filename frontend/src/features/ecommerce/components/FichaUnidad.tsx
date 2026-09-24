@@ -1,24 +1,37 @@
 import type { ReactNode } from 'react'
-import type { CondicionEntrega } from '@/shared/types/unidadFuncional.types'
+import type { CondicionEntrega, TipologiaUnidad } from '@/shared/types/unidadFuncional.types'
 import { TIPOLOGIA_LABEL } from '@/shared/config/tipologiaUnidad.config'
 import { textoCondicionEntrega } from '@/shared/utils/condicionEntrega'
 import { DETALLE, TARJETA } from '@/features/ecommerce/catalogo/config/catalogo.config'
-import { formatearSuperficie } from '@/features/ecommerce/catalogo/utils/formatearSuperficie'
-import type { MiVentaDetalle } from '../types/miVenta.types'
+import { formatearSuperficie } from '@/features/ecommerce/utils/formatearSuperficie'
 
 const SIN_DATO = '—'
 
-interface FichaUnidadCompraProps {
-  unidad: MiVentaDetalle['unidad']
+/** Los únicos campos de la unidad que esta ficha necesita — nunca imágenes, precio ni planes. */
+interface DatosUnidadFicha {
+  identificador: string
+  tipologia: TipologiaUnidad
+  superficie_cubierta: number
+  superficie_descubierta: number | null
+  piso: string | null
+  comodidades: string | null
+  observaciones: string | null
+}
+
+interface FichaUnidadProps {
+  unidad: DatosUnidadFicha
   condicionEntrega: CondicionEntrega
 }
 
 /**
- * Ficha de la unidad comprada. Mismo lenguaje visual que `DatosUnidad` del
- * catálogo (misma anatomía dl/dt/dd) — no se reusa el componente porque el
- * shape de datos es distinto (acá no hay imágenes ni precio de catálogo).
+ * Ficha de una unidad: identificador, tipología, superficies, condición de
+ * entrega, comodidades y observaciones. Compartida por el catálogo público
+ * (`DetalleUnidadPage`, donde el visitante decide si consulta) y por "Mis
+ * compras" (`MiCompraDetallePage`, la unidad ya comprada) — antes eran dos
+ * componentes casi idénticos (`DatosUnidad` y `FichaUnidadCompra`); se
+ * unificaron acá al detectar la segunda copia (T112).
  */
-export function FichaUnidadCompra({ unidad, condicionEntrega }: FichaUnidadCompraProps) {
+export function FichaUnidad({ unidad, condicionEntrega }: FichaUnidadProps) {
   return (
     <section aria-labelledby="titulo-ficha-unidad" className="flex flex-col gap-6">
       <h2 id="titulo-ficha-unidad" className="text-light text-titulo-modal font-bold">
@@ -51,6 +64,7 @@ export function FichaUnidadCompra({ unidad, condicionEntrega }: FichaUnidadCompr
   )
 }
 
+/** Fila etiqueta/valor. El valor puede ser largo (comodidades), así que parte línea. */
 function Dato({ etiqueta, valor }: { etiqueta: string; valor: ReactNode }) {
   return (
     <div className="border-light/10 flex flex-col gap-1 border-b py-3.5 sm:flex-row sm:justify-between sm:gap-6">

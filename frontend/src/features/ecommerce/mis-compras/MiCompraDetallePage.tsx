@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { Link, useParams } from 'react-router'
 import { PATHS } from '@/app/router/paths'
+import { FichaUnidad } from '@/features/ecommerce/components/FichaUnidad'
 import { LinkButton } from '@/features/ecommerce/components/LinkButton'
 import { Spinner } from '@/shared/components/ui/Spinner'
 import { TIPOLOGIA_LABEL } from '@/shared/config/tipologiaUnidad.config'
 import { formatearImporte } from '@/shared/utils/importe'
-import { FichaUnidadCompra } from './components/FichaUnidadCompra'
 import { HistorialPagos } from './components/HistorialPagos'
 import { PlanDePagoResumen } from './components/PlanDePagoResumen'
 import { TablaCuotas } from './components/TablaCuotas'
@@ -92,7 +92,7 @@ export function MiCompraDetallePage() {
       </header>
 
       <div className="mt-10 grid gap-10 lg:grid-cols-2 lg:items-start">
-        <FichaUnidadCompra unidad={venta.unidad} condicionEntrega={venta.condicion_entrega} />
+        <FichaUnidad unidad={venta.unidad} condicionEntrega={venta.condicion_entrega} />
         <PlanDePagoResumen plan={venta.plan} />
       </div>
 
