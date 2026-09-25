@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Megaphone, ShieldAlert } from 'lucide-react'
-import { PATHS, rutaDetallePublicacion } from '@/app/router/paths'
+import { PATHS, rutaDetallePublicacion, rutaPlanesPagoPublicacion } from '@/app/router/paths'
 import { DataTable } from '@/shared/components/common/DataTable'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { Pagination } from '@/shared/components/common/Pagination'
@@ -96,20 +96,24 @@ export function PublicacionesPage() {
       render: (item) => (
         <div className="flex min-w-0 flex-col items-start gap-1 wrap-anywhere">
           {badgeEstadoPublicacion(item)}
-          <p className="text-content-muted text-xs">
-            Publicada el {formatearFecha(item.fecha_publicacion)}
-          </p>
           {!item.vigente && (
-            <>
-              {item.fecha_despublicacion && (
-                <p className="text-content-muted text-xs">
-                  Despublicada el {formatearFecha(item.fecha_despublicacion)}
-                </p>
-              )}
-              <p className="text-content-muted text-xs">
-                {estadoAnteriorTexto(item.estado_comercial)}
-              </p>
-            </>
+            <p className="text-content-muted text-xs">
+              {estadoAnteriorTexto(item.estado_comercial)}
+            </p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'fecha',
+      label: 'Fecha de publicación',
+      render: (item) => (
+        <div className="flex min-w-0 flex-col items-start gap-1 wrap-anywhere">
+          <p>{formatearFecha(item.fecha_publicacion)}</p>
+          {!item.vigente && item.fecha_despublicacion && (
+            <p className="text-content-muted text-xs">
+              Despublicada el {formatearFecha(item.fecha_despublicacion)}
+            </p>
           )}
         </div>
       ),
@@ -121,6 +125,7 @@ export function PublicacionesPage() {
         <AccionesPublicacionRow
           publicacion={item}
           onVer={() => navigate(rutaDetallePublicacion(item.id_publicacion))}
+          onVerPlanesPago={() => navigate(rutaPlanesPagoPublicacion(item.id_publicacion))}
           onDespublicar={() =>
             setDespublicando({
               id_publicacion: item.id_publicacion,

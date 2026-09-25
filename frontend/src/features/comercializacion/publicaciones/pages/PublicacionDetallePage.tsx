@@ -201,15 +201,18 @@ export function PublicacionDetallePage() {
       </SeccionPublicacion>
 
       <SeccionPublicacion titulo="Planes de pago">
-        <p className="text-content-muted mb-3 text-xs">
-          El precio de la unidad se define en Planes de Pago, no acá.
-        </p>
-        <Button
-          icon={<HandCoins />}
-          onClick={() => navigate(rutaPlanesPagoPublicacion(publicacion.id_publicacion))}
-        >
-          Ver planes de pago
-        </Button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-content-muted text-xs">
+            El precio de la unidad se define en Planes de Pago, no acá.
+          </p>
+          <Button
+            icon={<HandCoins />}
+            onClick={() => navigate(rutaPlanesPagoPublicacion(publicacion.id_publicacion))}
+            className="ml-auto"
+          >
+            Ver planes de pago
+          </Button>
+        </div>
       </SeccionPublicacion>
 
       <SeccionPublicacion titulo="Auditoría">
