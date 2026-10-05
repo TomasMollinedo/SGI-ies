@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
   Periodicidad,
-  TipoPlanPago,
+  ModalidadPago,
 } from '../../../../../generated/prisma/enums';
 
 /**
@@ -34,7 +34,7 @@ export const estaPresente = (valor: unknown) =>
  * `Decimal(14, 2)`.
  */
 export const camposCondicionesPlanPago = {
-  tipo: z.enum(TipoPlanPago),
+  tipo: z.enum(ModalidadPago),
   // El "Listo cuando" pide rechazar precio en cero o negativo.
   precio: z
     .number()
@@ -69,7 +69,7 @@ export const camposCondicionesPlanPago = {
 
 /** La forma mínima sobre la que operan las reglas cruzadas y la normalización. */
 export type CondicionesCargadas = {
-  tipo: TipoPlanPago;
+  tipo: ModalidadPago;
   precio: number;
   anticipo_porcentaje?: number | null;
   anticipo_monto?: number | null;
@@ -105,7 +105,7 @@ export function validarCondicionesPlanPago(
   }
 
   // En CONTADO no hace falta: `normalizarAnticipoContado` lo fuerza a 100%.
-  if (!tienePorcentaje && !tieneMonto && data.tipo !== TipoPlanPago.CONTADO) {
+  if (!tienePorcentaje && !tieneMonto && data.tipo !== ModalidadPago.CONTADO) {
     ctx.addIssue({
       code: 'custom',
       path: ['anticipo_porcentaje'],
@@ -124,7 +124,7 @@ export function validarCondicionesPlanPago(
     });
   }
 
-  if (data.tipo === TipoPlanPago.CONTADO) {
+  if (data.tipo === ModalidadPago.CONTADO) {
     // Un plan CONTADO se paga en una sola cuota, así que cuotas y
     // periodicidad no solo son innecesarias: si llegaran, el motor las
     // ignoraría y el plan guardado no diría lo que el usuario cree.
@@ -174,7 +174,7 @@ export function validarCondicionesPlanPago(
 export function normalizarAnticipoContado<T extends CondicionesCargadas>(
   data: T,
 ): T {
-  if (data.tipo !== TipoPlanPago.CONTADO) {
+  if (data.tipo !== ModalidadPago.CONTADO) {
     return data;
   }
 

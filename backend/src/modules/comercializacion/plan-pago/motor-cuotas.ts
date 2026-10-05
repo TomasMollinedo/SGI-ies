@@ -1,5 +1,8 @@
 import { Prisma } from '../../../../generated/prisma/client';
-import { Periodicidad, TipoPlanPago } from '../../../../generated/prisma/enums';
+import {
+  Periodicidad,
+  ModalidadPago,
+} from '../../../../generated/prisma/enums';
 
 /**
  * MOTOR DE CUOTAS — helper puro de HU-22.
@@ -38,7 +41,7 @@ const MESES_POR_PERIODO: Record<Periodicidad, number> = {
  */
 export interface CondicionesPlanPago {
   precio: Prisma.Decimal;
-  tipo: TipoPlanPago;
+  tipo: ModalidadPago;
   /** En CONTADO se ignora: el anticipo es el 100% del precio. */
   anticipo_monto: Prisma.Decimal;
   /** Solo FINANCIADO. Son las cuotas posteriores al anticipo (la 0 no cuenta). */
@@ -135,7 +138,7 @@ export function generarCuotas(
 ): CuotaGenerada[] {
   const { precio, tipo, fecha_venta } = condiciones;
 
-  if (tipo === TipoPlanPago.CONTADO) {
+  if (tipo === ModalidadPago.CONTADO) {
     const cuotas: CuotaGenerada[] = [
       {
         numero: 0,

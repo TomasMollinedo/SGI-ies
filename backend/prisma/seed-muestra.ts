@@ -910,7 +910,7 @@ async function main() {
       nombre: 'Torre Belgrano',
       localidad: 'Córdoba',
       direccion: 'Barrio Alberdi, Córdoba',
-      estado: EstadoProyecto.EN_EJECUCION,
+      estado_obra: EstadoProyecto.EN_EJECUCION,
       fecha_fin_estimada: new Date('2027-04-01'),
       cantidad_unidades_planificadas: 48, // torre de 12 pisos, 4 unidades por piso
     },
@@ -918,17 +918,17 @@ async function main() {
       codigo: 'OBRADOR-RUTA9KM42',
       nombre: 'Repavimentación Ruta 9 Km 42',
       localidad: 'Córdoba',
-      direccion: null, // obra vial, no tiene una dirección puntual
-      estado: EstadoProyecto.EN_EJECUCION,
+      direccion: 'Ruta Nacional 9, Km 42', // obra vial: la referencia es el tramo
+      estado_obra: EstadoProyecto.EN_EJECUCION,
       fecha_fin_estimada: new Date('2026-12-01'),
-      cantidad_unidades_planificadas: null, // no aplica: no produce unidades funcionales
+      cantidad_unidades_planificadas: 1, // no produce unidades funcionales; HU-31 exige un entero mayor a cero
     },
     {
       codigo: 'OBRADOR-BARRIOSUR',
       nombre: 'Barrio Sur',
       localidad: 'Córdoba',
       direccion: 'Barrio Sur, Córdoba',
-      estado: EstadoProyecto.FINALIZADO, // el depósito ya está "cerrado al finalizar la obra"
+      estado_obra: EstadoProyecto.FINALIZADO, // el depósito ya está "cerrado al finalizar la obra"
       fecha_fin_estimada: new Date('2026-06-01'),
       cantidad_unidades_planificadas: 20,
     },

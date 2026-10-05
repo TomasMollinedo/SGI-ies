@@ -24,7 +24,7 @@ const PROYECTO_SELECT = {
   nombre: true,
   localidad: true,
   direccion: true,
-  estado: true,
+  estado_obra: true,
   fecha_fin_estimada: true,
   cantidad_unidades_planificadas: true,
 } satisfies Prisma.PROYECTOSelect;
@@ -66,7 +66,8 @@ export class ProyectoService {
     const { busqueda, estado, page, limit } = query;
 
     const where: Prisma.PROYECTOWhereInput = {
-      ...(estado && { estado }),
+      // El query param se sigue llamando `estado`; filtra por el estado de obra.
+      ...(estado && { estado_obra: estado }),
       ...(busqueda && {
         OR: [
           condicionBusquedaPorPalabras<Prisma.PROYECTOWhereInput>(
@@ -141,8 +142,11 @@ export class ProyectoService {
   }
 
   private mapear(proyecto: ProyectoBase, resumen?: ResumenUnidades) {
+    // El contrato HTTP sigue exponiendo `estado`: sale de `estado_obra`.
+    const { estado_obra, ...resto } = proyecto;
     return {
-      ...proyecto,
+      ...resto,
+      estado: estado_obra,
       unidades_cargadas: resumen?.cargadas ?? 0,
       presupuesto: resumen?.presupuesto ?? 0,
     };

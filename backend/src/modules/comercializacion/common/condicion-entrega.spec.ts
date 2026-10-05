@@ -7,7 +7,7 @@ describe('calcularCondicionEntrega', () => {
   it('proyecto FINALIZADO con fecha: TERMINADA con la fecha de referencia', () => {
     expect(
       calcularCondicionEntrega({
-        estado: EstadoProyecto.FINALIZADO,
+        estado_obra: EstadoProyecto.FINALIZADO,
         fecha_fin_estimada: FECHA,
       }),
     ).toEqual({
@@ -20,7 +20,7 @@ describe('calcularCondicionEntrega', () => {
   it('proyecto FINALIZADO sin fecha: TERMINADA con fecha_referencia null', () => {
     expect(
       calcularCondicionEntrega({
-        estado: EstadoProyecto.FINALIZADO,
+        estado_obra: EstadoProyecto.FINALIZADO,
         fecha_fin_estimada: null,
       }),
     ).toEqual({
@@ -33,7 +33,7 @@ describe('calcularCondicionEntrega', () => {
   it('proyecto EN_EJECUCION con fecha: A_ENTREGAR_CON_FECHA con la fecha', () => {
     expect(
       calcularCondicionEntrega({
-        estado: EstadoProyecto.EN_EJECUCION,
+        estado_obra: EstadoProyecto.EN_EJECUCION,
         fecha_fin_estimada: FECHA,
       }),
     ).toEqual({
@@ -46,7 +46,7 @@ describe('calcularCondicionEntrega', () => {
   it('proyecto EN_EJECUCION sin fecha: A_ENTREGAR_SIN_FECHA con null', () => {
     expect(
       calcularCondicionEntrega({
-        estado: EstadoProyecto.EN_EJECUCION,
+        estado_obra: EstadoProyecto.EN_EJECUCION,
         fecha_fin_estimada: null,
       }),
     ).toEqual({
@@ -58,7 +58,7 @@ describe('calcularCondicionEntrega', () => {
 
   it('proyecto EN_PLANIFICACION sin fecha (caso PROY-BLA del seed): A_ENTREGAR_SIN_FECHA', () => {
     const condicion = calcularCondicionEntrega({
-      estado: EstadoProyecto.EN_PLANIFICACION,
+      estado_obra: EstadoProyecto.EN_PLANIFICACION,
       fecha_fin_estimada: null,
     });
 

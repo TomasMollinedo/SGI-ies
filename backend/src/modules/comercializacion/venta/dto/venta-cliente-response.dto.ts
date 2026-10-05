@@ -4,7 +4,7 @@ import {
   EstadoCuota,
   EstadoVenta,
   Periodicidad,
-  TipoPlanPago,
+  ModalidadPago,
   TipologiaUnidad,
 } from '../../../../../generated/prisma/enums';
 
@@ -71,7 +71,7 @@ const unidadClienteDetalleSchema = unidadClienteResumenSchema.extend({
  */
 const planClienteSchema = z.object({
   nombre: z.string(),
-  tipo: z.enum(TipoPlanPago),
+  tipo: z.enum(ModalidadPago),
   precio: z.number(),
   anticipo: z.number(),
   cantidad_cuotas: z.number(),

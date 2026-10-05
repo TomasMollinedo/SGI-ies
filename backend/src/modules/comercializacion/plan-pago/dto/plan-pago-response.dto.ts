@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
 import {
   Periodicidad,
-  TipoPlanPago,
+  ModalidadPago,
 } from '../../../../../generated/prisma/enums';
 
 /**
@@ -19,7 +19,7 @@ export const planPagoResponseSchema = z.object({
   id_plan_pago: z.number(),
   FK_publicacion: z.number(),
   nombre: z.string(),
-  tipo: z.enum(TipoPlanPago),
+  tipo: z.enum(ModalidadPago),
   precio: z.string(),
   porcentaje_ganancia: z.string(),
   margen: z.string(),

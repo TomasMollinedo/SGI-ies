@@ -6,13 +6,13 @@ import {
   EstadoComercial,
   EstadoCuota,
   EstadoProyecto,
-  EstadoVenta,
   OrigenCobro,
+  ModalidadPago,
   Periodicidad,
   TipologiaUnidad,
-  TipoPlanPago,
 } from '../generated/prisma/enums';
 import { RolNombre } from '../src/common/enums/rol.enum';
+import { CuotaSeed, crearVentaConPlanPago } from './seed-venta-con-plan-pago';
 
 /**
  * Seed de prueba PUNTUAL para T112 (HU-28, "Perfil del cliente: plan
@@ -123,7 +123,7 @@ async function main() {
       nombre: 'Residencial Prueba T112',
       localidad: 'Salta capital, Salta',
       direccion: 'Av. Belgrano 2400',
-      estado: EstadoProyecto.EN_EJECUCION,
+      estado_obra: EstadoProyecto.EN_EJECUCION,
       fecha_fin_estimada: diasDesdeHoy(240),
       cantidad_unidades_planificadas: 2,
       FK_usuario_creador: responsableProyectos.id_usuario,
@@ -186,16 +186,16 @@ async function main() {
     anticipo_porcentaje: number;
     cantidad_cuotas: number;
   }) {
-    const existente = await prisma.pLANPAGO.findFirst({
+    const existente = await prisma.pLANEJEMPLO.findFirst({
       where: { FK_publicacion: datos.FK_publicacion, nombre: datos.nombre },
     });
     if (existente) return existente;
 
-    return prisma.pLANPAGO.create({
+    return prisma.pLANEJEMPLO.create({
       data: {
         FK_publicacion: datos.FK_publicacion,
         nombre: datos.nombre,
-        tipo: TipoPlanPago.FINANCIADO,
+        tipo: ModalidadPago.FINANCIADO,
         precio: datos.precio,
         porcentaje_ganancia: 0,
         margen: 0,
@@ -211,18 +211,12 @@ async function main() {
   /** Idempotente por FK_publicacion (una sola venta vigente por publicación en este seed). */
   async function upsertVenta(datos: {
     FK_publicacion: number;
-    FK_plan_pago: number;
-    fecha_adhesion: Date;
+    FK_plan_ejemplo: number;
+    fecha_venta: Date;
     precio_congelado: number;
     anticipo_congelado: number;
     cantidad_cuotas_congelada: number;
-    cuotas: {
-      numero: number;
-      importe: number;
-      fecha_vencimiento: Date;
-      saldo_pendiente: number;
-      estado: EstadoCuota;
-    }[];
+    cuotas: CuotaSeed[];
   }) {
     const existente = await prisma.vENTA.findFirst({
       where: { FK_publicacion: datos.FK_publicacion },
@@ -230,24 +224,17 @@ async function main() {
     });
     if (existente) return existente;
 
-    const venta = await prisma.vENTA.create({
-      data: {
+    // La venta nace con su PLANPAGO y con las cuotas ya desglosadas.
+    return crearVentaConPlanPago(
+      prisma,
+      {
+        ...datos,
         FK_cliente: ID_CLIENTE_PRUEBA,
-        FK_publicacion: datos.FK_publicacion,
-        FK_plan_pago: datos.FK_plan_pago,
-        fecha_adhesion: datos.fecha_adhesion,
-        precio_congelado: datos.precio_congelado,
-        anticipo_congelado: datos.anticipo_congelado,
-        tipo_plan_congelado: TipoPlanPago.FINANCIADO,
-        cantidad_cuotas_congelada: datos.cantidad_cuotas_congelada,
+        tipo_plan_congelado: ModalidadPago.FINANCIADO,
         periodicidad_congelada: Periodicidad.MENSUAL,
-        estado: EstadoVenta.VIGENTE,
-        FK_usuario_creador: responsableComercializacion.id_usuario,
-        cuotas: { create: datos.cuotas },
       },
-      include: { cuotas: { orderBy: { numero: 'asc' } } },
-    });
-    return venta;
+      responsableComercializacion.id_usuario,
+    );
   }
 
   /** Cobro con una sola línea de imputación (el caso normal, no partido). */
@@ -311,8 +298,8 @@ async function main() {
   const fechaAdhesionA = diasDesdeHoy(-140);
   const ventaA = await upsertVenta({
     FK_publicacion: publicacionA.id_publicacion,
-    FK_plan_pago: planA.id_plan_pago,
-    fecha_adhesion: fechaAdhesionA,
+    FK_plan_ejemplo: planA.id_plan_ejemplo,
+    fecha_venta: fechaAdhesionA,
     precio_congelado: 24_000_000,
     anticipo_congelado: 4_800_000,
     cantidad_cuotas_congelada: 5,
@@ -390,8 +377,8 @@ async function main() {
   const fechaAdhesionB = diasDesdeHoy(-25);
   const ventaB = await upsertVenta({
     FK_publicacion: publicacionB.id_publicacion,
-    FK_plan_pago: planB.id_plan_pago,
-    fecha_adhesion: fechaAdhesionB,
+    FK_plan_ejemplo: planB.id_plan_ejemplo,
+    fecha_venta: fechaAdhesionB,
     precio_congelado: 12_000_000,
     anticipo_congelado: 3_000_000,
     cantidad_cuotas_congelada: 3,
@@ -414,6 +401,13 @@ async function main() {
         numero: 2,
         importe: 3_000_000,
         fecha_vencimiento: diasDesdeHoy(35), // a futuro: no vencida
+        saldo_pendiente: 3_000_000,
+        estado: EstadoCuota.PENDIENTE,
+      },
+      {
+        numero: 3,
+        importe: 3_000_000,
+        fecha_vencimiento: diasDesdeHoy(65), // a futuro: no vencida
         saldo_pendiente: 3_000_000,
         estado: EstadoCuota.PENDIENTE,
       },

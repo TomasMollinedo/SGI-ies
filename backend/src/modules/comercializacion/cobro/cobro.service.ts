@@ -523,6 +523,7 @@ export class CobroService {
           estado: saldoPosterior.equals(0)
             ? EstadoCuota.PAGADA
             : EstadoCuota.PARCIAL,
+          hora_actualizacion: new Date(),
         },
       });
 
@@ -824,6 +825,7 @@ export class CobroService {
           where: { id_cuota: detalle.FK_cuota },
           data: {
             saldo_pendiente: { increment: detalle.importe_imputado },
+            hora_actualizacion: new Date(),
           },
         });
 
@@ -838,6 +840,7 @@ export class CobroService {
             )
               ? EstadoCuota.PENDIENTE
               : EstadoCuota.PARCIAL,
+            hora_actualizacion: new Date(),
           },
         });
 

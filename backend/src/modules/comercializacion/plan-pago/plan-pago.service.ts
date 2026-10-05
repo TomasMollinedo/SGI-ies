@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '../../../../generated/prisma/client';
+import { PLANEJEMPLO, Prisma } from '../../../../generated/prisma/client';
 import { EstadoComercial } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { PublicacionService } from '../publicacion/publicacion.service';
@@ -11,6 +11,10 @@ import { CreatePlanPagoDto } from './dto/create-plan-pago.dto';
 import { UpdatePlanPagoDto } from './dto/update-plan-pago.dto';
 import { QueryPlanPagoDto } from './dto/query-plan-pago.dto';
 import { SimularCuotasDto } from './dto/simular-cuotas.dto';
+import {
+  exigirPrecioPlanEjemplo,
+  exigirTipoPlanEjemplo,
+} from './exigir-condiciones-plan-ejemplo';
 import { CuotaGenerada, generarCuotas } from './motor-cuotas';
 
 /** Decimales de todo importe y porcentaje, igual que las columnas del schema. */
@@ -32,7 +36,7 @@ export class PlanPagoService {
   /**
    * Alta de un plan de pago (HU-22).
    *
-   * El plan nace activo por el `@default(true)` de PLANPAGO. Si es el primer
+   * El plan nace activo por el `@default(true)` de PLANEJEMPLO. Si es el primer
    * plan activo de una publicación EN_PREPARACION, la publicación pasa a
    * DISPONIBLE en la misma transacción: sin ningún plan no hay nada que el
    * cliente pueda comprar.
@@ -89,7 +93,7 @@ export class PlanPagoService {
     );
 
     const plan = await this.prisma.$transaction(async (tx) => {
-      const creado = await tx.pLANPAGO.create({
+      const creado = await tx.pLANEJEMPLO.create({
         data: {
           FK_publicacion: dto.FK_publicacion,
           nombre: dto.nombre,
@@ -120,7 +124,7 @@ export class PlanPagoService {
       });
 
       // Incluye al recién creado, porque corre dentro de la transacción.
-      const planesActivos = await tx.pLANPAGO.count({
+      const planesActivos = await tx.pLANEJEMPLO.count({
         where: { FK_publicacion: dto.FK_publicacion, estado: true },
       });
 
@@ -141,7 +145,7 @@ export class PlanPagoService {
     });
 
     return {
-      ...plan,
+      ...this.mapearPlan(plan),
       warning,
       porcentaje_ganancia_implicito: porcentajeGananciaImplicito,
       anticipo_monto_calculado: anticipoMontoCalculado,
@@ -170,10 +174,10 @@ export class PlanPagoService {
    * precio a mano igual que en el alta, y necesita ver lo mismo.
    */
   async update(id: number, dto: UpdatePlanPagoDto, usuarioId: number) {
-    const plan = await this.prisma.pLANPAGO.findUnique({
-      where: { id_plan_pago: id },
+    const plan = await this.prisma.pLANEJEMPLO.findUnique({
+      where: { id_plan_ejemplo: id },
       select: {
-        id_plan_pago: true,
+        id_plan_ejemplo: true,
         FK_publicacion: true,
         estado: true,
         publicacion: {
@@ -237,8 +241,8 @@ export class PlanPagoService {
     const cambiaEstado = dto.estado !== undefined && dto.estado !== plan.estado;
 
     const actualizado = await this.prisma.$transaction(async (tx) => {
-      const filaActualizada = await tx.pLANPAGO.update({
-        where: { id_plan_pago: id },
+      const filaActualizada = await tx.pLANEJEMPLO.update({
+        where: { id_plan_ejemplo: id },
         data: {
           ...(dto.precio !== undefined && {
             precio: new Prisma.Decimal(dto.precio),
@@ -268,7 +272,7 @@ export class PlanPagoService {
     });
 
     return {
-      ...actualizado,
+      ...this.mapearPlan(actualizado),
       warning,
       porcentaje_ganancia_implicito: porcentajeGananciaImplicito,
     };
@@ -279,14 +283,14 @@ export class PlanPagoService {
    * (incluye el `estado`, que el catálogo público nunca vería).
    */
   async findOne(id: number) {
-    const plan = await this.prisma.pLANPAGO.findUnique({
-      where: { id_plan_pago: id },
+    const plan = await this.prisma.pLANEJEMPLO.findUnique({
+      where: { id_plan_ejemplo: id },
     });
     if (!plan) {
       throw new NotFoundException(`No existe un plan de pago con id ${id}`);
     }
 
-    return plan;
+    return this.mapearPlan(plan);
   }
 
   /**
@@ -300,13 +304,42 @@ export class PlanPagoService {
   async findByPublicacion(query: QueryPlanPagoDto) {
     const { FK_publicacion, estado } = query;
 
-    return this.prisma.pLANPAGO.findMany({
+    const planes = await this.prisma.pLANEJEMPLO.findMany({
       where: {
         FK_publicacion,
         ...(estado !== 'todos' && { estado }),
       },
-      orderBy: { id_plan_pago: 'asc' },
+      orderBy: { id_plan_ejemplo: 'asc' },
     });
+
+    return planes.map((plan) => this.mapearPlan(plan));
+  }
+
+  /**
+   * La fila de PLANEJEMPLO con la forma que ya tenía el contrato HTTP del
+   * plan: la PK sigue saliendo como `id_plan_pago`, y solo viajan los campos
+   * de `planPagoResponseSchema` (las columnas que T121 le sumó a la tabla no
+   * forman parte de este contrato).
+   */
+  private mapearPlan(plan: PLANEJEMPLO) {
+    return {
+      id_plan_pago: plan.id_plan_ejemplo,
+      FK_publicacion: plan.FK_publicacion,
+      nombre: plan.nombre,
+      tipo: exigirTipoPlanEjemplo(plan.tipo),
+      precio: exigirPrecioPlanEjemplo(plan.precio),
+      porcentaje_ganancia: plan.porcentaje_ganancia,
+      margen: plan.margen,
+      anticipo_porcentaje: plan.anticipo_porcentaje,
+      anticipo_monto: plan.anticipo_monto,
+      cantidad_cuotas: plan.cantidad_cuotas,
+      periodicidad: plan.periodicidad,
+      estado: plan.estado,
+      hora_creacion: plan.hora_creacion,
+      hora_actualizacion: plan.hora_actualizacion,
+      FK_usuario_creador: plan.FK_usuario_creador,
+      FK_usuario_actualizador: plan.FK_usuario_actualizador,
+    };
   }
 
   /**
@@ -350,7 +383,7 @@ export class PlanPagoService {
     estadoComercial: EstadoComercial,
     usuarioId: number,
   ): Promise<void> {
-    const planesActivos = await tx.pLANPAGO.count({
+    const planesActivos = await tx.pLANEJEMPLO.count({
       where: { FK_publicacion: idPublicacion, estado: true },
     });
 

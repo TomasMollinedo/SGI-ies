@@ -27,12 +27,24 @@ interface ApiErrorBody {
 const ENDPOINT = '/api/cliente/declaraciones-pago';
 
 /**
+ * Desglose de las cuotas sueltas que crea este fixture: sin interés (toda la
+ * cuota es capital), igual que `completarDesgloseTasaCero`. El saldo de
+ * capital no forma un cronograma real (cada test crea su propia cuota suelta,
+ * no las 10 del plan): alcanza con que sea válido para las columnas NOT NULL.
+ */
+const DESGLOSE_CUOTA_E2E = {
+  importe_capital: new Prisma.Decimal(1000),
+  importe_interes: new Prisma.Decimal(0),
+  saldo_capital: new Prisma.Decimal(0),
+};
+
+/**
  * HU-29: control de acceso (mismo patrón de JWT firmado a mano que
  * cliente.e2e-spec.ts) más un flujo real de punta a punta contra la base —
  * acá lo que importa es que la declaración persista sin tocar
  * CUOTA.saldo_pendiente, algo que un mock no puede confirmar. El fixture
  * arma a mano la cadena PROYECTO → UNIDADFUNCIONAL → PUBLICACIONUNIDAD →
- * PLANPAGO → VENTA → CUOTA directo por Prisma (no hay un venta.e2e-spec del
+ * PLANEJEMPLO → VENTA → PLANPAGO → CUOTA directo por Prisma (no hay un venta.e2e-spec del
  * que colgarse): el contenido de negocio de cada fila no importa, solo que
  * sea válido para las FK/constraints — la cuota resultante es lo único que
  * el test ejercita.
@@ -48,6 +60,7 @@ describe('Declaración de pago (e2e)', () => {
   let idProyecto: number;
   let idUnidad: number;
   let idPublicacion: number;
+  let idPlanEjemplo: number;
   let idPlanPago: number;
   let idVenta: number;
   let idCuota: number;
@@ -103,6 +116,8 @@ describe('Declaración de pago (e2e)', () => {
         codigo: `E2E-DP-${sufijo}`,
         nombre: `Proyecto declaración e2e ${sufijo}`,
         localidad: 'CABA',
+        direccion: 'Av. Siempre Viva 742',
+        cantidad_unidades_planificadas: 1,
         FK_usuario_creador: admin.id_usuario,
         FK_usuario_actualizador: admin.id_usuario,
       },
@@ -131,7 +146,7 @@ describe('Declaración de pago (e2e)', () => {
     });
     idPublicacion = publicacion.id_publicacion;
 
-    const plan = await prisma.pLANPAGO.create({
+    const plan = await prisma.pLANEJEMPLO.create({
       data: {
         FK_publicacion: idPublicacion,
         nombre: 'Plan e2e',
@@ -144,27 +159,48 @@ describe('Declaración de pago (e2e)', () => {
         FK_usuario_actualizador: admin.id_usuario,
       },
     });
-    idPlanPago = plan.id_plan_pago;
+    idPlanEjemplo = plan.id_plan_ejemplo;
 
     const venta = await prisma.vENTA.create({
       data: {
         FK_cliente: idCliente,
         FK_publicacion: idPublicacion,
-        FK_plan_pago: idPlanPago,
+        FK_plan_ejemplo: idPlanEjemplo,
         precio_congelado: new Prisma.Decimal(100000),
         anticipo_congelado: new Prisma.Decimal(20000),
         tipo_plan_congelado: 'FINANCIADO',
         cantidad_cuotas_congelada: 10,
         periodicidad_congelada: 'MENSUAL',
         FK_usuario_creador: admin.id_usuario,
+        FK_usuario_actualizador: admin.id_usuario,
       },
     });
     idVenta = venta.id_venta;
 
+    // Toda venta tiene su plan de pago (T121), con las mismas reglas que
+    // `VentaService.crear` para un FINANCIADO sin interés: TNA 0 y valor de
+    // cuota igual al importe de la cuota 1.
+    const planPago = await prisma.pLANPAGO.create({
+      data: {
+        FK_venta: idVenta,
+        FK_plazo_financiacion: null,
+        modalidad: 'FINANCIADO',
+        precio_venta: new Prisma.Decimal(100000),
+        anticipo_monto: new Prisma.Decimal(20000),
+        cantidad_cuotas: 10,
+        tasa_nominal_anual: new Prisma.Decimal(0),
+        valor_cuota: new Prisma.Decimal(1000),
+        FK_usuario_creador: admin.id_usuario,
+      },
+    });
+    idPlanPago = planPago.id_plan_pago;
+
     const cuota = await prisma.cUOTA.create({
       data: {
         FK_venta: idVenta,
+        FK_plan_pago: idPlanPago,
         numero: 1,
+        ...DESGLOSE_CUOTA_E2E,
         importe: new Prisma.Decimal(1000),
         fecha_vencimiento: new Date('2027-01-01'),
         saldo_pendiente: new Prisma.Decimal(1000),
@@ -185,8 +221,11 @@ describe('Declaración de pago (e2e)', () => {
       where: { id_declaracion_pago: { in: declaracionesCreadas } },
     });
     await prisma.cUOTA.delete({ where: { id_cuota: idCuota } });
-    await prisma.vENTA.delete({ where: { id_venta: idVenta } });
     await prisma.pLANPAGO.delete({ where: { id_plan_pago: idPlanPago } });
+    await prisma.vENTA.delete({ where: { id_venta: idVenta } });
+    await prisma.pLANEJEMPLO.delete({
+      where: { id_plan_ejemplo: idPlanEjemplo },
+    });
     await prisma.pUBLICACIONUNIDAD.delete({
       where: { id_publicacion: idPublicacion },
     });
@@ -290,7 +329,9 @@ describe('Declaración de pago (e2e)', () => {
       const cuota = await prisma.cUOTA.create({
         data: {
           FK_venta: idVenta,
+          FK_plan_pago: idPlanPago,
           numero: 2,
+          ...DESGLOSE_CUOTA_E2E,
           importe: new Prisma.Decimal(1000),
           fecha_vencimiento: new Date('2027-01-01'),
           saldo_pendiente: new Prisma.Decimal(1000),
@@ -438,7 +479,9 @@ describe('Declaración de pago (e2e)', () => {
       const cuota = await prisma.cUOTA.create({
         data: {
           FK_venta: idVenta,
+          FK_plan_pago: idPlanPago,
           numero: 4,
+          ...DESGLOSE_CUOTA_E2E,
           importe: new Prisma.Decimal(1000),
           fecha_vencimiento: new Date('2027-01-01'),
           saldo_pendiente: new Prisma.Decimal(1000),

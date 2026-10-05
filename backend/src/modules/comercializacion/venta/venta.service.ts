@@ -11,6 +11,7 @@ import {
   EstadoDeclaracionPago,
   EstadoProyecto,
   EstadoVenta,
+  ModalidadPago,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { validarTelefonoSoloNumeros } from '../../../common/validaciones/telefono-solo-numeros';
@@ -18,7 +19,18 @@ import { validarDniCuilValido } from '../../../common/validaciones/dni-cuil-vali
 import { calcularDiasVencido } from '../../../common/validaciones/dias-vencido';
 import { calcularCondicionEntregaResponse } from '../common/condicion-entrega';
 import { PublicacionService } from '../publicacion/publicacion.service';
+import { completarDesgloseTasaCero } from '../plan-pago/desglose-tasa-cero';
+import {
+  exigirPrecioPlanEjemplo,
+  exigirTipoPlanEjemplo,
+} from '../plan-pago/exigir-condiciones-plan-ejemplo';
 import { generarCuotas } from '../plan-pago/motor-cuotas';
+import {
+  CONDICIONES_VENTA_SELECT,
+  VentaConCondiciones,
+  exigirDatoPlanEjemplo,
+  resolverCondicionesVenta,
+} from './condiciones-venta';
 import { CreateVentaDto } from './dto/create-venta.dto';
 import { CancelarVentaDto } from './dto/cancelar-venta.dto';
 import { QueryVentaDto } from './dto/query-venta.dto';
@@ -55,9 +67,18 @@ export class VentaService {
    * Registra una venta presencial (HU-27). Orden de validación exacto,
    * documentado también en el modelo VENTA del schema: cliente → publicación
    * vigente → disponible → plan activo → el plan es de esta publicación → no
-   * hay otra venta vigente → crear venta → generar cuotas → pasar la
-   * publicación a EN_PLAN_DE_PAGO. Todo en una sola transacción: si cualquier
-   * paso falla, no queda nada a medio crear (nunca un cronograma parcial).
+   * hay otra venta vigente → crear venta → crear su plan de pago → generar
+   * cuotas → pasar la publicación a EN_PLAN_DE_PAGO. Todo en una sola
+   * transacción: si cualquier paso falla, no queda nada a medio crear (nunca
+   * una venta sin plan ni un cronograma parcial).
+   *
+   * Doble escritura (T121): además de las columnas `*_congelado` de VENTA y
+   * de `CUOTA.FK_venta`, se crea el PLANPAGO de la venta y cada cuota lleva
+   * su `FK_plan_pago` y su desglose. El reparto en partes iguales del
+   * Sprint 3 equivale a un plan con TNA 0 %: toda la cuota es capital.
+   *
+   * `dto.FK_plan_pago` es el id del plan de EJEMPLO elegido: el contrato HTTP
+   * conserva ese nombre, la columna es `VENTA.FK_plan_ejemplo`.
    */
   async crear(dto: CreateVentaDto, usuarioId: number) {
     const idVenta = await this.prisma.$transaction(async (tx) => {
@@ -75,8 +96,8 @@ export class VentaService {
         );
       }
 
-      const plan = await tx.pLANPAGO.findUnique({
-        where: { id_plan_pago: dto.FK_plan_pago },
+      const plan = await tx.pLANEJEMPLO.findUnique({
+        where: { id_plan_ejemplo: dto.FK_plan_pago },
       });
       if (!plan || !plan.estado) {
         throw new ConflictException('El plan de pago está inactivado');
@@ -86,6 +107,8 @@ export class VentaService {
           'El plan de pago no pertenece a esta publicación',
         );
       }
+      const precio = exigirPrecioPlanEjemplo(plan.precio, ConflictException);
+      const tipo = exigirTipoPlanEjemplo(plan.tipo, ConflictException);
 
       // Chequeo defensivo previo: por construcción, una publicación DISPONIBLE
       // no debería tener una venta vigente — el `transicionarEstadoComercial`
@@ -103,37 +126,69 @@ export class VentaService {
         );
       }
 
-      const anticipoCongelado = this.resolverAnticipoMonto(plan);
+      const anticipoCongelado = this.resolverAnticipoMonto({
+        precio,
+        anticipo_monto: plan.anticipo_monto,
+        anticipo_porcentaje: plan.anticipo_porcentaje,
+      });
 
       const venta = await tx.vENTA.create({
         data: {
           FK_cliente: cliente.id_cliente,
           FK_publicacion: dto.FK_publicacion,
-          FK_plan_pago: dto.FK_plan_pago,
-          precio_congelado: plan.precio,
+          FK_plan_ejemplo: dto.FK_plan_pago,
+          precio_congelado: precio,
           anticipo_congelado: anticipoCongelado,
-          tipo_plan_congelado: plan.tipo,
+          tipo_plan_congelado: tipo,
           cantidad_cuotas_congelada: plan.cantidad_cuotas ?? 1,
           periodicidad_congelada: plan.periodicidad,
           FK_usuario_creador: usuarioId,
+          FK_usuario_actualizador: usuarioId,
         },
       });
 
-      const cuotas = generarCuotas({
-        precio: plan.precio,
-        tipo: plan.tipo,
-        anticipo_monto: anticipoCongelado,
-        cantidad_cuotas: plan.cantidad_cuotas,
-        periodicidad: plan.periodicidad,
-        fecha_venta: venta.fecha_adhesion,
+      const cuotas = completarDesgloseTasaCero(
+        generarCuotas({
+          precio,
+          tipo,
+          anticipo_monto: anticipoCongelado,
+          cantidad_cuotas: plan.cantidad_cuotas,
+          periodicidad: plan.periodicidad,
+          fecha_venta: venta.fecha_venta,
+        }),
+        precio,
+      );
+
+      // En CONTADO el anticipo es el precio completo y no hay plazo, cuotas,
+      // tasa ni valor de cuota. En FINANCIADO la tasa es 0 y el valor de
+      // cuota es el importe de la cuota 1.
+      const esFinanciado = tipo === ModalidadPago.FINANCIADO;
+      const planPago = await tx.pLANPAGO.create({
+        data: {
+          FK_venta: venta.id_venta,
+          FK_plazo_financiacion: null,
+          modalidad: tipo,
+          precio_venta: precio,
+          anticipo_monto: esFinanciado ? anticipoCongelado : precio,
+          cantidad_cuotas: esFinanciado ? plan.cantidad_cuotas : null,
+          tasa_nominal_anual: esFinanciado ? new Prisma.Decimal(0) : null,
+          valor_cuota: esFinanciado
+            ? (cuotas.find((cuota) => cuota.numero === 1)?.importe ?? null)
+            : null,
+          FK_usuario_creador: usuarioId,
+        },
       });
 
       await tx.cUOTA.createMany({
         data: cuotas.map((cuota) => ({
           FK_venta: venta.id_venta,
+          FK_plan_pago: planPago.id_plan_pago,
           numero: cuota.numero,
+          importe_capital: cuota.importe_capital,
+          importe_interes: cuota.importe_interes,
           importe: cuota.importe,
           fecha_vencimiento: cuota.fecha_vencimiento,
+          saldo_capital: cuota.saldo_capital,
           saldo_pendiente: cuota.importe,
           estado: EstadoCuota.PENDIENTE,
         })),
@@ -268,7 +323,7 @@ export class VentaService {
   }
 
   /**
-   * `PLANPAGO.anticipo_monto`/`anticipo_porcentaje` es uno u otro, nunca
+   * `PLANEJEMPLO.anticipo_monto`/`anticipo_porcentaje` es uno u otro, nunca
    * ambos (regla de service de T105, no expresable en el schema). El motor de
    * cuotas solo acepta el monto ya resuelto — misma fórmula que
    * `PlanPagoService.resolverAnticipoMonto` (privada ahí, no reusable desde
@@ -329,18 +384,22 @@ export class VentaService {
         );
       }
 
+      const ahora = new Date();
+
       await tx.vENTA.update({
         where: { id_venta: idVenta },
         data: {
           estado: EstadoVenta.CANCELADA,
           motivo_cancelacion: dto.motivo_cancelacion,
-          fecha_cancelacion: new Date(),
+          fecha_cancelacion: ahora,
+          FK_usuario_actualizador: usuarioId,
+          hora_actualizacion: ahora,
         },
       });
 
       await tx.cUOTA.updateMany({
         where: { FK_venta: idVenta },
-        data: { estado: EstadoCuota.ANULADA },
+        data: { estado: EstadoCuota.ANULADA, hora_actualizacion: ahora },
       });
 
       await this.publicaciones.transicionarEstadoComercial(
@@ -381,7 +440,7 @@ export class VentaService {
         },
       }),
       ...((fechaDesde !== undefined || fechaHasta !== undefined) && {
-        fecha_adhesion: {
+        fecha_venta: {
           ...(fechaDesde !== undefined && { gte: fechaDesde }),
           ...(fechaHasta !== undefined && { lte: fechaHasta }),
         },
@@ -394,7 +453,7 @@ export class VentaService {
         select: this.ventaSelect(),
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { fecha_adhesion: 'desc' },
+        orderBy: { fecha_venta: 'desc' },
       }),
       this.prisma.vENTA.count({ where }),
     ]);
@@ -450,18 +509,13 @@ export class VentaService {
    */
   private ventaSelect() {
     return {
-      id_venta: true,
-      fecha_adhesion: true,
-      precio_congelado: true,
-      anticipo_congelado: true,
-      tipo_plan_congelado: true,
-      cantidad_cuotas_congelada: true,
-      periodicidad_congelada: true,
+      ...CONDICIONES_VENTA_SELECT,
+      fecha_venta: true,
       estado: true,
       motivo_cancelacion: true,
       fecha_cancelacion: true,
       FK_publicacion: true,
-      FK_plan_pago: true,
+      FK_plan_ejemplo: true,
       cliente: { select: CLIENTE_SELECT },
       publicacion: {
         select: {
@@ -493,7 +547,7 @@ export class VentaService {
       select: {
         id_venta: true,
         estado: true,
-        fecha_adhesion: true,
+        fecha_venta: true,
         publicacion: {
           select: {
             unidadFuncional: {
@@ -506,7 +560,7 @@ export class VentaService {
                     id_proyecto: true,
                     nombre: true,
                     localidad: true,
-                    estado: true,
+                    estado_obra: true,
                     fecha_fin_estimada: true,
                   },
                 },
@@ -521,7 +575,7 @@ export class VentaService {
           select: { saldo_pendiente: true, fecha_vencimiento: true },
         },
       },
-      orderBy: { fecha_adhesion: 'desc' },
+      orderBy: { fecha_venta: 'desc' },
     });
 
     const hoy = new Date();
@@ -533,7 +587,7 @@ export class VentaService {
     venta: {
       id_venta: number;
       estado: string;
-      fecha_adhesion: Date;
+      fecha_venta: Date;
       publicacion: {
         unidadFuncional: {
           id_unidad_funcional: number;
@@ -543,7 +597,7 @@ export class VentaService {
             id_proyecto: number;
             nombre: string;
             localidad: string;
-            estado: EstadoProyecto;
+            estado_obra: EstadoProyecto;
             fecha_fin_estimada: Date | null;
           };
         };
@@ -571,7 +625,7 @@ export class VentaService {
     return {
       id_venta: venta.id_venta,
       estado: venta.estado,
-      fecha_adhesion: venta.fecha_adhesion.toISOString(),
+      fecha_adhesion: venta.fecha_venta.toISOString(),
       unidad: {
         id_unidad_funcional: unidad.id_unidad_funcional,
         identificador: unidad.identificador,
@@ -590,8 +644,8 @@ export class VentaService {
 
   /**
    * Detalle de una unidad del cliente autenticado (T112, HU-28): la misma
-   * cabecera de `misVentas` + la unidad ampliada, el plan (condiciones
-   * congeladas de la VENTA, nunca las de PLANPAGO) y el cronograma completo
+   * cabecera de `misVentas` + la unidad ampliada, el plan (las condiciones
+   * acordadas en la venta, vía `resolverCondicionesVenta`) y el cronograma completo
    * de cuotas con `vencido`/`dias_vencido` ya resueltos.
    *
    * `NotFoundException` genérico si la venta no existe, no es de este
@@ -607,15 +661,10 @@ export class VentaService {
         estado: EstadoVenta.VIGENTE,
       },
       select: {
-        id_venta: true,
+        ...CONDICIONES_VENTA_SELECT,
         estado: true,
-        fecha_adhesion: true,
-        precio_congelado: true,
-        anticipo_congelado: true,
-        tipo_plan_congelado: true,
-        cantidad_cuotas_congelada: true,
-        periodicidad_congelada: true,
-        planPago: { select: { nombre: true } },
+        fecha_venta: true,
+        planEjemplo: { select: { nombre: true } },
         publicacion: {
           select: {
             unidadFuncional: {
@@ -633,7 +682,7 @@ export class VentaService {
                     id_proyecto: true,
                     nombre: true,
                     localidad: true,
-                    estado: true,
+                    estado_obra: true,
                     fecha_fin_estimada: true,
                   },
                 },
@@ -690,10 +739,16 @@ export class VentaService {
       new Prisma.Decimal(0),
     );
 
+    const condiciones = resolverCondicionesVenta(venta);
+    const planEjemplo = exigirDatoPlanEjemplo(
+      venta.id_venta,
+      venta.planEjemplo,
+    );
+
     return {
       id_venta: venta.id_venta,
       estado: venta.estado,
-      fecha_adhesion: venta.fecha_adhesion.toISOString(),
+      fecha_adhesion: venta.fecha_venta.toISOString(),
       unidad: {
         id_unidad_funcional: unidad.id_unidad_funcional,
         identificador: unidad.identificador,
@@ -712,12 +767,12 @@ export class VentaService {
       },
       condicion_entrega: calcularCondicionEntregaResponse(proyecto),
       plan: {
-        nombre: venta.planPago.nombre,
-        tipo: venta.tipo_plan_congelado,
-        precio: venta.precio_congelado.toNumber(),
-        anticipo: venta.anticipo_congelado.toNumber(),
-        cantidad_cuotas: venta.cantidad_cuotas_congelada,
-        periodicidad: venta.periodicidad_congelada,
+        nombre: planEjemplo.nombre,
+        tipo: condiciones.tipo_plan_congelado,
+        precio: condiciones.precio_congelado.toNumber(),
+        anticipo: condiciones.anticipo_congelado.toNumber(),
+        cantidad_cuotas: condiciones.cantidad_cuotas_congelada,
+        periodicidad: condiciones.periodicidad_congelada,
       },
       cuotas,
       saldo_total_pendiente: saldoTotalPendiente.toNumber(),
@@ -886,53 +941,58 @@ export class VentaService {
     };
   }
 
-  private mapearVenta(venta: {
-    id_venta: number;
-    fecha_adhesion: Date;
-    precio_congelado: Prisma.Decimal;
-    anticipo_congelado: Prisma.Decimal;
-    tipo_plan_congelado: string;
-    cantidad_cuotas_congelada: number;
-    periodicidad_congelada: string | null;
-    estado: string;
-    motivo_cancelacion: string | null;
-    fecha_cancelacion: Date | null;
-    FK_publicacion: number;
-    FK_plan_pago: number;
-    cliente: {
-      id_cliente: number;
-      nombre: string;
-      apellido: string | null;
-      dni_cuil: string | null;
-      email: string;
-      telefono: string | null;
-    };
-    publicacion: {
-      unidadFuncional: {
-        id_unidad_funcional: number;
-        identificador: string;
-        tipologia: string;
-        proyecto: { id_proyecto: number; codigo: string; nombre: string };
+  /**
+   * Arma la respuesta de venta con los nombres del contrato del Sprint 3:
+   * `fecha_adhesion` sale de `fecha_venta`, `FK_plan_pago` de
+   * `FK_plan_ejemplo`, y las condiciones `*_congelado` del plan de pago.
+   */
+  private mapearVenta(
+    venta: VentaConCondiciones & {
+      fecha_venta: Date;
+      estado: string;
+      motivo_cancelacion: string | null;
+      fecha_cancelacion: Date | null;
+      FK_publicacion: number;
+      FK_plan_ejemplo: number | null;
+      cliente: {
+        id_cliente: number;
+        nombre: string;
+        apellido: string | null;
+        dni_cuil: string | null;
+        email: string;
+        telefono: string | null;
       };
-    };
-  }) {
+      publicacion: {
+        unidadFuncional: {
+          id_unidad_funcional: number;
+          identificador: string;
+          tipologia: string;
+          proyecto: { id_proyecto: number; codigo: string; nombre: string };
+        };
+      };
+    },
+  ) {
     const { unidadFuncional } = venta.publicacion;
     const { proyecto, ...unidad } = unidadFuncional;
+    const condiciones = resolverCondicionesVenta(venta);
 
     return {
       id_venta: venta.id_venta,
-      fecha_adhesion: venta.fecha_adhesion.toISOString(),
-      precio_congelado: venta.precio_congelado.toNumber(),
-      anticipo_congelado: venta.anticipo_congelado.toNumber(),
-      tipo_plan_congelado: venta.tipo_plan_congelado,
-      cantidad_cuotas_congelada: venta.cantidad_cuotas_congelada,
-      periodicidad_congelada: venta.periodicidad_congelada,
+      fecha_adhesion: venta.fecha_venta.toISOString(),
+      precio_congelado: condiciones.precio_congelado.toNumber(),
+      anticipo_congelado: condiciones.anticipo_congelado.toNumber(),
+      tipo_plan_congelado: condiciones.tipo_plan_congelado,
+      cantidad_cuotas_congelada: condiciones.cantidad_cuotas_congelada,
+      periodicidad_congelada: condiciones.periodicidad_congelada,
       estado: venta.estado,
       motivo_cancelacion: venta.motivo_cancelacion,
       fecha_cancelacion: venta.fecha_cancelacion?.toISOString() ?? null,
       cliente: venta.cliente,
       FK_publicacion: venta.FK_publicacion,
-      FK_plan_pago: venta.FK_plan_pago,
+      FK_plan_pago: exigirDatoPlanEjemplo(
+        venta.id_venta,
+        venta.FK_plan_ejemplo,
+      ),
       unidad,
       proyecto,
     };

@@ -10,7 +10,7 @@ import {
   EstadoDeclaracionPago,
   EstadoVenta,
   OrigenCobro,
-  TipoPlanPago,
+  ModalidadPago,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { validarNumeroReferencia } from '../../../common/validaciones/validar-numero-referencia';
@@ -18,6 +18,10 @@ import { clienteTieneDatosCompletos } from '../cliente-auth/cliente-tiene-datos-
 import { FormaPagoService } from '../../tesoreria/forma-pago/forma-pago.service';
 import { CobroService, type LineaCuotaParaCobro } from '../cobro/cobro.service';
 import { CreateCobroDto } from '../cobro/dto/create-cobro.dto';
+import {
+  CONDICIONES_VENTA_SELECT,
+  resolverCondicionesVenta,
+} from '../venta/condiciones-venta';
 import { CreateDeclaracionPagoDto } from './dto/create-declaracion-pago.dto';
 import { RechazarDeclaracionPagoDto } from './dto/rechazar-declaracion-pago.dto';
 import { QueryDeclaracionPagoDto } from './dto/query-declaracion-pago.dto';
@@ -26,7 +30,7 @@ const CUOTA_DECLARABLE_SELECT = {
   id_cuota: true,
   estado: true,
   saldo_pendiente: true,
-  venta: { select: { estado: true, tipo_plan_congelado: true } },
+  venta: { select: { estado: true, ...CONDICIONES_VENTA_SELECT } },
 } as const;
 
 type CuotaDeclarable = Prisma.CUOTAGetPayload<{
@@ -248,11 +252,12 @@ export class DeclaracionPagoService {
 
   /**
    * Regla de negocio: una venta de contado se paga en una sola cuota, de forma
-   * presencial — nunca por autogestión. Se mira el plan congelado en la
-   * VENTA, no el de PLANPAGO (que pudo haber cambiado después de la venta).
+   * presencial — nunca por autogestión. Se miran las condiciones acordadas
+   * en la venta (su plan de pago), vía `resolverCondicionesVenta`.
    */
   private validarVentaNoContado(cuota: CuotaDeclarable) {
-    if (cuota.venta.tipo_plan_congelado === TipoPlanPago.CONTADO) {
+    const { tipo_plan_congelado } = resolverCondicionesVenta(cuota.venta);
+    if (tipo_plan_congelado === ModalidadPago.CONTADO) {
       throw new ConflictException(
         'La venta de esta cuota es de contado: el pago se hace de forma presencial y no admite declaraciones',
       );

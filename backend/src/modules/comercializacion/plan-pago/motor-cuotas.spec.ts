@@ -1,5 +1,8 @@
 import { Prisma } from '../../../../generated/prisma/client';
-import { Periodicidad, TipoPlanPago } from '../../../../generated/prisma/enums';
+import {
+  Periodicidad,
+  ModalidadPago,
+} from '../../../../generated/prisma/enums';
 import {
   CondicionesPlanPago,
   CuotaGenerada,
@@ -11,7 +14,7 @@ const condiciones = (
   parcial: Partial<CondicionesPlanPago> = {},
 ): CondicionesPlanPago => ({
   precio: new Prisma.Decimal('27000000.00'),
-  tipo: TipoPlanPago.FINANCIADO,
+  tipo: ModalidadPago.FINANCIADO,
   anticipo_monto: new Prisma.Decimal('5400000.00'),
   cantidad_cuotas: 6,
   periodicidad: Periodicidad.MENSUAL,
@@ -34,7 +37,7 @@ describe('generarCuotas', () => {
     it('genera una sola cuota, numero 0, por el precio total', () => {
       const cuotas = generarCuotas(
         condiciones({
-          tipo: TipoPlanPago.CONTADO,
+          tipo: ModalidadPago.CONTADO,
           precio: new Prisma.Decimal('19000000.00'),
           // En CONTADO el anticipo es el 100% del precio; el motor no lo mira.
           anticipo_monto: new Prisma.Decimal('19000000.00'),

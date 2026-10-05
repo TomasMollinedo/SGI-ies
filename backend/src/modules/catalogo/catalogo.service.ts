@@ -2,6 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { calcularCondicionEntregaResponse } from '../comercializacion/common/condicion-entrega';
 import {
+  exigirPrecioPlanEjemplo,
+  exigirTipoPlanEjemplo,
+} from '../comercializacion/plan-pago/exigir-condiciones-plan-ejemplo';
+import {
   EstadoComercial,
   EstadoProyecto,
 } from '../../../generated/prisma/enums';
@@ -26,7 +30,7 @@ const UNIDAD_CATALOGO_SELECT = {
     select: {
       nombre: true,
       localidad: true,
-      estado: true,
+      estado_obra: true,
       fecha_fin_estimada: true,
     },
   },
@@ -69,7 +73,7 @@ export class CatalogoService {
               localidad: { contains: localidad, mode: 'insensitive' },
             }),
             ...(entregada !== undefined && {
-              estado: entregada
+              estado_obra: entregada
                 ? EstadoProyecto.FINALIZADO
                 : { not: EstadoProyecto.FINALIZADO },
             }),
@@ -84,7 +88,7 @@ export class CatalogoService {
         select: {
           fecha_publicacion: true,
           unidadFuncional: { select: UNIDAD_CATALOGO_SELECT },
-          planes: PLAN_ACTIVO_MAS_BARATO_SELECT,
+          planesEjemplo: PLAN_ACTIVO_MAS_BARATO_SELECT,
         },
         skip: (page - 1) * limit,
         take: limit,
@@ -122,7 +126,7 @@ export class CatalogoService {
             },
           },
         },
-        planes: {
+        planesEjemplo: {
           where: { estado: true },
           select: {
             nombre: true,
@@ -149,10 +153,10 @@ export class CatalogoService {
       comodidades: publicacion.unidadFuncional.comodidades,
       observaciones: publicacion.unidadFuncional.observaciones,
       imagenes: publicacion.unidadFuncional.imagenes,
-      planes: publicacion.planes.map((plan) => ({
+      planes: publicacion.planesEjemplo.map((plan) => ({
         nombre: plan.nombre,
-        tipo: plan.tipo,
-        precio: plan.precio.toNumber(),
+        tipo: exigirTipoPlanEjemplo(plan.tipo),
+        precio: exigirPrecioPlanEjemplo(plan.precio).toNumber(),
         anticipo_porcentaje: plan.anticipo_porcentaje?.toNumber() ?? null,
         anticipo_monto: plan.anticipo_monto?.toNumber() ?? null,
         cantidad_cuotas: plan.cantidad_cuotas,
@@ -210,7 +214,7 @@ export class CatalogoService {
             },
           },
         },
-        planes: PLAN_ACTIVO_MAS_BARATO_SELECT,
+        planesEjemplo: PLAN_ACTIVO_MAS_BARATO_SELECT,
       },
     });
 
@@ -222,7 +226,11 @@ export class CatalogoService {
 
     for (const publicacion of publicaciones) {
       const idProyecto = publicacion.unidadFuncional.FK_proyecto;
-      const precioPlan = publicacion.planes[0]?.precio.toNumber();
+      const planMasBarato = publicacion.planesEjemplo.at(0);
+      const precioPlan =
+        planMasBarato === undefined
+          ? undefined
+          : exigirPrecioPlanEjemplo(planMasBarato.precio).toNumber();
 
       datosProyecto.set(idProyecto, publicacion.unidadFuncional.proyecto);
 
@@ -262,12 +270,12 @@ type PublicacionParaListado = {
     proyecto: {
       nombre: string;
       localidad: string;
-      estado: EstadoProyecto;
+      estado_obra: EstadoProyecto;
       fecha_fin_estimada: Date | null;
     };
     imagenes: { url: string }[];
   };
-  planes: { precio: Prisma.Decimal }[];
+  planesEjemplo: { precio: Prisma.Decimal | null }[];
 };
 
 function mapearItemCatalogo(publicacion: PublicacionParaListado) {
@@ -286,8 +294,10 @@ function mapearItemCatalogo(publicacion: PublicacionParaListado) {
     imagen_url: unidadFuncional.imagenes[0]?.url ?? null,
     // Garantizado por reglas de negocio: una publicación DISPONIBLE siempre
     // tiene al menos un plan activo (si se inactivan todos, la publicación
-    // vuelve a EN_PREPARACION), así que planes[0] siempre existe acá.
-    precio_desde: publicacion.planes[0].precio.toNumber(),
+    // vuelve a EN_PREPARACION), así que planesEjemplo[0] siempre existe acá.
+    precio_desde: exigirPrecioPlanEjemplo(
+      publicacion.planesEjemplo[0].precio,
+    ).toNumber(),
     condicion_entrega: calcularCondicionEntregaResponse(proyecto),
     fecha_publicacion: publicacion.fecha_publicacion.toISOString(),
   };

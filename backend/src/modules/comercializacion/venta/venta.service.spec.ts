@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import {
   BadRequestException,
   ConflictException,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 
@@ -10,7 +11,10 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { PublicacionService } from '../publicacion/publicacion.service';
 
 import { Prisma } from '../../../../generated/prisma/client';
-import { EstadoComercial } from '../../../../generated/prisma/enums';
+import {
+  EstadoComercial,
+  ModalidadPago,
+} from '../../../../generated/prisma/enums';
 
 import type { CreateVentaDto } from './dto/create-venta.dto';
 import type { CancelarVentaDto } from './dto/cancelar-venta.dto';
@@ -23,6 +27,7 @@ import type { CancelarVentaDto } from './dto/cancelar-venta.dto';
  * - completar dni_cuil/teléfono faltantes de clientes existentes
  * - búsqueda y paginación de clientes mediante buscarClientes()
  * - cancelación de ventas mediante cancelar()
+ * - doble escritura de crear(): PLANPAGO de la venta y desglose de cuotas (T121)
  *
  * No pretende cubrir de forma completa VentaService/crear().
  */
@@ -62,7 +67,18 @@ describe('VentaService', () => {
   let tx: {
     vENTA: {
       findUnique: jest.Mock;
+      findFirst: jest.Mock;
+      create: jest.Mock;
       update: jest.Mock;
+    };
+    pUBLICACIONUNIDAD: {
+      findUnique: jest.Mock;
+    };
+    pLANEJEMPLO: {
+      findUnique: jest.Mock;
+    };
+    pLANPAGO: {
+      create: jest.Mock;
     };
     dETALLECOBRO: {
       findFirst: jest.Mock;
@@ -71,6 +87,7 @@ describe('VentaService', () => {
       findFirst: jest.Mock;
     };
     cUOTA: {
+      createMany: jest.Mock;
       updateMany: jest.Mock;
     };
     cLIENTE: {
@@ -99,17 +116,19 @@ describe('VentaService', () => {
 
   const ventaDetalleCompleta = {
     id_venta: ID_VENTA,
-    fecha_adhesion: new Date('2026-08-01T00:00:00Z'),
-    precio_congelado: new Prisma.Decimal(100000),
-    anticipo_congelado: new Prisma.Decimal(20000),
-    tipo_plan_congelado: 'FINANCIADO',
-    cantidad_cuotas_congelada: 10,
+    fecha_venta: new Date('2026-08-01T00:00:00Z'),
     periodicidad_congelada: 'MENSUAL',
+    planPago: {
+      modalidad: 'FINANCIADO',
+      precio_venta: new Prisma.Decimal(100000),
+      anticipo_monto: new Prisma.Decimal(20000),
+      cantidad_cuotas: 10,
+    },
     estado: 'CANCELADA',
     motivo_cancelacion: dto.motivo_cancelacion,
     fecha_cancelacion: new Date('2026-09-22T00:00:00Z'),
     FK_publicacion: 10,
-    FK_plan_pago: 5,
+    FK_plan_ejemplo: 5,
     cliente: {
       id_cliente: 1,
       nombre: 'Valentina',
@@ -145,7 +164,21 @@ describe('VentaService', () => {
     tx = {
       vENTA: {
         findUnique: jest.fn().mockResolvedValue(ventaVigente),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
+      },
+
+      pUBLICACIONUNIDAD: {
+        findUnique: jest.fn(),
+      },
+
+      pLANEJEMPLO: {
+        findUnique: jest.fn(),
+      },
+
+      pLANPAGO: {
+        create: jest.fn().mockResolvedValue({ id_plan_pago: 50 }),
       },
 
       dETALLECOBRO: {
@@ -157,6 +190,7 @@ describe('VentaService', () => {
       },
 
       cUOTA: {
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
         updateMany: jest.fn().mockResolvedValue({ count: 2 }),
       },
 
@@ -365,6 +399,176 @@ describe('VentaService', () => {
     });
   });
 
+  describe('crear — doble escritura del plan de pago (T121)', () => {
+    const ID_PUBLICACION = 10;
+    const ID_PLAN_EJEMPLO = 5;
+    const FECHA_VENTA = new Date('2026-04-14T00:00:00.000Z');
+
+    const dtoVenta: CreateVentaDto = {
+      FK_publicacion: ID_PUBLICACION,
+      FK_plan_pago: ID_PLAN_EJEMPLO,
+      cliente: clienteValido,
+    };
+
+    /** El plan de ejemplo tal como lo lee `crear`. */
+    const planEjemplo = (sobrescribe: Record<string, unknown> = {}) => ({
+      id_plan_ejemplo: ID_PLAN_EJEMPLO,
+      FK_publicacion: ID_PUBLICACION,
+      estado: true,
+      tipo: ModalidadPago.FINANCIADO,
+      precio: new Prisma.Decimal('27000000.00'),
+      anticipo_porcentaje: new Prisma.Decimal('20.00'),
+      anticipo_monto: null,
+      cantidad_cuotas: 6,
+      periodicidad: 'MENSUAL',
+      ...sobrescribe,
+    });
+
+    type DataPlanPago = {
+      FK_venta: number;
+      FK_plazo_financiacion: number | null;
+      modalidad: string;
+      precio_venta: Prisma.Decimal;
+      anticipo_monto: Prisma.Decimal;
+      cantidad_cuotas: number | null;
+      tasa_nominal_anual: Prisma.Decimal | null;
+      valor_cuota: Prisma.Decimal | null;
+      FK_usuario_creador: number;
+    };
+    type DataCuota = {
+      FK_venta: number;
+      FK_plan_pago: number;
+      numero: number;
+      importe: Prisma.Decimal;
+      importe_capital: Prisma.Decimal;
+      importe_interes: Prisma.Decimal;
+      saldo_capital: Prisma.Decimal;
+      saldo_pendiente: Prisma.Decimal;
+      estado: string;
+    };
+
+    const dataPlanPago = () =>
+      (tx.pLANPAGO.create.mock.calls as { data: DataPlanPago }[][])[0][0].data;
+    const dataCuotas = () =>
+      (tx.cUOTA.createMany.mock.calls as { data: DataCuota[] }[][])[0][0].data;
+    const dataVenta = () =>
+      (
+        tx.vENTA.create.mock.calls as { data: Record<string, unknown> }[][]
+      )[0][0].data;
+
+    beforeEach(() => {
+      tx.pUBLICACIONUNIDAD.findUnique.mockResolvedValue({
+        id_publicacion: ID_PUBLICACION,
+        vigente: true,
+        estado_comercial: EstadoComercial.DISPONIBLE,
+      });
+      tx.pLANEJEMPLO.findUnique.mockResolvedValue(planEjemplo());
+      tx.vENTA.create.mockResolvedValue({
+        id_venta: ID_VENTA,
+        fecha_venta: FECHA_VENTA,
+      });
+    });
+
+    it('FINANCIADO: crea el PLANPAGO con TNA 0 y las cuotas con las dos FK y el desglose', async () => {
+      await service.crear(dtoVenta, USUARIO_ID);
+
+      // Las columnas legado de VENTA se siguen escribiendo, más el actualizador.
+      expect(dataVenta()).toEqual(
+        expect.objectContaining({
+          FK_plan_ejemplo: ID_PLAN_EJEMPLO,
+          tipo_plan_congelado: ModalidadPago.FINANCIADO,
+          cantidad_cuotas_congelada: 6,
+          periodicidad_congelada: 'MENSUAL',
+          FK_usuario_creador: USUARIO_ID,
+          FK_usuario_actualizador: USUARIO_ID,
+        }),
+      );
+
+      const plan = dataPlanPago();
+      expect(plan.FK_venta).toBe(ID_VENTA);
+      expect(plan.FK_plazo_financiacion).toBeNull();
+      expect(plan.modalidad).toBe(ModalidadPago.FINANCIADO);
+      expect(plan.precio_venta.toFixed(2)).toBe('27000000.00');
+      expect(plan.anticipo_monto.toFixed(2)).toBe('5400000.00');
+      expect(plan.cantidad_cuotas).toBe(6);
+      expect(plan.tasa_nominal_anual?.toFixed(2)).toBe('0.00');
+      expect(plan.valor_cuota?.toFixed(2)).toBe('3600000.00');
+      expect(plan.FK_usuario_creador).toBe(USUARIO_ID);
+
+      const cuotas = dataCuotas();
+      expect(cuotas).toHaveLength(7); // la 0 (anticipo) + 6 cuotas
+      for (const cuota of cuotas) {
+        expect(cuota.FK_venta).toBe(ID_VENTA);
+        expect(cuota.FK_plan_pago).toBe(50);
+        expect(cuota.importe_capital.equals(cuota.importe)).toBe(true);
+        expect(cuota.importe_interes.toFixed(2)).toBe('0.00');
+        expect(cuota.saldo_pendiente.equals(cuota.importe)).toBe(true);
+        expect(cuota.estado).toBe('PENDIENTE');
+      }
+      expect(cuotas.map((cuota) => cuota.saldo_capital.toFixed(2))).toEqual([
+        '21600000.00',
+        '18000000.00',
+        '14400000.00',
+        '10800000.00',
+        '7200000.00',
+        '3600000.00',
+        '0.00',
+      ]);
+
+      // El plan se crea antes que las cuotas: necesitan su id.
+      expect(tx.pLANPAGO.create.mock.invocationCallOrder[0]).toBeLessThan(
+        tx.cUOTA.createMany.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('CONTADO: el anticipo del PLANPAGO es el precio y no lleva cuotas, tasa ni valor de cuota', async () => {
+      tx.pLANEJEMPLO.findUnique.mockResolvedValue(
+        planEjemplo({
+          tipo: ModalidadPago.CONTADO,
+          precio: new Prisma.Decimal('19000000.00'),
+          anticipo_porcentaje: new Prisma.Decimal('100.00'),
+          cantidad_cuotas: null,
+          periodicidad: null,
+        }),
+      );
+
+      await service.crear(dtoVenta, USUARIO_ID);
+
+      const plan = dataPlanPago();
+      expect(plan.modalidad).toBe(ModalidadPago.CONTADO);
+      expect(plan.precio_venta.toFixed(2)).toBe('19000000.00');
+      expect(plan.anticipo_monto.toFixed(2)).toBe('19000000.00');
+      expect(plan.cantidad_cuotas).toBeNull();
+      expect(plan.tasa_nominal_anual).toBeNull();
+      expect(plan.valor_cuota).toBeNull();
+      expect(plan.FK_plazo_financiacion).toBeNull();
+
+      // La columna legado conserva el 1 que guardaba el Sprint 3 en contado.
+      expect(dataVenta().cantidad_cuotas_congelada).toBe(1);
+
+      const cuotas = dataCuotas();
+      expect(cuotas).toHaveLength(1);
+      expect(cuotas[0].numero).toBe(0);
+      expect(cuotas[0].importe_capital.toFixed(2)).toBe('19000000.00');
+      expect(cuotas[0].importe_interes.toFixed(2)).toBe('0.00');
+      expect(cuotas[0].saldo_capital.toFixed(2)).toBe('0.00');
+    });
+
+    it('rechaza con 409 si el plan de ejemplo no tiene precio, sin crear nada', async () => {
+      tx.pLANEJEMPLO.findUnique.mockResolvedValue(
+        planEjemplo({ precio: null }),
+      );
+
+      await expect(service.crear(dtoVenta, USUARIO_ID)).rejects.toThrow(
+        new ConflictException('El plan de ejemplo no tiene precio definido'),
+      );
+
+      expect(tx.vENTA.create).not.toHaveBeenCalled();
+      expect(tx.pLANPAGO.create).not.toHaveBeenCalled();
+      expect(tx.cUOTA.createMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe('cancelar', () => {
     it('tira 404 si la venta no existe', async () => {
       tx.vENTA.findUnique.mockResolvedValue(null);
@@ -434,6 +638,8 @@ describe('VentaService', () => {
           estado: 'CANCELADA',
           motivo_cancelacion: dto.motivo_cancelacion,
           fecha_cancelacion: expect.any(Date) as Date,
+          FK_usuario_actualizador: USUARIO_ID,
+          hora_actualizacion: expect.any(Date) as Date,
         },
       });
 
@@ -443,6 +649,7 @@ describe('VentaService', () => {
         },
         data: {
           estado: 'ANULADA',
+          hora_actualizacion: expect.any(Date) as Date,
         },
       });
 
@@ -463,14 +670,14 @@ describe('VentaService', () => {
       id_proyecto: 4,
       nombre: 'Torres del Sur',
       localidad: 'Salta',
-      estado: 'EN_EJECUCION',
+      estado_obra: 'EN_EJECUCION',
       fecha_fin_estimada: new Date('2027-01-01T00:00:00Z'),
     };
 
     const ventaBase = {
       id_venta: 20,
       estado: 'VIGENTE',
-      fecha_adhesion: new Date('2026-01-10T00:00:00Z'),
+      fecha_venta: new Date('2026-01-10T00:00:00Z'),
       publicacion: {
         unidadFuncional: {
           id_unidad_funcional: 30,
@@ -584,20 +791,22 @@ describe('VentaService', () => {
       id_proyecto: 4,
       nombre: 'Torres del Sur',
       localidad: 'Salta',
-      estado: 'EN_EJECUCION',
+      estado_obra: 'EN_EJECUCION',
       fecha_fin_estimada: new Date('2027-01-01T00:00:00Z'),
     };
 
     const ventaDetalleBase = {
       id_venta: 20,
       estado: 'VIGENTE',
-      fecha_adhesion: new Date('2026-01-10T00:00:00Z'),
-      precio_congelado: new Prisma.Decimal(120000),
-      anticipo_congelado: new Prisma.Decimal(20000),
-      tipo_plan_congelado: 'FINANCIADO',
-      cantidad_cuotas_congelada: 10,
+      fecha_venta: new Date('2026-01-10T00:00:00Z'),
       periodicidad_congelada: 'MENSUAL',
-      planPago: { nombre: 'Financiado 10 cuotas' },
+      planPago: {
+        modalidad: 'FINANCIADO',
+        precio_venta: new Prisma.Decimal(120000),
+        anticipo_monto: new Prisma.Decimal(20000),
+        cantidad_cuotas: 10,
+      },
+      planEjemplo: { nombre: 'Financiado 10 cuotas' },
       publicacion: {
         unidadFuncional: {
           id_unidad_funcional: 30,
@@ -635,7 +844,7 @@ describe('VentaService', () => {
       );
     });
 
-    it('mapea el plan con las condiciones congeladas de la venta, no las de PLANPAGO', async () => {
+    it('mapea el plan con las condiciones acordadas en la venta (su plan de pago) y el nombre del plan de ejemplo', async () => {
       prisma.vENTA.findFirst.mockResolvedValue(ventaDetalleBase);
 
       const resultado = await service.detalleVentaCliente(20, 1);
@@ -648,6 +857,17 @@ describe('VentaService', () => {
         cantidad_cuotas: 10,
         periodicidad: 'MENSUAL',
       });
+    });
+
+    it('tira un 500 con mensaje claro si la venta no tiene plan de pago (dato inconsistente), sin caer a las columnas legado', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({
+        ...ventaDetalleBase,
+        planPago: null,
+      });
+
+      await expect(service.detalleVentaCliente(20, 1)).rejects.toThrow(
+        new InternalServerErrorException('La venta 20 no tiene plan de pago'),
+      );
     });
 
     it('marca vencido y calcula dias_vencido en una cuota PENDIENTE con fecha pasada', async () => {
