@@ -85,10 +85,20 @@ model USUARIO {
   publicacionesCreadas      PUBLICACIONUNIDAD[] @relation("PublicacionCreador")
   publicacionesActualizadas PUBLICACIONUNIDAD[] @relation("PublicacionActualizador")
 
-  planesPagoCreados      PLANPAGO[] @relation("PlanPagoCreador")
-  planesPagoActualizados PLANPAGO[] @relation("PlanPagoActualizador")
+  planesEjemploCreados      PLANEJEMPLO[] @relation("PlanEjemploCreador")
+  planesEjemploActualizados PLANEJEMPLO[] @relation("PlanEjemploActualizador")
 
-  ventasCreadas VENTA[] @relation("VentaCreador")
+  ventasCreadas      VENTA[] @relation("VentaCreador")
+  ventasActualizadas VENTA[] @relation("VentaActualizador")
+
+  // Sprint 4
+  plazosFinanciacionCreados      PLAZOFINANCIACION[] @relation("PlazoFinanciacionCreador")
+  plazosFinanciacionActualizados PLAZOFINANCIACION[] @relation("PlazoFinanciacionActualizador")
+
+  // Solo creador: el plan de pago confirmado no se modifica (ver PLANPAGO).
+  planesPagoCreados PLANPAGO[] @relation("PlanPagoCreador")
+
+  clientesActualizados CLIENTE[] @relation("ClienteActualizador")
 
   consultasRespondidas CONSULTAUNIDAD[] @relation("ConsultaUnidadRespuesta")
 
@@ -323,35 +333,44 @@ model DEPOSITO {
 
 // Hasta Sprint 2 era un stub con solo el id, para poder vincular
 // (opcionalmente) un depósito/obrador a un proyecto. Sprint 3 lo completa con
-// los campos que Comercialización necesita para publicar unidades. Sigue sin
-// ABM propio en este sprint: se carga por seed (ver prisma/seed.ts), mismo
-// criterio que ROL o TIPOALERTA — el ABM completo de Proyecto queda para un
-// sprint futuro.
+// los campos que Comercialización necesita para publicar unidades, cargados
+// por seed. Sprint 4 (HU-31) le da ABM propio: suma la baja lógica, la
+// descripción, la fecha de inicio y las imágenes de diseño.
 model PROYECTO {
   id_proyecto Int @id @default(autoincrement())
 
   codigo String @unique
 
-  nombre    String
-  localidad String
-  // Nullable a propósito: un proyecto en planificación puede no tener
-  // dirección todavía.
-  direccion String?
+  // Único solo entre proyectos activos (se valida a nivel service, no acá) —
+  // mismo criterio que FORMAPAGO.nombre.
+  nombre      String
+  descripcion String?
+  localidad   String
+  // Obligatoria desde HU-31.
+  direccion   String
 
+  fecha_inicio       DateTime?
   // Null → la ficha pública de la unidad muestra "A entregar, fecha a
   // confirmar" en vez de una fecha (HU-21).
   fecha_fin_estimada DateTime?
 
-  estado EstadoProyecto @default(EN_PLANIFICACION)
+  // Estado de avance de la obra. Hasta el Sprint 3 esta columna se llamaba
+  // `estado`; se renombró para que `estado` sea la baja lógica, como en el
+  // resto del esquema.
+  estado_obra EstadoProyecto @default(EN_PLANIFICACION)
 
-  // Informativo: no bloquea ni se valida contra la cantidad de unidades
-  // cargadas.
-  cantidad_unidades_planificadas Int?
+  // Obligatoria desde HU-31. Las reglas que la cruzan con la cantidad de
+  // unidades cargadas las valida el service, no la base.
+  cantidad_unidades_planificadas Int
 
   // Única pieza de contenido de la landing (HU-24) que no puede vivir
   // hardcodeada en el frontend: depende de qué proyecto salga como
-  // destacado, así que tiene que salir de acá.
+  // destacado, así que tiene que salir de acá. Las imágenes de diseño
+  // (renders y planos) van aparte, en IMAGENPROYECTO.
   imagen_portada_url String?
+
+  // Baja lógica (HU-31), independiente de `estado_obra`.
+  estado Boolean @default(true)
 
   hora_creacion      DateTime  @default(now())
   hora_actualizacion DateTime? @default(now())
@@ -364,12 +383,35 @@ model PROYECTO {
 
   depositos           DEPOSITO[]
   unidadesFuncionales UNIDADFUNCIONAL[]
+  imagenes            IMAGENPROYECTO[]
 
   // No existe columna `presupuesto`: se deriva como SUM(costo) de las
   // unidades funcionales activas del proyecto, se calcula al leer (ver DER
   // Sprint 3).
 
+  @@index([estado_obra])
   @@index([estado])
+}
+
+// Imágenes de diseño del proyecto (HU-31). Calcada de IMAGENUNIDAD, más el
+// tipo.
+model IMAGENPROYECTO {
+  id_imagen_proyecto Int @id @default(autoincrement())
+
+  FK_proyecto Int
+  proyecto    PROYECTO @relation(fields: [FK_proyecto], references: [id_proyecto], onDelete: Cascade)
+
+  // Pública, sin versionado ni permisos: vive en el object storage del
+  // sistema, acá solo se guarda la URL.
+  url   String
+  tipo  TipoImagenProyecto
+  orden Int                @default(0)
+
+  // Sin auditoría completa ni baja lógica: una imagen se borra físicamente,
+  // no constituye historial financiero ni contractual.
+  hora_creacion DateTime @default(now())
+
+  @@index([FK_proyecto])
 }
 
 // Tabla de referencia de los tipos de alerta que puede generar el sistema.
@@ -869,8 +911,10 @@ model DETALLEPAGO {
 // ============================================================================
 // COMERCIALIZACIÓN / ECOMMERCE (Sprint 3) — HU-19 a HU-30
 // ============================================================================
-// Cadena principal: PROYECTO → UNIDADFUNCIONAL → PUBLICACIONUNIDAD →
-// PLANPAGO → VENTA → CUOTA → DETALLECOBRO. Ver el DER del sprint para el
+// Cadena principal (desde el Sprint 4): PROYECTO → UNIDADFUNCIONAL →
+// PUBLICACIONUNIDAD → VENTA → PLANPAGO → CUOTA → DETALLECOBRO. Los planes de
+// ejemplo (PLANEJEMPLO) cuelgan de la publicación y quedan fuera de la
+// cadena: son solo el simulador del catálogo. Ver el DER del sprint para el
 // diagrama completo, los valores derivados que a propósito no son columna
 // (presupuesto, costo congelado, precio "desde", saldo pendiente, cuota
 // vencida, condición de entrega, proyectos destacados) y las 8 decisiones de
@@ -900,11 +944,18 @@ enum EstadoComercial {
   VENDIDA
 }
 
-enum TipoPlanPago {
+// Hasta el Sprint 3 se llamaba TipoPlanPago.
+enum ModalidadPago {
   CONTADO
   FINANCIADO
 }
 
+enum TipoImagenProyecto {
+  RENDER
+  PLANO
+}
+
+// LEGADO Sprint 3 — se elimina en T159
 enum Periodicidad {
   MENSUAL
   BIMESTRAL
@@ -1045,6 +1096,14 @@ model PUBLICACIONUNIDAD {
   // permite en EN_PREPARACION o DISPONIBLE (no en EN_PLAN_DE_PAGO ni VENDIDA).
   motivo_despublicacion String?
 
+  // Precio de la unidad en esta publicación (HU-21, HU-22). Null mientras
+  // está EN_PREPARACION.
+  precio_lista        Decimal? @db.Decimal(14, 2)
+  // De referencia: son la ayuda de cálculo con la que se llegó al precio de
+  // lista y pueden quedar vacíos (HU-22).
+  porcentaje_ganancia Decimal? @db.Decimal(5, 2)
+  margen              Decimal? @db.Decimal(14, 2)
+
   hora_creacion      DateTime  @default(now())
   hora_actualizacion DateTime? @default(now())
 
@@ -1054,56 +1113,33 @@ model PUBLICACIONUNIDAD {
   usuarioCreador      USUARIO @relation("PublicacionCreador", fields: [FK_usuario_creador], references: [id_usuario])
   usuarioActualizador USUARIO @relation("PublicacionActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
-  planes    PLANPAGO[]
-  consultas CONSULTAUNIDAD[]
-  ventas    VENTA[]
+  planesEjemplo PLANEJEMPLO[]
+  consultas     CONSULTAUNIDAD[]
+  ventas        VENTA[]
 
   @@index([FK_unidad_funcional])
   @@index([vigente, estado_comercial])
 }
 
 // --------------------------------------------------------------------------
-// HU-22 — Planes de pago y margen de ganancia
+// HU-32 — Plazos de financiación
 // --------------------------------------------------------------------------
-model PLANPAGO {
-  id_plan_pago Int @id @default(autoincrement())
+// Los plazos que ofrece la empresa, cada uno con su tasa. Los usan los planes
+// de pago FINANCIADO (que copian y congelan sus valores) y los planes de
+// ejemplo (que leen la tasa vigente al simular).
+model PLAZOFINANCIACION {
+  id_plazo_financiacion Int @id @default(autoincrement())
 
-  // Cuelga de la publicación, no de la unidad: si colgara de la unidad,
-  // VENTA tendría dos caminos paralelos hacia la misma unidad (FK_publicacion
-  // y FK_plan_pago → FK_unidad_funcional) — un rombo que habría que validar a
-  // mano para siempre.
-  FK_publicacion Int
-  publicacion    PUBLICACIONUNIDAD @relation(fields: [FK_publicacion], references: [id_publicacion])
+  // Lo genera el service, no lo carga el usuario.
+  codigo String @unique
 
-  nombre String
-  tipo   TipoPlanPago
+  // La unicidad de cantidad_cuotas entre plazos activos, el máximo de cuotas
+  // y el rango de la TNA se validan en el service y en Zod (T126), no en la
+  // base — mismo criterio que FORMAPAGO.nombre.
+  cantidad_cuotas    Int
+  tasa_nominal_anual Decimal @db.Decimal(5, 2) // porcentaje, no un importe
+  descripcion        String?
 
-  // Fuente de verdad del precio del plan: no está obligado a coincidir con
-  // costo + costo*porcentaje_ganancia + margen. Esa fórmula es solo una
-  // ayuda de cálculo que ofrece el formulario; Comercialización puede
-  // escribir directamente el precio final que negoció.
-  precio Decimal @db.Decimal(14, 2)
-
-  porcentaje_ganancia Decimal @default(0) @db.Decimal(5, 2)
-  margen              Decimal @default(0) @db.Decimal(14, 2)
-
-  // Uno de los dos, nunca ambos — lo valida el service. En CONTADO el
-  // anticipo equivale al 100% del precio.
-  anticipo_porcentaje Decimal? @db.Decimal(5, 2)
-  anticipo_monto      Decimal? @db.Decimal(14, 2)
-
-  // Solo aplican a FINANCIADO.
-  cantidad_cuotas Int?
-  periodicidad    Periodicidad?
-
-  // Activo/inactivo. Sin ningún plan activo, la publicación vuelve a
-  // EN_PREPARACION (regla de service).
-  //
-  // Condiciones estructurales inmutables una vez creado el plan: tipo,
-  // anticipo_porcentaje/anticipo_monto, cantidad_cuotas y periodicidad no se
-  // editan — para ofrecer condiciones distintas se inactiva este plan y se
-  // crea uno nuevo. Sí son editables mientras el plan esté activo: precio,
-  // porcentaje_ganancia, margen y este mismo estado.
   estado Boolean @default(true)
 
   hora_creacion      DateTime  @default(now())
@@ -1112,17 +1148,79 @@ model PLANPAGO {
   FK_usuario_creador      Int
   FK_usuario_actualizador Int
 
-  usuarioCreador      USUARIO @relation("PlanPagoCreador", fields: [FK_usuario_creador], references: [id_usuario])
-  usuarioActualizador USUARIO @relation("PlanPagoActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+  usuarioCreador      USUARIO @relation("PlazoFinanciacionCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("PlazoFinanciacionActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
 
-  ventas VENTA[]
+  planesPago    PLANPAGO[]
+  planesEjemplo PLANEJEMPLO[]
 
-  @@index([FK_publicacion])
   @@index([estado])
 }
 
 // --------------------------------------------------------------------------
-// HU-27 — Adhesión del cliente a un plan de pago
+// HU-22 — Planes de pago de ejemplo
+// --------------------------------------------------------------------------
+// Es la PLANPAGO del Sprint 3, renombrada: los planes que Comercialización
+// arma por unidad publicada para el simulador del catálogo (HU-25). No es el
+// plan de una venta — ese es PLANPAGO, que nace con la venta.
+model PLANEJEMPLO {
+  id_plan_ejemplo Int @id @default(autoincrement())
+
+  // Cuelga de la publicación, no de la unidad: cada publicación arma sus
+  // propios ejemplos y el historial de publicaciones los conserva.
+  FK_publicacion Int
+  publicacion    PUBLICACIONUNIDAD @relation(fields: [FK_publicacion], references: [id_publicacion])
+
+  // Nullable porque los planes del Sprint 3 no tienen plazo; T134 decide
+  // cuándo pasa a obligatorio. Restrict explícito: ver el criterio en
+  // PLANPAGO.FK_plazo_financiacion.
+  FK_plazo_financiacion Int?
+  plazoFinanciacion     PLAZOFINANCIACION? @relation(fields: [FK_plazo_financiacion], references: [id_plazo_financiacion], onDelete: Restrict)
+
+  nombre String
+
+  // No se guardan importes ni tasa: la cuota del ejemplo se calcula al
+  // mostrarlo, con el precio de lista de la publicación, este porcentaje de
+  // anticipo y la TNA vigente del plazo.
+  anticipo_porcentaje Decimal? @db.Decimal(5, 2)
+
+  // LEGADO Sprint 3 — se elimina en T159
+  tipo                ModalidadPago?
+  // LEGADO Sprint 3 — se elimina en T159
+  precio              Decimal?       @db.Decimal(14, 2)
+  // LEGADO Sprint 3 — se elimina en T159
+  porcentaje_ganancia Decimal        @default(0) @db.Decimal(5, 2)
+  // LEGADO Sprint 3 — se elimina en T159
+  margen              Decimal        @default(0) @db.Decimal(14, 2)
+  // LEGADO Sprint 3 — se elimina en T159
+  anticipo_monto      Decimal?       @db.Decimal(14, 2)
+  // LEGADO Sprint 3 — se elimina en T159
+  cantidad_cuotas     Int?
+  // LEGADO Sprint 3 — se elimina en T159
+  periodicidad        Periodicidad?
+
+  // Activo/inactivo.
+  estado Boolean @default(true)
+
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
+
+  FK_usuario_creador      Int
+  FK_usuario_actualizador Int
+
+  usuarioCreador      USUARIO @relation("PlanEjemploCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("PlanEjemploActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+
+  // LEGADO Sprint 3 — se elimina en T159 (por VENTA.FK_plan_ejemplo)
+  ventas VENTA[]
+
+  @@index([FK_publicacion])
+  @@index([FK_plazo_financiacion])
+  @@index([estado])
+}
+
+// --------------------------------------------------------------------------
+// HU-27 — Venta y plan de pago acordado
 // --------------------------------------------------------------------------
 model VENTA {
   id_venta Int @id @default(autoincrement())
@@ -1134,82 +1232,160 @@ model VENTA {
   FK_publicacion Int
   publicacion    PUBLICACIONUNIDAD @relation(fields: [FK_publicacion], references: [id_publicacion])
 
-  // Regla de integridad crítica, validada dentro de la misma transacción de
-  // adhesión: FK_plan_pago tiene que pertenecer a esta misma FK_publicacion
-  // (PLANPAGO.FK_publicacion == VENTA.FK_publicacion). Prisma no expone un
-  // constraint que cruce dos FK de la misma fila, así que la transacción
-  // valida en orden: 1) publicación vigente · 2) estado_comercial =
-  // DISPONIBLE · 3) plan activo · 4) esta coherencia · recién ahí 5) crea la
-  // venta · 6) genera las cuotas · 7) pasa estado_comercial a
-  // EN_PLAN_DE_PAGO. Si cualquier paso falla, se revierte todo.
-  FK_plan_pago Int
-  planPago     PLANPAGO @relation(fields: [FK_plan_pago], references: [id_plan_pago])
+  // La venta, su PLANPAGO y sus cuotas nacen en una misma transacción, que
+  // antes valida que la publicación esté vigente y DISPONIBLE y al final la
+  // pasa a EN_PLAN_DE_PAGO. Si cualquier paso falla, se revierte todo: nunca
+  // queda una venta sin plan ni un cronograma parcial.
 
-  fecha_adhesion DateTime @default(now())
+  // LEGADO Sprint 3 — se elimina en T159
+  // Se renombró (antes FK_plan_pago) para que VENTA.FK_plan_pago no apunte a
+  // PLANEJEMPLO mientras CUOTA.FK_plan_pago apunta a PLANPAGO. Restrict
+  // explícito: ver el criterio en PLANPAGO.FK_plazo_financiacion.
+  FK_plan_ejemplo Int?
+  planEjemplo     PLANEJEMPLO? @relation(fields: [FK_plan_ejemplo], references: [id_plan_ejemplo], onDelete: Restrict)
 
-  // Condiciones congeladas al momento de la adhesión: si el plan se edita o
-  // inactiva después, esta operación no se entera.
-  precio_congelado          Decimal       @db.Decimal(14, 2)
-  anticipo_congelado        Decimal       @db.Decimal(14, 2)
-  tipo_plan_congelado       TipoPlanPago
-  cantidad_cuotas_congelada Int
+  fecha_venta DateTime @default(now())
+
+  // Las condiciones acordadas viven en PLANPAGO (relación 1 a 1).
+  // LEGADO Sprint 3 — se elimina en T159
+  precio_congelado          Decimal?       @db.Decimal(14, 2)
+  // LEGADO Sprint 3 — se elimina en T159
+  anticipo_congelado        Decimal?       @db.Decimal(14, 2)
+  // LEGADO Sprint 3 — se elimina en T159
+  tipo_plan_congelado       ModalidadPago?
+  // LEGADO Sprint 3 — se elimina en T159
+  cantidad_cuotas_congelada Int?
+  // LEGADO Sprint 3 — se elimina en T159
   periodicidad_congelada    Periodicidad?
 
   estado EstadoVenta @default(VIGENTE)
 
   // Obligatorio a nivel de service al cancelar. Al cancelar, las cuotas
-  // generadas quedan ANULADA (sin eliminarse físicamente) y la unidad vuelve
-  // a DISPONIBLE.
+  // generadas quedan ANULADA (sin eliminarse físicamente), el plan de pago se
+  // conserva como historial y la unidad vuelve a DISPONIBLE.
   motivo_cancelacion String?
   fecha_cancelacion  DateTime?
 
-  hora_creacion DateTime @default(now())
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
 
   // Venta siempre presencial: la carga un usuario de Comercialización, nunca
-  // el cliente por su cuenta. Sin actualizador porque la venta no se edita
-  // después de creada — su único cambio posible es la cancelación, que ya
-  // tiene sus propios campos (motivo_cancelacion/fecha_cancelacion) sin
-  // trackear quién la hizo, mismo criterio que el resto de la fila.
-  FK_usuario_creador Int
-  usuarioCreador     USUARIO @relation("VentaCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  // el cliente por su cuenta. Lleva actualizador porque la cancelación
+  // modifica la venta.
+  FK_usuario_creador      Int
+  FK_usuario_actualizador Int
 
-  cuotas CUOTA[]
+  usuarioCreador      USUARIO @relation("VentaCreador", fields: [FK_usuario_creador], references: [id_usuario])
+  usuarioActualizador USUARIO @relation("VentaActualizador", fields: [FK_usuario_actualizador], references: [id_usuario])
+
+  planPago PLANPAGO?
+  // LEGADO Sprint 3 — se elimina en T159 (por CUOTA.FK_venta)
+  cuotas   CUOTA[]
 
   @@index([FK_cliente])
   @@index([FK_publicacion])
-  @@index([FK_plan_pago])
+  @@index([FK_plan_ejemplo])
   @@index([estado])
 }
 
-// El cronograma que se genera al confirmar una adhesión. Es el único lugar
-// donde vive el saldo: el saldo total pendiente de la venta es la suma de
-// estas filas.
+// El plan de pago acordado en una venta: 1 a 1 con VENTA, nace con ella y es
+// el único que se guarda. El vínculo con el cliente sale de VENTA.FK_cliente,
+// no se repite acá.
+//
+// Reglas que valida el service (T158), no la base:
+// - CONTADO: anticipo_monto = precio_venta; plazo, cantidad de cuotas, TNA y
+//   valor de cuota en null.
+// - FINANCIADO: todos obligatorios, copiados y congelados del plazo.
+//
+// No se guardan valores derivables: saldo financiado = precio_venta −
+// anticipo_monto; tasa mensual = TNA ÷ 12; total de intereses = suma de
+// importe_interes de las cuotas.
+model PLANPAGO {
+  id_plan_pago Int @id @default(autoincrement())
+
+  // Restrict, no Cascade: es historial comercial, nunca se borra en cascada.
+  FK_venta Int   @unique
+  venta    VENTA @relation(fields: [FK_venta], references: [id_venta], onDelete: Restrict)
+
+  // Null en CONTADO. Restrict explícito y no el SetNull que Prisma pone por
+  // defecto en una relación opcional. Mismo criterio que CUOTA y
+  // DETALLECOBRO, aplicado a todas las FK opcionales del Sprint 4
+  // (PLANEJEMPLO.FK_plazo_financiacion, VENTA.FK_plan_ejemplo,
+  // CLIENTE.FK_usuario_actualizador): apuntan a historial comercial o a
+  // tablas con baja lógica, que nunca se borran físicamente.
+  FK_plazo_financiacion Int?
+  plazoFinanciacion     PLAZOFINANCIACION? @relation(fields: [FK_plazo_financiacion], references: [id_plazo_financiacion], onDelete: Restrict)
+
+  modalidad ModalidadPago
+
+  precio_venta   Decimal @db.Decimal(14, 2)
+  anticipo_monto Decimal @db.Decimal(14, 2)
+
+  // Copiadas del plazo al confirmar: quedan congeladas aunque el plazo cambie
+  // después.
+  cantidad_cuotas    Int?
+  tasa_nominal_anual Decimal? @db.Decimal(5, 2) // porcentaje, no un importe
+  valor_cuota        Decimal? @db.Decimal(14, 2)
+
+  hora_creacion DateTime @default(now())
+
+  // Sin hora_actualizacion ni actualizador: el plan confirmado no se
+  // modifica.
+  FK_usuario_creador Int
+  usuarioCreador     USUARIO @relation("PlanPagoCreador", fields: [FK_usuario_creador], references: [id_usuario])
+
+  cuotas CUOTA[]
+
+  @@index([FK_plazo_financiacion])
+}
+
+// El cronograma del plan de pago, que se genera al confirmar la venta. Es el
+// único lugar donde vive el saldo: el saldo total pendiente de la venta es la
+// suma de saldo_pendiente de estas filas.
 model CUOTA {
   id_cuota Int @id @default(autoincrement())
 
-  FK_venta Int
+  FK_plan_pago Int
   // Restrict, no Cascade: es historial financiero, nunca se borra en
-  // cascada aunque la venta se elimine.
+  // cascada.
+  planPago     PLANPAGO @relation(fields: [FK_plan_pago], references: [id_plan_pago], onDelete: Restrict)
+
+  // LEGADO Sprint 3 — se elimina en T159
+  // Hasta entonces se escriben las dos FK.
+  FK_venta Int
   venta    VENTA @relation(fields: [FK_venta], references: [id_venta], onDelete: Restrict)
 
   // 0 = anticipo, o el 100% del precio en un plan CONTADO.
   numero Int
 
-  // La diferencia de redondeo del reparto en partes iguales se ajusta en la
-  // última cuota.
-  importe Decimal @db.Decimal(14, 2)
+  // importe = importe_capital + importe_interes. Se guarda porque es lo que
+  // usan los cobros. La cuota 0 (anticipo o contado) tiene interés 0. La
+  // diferencia de redondeo se ajusta en la última cuota.
+  importe_capital Decimal @db.Decimal(14, 2)
+  importe_interes Decimal @db.Decimal(14, 2)
+  importe         Decimal @db.Decimal(14, 2)
 
   // Si el día no existe en el mes de destino, vence el último día de ese mes.
   fecha_vencimiento DateTime
 
-  // Baja con cada imputación de COBRO/DETALLECOBRO.
+  // No confundir los dos saldos:
+  // - saldo_capital: deuda del plan DESPUÉS de esta cuota. Es fijo, se
+  //   calcula al confirmar y no lo toca ningún cobro.
+  // - saldo_pendiente: lo que falta pagar de ESTA cuota. Baja con cada
+  //   imputación de COBRO/DETALLECOBRO.
+  saldo_capital   Decimal @db.Decimal(14, 2)
   saldo_pendiente Decimal @db.Decimal(14, 2)
 
   estado EstadoCuota @default(PENDIENTE)
 
+  hora_creacion      DateTime  @default(now())
+  hora_actualizacion DateTime? @default(now())
+
   detallesCobro     DETALLECOBRO[]
   declaracionesPago DECLARACIONPAGO[]
 
+  @@unique([FK_plan_pago, numero])
+  // LEGADO Sprint 3 — se elimina en T159
   @@unique([FK_venta, numero])
   // Lo pide la consulta de cuotas vencidas de HU-30.
   @@index([fecha_vencimiento, estado])
@@ -1285,6 +1461,15 @@ model CLIENTE {
 
   hora_creacion      DateTime  @default(now())
   hora_actualizacion DateTime? @default(now())
+
+  // Usuario interno que hizo la última modificación desde el panel de
+  // clientes (HU-33). Nullable a propósito, a diferencia del resto del
+  // esquema: queda en null cuando el cambio lo hace el propio cliente desde
+  // el ecommerce o el login con Google (propuesta de OBS-25). No hay
+  // FK_usuario_creador: el cliente se autocrea o nace con una venta.
+  // Restrict explícito: ver el criterio en PLANPAGO.FK_plazo_financiacion.
+  FK_usuario_actualizador Int?
+  usuarioActualizador     USUARIO? @relation("ClienteActualizador", fields: [FK_usuario_actualizador], references: [id_usuario], onDelete: Restrict)
 
   consultas     CONSULTAUNIDAD[]
   ventas        VENTA[]
@@ -1390,8 +1575,18 @@ model DECLARACIONPAGO {
 
   importe Decimal @db.Decimal(14, 2)
 
-  // Lo que Tesorería cruza contra el extracto bancario. No hay adjuntos.
+  // Lo que Tesorería cruza contra el extracto bancario.
   numero_referencia String?
+
+  // Comprobante adjunto (HU-29). El archivo vive en el bucket privado del
+  // object storage; acá se guarda su ruta, no el archivo. Los tres son
+  // nullable porque las declaraciones del Sprint 3 no tienen adjunto: la
+  // obligatoriedad la valida el service (T146).
+  // Clave del objeto en el bucket privado, nunca una URL pública.
+  comprobante_ruta           String?
+  comprobante_nombre_archivo String?
+  // MIME: application/pdf, image/jpeg o image/png.
+  comprobante_tipo           String?
 
   estado EstadoDeclaracionPago @default(PENDIENTE)
 
