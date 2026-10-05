@@ -13,7 +13,7 @@ services:
       - pgdata:/var/lib/postgresql
 
   minio:
-    image: quay.io/minio/minio:latest
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     container_name: ies_minio_dev
     restart: always
     environment:
@@ -30,7 +30,7 @@ services:
   # de lectura pública anónima. Así "docker compose up" alcanza para tener
   # todo listo, sin tener que crear el bucket a mano desde la consola web.
   minio-init:
-    image: quay.io/minio/mc:latest
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z
     container_name: ies_minio_init
     depends_on:
       - minio
