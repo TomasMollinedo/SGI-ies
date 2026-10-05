@@ -132,10 +132,26 @@ Revisión de las tareas contra las historias de usuario del Sprint 4 y contra el
 | T155 | Suma T154 como dependencia: se monta sobre su pantalla. |
 | T159 | Nueva. Cierra la migración aditiva de T121 eliminando lo que el DER da de baja. Provisoria hasta definir el DER final. |
 
+## Cambios por el cierre de T121 (2026-10-05)
+
+Ajustes a las tareas después de definir el DER final y de mergear la migración.
+
+| Tarea | Qué cambió y por qué |
+|---|---|
+| T121 | Alcance y Listo cuando reescritos con lo que se hizo. Salen los renombres de CLIENTE y la migración de datos del Sprint 3 (la base se resetea). Entran estado_obra y la baja lógica de PROYECTO, sus campos obligatorios, FK_usuario_actualizador de CLIENTE, el renombre a FK_plan_ejemplo en VENTA, la doble escritura de la venta y los seeds adaptados. Deja de ser provisoria. |
+| T122 | El Punto de partida aclara que `estado` ahora es la baja lógica y `estado_obra` el estado de obra, y que cambiar el contrato de las respuestas es de esta tarea. CANCELADO queda atado a OBS-22. |
+| T134 | El Punto de partida suma lo que ya hizo T121 en PLANEJEMPLO (tipo y precio admiten vacío, existe el plazo) y lo que queda para esta tarea y para T159. |
+| T144 | El Punto de partida suma que el perfil ya lee del plan de pago, y que el nombre del plan todavía sale del plan de ejemplo: lo reemplaza esta tarea. |
+| T146 | El Punto de partida aclara que las columnas del comprobante ya existen. |
+| T149 | El Punto de partida aclara que FK_usuario_actualizador de CLIENTE ya existe y que no hubo renombres. |
+| T156 | El Punto de partida refleja que los seeds ya crean el plan de pago con TNA 0 %. Suma dejar de depender del cliente con id 1. |
+| T158 | El Punto de partida suma la doble escritura actual, las dos FK de CUOTA, las lecturas que asumen plan de ejemplo y el destino de periodicidad_congelada. |
+| T159 | Alcance reescrito con la lista exacta de columnas legado. Suma borrar el código de transición, definir los obligatorios de PLANEJEMPLO y CANCELADO según OBS-22. El enum de modalidad no se elimina. Deja de ser provisoria. |
+
 ## Pendientes de definición
 
 - **Historias de usuario:** las inconsistencias y vacíos detectados están en [observaciones_hu_sprint_4.md](observaciones_hu_sprint_4.md), para que las Product Owners los resuelvan. Cuando respondan, se actualizan las tareas que cada observación indica.
-- **DER:** T121 y T159 son provisorias hasta revisar [cambios_der_sprint_4.md](cambios_der_sprint_4.md), que lista los puntos abiertos.
+- **DER:** resuelto. T121 definió el DER final en [cambios_der_sprint_4.md](cambios_der_sprint_4.md), que lista cómo se resolvió cada punto y las columnas que quedan por compatibilidad hasta T159.
 - **Responsables:** las tareas no tienen asignados. Este sprint no usa Deadline.
 
 ---
@@ -167,24 +183,28 @@ Dejar la base de datos lista para las historias del Sprint 4 según [cambios_der
 
 ### Alcance
 
-- [ ] Crear PLAZOFINANCIACION, IMAGENPROYECTO (tipo RENDER o PLANO) y la nueva PLANPAGO, 1 a 1 con VENTA, con modalidad, precio de venta, anticipo, cantidad de cuotas, TNA y valor de cuota
-- [ ] Renombrar la PLANPAGO del Sprint 3 a PLANEJEMPLO y agregarle el plazo de financiación
-- [ ] CUOTA: agregar FK_plan_pago, importe_capital, importe_interes, saldo_capital y las horas de creación y actualización
-- [ ] VENTA: renombrar fecha_adhesion a fecha_venta y agregar hora_actualizacion y FK_usuario_actualizador
-- [ ] PUBLICACIONUNIDAD: agregar precio_lista, porcentaje_ganancia y margen; DECLARACIONPAGO: agregar ruta, nombre y tipo del comprobante; PROYECTO: agregar descripcion y fecha_inicio
-- [ ] CLIENTE: renombrar google_sub a id_google, refreshTokenHash a hash_token_refresco y email a correo
-- [ ] Migrar los datos del Sprint 3: crear el plan de pago de cada venta existente, reasignarle sus cuotas y pasar el precio del plan más barato a la publicación
-- [ ] Migración aditiva: lo que el DER elimina (FK_plan_pago y condiciones congeladas de VENTA, FK_venta de CUOTA, precio, tipo y periodicidad del plan de ejemplo) no se borra acá, se elimina en T159
-- [ ] Aplicar en el código solo los renombres mecánicos necesarios para que compile; el comportamiento nuevo es de las tareas de cada historia
+- [x] Crear PLAZOFINANCIACION, IMAGENPROYECTO (tipo RENDER o PLANO) y la nueva PLANPAGO, 1 a 1 con VENTA, con modalidad, precio de venta, anticipo, cantidad de cuotas, TNA y valor de cuota
+- [x] Renombrar la PLANPAGO del Sprint 3 a PLANEJEMPLO y agregarle el plazo de financiación; el enum de tipo de plan pasa a llamarse ModalidadPago
+- [x] CUOTA: agregar FK_plan_pago, importe_capital, importe_interes, saldo_capital y las horas de creación y actualización
+- [x] VENTA: renombrar fecha_adhesion a fecha_venta y FK_plan_pago a FK_plan_ejemplo, y agregar hora_actualizacion y FK_usuario_actualizador
+- [x] PROYECTO: renombrar estado a estado_obra, agregar estado (baja lógica), descripcion y fecha_inicio, y hacer obligatorias direccion y cantidad_unidades_planificadas
+- [x] PUBLICACIONUNIDAD: agregar precio_lista, porcentaje_ganancia y margen; DECLARACIONPAGO: agregar ruta, nombre y tipo del comprobante; CLIENTE: agregar FK_usuario_actualizador, sin renombrar atributos
+- [x] Migración aditiva: lo que el DER elimina no se borra acá, se elimina en T159. La lista exacta está en [cambios_der_sprint_4.md](cambios_der_sprint_4.md#columnas-legado-se-eliminan-en-t159)
+- [x] No se migran datos del Sprint 3: el sistema no está en producción y la base se resetea
+- [x] Aplicar en el código solo los renombres mecánicos necesarios para que compile, sin cambiar ningún contrato HTTP; el comportamiento nuevo es de las tareas de cada historia
+- [x] Doble escritura en la venta presencial: además de las columnas del Sprint 3, crea el plan de pago de la venta (con TNA 0 %) y cada cuota con las dos FK y su desglose de capital, interés y saldo
+- [x] Las condiciones de la venta se leen del plan de pago, en un único lugar (`venta/condiciones-venta.ts`)
+- [x] Seeds y pruebas de integración adaptados: cada venta sembrada tiene su plan de pago y sus cuotas desglosadas
 
 ### Listo cuando
 
-- [ ] La migración corre sin errores sobre una base con los datos del Sprint 3 y también de cero
-- [ ] El backend compila, levanta y pasan lint y tests
-- [ ] El ecommerce sigue funcionando: el renombre de email a correo no rompe el login ni el perfil del cliente
-- [ ] La PR incluye el protocolo de reset para el equipo
+- [x] La migración corre de cero con `prisma migrate reset` y los seeds, y no hay diferencias entre el esquema y las migraciones
+- [x] El backend compila, levanta y pasan los tests
+- [x] Sin errores de lint nuevos en los archivos que toca la tarea
+- [x] Los contratos HTTP no cambian: el frontend y el ecommerce siguen funcionando sin modificaciones
+- [x] La PR incluye el protocolo de reset para el equipo
 
-> ⚠️ Alcance provisorio: sale de [cambios_der_sprint_4.md](cambios_der_sprint_4.md), que se revisa contra las historias antes de empezar. Ese archivo lista lo que el DER todavía no resuelve y otras tareas necesitan: baja lógica y campos obligatorios de PROYECTO (HU-31) y usuario actualizador de CLIENTE (HU-33). Tiene que mergear el primer día: bloquea a casi todo el backend.
+> ⚠️ La migración no se puede aplicar sobre una base con datos del Sprint 3: después del merge todo el equipo resetea su base con el protocolo de la PR. Tiene que mergear el primer día: bloquea a casi todo el backend.
 
 ---
 
@@ -209,7 +229,8 @@ Sembrar los datos del Sprint 4 tal como los dejarían los servicios que todavía
 
 ### Punto de partida
 
-- `backend/prisma/seed-comercializacion.ts` siembra el escenario del Sprint 3 y deja de corresponder con el esquema nuevo.
+- `backend/prisma/seed-comercializacion.ts` y `seed-t112-cliente1.ts` siembran el escenario del Sprint 3, ya adaptado al esquema nuevo por T121: cada venta tiene su plan de pago con TNA 0 % y sus cuotas desglosadas, a través de `prisma/seed-venta-con-plan-pago.ts`.
+- Las ventas financiadas del Sprint 4 tienen que sembrarse con sistema francés real (T132), no con ese helper.
 
 ### Alcance
 
@@ -218,6 +239,7 @@ Sembrar los datos del Sprint 4 tal como los dejarían los servicios que todavía
 - [ ] Publicaciones en los cuatro estados comerciales, con precio de lista y planes de ejemplo
 - [ ] Ventas de contado y financiadas con su plan de pago y sus cuotas con capital, interés y saldo, incluyendo cuotas vencidas
 - [ ] Declaraciones de pago pendientes, validadas y rechazadas con comprobante, y clientes con y sin compras
+- [ ] Dejar de depender de que el cliente de prueba tenga el id 1: buscarlo por email
 
 ### Listo cuando
 
@@ -291,6 +313,8 @@ Permitir registrar, modificar, listar y dar de baja proyectos con su estado de o
 ### Punto de partida
 
 - `backend/src/modules/proyectos/` hoy solo lee: listado con presupuesto y unidades cargadas, detalle y estados.
+- Desde T121, `PROYECTO.estado` es la baja lógica (verdadero / falso) y `estado_obra` es el estado de obra. Las respuestas actuales siguen exponiendo `estado` con el estado de obra, y el filtro `estado` del listado filtra por estado de obra: cambiar ese contrato es de esta tarea.
+- La base ya tiene `descripcion`, `fecha_inicio`, IMAGENPROYECTO, y `direccion` y `cantidad_unidades_planificadas` obligatorias.
 - Las imágenes se suben con el endpoint existente de `almacenamiento/`; acá solo se guardan las URL.
 
 ### Alcance
@@ -309,7 +333,7 @@ Permitir registrar, modificar, listar y dar de baja proyectos con su estado de o
 - [ ] Bajar la cantidad planificada por debajo de las unidades activas es rechazado
 - [ ] Toda alta, modificación, cambio de estado y baja registra usuario y fecha
 
-> ⚠️ El enum de estado de proyecto tiene además CANCELADO, que HU-31 no contempla: falta definir si se elimina.
+> ⚠️ El enum de estado de proyecto tiene además CANCELADO, que HU-31 no contempla: sigue en el enum hasta que se responda OBS-22.
 
 ---
 
@@ -717,6 +741,8 @@ Reutilizar los planes del Sprint 3 como planes de ejemplo para el simulador.
 ### Punto de partida
 
 - `backend/src/modules/comercializacion/plan-pago/` (servicio, DTO y tests). Depende de T133 porque las dos tocan `plan-pago.service.ts`.
+- Desde T121 la tabla es PLANEJEMPLO: `tipo` y `precio` ya admiten vacío y `FK_plazo_financiacion` ya existe (también admite vacío). El servicio todavía los escribe y los exige al leer.
+- Los planes de contado y los planes sin `anticipo_porcentaje` que dejó el Sprint 3 los resuelve esta tarea. Que `FK_plazo_financiacion` y `anticipo_porcentaje` pasen a obligatorios en la base se define en T159.
 
 ### Alcance
 
@@ -869,6 +895,10 @@ Formalizar la venta con el plan acordado y su cronograma, en una única operaci�
 
 - `backend/src/modules/comercializacion/venta/venta.service.ts`.
 - Ya está hecho y se conserva: búsqueda o alta de cliente, una sola venta vigente por unidad y cancelación bloqueada con cobros confirmados o declaraciones pendientes.
+- Desde T121, `crear` hace doble escritura: las columnas del Sprint 3 de VENTA y, además, el plan de pago de la venta con TNA 0 % y las cuotas desglosadas.
+- CUOTA exige `FK_venta` y `FK_plan_pago` hasta T159: las dos se siguen escribiendo.
+- Son de esta tarea las lecturas que asumen que la venta tiene un plan de ejemplo: el `FK_plan_pago` de la respuesta de venta (`mapearVenta`) y la validación del plan elegido en `crear`. Una venta sin plan de ejemplo hoy da error 500 en el listado y el detalle.
+- `periodicidad_congelada` deja de tener sentido con el sistema francés: no tiene equivalente en el plan de pago.
 
 ### Alcance
 
@@ -1113,6 +1143,8 @@ Devolver en el perfil el plan acordado en la venta y su desglose.
 
 - `venta-cliente.controller.ts` y los métodos de cliente de `venta.service.ts` (`misVentas`, `detalleVentaCliente`, `historialPagosVenta`).
 - Ya está hecho y no se toca: el historial con pagos validados y declaraciones pendientes y rechazadas. El acceso al archivo del comprobante es de T146.
+- Desde T121 el perfil ya lee las condiciones de la venta desde su plan de pago, a través de `venta/condiciones-venta.ts`.
+- `plan.nombre` del detalle (`detalleVentaCliente`) sale del plan de ejemplo con el que se registró la venta y da error 500 para las ventas que cree T158 sin plan de ejemplo: esta tarea lo reemplaza.
 
 ### Alcance
 
@@ -1192,6 +1224,7 @@ Exigir un comprobante adjunto al declarar un pago y guardarlo de forma privada.
 
 - `backend/src/modules/almacenamiento/` solo maneja un repositorio público de imágenes; `docker-compose.yml` crea solo ese.
 - `declaracion-pago.controller.ts` recibe hoy la declaración sin archivos.
+- Las columnas `comprobante_ruta`, `comprobante_nombre_archivo` y `comprobante_tipo` de DECLARACIONPAGO ya existen desde T121 (admiten vacío: la obligatoriedad la valida el servicio).
 
 ### Alcance
 
@@ -1310,6 +1343,7 @@ Dar a Comercialización el listado y la ficha de todos los clientes.
 
 - No existe un módulo interno de clientes: `comercializacion/cliente/` es el del cliente del ecommerce. Va en un controller interno aparte.
 - Ventas, cobros, declaraciones y consultas ya tienen sus propios servicios: la ficha los consulta, no los reimplementa.
+- `CLIENTE.FK_usuario_actualizador` ya existe desde T121 (admite vacío). No se renombró ningún atributo de CLIENTE: el correo sigue siendo `email`.
 
 ### Alcance
 
@@ -1575,10 +1609,15 @@ Cerrar la migración del sprint eliminando las columnas y enums que T121 dejó p
 
 ### Alcance
 
-- [ ] PLANEJEMPLO: eliminar tipo, precio, porcentaje de ganancia, margen, anticipo en monto, cantidad de cuotas y periodicidad
-- [ ] VENTA: eliminar FK_plan_pago y las condiciones congeladas, que pasaron al plan de pago
-- [ ] CUOTA: eliminar FK_venta y pasar a FK_plan_pago las consultas de cobros, declaraciones y ventas que todavía la usen
-- [ ] Eliminar los enums de tipo de plan y de periodicidad
+La lista sale de [Columnas legado](cambios_der_sprint_4.md#columnas-legado-se-eliminan-en-t159).
+
+- [ ] PLANEJEMPLO: eliminar `tipo`, `precio`, `porcentaje_ganancia`, `margen`, `anticipo_monto`, `cantidad_cuotas` y `periodicidad`, y la relación con VENTA
+- [ ] VENTA: eliminar `FK_plan_ejemplo` (con su clave foránea y su índice) y `precio_congelado`, `anticipo_congelado`, `tipo_plan_congelado`, `cantidad_cuotas_congelada` y `periodicidad_congelada`
+- [ ] CUOTA: eliminar `FK_venta` y la unicidad `[FK_venta, numero]`, y pasar a `FK_plan_pago` las consultas de cobros, declaraciones y ventas que todavía la usen
+- [ ] Eliminar el enum `Periodicidad`. `ModalidadPago` no se elimina: lo usa el plan de pago
+- [ ] Borrar el código de transición si quedó sin uso: `venta/condiciones-venta.ts`, `completarDesgloseTasaCero` (`plan-pago/desglose-tasa-cero.ts`) y `prisma/seed-venta-con-plan-pago.ts`
+- [ ] Definir si `PLANEJEMPLO.FK_plazo_financiacion` y `anticipo_porcentaje` pasan a obligatorios en la base
+- [ ] Estado de obra CANCELADO: eliminarlo o conservarlo según la respuesta a OBS-22
 
 ### Listo cuando
 
@@ -1586,4 +1625,4 @@ Cerrar la migración del sprint eliminando las columnas y enums que T121 dejó p
 - [ ] El backend compila, pasan lint y tests, y los seeds corren
 - [ ] Cobranzas y declaraciones de pago siguen funcionando
 
-> ⚠️ Alcance provisorio: se ajusta cuando T121 defina el DER final. Es la última tarea de backend del sprint.
+> ⚠️ Es la última tarea de backend del sprint.
