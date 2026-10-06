@@ -5,15 +5,18 @@ import {
   BookOpen,
   Boxes,
   Building2,
+  CalendarClock,
   ClipboardList,
   Coins,
   CreditCard,
   FileText,
+  FolderKanban,
   HandCoins,
   HardHat,
   Home,
   Landmark,
   Layers,
+  LayoutDashboard,
   ListTree,
   Megaphone,
   MessageSquare,
@@ -26,6 +29,7 @@ import {
   Tag,
   TrendingDown,
   Truck,
+  Users,
   Wallet,
   Warehouse,
   type LucideIcon,
@@ -41,6 +45,7 @@ export interface NavNode {
 
 export const NAV_ITEMS: NavNode[] = [
   // { label: 'Inicio', to: PATHS.HOME },
+  { label: 'Tablero del Gerente', to: PATHS.TABLERO.ROOT, icon: LayoutDashboard },
   {
     label: 'Almacén',
     to: PATHS.ALMACEN.ROOT,
@@ -128,6 +133,7 @@ export const NAV_ITEMS: NavNode[] = [
     to: PATHS.PROYECTOS.ROOT,
     icon: HardHat,
     children: [
+      { label: 'Proyectos', to: PATHS.PROYECTOS.ROOT, icon: FolderKanban },
       { label: 'Unidades Funcionales', to: PATHS.PROYECTOS.UNIDADES_FUNCIONALES, icon: Home },
     ],
   },
@@ -139,6 +145,12 @@ export const NAV_ITEMS: NavNode[] = [
       { label: 'Publicaciones', to: PATHS.COMERCIALIZACION.PUBLICACIONES, icon: Megaphone },
       { label: 'Ventas', to: PATHS.COMERCIALIZACION.VENTAS, icon: ShoppingCart },
       { label: 'Consultas', to: PATHS.COMERCIALIZACION.CONSULTAS, icon: MessageSquare },
+      { label: 'Clientes', to: PATHS.COMERCIALIZACION.CLIENTES, icon: Users },
+      {
+        label: 'Plazos de Financiación',
+        to: PATHS.COMERCIALIZACION.PLAZOS_FINANCIACION,
+        icon: CalendarClock,
+      },
     ],
   },
 ]
