@@ -48,6 +48,13 @@ type Modo = 'crear' | 'editar' | 'lectura'
 /** A dónde vuelve el formulario si hay cambios sin guardar y hay que confirmar antes de salir. */
 type Destino = 'listado' | 'detalle'
 
+/**
+ * Lo único que el formulario necesita del proyecto. En el alta sale de la
+ * tabla emergente (GET /proyectos); en edición, del proyecto embebido en la
+ * unidad, que no trae el resto de los campos de un `ProyectoResumen`.
+ */
+type ProyectoElegido = Pick<ProyectoResumen, 'id_proyecto' | 'codigo' | 'nombre'>
+
 interface UnidadFuncionalFormPageProps {
   modo: Modo
 }
@@ -106,7 +113,7 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
   const esAlta = modo === 'crear'
 
   const [modalProyectoAbierto, setModalProyectoAbierto] = useState(false)
-  const [proyectoElegido, setProyectoElegido] = useState<ProyectoResumen | null>(null)
+  const [proyectoElegido, setProyectoElegido] = useState<ProyectoElegido | null>(null)
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
   const [confirmarSalida, setConfirmarSalida] = useState<Destino | null>(null)
 
@@ -154,13 +161,12 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
       id_proyecto: unidad.proyecto.id_proyecto,
       codigo: unidad.proyecto.codigo,
       nombre: unidad.proyecto.nombre,
-      estado: unidad.proyecto.estado,
     })
   }, [esAlta, unidad, reset])
 
   const costoDeshabilitado = soloLectura || unidad?.costo_editable === false
 
-  function elegirProyecto(proyecto: ProyectoResumen, onChangeCampo: (valor: number) => void) {
+  function elegirProyecto(proyecto: ProyectoElegido, onChangeCampo: (valor: number) => void) {
     setProyectoElegido(proyecto)
     onChangeCampo(proyecto.id_proyecto)
     setModalProyectoAbierto(false)
@@ -492,7 +498,7 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
                   />
                   <StatTile
                     label="Unidades cargadas / planificadas"
-                    value={`${proyectoDetalle.unidades_cargadas} / ${proyectoDetalle.cantidad_unidades_planificadas ?? '—'}`}
+                    value={`${proyectoDetalle.unidades_cargadas} / ${proyectoDetalle.cantidad_unidades_planificadas}`}
                   />
                 </div>
               )}

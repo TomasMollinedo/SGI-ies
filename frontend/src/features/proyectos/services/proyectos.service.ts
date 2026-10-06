@@ -11,8 +11,6 @@ export const PROYECTOS_QUERY_KEYS = {
  * GET /proyectos. Único punto de contacto con el endpoint de Proyectos: lo usan
  * los combos de proyecto de Comercialización, y el módulo de Proyectos puede
  * reclamarlo cuando exista.
- *
- * CONTRATO PROVISIONAL: confirmar con el módulo de Proyectos
  */
 export async function listarProyectos(
   filtros: ProyectosQuery,
@@ -21,7 +19,7 @@ export async function listarProyectos(
   const { data } = await httpClient.get<PaginatedResponse<ProyectoResumen>>('/proyectos', {
     params: {
       busqueda: filtros.busqueda,
-      estado: filtros.estado,
+      estado_obra: filtros.estado_obra,
       page: filtros.page,
       limit: filtros.limit,
     },
@@ -34,8 +32,6 @@ export async function listarProyectos(
 /**
  * GET /proyectos/:id — el proyecto con su presupuesto y el contador de
  * unidades cargadas contra planificadas, calculados por el backend (T102).
- *
- * CONTRATO PROVISIONAL: confirmar con el módulo de Proyectos
  */
 export async function obtenerProyecto(id: number, signal?: AbortSignal): Promise<ProyectoDetalle> {
   const { data } = await httpClient.get<ProyectoDetalle>(`/proyectos/${id}`, { signal })
