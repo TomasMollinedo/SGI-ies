@@ -24,7 +24,9 @@ interface CatalogoListadoBody {
 
 interface CatalogoDetalleBody {
   identificador: string;
-  planes: { nombre: string; precio: number }[];
+  precio_desde: number;
+  planes: { nombre: string; valor_cuota: number }[];
+  simulador: { plazos: { id_plazo_financiacion: number }[] } | null;
 }
 
 interface ProyectosDestacadosBody {
@@ -45,6 +47,8 @@ describe('Catálogo público (e2e)', () => {
   let app: INestApplication;
 
   const get = (url: string) => request(app.getHttpServer()).get(url);
+  const post = (url: string, body: object) =>
+    request(app.getHttpServer()).post(url).send(body);
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -111,16 +115,34 @@ describe('Catálogo público (e2e)', () => {
     await get('/api/catalogo/1').expect(404);
   });
 
-  it('el detalle devuelve los planes activos con su precio', async () => {
+  it('el detalle informa el precio de lista y solo ofrece el simulador si hay plazos activos', async () => {
     const res = await get('/api/catalogo/2').expect(200);
     const body = res.body as CatalogoDetalleBody;
 
     expect(body.identificador).toBe('1-A');
-    expect(body.planes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ nombre: 'Contado 1-A', precio: 19000000 }),
-      ]),
-    );
+    expect(body.precio_desde).toBe(19000000);
+    // Los planes de ejemplo se calculan con el plazo (T134): ninguno del seed
+    // del Sprint 3 lo tiene, así que no se devuelve ninguno.
+    expect(body.planes).toEqual([]);
+    expect(body).toHaveProperty('simulador');
+  });
+
+  it('la simulación libre responde sin token y rechaza un anticipo mal formado', async () => {
+    await post('/api/catalogo/2/simulacion', {
+      FK_plazo_financiacion: 1,
+    }).expect(400);
+    await post('/api/catalogo/2/simulacion', {
+      FK_plazo_financiacion: 1,
+      anticipo_porcentaje: 30,
+      anticipo_monto: 1000,
+    }).expect(400);
+  });
+
+  it('la simulación de una unidad que no está en el catálogo es 404', async () => {
+    await post('/api/catalogo/1/simulacion', {
+      FK_plazo_financiacion: 1,
+      anticipo_porcentaje: 30,
+    }).expect(404);
   });
 
   it('destacados devuelve hasta 4 proyectos, ordenados por cantidad de unidades disponibles', async () => {
