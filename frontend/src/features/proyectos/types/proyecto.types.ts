@@ -32,10 +32,15 @@ export interface ProyectosQuery {
   busqueda?: string
   /**
    * Filtra por estado de obra (la tabla emergente del alta de unidades solo
-   * quiere los que admiten unidades nuevas). La baja lógica no se filtra desde
-   * acá: sin ese parámetro, el backend lista solo los proyectos activos.
+   * quiere los que admiten unidades nuevas).
    */
   estado_obra?: EstadoProyecto
+  /**
+   * Baja lógica. Sin este parámetro el backend lista solo los activos; quien
+   * necesita garantizarlo (ej. la tabla emergente de unidades) lo manda
+   * explícito en vez de depender de ese default.
+   */
+  estado?: 'true' | 'false' | 'todos'
   page?: number
   limit?: number
 }

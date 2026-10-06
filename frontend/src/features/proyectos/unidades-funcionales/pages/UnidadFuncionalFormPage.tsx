@@ -22,6 +22,7 @@ import { Spinner } from '@/shared/components/ui/Spinner'
 import { useToast } from '@/shared/hooks/useToast'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { esArrayDeValidationIssues, formatearMensajeError } from '@/shared/utils/apiError'
+import { AvisoUnidadesPlanificadas } from '../components/AvisoUnidadesPlanificadas'
 import { GaleriaImagenesForm } from '../components/GaleriaImagenesForm'
 import { SelectorProyectoModal } from '../components/SelectorProyectoModal'
 import {
@@ -489,6 +490,20 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
                   )}
                 />
               </div>
+
+              {esAlta && !proyectoElegido && (
+                <p className="text-content-muted text-xs">
+                  Elegí un proyecto para ver su presupuesto y cuántas unidades tiene cargadas contra
+                  las planificadas.
+                </p>
+              )}
+
+              {esAlta && proyectoDetalle && (
+                <AvisoUnidadesPlanificadas
+                  cargadas={proyectoDetalle.unidades_cargadas}
+                  planificadas={proyectoDetalle.cantidad_unidades_planificadas}
+                />
+              )}
 
               {proyectoDetalle && (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

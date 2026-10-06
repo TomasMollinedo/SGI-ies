@@ -1,3 +1,4 @@
+import type { EstadoComercial } from '@/features/comercializacion/publicaciones/types/publicacion.types'
 import type { EstadoProyecto } from '@/features/proyectos/types/proyecto.types'
 
 export type Tipologia =
@@ -46,6 +47,13 @@ export interface UsuarioResumen {
 }
 
 /**
+ * Estado comercial de la unidad, derivado de su publicación vigente. A los
+ * cuatro de la publicación suma `SIN_PUBLICAR`: la unidad sin ninguna
+ * publicación vigente (nunca publicada o despublicada).
+ */
+export type EstadoComercialUnidad = 'SIN_PUBLICAR' | EstadoComercial
+
+/**
  * Valor del filtro de estado tal como lo maneja el `<Select>` y tal como lo
  * espera la query del backend: sin `estado`, el backend trae solo las activas.
  */
@@ -68,6 +76,7 @@ export interface UnidadFuncionalListItem {
   observaciones: string | null
   costo: number
   estado: boolean
+  estado_comercial: EstadoComercialUnidad
   costo_editable: boolean
   proyecto: ProyectoDeUnidad
   condicion_entrega: CondicionEntrega
@@ -96,6 +105,7 @@ export interface UnidadFuncionalDetalle extends UnidadFuncionalListItem {
 export interface UnidadesFuncionalesQuery {
   FK_proyecto?: number
   tipologia?: Tipologia
+  estado_comercial?: EstadoComercialUnidad
   superficie_min?: number
   superficie_max?: number
   estado?: FiltroEstado
