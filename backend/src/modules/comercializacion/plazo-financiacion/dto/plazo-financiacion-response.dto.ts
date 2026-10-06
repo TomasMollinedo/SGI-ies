@@ -4,7 +4,7 @@ import { createZodDto } from 'nestjs-zod';
 /**
  * `tasa_nominal_anual` viaja como `string` y no como `number`: la columna es
  * `Decimal(5, 2)` y Prisma la devuelve como `Prisma.Decimal`, que serializa a
- * string (mismo criterio que `precio` en `PlanPagoResponseDto`).
+ * string (mismo criterio que `costo` en `PublicacionDetalleResponseDto`).
  */
 export const plazoFinanciacionResponseSchema = z.object({
   id_plazo_financiacion: z.number(),

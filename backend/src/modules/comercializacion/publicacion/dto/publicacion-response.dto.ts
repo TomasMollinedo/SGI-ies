@@ -33,20 +33,19 @@ export const unidadHeredadaSchema = z.object({
 
 /**
  * La unidad tal como la ve el detalle: lo heredado más el `costo`, que
- * Comercialización necesita para armar los planes de pago (HU-22). Es contra
- * el costo que se calcula el precio sugerido del plan, y contra el que el
- * backend avisa —con el `warning` de `PlanPagoCreadoResponseDto`— si el precio
- * quedó por debajo.
+ * Comercialización necesita para definir el precio de lista (HU-22). Es
+ * contra el costo que se calcula el precio sugerido, y contra el que el
+ * backend avisa —con el `warning` de `PublicacionPrecioListaResponseDto`— si
+ * el precio quedó por debajo.
  *
- * Solo acá: el detalle es de la pantalla interna y pide el mismo rol
- * ADMINISTRADOR que los planes de pago. El catálogo público nunca ve este
- * schema.
+ * Solo acá: el detalle es de la pantalla interna y pide rol ADMINISTRADOR.
+ * El catálogo público nunca ve este schema.
  *
  * `string` y no `number`: la columna es `Decimal(14, 2)` y Prisma la devuelve
- * como `Prisma.Decimal`, que serializa a string. Mismo criterio —y misma
- * pantalla— que `precio` en `PlanPagoResponseDto`. Las superficies de arriba
- * sí son `number` porque el service las convierte con `.toNumber()`; los
- * importes no se convierten.
+ * como `Prisma.Decimal`, que serializa a string. Mismo criterio que
+ * `precio_lista` en esta misma respuesta. Las superficies de arriba sí son
+ * `number` porque el service las convierte con `.toNumber()`; los importes no
+ * se convierten.
  */
 const unidadDetalleSchema = unidadHeredadaSchema.extend({
   costo: z.string(),

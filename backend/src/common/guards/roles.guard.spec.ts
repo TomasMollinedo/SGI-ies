@@ -21,7 +21,6 @@ import { TipoComprobanteController } from '../../modules/tesoreria/tipo-comproba
 import { PagoController } from '../../modules/tesoreria/pago/pago.controller';
 import { CuentaCorrienteController } from '../../modules/tesoreria/cuenta-corriente/cuenta-corriente.controller';
 import { PublicacionController } from '../../modules/comercializacion/publicacion/publicacion.controller';
-import { PlanPagoController } from '../../modules/comercializacion/plan-pago/plan-pago.controller';
 import { CobroController } from '../../modules/comercializacion/cobro/cobro.controller';
 import { DeclaracionPagoAdminController } from '../../modules/comercializacion/declaracion-pago/declaracion-pago-admin.controller';
 import { ProyectoController } from '../../modules/proyectos/proyecto.controller';
@@ -220,7 +219,6 @@ describe('RolesGuard', () => {
   describe('controllers de Comercialización', () => {
     const controllersDeComercializacion: [string, object][] = [
       ['PublicacionController', PublicacionController],
-      ['PlanPagoController', PlanPagoController],
       ['CobroController', CobroController],
       ['VentaController', VentaController],
       ['DeclaracionPagoAdminController', DeclaracionPagoAdminController],

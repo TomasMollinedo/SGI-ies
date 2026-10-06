@@ -322,9 +322,8 @@ export class VentaService {
   /**
    * `PLANEJEMPLO.anticipo_monto`/`anticipo_porcentaje` es uno u otro, nunca
    * ambos (regla de service de T105, no expresable en el schema). El motor de
-   * cuotas solo acepta el monto ya resuelto — misma fórmula que
-   * `PlanPagoService.resolverAnticipoMonto` (privada ahí, no reusable desde
-   * acá).
+   * cuotas solo acepta el monto ya resuelto. Lee columnas legado del plan de
+   * ejemplo: lo reemplaza T158.
    */
   private resolverAnticipoMonto(plan: {
     precio: Prisma.Decimal;
