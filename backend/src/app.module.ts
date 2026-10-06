@@ -35,6 +35,7 @@ import { VentaModule } from './modules/comercializacion/venta/venta.module';
 import { DeclaracionPagoModule } from './modules/comercializacion/declaracion-pago/declaracion-pago.module';
 import { ProyectoModule } from './modules/proyectos/proyecto.module';
 import { ConsultaModule } from './modules/comercializacion/consulta/consulta.module';
+import { PlazoFinanciacionModule } from './modules/comercializacion/plazo-financiacion/plazo-financiacion.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
@@ -70,6 +71,7 @@ import { ConsultaModule } from './modules/comercializacion/consulta/consulta.mod
     VentaModule,
     DeclaracionPagoModule,
     ConsultaModule,
+    PlazoFinanciacionModule,
     ProyectoModule,
   ],
   providers: [
