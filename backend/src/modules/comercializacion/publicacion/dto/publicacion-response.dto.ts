@@ -78,12 +78,21 @@ const condicionEntregaSchema = z.object({
  * Cabecera de la publicación. Los datos de la unidad, sus imágenes y el
  * proyecto no viven acá: se leen por relación (herencia en vivo) y se suman
  * en el detalle y en el listado.
+ *
+ * `precio_lista`, `porcentaje_ganancia` y `margen` son `string` por el mismo
+ * motivo que `costo` (columnas Decimal). Los tres son `null` mientras la
+ * publicación está en preparación; después del primer precio, `precio_lista`
+ * nunca vuelve a `null`, pero porcentaje y margen pueden quedar vacíos (ver
+ * `PublicacionService.definirPrecioLista`).
  */
 export const publicacionResponseSchema = z.object({
   id_publicacion: z.number(),
   FK_unidad_funcional: z.number(),
   estado_comercial: z.enum(EstadoComercial),
   vigente: z.boolean(),
+  precio_lista: z.string().nullable(),
+  porcentaje_ganancia: z.string().nullable(),
+  margen: z.string().nullable(),
   fecha_publicacion: z.iso.datetime(),
   fecha_despublicacion: z.iso.datetime().nullable(),
   motivo_despublicacion: z.string().nullable(),
@@ -150,4 +159,18 @@ export const publicacionDetalleResponseSchema =
 
 export class PublicacionDetalleResponseDto extends createZodDto(
   publicacionDetalleResponseSchema,
+) {}
+
+/**
+ * Respuesta de PATCH /publicaciones/:id/precio-lista: el detalle actualizado
+ * más `warning`, que avisa si el precio quedó por debajo del costo de la
+ * unidad (se guarda igual). No se persiste: es un dato del momento.
+ */
+export const publicacionPrecioListaResponseSchema =
+  publicacionDetalleResponseSchema.extend({
+    warning: z.string().nullable(),
+  });
+
+export class PublicacionPrecioListaResponseDto extends createZodDto(
+  publicacionPrecioListaResponseSchema,
 ) {}

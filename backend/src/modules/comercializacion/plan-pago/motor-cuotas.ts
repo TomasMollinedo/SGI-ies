@@ -3,6 +3,7 @@ import {
   Periodicidad,
   ModalidadPago,
 } from '../../../../generated/prisma/enums';
+import { DECIMALES } from '../../../common/constantes/decimales';
 
 /**
  * MOTOR DE CUOTAS — helper puro de HU-22.
@@ -17,9 +18,6 @@ import {
  * números decimales — ningún cálculo de dinero usa `number`, que arrastraría
  * error de punto flotante en importes de millones.
  */
-
-/** Decimales de todo importe de dinero: `CUOTA.importe` es `Decimal(14, 2)`. */
-const DECIMALES = 2;
 
 /**
  * Cuántos meses avanza cada período. Todas las periodicidades del enum son

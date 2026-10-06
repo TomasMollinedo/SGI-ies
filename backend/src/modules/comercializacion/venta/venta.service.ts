@@ -36,9 +36,7 @@ import { CancelarVentaDto } from './dto/cancelar-venta.dto';
 import { QueryVentaDto } from './dto/query-venta.dto';
 import { QueryHistorialPagosClienteDto } from './dto/query-historial-pagos-cliente.dto';
 import { QueryDeclaracionesPagoClienteDto } from './dto/query-declaraciones-pago-cliente.dto';
-
-/** Decimales de todo importe/porcentaje, igual que las columnas del schema. */
-const DECIMALES = 2;
+import { DECIMALES } from '../../../common/constantes/decimales';
 
 const CLIENTE_SELECT = {
   id_cliente: true,

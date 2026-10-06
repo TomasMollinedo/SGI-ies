@@ -32,7 +32,7 @@ export class CatalogoController {
   @ApiOperation({
     summary: 'Lista las unidades disponibles para la venta',
     description:
-      'Solo unidades con publicación vigente y estado comercial DISPONIBLE. El "precio desde" es el menor precio entre los planes de pago activos de la unidad.',
+      'Solo unidades con publicación vigente y estado comercial DISPONIBLE. El "precio desde" es el precio de lista de la publicación (precio de contado).',
   })
   @ApiQuery({
     name: 'FK_proyecto',

@@ -3,7 +3,6 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
 import { EstadoComercial } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { PublicacionService } from '../publicacion/publicacion.service';
 import { PlanPagoService } from './plan-pago.service';
 import { createPlanPagoSchema } from './dto/create-plan-pago.dto';
 import { updatePlanPagoSchema } from './dto/update-plan-pago.dto';
@@ -37,15 +36,15 @@ const COSTO = new Prisma.Decimal('15000000.00');
 
 describe('PlanPagoService', () => {
   let service: PlanPagoService;
-  let tx: {
-    pLANEJEMPLO: { create: jest.Mock; count: jest.Mock; update: jest.Mock };
-  };
   let prisma: {
     pUBLICACIONUNIDAD: { findUnique: jest.Mock };
-    pLANEJEMPLO: { findUnique: jest.Mock; findMany: jest.Mock };
-    $transaction: jest.Mock;
+    pLANEJEMPLO: {
+      findUnique: jest.Mock;
+      findMany: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+    };
   };
-  let publicaciones: { transicionarEstadoComercial: jest.Mock };
 
   /** La publicación tal como la lee el service: vigente + estado comercial + costo de la unidad. */
   const publicacionEn = (
@@ -95,29 +94,23 @@ describe('PlanPagoService', () => {
   });
 
   beforeEach(async () => {
-    tx = {
+    // Sin `$transaction` ni `PublicacionService` a propósito: desde T133 el
+    // alta y la edición de un plan no tocan la publicación, así que ningún
+    // test puede depender de que la transicione.
+    prisma = {
+      pUBLICACIONUNIDAD: { findUnique: jest.fn() },
       pLANEJEMPLO: {
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
         create: jest.fn().mockResolvedValue({ id_plan_ejemplo: ID_PLAN }),
-        count: jest.fn().mockResolvedValue(1),
         update: jest.fn().mockResolvedValue({ id_plan_ejemplo: ID_PLAN }),
       },
     };
-
-    prisma = {
-      pUBLICACIONUNIDAD: { findUnique: jest.fn() },
-      pLANEJEMPLO: { findUnique: jest.fn(), findMany: jest.fn() },
-      $transaction: jest.fn((callback: (t: typeof tx) => unknown) =>
-        callback(tx),
-      ),
-    };
-
-    publicaciones = { transicionarEstadoComercial: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PlanPagoService,
         { provide: PrismaService, useValue: prisma },
-        { provide: PublicacionService, useValue: publicaciones },
       ],
     }).compile();
 
@@ -136,7 +129,7 @@ describe('PlanPagoService', () => {
 
       const resultado = await service.create(dtoContado(), USUARIO_ID);
 
-      const data = dataDe(tx.pLANEJEMPLO.create);
+      const data = dataDe(prisma.pLANEJEMPLO.create);
       expect(data.tipo).toBe('CONTADO');
       expect(data.cantidad_cuotas).toBeNull();
       expect(data.periodicidad).toBeNull();
@@ -160,7 +153,7 @@ describe('PlanPagoService', () => {
       expect(resultado.anticipo_monto_calculado.toFixed(2)).toBe('5400000.00');
 
       // La fila conserva el porcentaje, no el monto resuelto.
-      const data = dataDe(tx.pLANEJEMPLO.create);
+      const data = dataDe(prisma.pLANEJEMPLO.create);
       expect(data.anticipo_porcentaje).toBe(20);
       expect(data.anticipo_monto).toBeNull();
       expect(data.cantidad_cuotas).toBe(6);
@@ -181,7 +174,7 @@ describe('PlanPagoService', () => {
       );
 
       expect(resultado.anticipo_monto_calculado.toFixed(2)).toBe('5000000.00');
-      expect(dataDe(tx.pLANEJEMPLO.create).anticipo_monto).toBe(5000000);
+      expect(dataDe(prisma.pLANEJEMPLO.create).anticipo_monto).toBe(5000000);
     });
 
     it('avisa con un warning si el precio es menor al costo, pero crea igual', async () => {
@@ -194,7 +187,7 @@ describe('PlanPagoService', () => {
         USUARIO_ID,
       );
 
-      expect(tx.pLANEJEMPLO.create).toHaveBeenCalled();
+      expect(prisma.pLANEJEMPLO.create).toHaveBeenCalled();
       expect(resultado.warning).toContain('menor al costo');
       expect(resultado.warning).toContain('15000000.00');
     });
@@ -220,7 +213,7 @@ describe('PlanPagoService', () => {
       expect(resultado.porcentaje_ganancia_implicito?.toFixed(2)).toBe('26.67');
 
       // Las columnas reales quedan con el default 0 de Prisma: ni se mandan.
-      const data = dataDe(tx.pLANEJEMPLO.create);
+      const data = dataDe(prisma.pLANEJEMPLO.create);
       expect(data.porcentaje_ganancia).toBeUndefined();
       expect(data.margen).toBeUndefined();
     });
@@ -237,39 +230,8 @@ describe('PlanPagoService', () => {
 
       expect(resultado.porcentaje_ganancia_implicito).toBeNull();
       expect(
-        dataDe(tx.pLANEJEMPLO.create).porcentaje_ganancia?.toFixed(2),
+        dataDe(prisma.pLANEJEMPLO.create).porcentaje_ganancia?.toFixed(2),
       ).toBe('26.67');
-    });
-
-    it('pasa la publicación a DISPONIBLE cuando es el primer plan activo', async () => {
-      prisma.pUBLICACIONUNIDAD.findUnique.mockResolvedValue(
-        publicacionEn(EstadoComercial.EN_PREPARACION),
-      );
-      tx.pLANEJEMPLO.count.mockResolvedValue(1);
-
-      await service.create(dtoContado(), USUARIO_ID);
-
-      expect(publicaciones.transicionarEstadoComercial).toHaveBeenCalledTimes(
-        1,
-      );
-      expect(publicaciones.transicionarEstadoComercial).toHaveBeenCalledWith(
-        tx,
-        ID_PUBLICACION,
-        EstadoComercial.EN_PREPARACION,
-        EstadoComercial.DISPONIBLE,
-        USUARIO_ID,
-      );
-    });
-
-    it('no transiciona si la publicación ya tenía planes activos', async () => {
-      prisma.pUBLICACIONUNIDAD.findUnique.mockResolvedValue(
-        publicacionEn(EstadoComercial.DISPONIBLE),
-      );
-      tx.pLANEJEMPLO.count.mockResolvedValue(2);
-
-      await service.create(dtoContado(), USUARIO_ID);
-
-      expect(publicaciones.transicionarEstadoComercial).not.toHaveBeenCalled();
     });
 
     it('rechaza con 404 si la publicación no existe', async () => {
@@ -278,7 +240,7 @@ describe('PlanPagoService', () => {
       await expect(service.create(dtoContado(), USUARIO_ID)).rejects.toThrow(
         NotFoundException,
       );
-      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.pLANEJEMPLO.create).not.toHaveBeenCalled();
     });
 
     it('rechaza con 404 si la publicación no está vigente (historial de una unidad republicada)', async () => {
@@ -289,7 +251,7 @@ describe('PlanPagoService', () => {
       await expect(service.create(dtoContado(), USUARIO_ID)).rejects.toThrow(
         NotFoundException,
       );
-      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.pLANEJEMPLO.create).not.toHaveBeenCalled();
     });
 
     it.each([EstadoComercial.EN_PLAN_DE_PAGO, EstadoComercial.VENDIDA])(
@@ -302,7 +264,7 @@ describe('PlanPagoService', () => {
         await expect(service.create(dtoContado(), USUARIO_ID)).rejects.toThrow(
           ConflictException,
         );
-        expect(prisma.$transaction).not.toHaveBeenCalled();
+        expect(prisma.pLANEJEMPLO.create).not.toHaveBeenCalled();
       },
     );
   });
@@ -319,10 +281,9 @@ describe('PlanPagoService', () => {
         USUARIO_ID,
       );
 
-      const data = dataDe(tx.pLANEJEMPLO.update);
+      const data = dataDe(prisma.pLANEJEMPLO.update);
       expect(data.precio?.toFixed(2)).toBe('21000000.00');
       expect(data.FK_usuario_actualizador).toBe(USUARIO_ID);
-      expect(publicaciones.transicionarEstadoComercial).not.toHaveBeenCalled();
     });
 
     it('devuelve warning si el precio nuevo queda por debajo del costo', async () => {
@@ -372,7 +333,6 @@ describe('PlanPagoService', () => {
       prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.DISPONIBLE),
       );
-      tx.pLANEJEMPLO.count.mockResolvedValue(1);
 
       const resultado = await service.update(
         ID_PLAN,
@@ -396,7 +356,7 @@ describe('PlanPagoService', () => {
           USUARIO_ID,
         ),
       ).rejects.toThrow(ConflictException);
-      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.pLANEJEMPLO.update).not.toHaveBeenCalled();
     });
 
     it('rechaza editar el precio de un plan inactivo', async () => {
@@ -411,14 +371,13 @@ describe('PlanPagoService', () => {
           USUARIO_ID,
         ),
       ).rejects.toThrow(ConflictException);
-      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.pLANEJEMPLO.update).not.toHaveBeenCalled();
     });
 
     it('permite editar el precio de un plan inactivo si el mismo request lo reactiva', async () => {
       prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.EN_PREPARACION, false),
       );
-      tx.pLANEJEMPLO.count.mockResolvedValue(1);
 
       await service.update(
         ID_PLAN,
@@ -426,16 +385,15 @@ describe('PlanPagoService', () => {
         USUARIO_ID,
       );
 
-      const data = dataDe(tx.pLANEJEMPLO.update);
+      const data = dataDe(prisma.pLANEJEMPLO.update);
       expect(data.precio?.toFixed(2)).toBe('21000000.00');
       expect(data.estado).toBe(true);
     });
 
-    it('vuelve a EN_PREPARACION al inactivar el último plan activo', async () => {
+    it('inactivar el último plan activo no toca la publicación (T133: el estado depende del precio de lista)', async () => {
       prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.DISPONIBLE),
       );
-      tx.pLANEJEMPLO.count.mockResolvedValue(0);
 
       await service.update(
         ID_PLAN,
@@ -443,86 +401,11 @@ describe('PlanPagoService', () => {
         USUARIO_ID,
       );
 
-      expect(publicaciones.transicionarEstadoComercial).toHaveBeenCalledWith(
-        tx,
-        ID_PUBLICACION,
-        EstadoComercial.DISPONIBLE,
-        EstadoComercial.EN_PREPARACION,
-        USUARIO_ID,
-      );
-    });
-
-    it('no transiciona al inactivar si quedan otros planes activos', async () => {
-      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
-        planGuardado(EstadoComercial.DISPONIBLE),
-      );
-      tx.pLANEJEMPLO.count.mockResolvedValue(1);
-
-      await service.update(
-        ID_PLAN,
-        updatePlanPagoSchema.parse({ estado: false }),
-        USUARIO_ID,
-      );
-
-      expect(publicaciones.transicionarEstadoComercial).not.toHaveBeenCalled();
-    });
-
-    it.each([EstadoComercial.EN_PLAN_DE_PAGO, EstadoComercial.VENDIDA])(
-      'no transiciona al inactivar un plan de una publicación %s',
-      async (estadoComercial) => {
-        prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
-          planGuardado(estadoComercial),
-        );
-        tx.pLANEJEMPLO.count.mockResolvedValue(0);
-
-        await service.update(
-          ID_PLAN,
-          updatePlanPagoSchema.parse({ estado: false }),
-          USUARIO_ID,
-        );
-
-        // Inactivar un plan de una publicación ya vendida no cambia nada: si
-        // se llamara, la función compartida tiraría por transición inválida.
-        expect(tx.pLANEJEMPLO.update).toHaveBeenCalled();
-        expect(
-          publicaciones.transicionarEstadoComercial,
-        ).not.toHaveBeenCalled();
-      },
-    );
-
-    it('vuelve a DISPONIBLE al reactivar el primer plan activo', async () => {
-      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
-        planGuardado(EstadoComercial.EN_PREPARACION, false),
-      );
-      tx.pLANEJEMPLO.count.mockResolvedValue(1);
-
-      await service.update(
-        ID_PLAN,
-        updatePlanPagoSchema.parse({ estado: true }),
-        USUARIO_ID,
-      );
-
-      expect(publicaciones.transicionarEstadoComercial).toHaveBeenCalledWith(
-        tx,
-        ID_PUBLICACION,
-        EstadoComercial.EN_PREPARACION,
-        EstadoComercial.DISPONIBLE,
-        USUARIO_ID,
-      );
-    });
-
-    it('no transiciona si el estado mandado es el que el plan ya tenía', async () => {
-      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
-        planGuardado(EstadoComercial.DISPONIBLE, true),
-      );
-
-      await service.update(
-        ID_PLAN,
-        updatePlanPagoSchema.parse({ estado: true }),
-        USUARIO_ID,
-      );
-
-      expect(publicaciones.transicionarEstadoComercial).not.toHaveBeenCalled();
+      expect(dataDe(prisma.pLANEJEMPLO.update).estado).toBe(false);
+      // El mock de PrismaService no expone ninguna escritura sobre
+      // PUBLICACIONUNIDAD: si el service intentara transicionarla, fallaría.
+      expect(Object.keys(prisma.pUBLICACIONUNIDAD)).toEqual(['findUnique']);
+      expect(prisma.pUBLICACIONUNIDAD.findUnique).not.toHaveBeenCalled();
     });
 
     it('rechaza con 404 si el plan no existe', async () => {
@@ -535,7 +418,7 @@ describe('PlanPagoService', () => {
           USUARIO_ID,
         ),
       ).rejects.toThrow(NotFoundException);
-      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.pLANEJEMPLO.update).not.toHaveBeenCalled();
     });
   });
 
@@ -662,7 +545,8 @@ describe('PlanPagoService', () => {
         simularCuotasSchema.parse({ tipo: 'CONTADO', precio: 19000000 }),
       );
 
-      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.pLANEJEMPLO.create).not.toHaveBeenCalled();
+      expect(prisma.pLANEJEMPLO.update).not.toHaveBeenCalled();
       expect(prisma.pUBLICACIONUNIDAD.findUnique).not.toHaveBeenCalled();
       expect(prisma.pLANEJEMPLO.findUnique).not.toHaveBeenCalled();
       expect(prisma.pLANEJEMPLO.findMany).not.toHaveBeenCalled();

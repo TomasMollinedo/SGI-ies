@@ -24,12 +24,14 @@ import {
 } from '@nestjs/swagger';
 import { PublicacionService } from './publicacion.service';
 import { CreatePublicacionDto } from './dto/create-publicacion.dto';
+import { DefinirPrecioListaDto } from './dto/definir-precio-lista.dto';
 import { DespublicarPublicacionDto } from './dto/despublicar-publicacion.dto';
 import { QueryPublicacionDto } from './dto/query-publicacion.dto';
 import { QueryUnidadesPublicablesDto } from './dto/query-unidades-publicables.dto';
 import {
   PublicacionListResponseDto,
   PublicacionDetalleResponseDto,
+  PublicacionPrecioListaResponseDto,
 } from './dto/publicacion-response.dto';
 import { UnidadPublicableListResponseDto } from './dto/unidad-publicable-response.dto';
 import { Roles } from '../../../common/decorators/roles.decorator';
@@ -106,7 +108,7 @@ export class PublicacionController {
   @Post()
   @ApiOperation({
     summary:
-      'Publicar una unidad funcional en el ecommerce. Nace en Publicación en preparación',
+      'Publicar una unidad funcional en el ecommerce. Nace en Publicación en preparación y sin precio de lista (también al volver a publicar una unidad despublicada)',
   })
   @ApiCreatedResponse({
     description: 'Publicación creada',
@@ -207,6 +209,40 @@ export class PublicacionController {
   @ApiNotFoundResponse({ description: 'No existe una publicación con ese id' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.publicacionService.findOne(id);
+  }
+
+  @Patch(':id/precio-lista')
+  @ApiOperation({
+    summary:
+      'Definir o modificar el precio de lista de una publicación vigente. La primera vez pasa la publicación de Publicación en preparación a Disponible. Bloqueado en En Plan de Pago o Vendida',
+    description:
+      'porcentaje_ganancia y margen son opcionales y solo de referencia. Si no viene ninguno, el precio se considera cargado directo: el backend calcula el porcentaje sobre el costo y deja el margen vacío (los dos quedan vacíos si el precio es menor al costo). El costo de la unidad nunca se modifica.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_publicacion de la publicación',
+  })
+  @ApiOkResponse({
+    description:
+      'Precio guardado. warning no es null si el precio quedó por debajo del costo de la unidad (se guarda igual)',
+    type: PublicacionPrecioListaResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Datos inválidos (precio no mayor a 0, más de dos decimales, porcentaje o margen negativos, etc.)',
+  })
+  @ApiNotFoundResponse({ description: 'No existe una publicación con ese id' })
+  @ApiConflictResponse({
+    description:
+      'La publicación fue despublicada, su estado comercial es En Plan de Pago o Vendida, o cambió mientras se procesaba (reintentar)',
+  })
+  definirPrecioLista(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: DefinirPrecioListaDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.publicacionService.definirPrecioLista(id, dto, user.id);
   }
 
   @Patch(':id/despublicar')
