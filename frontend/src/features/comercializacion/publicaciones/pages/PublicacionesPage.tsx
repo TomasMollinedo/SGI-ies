@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Megaphone, ShieldAlert } from 'lucide-react'
-import { PATHS, rutaDetallePublicacion, rutaPlanesPagoPublicacion } from '@/app/router/paths'
+import { PATHS, rutaDetallePublicacion } from '@/app/router/paths'
 import { DataTable } from '@/shared/components/common/DataTable'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { Pagination } from '@/shared/components/common/Pagination'
@@ -11,6 +11,7 @@ import { Button } from '@/shared/components/ui/Button'
 import { esTipologia } from '@/shared/config/tipologiaUnidad.config'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { formatearFecha } from '@/shared/utils/fecha'
+import { formatearImporte } from '@/shared/utils/importe'
 import { AccionesPublicacionRow } from '../components/AccionesPublicacionRow'
 import { CeldaUnidad } from '../components/CeldaUnidad'
 import { DespublicarPublicacionModal } from '../components/DespublicarPublicacionModal'
@@ -96,6 +97,13 @@ export function PublicacionesPage() {
       render: (item) => (
         <div className="flex min-w-0 flex-col items-start gap-1 wrap-anywhere">
           {badgeEstadoPublicacion(item)}
+          {item.precio_lista === null ? (
+            <p className="text-content-muted text-xs">Definí el precio de lista</p>
+          ) : (
+            <p className="text-xs font-medium">
+              Precio de lista: {formatearImporte(Number(item.precio_lista))}
+            </p>
+          )}
           {!item.vigente && (
             <p className="text-content-muted text-xs">
               {estadoAnteriorTexto(item.estado_comercial)}
@@ -125,7 +133,6 @@ export function PublicacionesPage() {
         <AccionesPublicacionRow
           publicacion={item}
           onVer={() => navigate(rutaDetallePublicacion(item.id_publicacion))}
-          onVerPlanesPago={() => navigate(rutaPlanesPagoPublicacion(item.id_publicacion))}
           onDespublicar={() =>
             setDespublicando({
               id_publicacion: item.id_publicacion,

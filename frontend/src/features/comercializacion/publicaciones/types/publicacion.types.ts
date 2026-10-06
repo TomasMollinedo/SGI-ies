@@ -20,6 +20,8 @@ export interface PublicacionListItem {
   id_publicacion: number
   estado_comercial: EstadoComercial
   vigente: boolean
+  /** `string` por ser un `Decimal` del backend. `null` mientras está en preparación. */
+  precio_lista: string | null
   fecha_publicacion: string
   fecha_despublicacion: string | null
   unidad: UnidadResumen
@@ -41,6 +43,8 @@ export interface PublicacionDetalle {
   FK_unidad_funcional: number
   estado_comercial: EstadoComercial
   vigente: boolean
+  /** `string` por ser un `Decimal` del backend. `null` mientras está en preparación. */
+  precio_lista: string | null
   fecha_publicacion: string
   fecha_despublicacion: string | null
   motivo_despublicacion: string | null
