@@ -14,6 +14,7 @@ import { QueryCardexDto } from './dto/query-cardex.dto';
 import { AlertaService } from '../../alerta/alerta.service';
 import { RolNombre } from '../../../common/enums/rol.enum';
 import { TipoAlertaNombre } from '../../../common/enums/tipo-alerta.enum';
+import { USUARIO_RESUMEN_SELECT } from '../../../common/selects/usuario-resumen.select';
 
 const ARTICULO_RESUMEN_SELECT = {
   id_articulo: true,
@@ -32,11 +33,6 @@ const TIPO_MOVIMIENTO_RESUMEN_SELECT = {
   id_tipo_movimiento: true,
   nombre: true,
   indicador_entrada: true,
-} as const;
-
-const USUARIO_RESUMEN_SELECT = {
-  nombre: true,
-  apellido: true,
 } as const;
 
 @Injectable()

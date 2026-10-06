@@ -11,6 +11,7 @@ import { validarNumeroReferencia } from '../../../common/validaciones/validar-nu
 import { CreatePagoDto } from './dto/create-pago.dto';
 import { AnularPagoDto } from './dto/anular-pago.dto';
 import { QueryPagoDto } from './dto/query-pago.dto';
+import { USUARIO_RESUMEN_SELECT } from '../../../common/selects/usuario-resumen.select';
 
 const COMPROBANTE_IMPUTABLE_SELECT = {
   id_comprobante_proveedor: true,
@@ -55,11 +56,6 @@ const FORMA_PAGO_RESUMEN_SELECT = {
   id_forma_pago: true,
   nombre: true,
   requiere_referencia: true,
-} as const;
-
-const USUARIO_RESUMEN_SELECT = {
-  nombre: true,
-  apellido: true,
 } as const;
 
 /** Ítem del listado (criterio 18): sin el detalle de imputaciones. */

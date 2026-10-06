@@ -1,5 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CatalogoService } from './catalogo.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '../../../generated/prisma/client';
@@ -36,7 +39,9 @@ describe('CatalogoService', () => {
 
   /** Publicación "cruda" tal como la devolvería Prisma para el listado/detalle. */
   const publicacionCatalogo = (extra: Record<string, unknown> = {}) => ({
+    id_publicacion: 5,
     fecha_publicacion: new Date('2026-06-01'),
+    precio_lista: new Prisma.Decimal('19000000') as Prisma.Decimal | null,
     unidadFuncional: {
       id_unidad_funcional: 2,
       identificador: '1-A',
@@ -52,7 +57,6 @@ describe('CatalogoService', () => {
       },
       imagenes: [{ url: 'https://cdn.test/1-a.jpg' }],
     },
-    planesEjemplo: [{ precio: new Prisma.Decimal('19000000') }],
     ...extra,
   });
 
@@ -121,7 +125,30 @@ describe('CatalogoService', () => {
       expect(argumento.orderBy).toEqual({ fecha_publicacion: 'desc' });
     });
 
-    it('mapea el precio desde y la condición de entrega, sin exponer costo ni margen', async () => {
+    it('lee el precio de la publicación, no de sus planes', async () => {
+      prisma.pUBLICACIONUNIDAD.findMany.mockResolvedValue([]);
+      prisma.pUBLICACIONUNIDAD.count.mockResolvedValue(0);
+
+      await service.listarCatalogo({ page: 1, limit: 12 });
+
+      const select = primerArgumento(prisma.pUBLICACIONUNIDAD.findMany)
+        .select as Record<string, unknown>;
+      expect(select.precio_lista).toBe(true);
+      expect(select).not.toHaveProperty('planesEjemplo');
+    });
+
+    it('una publicación Disponible sin precio de lista es un dato inconsistente: 500', async () => {
+      prisma.pUBLICACIONUNIDAD.findMany.mockResolvedValue([
+        publicacionCatalogo({ precio_lista: null }),
+      ]);
+      prisma.pUBLICACIONUNIDAD.count.mockResolvedValue(1);
+
+      await expect(
+        service.listarCatalogo({ page: 1, limit: 12 }),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+
+    it('mapea el precio de lista como precio desde y la condición de entrega, sin exponer costo ni margen', async () => {
       prisma.pUBLICACIONUNIDAD.findMany.mockResolvedValue([
         publicacionCatalogo(),
       ]);
@@ -238,12 +265,14 @@ describe('CatalogoService', () => {
       expect(prisma.pUBLICACIONUNIDAD.findMany).not.toHaveBeenCalled();
     });
 
-    it('calcula el precio más barato del proyecto entre todas sus unidades disponibles', async () => {
+    it('calcula el menor precio de lista del proyecto entre todas sus unidades disponibles', async () => {
       prisma.uNIDADFUNCIONAL.groupBy.mockResolvedValue([
         { FK_proyecto: 1, _count: 2 },
       ]);
       prisma.pUBLICACIONUNIDAD.findMany.mockResolvedValue([
         {
+          id_publicacion: 5,
+          precio_lista: new Prisma.Decimal('19000000'),
           unidadFuncional: {
             FK_proyecto: 1,
             proyecto: {
@@ -252,9 +281,10 @@ describe('CatalogoService', () => {
               imagen_portada_url: null,
             },
           },
-          planesEjemplo: [{ precio: new Prisma.Decimal('19000000') }],
         },
         {
+          id_publicacion: 6,
+          precio_lista: new Prisma.Decimal('15000000'),
           unidadFuncional: {
             FK_proyecto: 1,
             proyecto: {
@@ -263,7 +293,6 @@ describe('CatalogoService', () => {
               imagen_portada_url: null,
             },
           },
-          planesEjemplo: [{ precio: new Prisma.Decimal('15000000') }],
         },
       ]);
 

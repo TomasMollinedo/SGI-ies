@@ -12,6 +12,7 @@ import { QueryMovimientoDto } from './dto/query-movimiento.dto';
 import { AlertaService } from '../../alerta/alerta.service';
 import { RolNombre } from '../../../common/enums/rol.enum';
 import { TipoAlertaNombre } from '../../../common/enums/tipo-alerta.enum';
+import { USUARIO_RESUMEN_SELECT } from '../../../common/selects/usuario-resumen.select';
 
 const TIPO_MOVIMIENTO_RESUMEN_SELECT = {
   id_tipo_movimiento: true,
@@ -23,11 +24,6 @@ const DEPOSITO_RESUMEN_SELECT = {
   id_deposito: true,
   nombre: true,
   es_obrador: true,
-} as const;
-
-const USUARIO_RESUMEN_SELECT = {
-  nombre: true,
-  apellido: true,
 } as const;
 
 /**

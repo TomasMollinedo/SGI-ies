@@ -81,14 +81,14 @@ describe('Catálogo público (e2e)', () => {
     );
   });
 
-  it('el precio "desde" de una unidad coincide con el menor precio entre sus planes activos', async () => {
+  it('el precio "desde" de una unidad es el precio de lista de su publicación', async () => {
     const res = await get('/api/catalogo?limit=50').expect(200);
     const body = res.body as CatalogoListadoBody;
 
     const unidad1A = body.data.find((item) => item.identificador === '1-A');
     expect(unidad1A).toBeDefined();
-    // Del seed: "Contado 1-A" a $19.000.000 y "Financiado 12 cuotas 1-A" a
-    // $21.000.000, ambos activos — el menor es el de contado.
+    // Del seed: la publicación de 1-A tiene precio de lista $19.000.000
+    // (T133); el plan "Financiado 12 cuotas 1-A" a $21.000.000 no influye.
     expect(unidad1A!.precio_desde).toBe(19000000);
   });
 

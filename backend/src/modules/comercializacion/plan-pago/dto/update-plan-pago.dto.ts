@@ -33,9 +33,8 @@ const noEditable = (campo: string) =>
  * quedarían describiendo condiciones distintas a las que se pactaron. Para
  * ofrecer otras condiciones se inactiva este plan y se crea uno nuevo.
  *
- * `estado` sí se edita acá (es el activo/inactivo del plan). Al inactivar el
- * último plan activo, la publicación vuelve a EN_PREPARACION — eso es del
- * service, no de este schema.
+ * `estado` sí se edita acá (es el activo/inactivo del plan). No arrastra el
+ * estado comercial de la publicación, que depende solo de su precio de lista.
  *
  * `nombre` y `FK_publicacion` no figuran: no son editables, pero tampoco son
  * condiciones estructurales, así que se descartan en silencio como cualquier

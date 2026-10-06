@@ -94,7 +94,7 @@ export class PlanPagoController {
   @Post()
   @ApiOperation({
     summary:
-      'Crear un plan de pago para una publicación. Si es el primer plan activo, la publicación pasa de En preparación a Disponible',
+      'Crear un plan de pago para una publicación. No cambia el estado comercial de la publicación (lo hace definir su precio de lista)',
   })
   @ApiCreatedResponse({
     description:

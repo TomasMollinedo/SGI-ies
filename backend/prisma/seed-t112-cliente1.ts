@@ -161,6 +161,7 @@ async function main() {
   async function upsertPublicacion(
     idUnidad: number,
     estadoComercial: EstadoComercial,
+    precioLista: number,
   ) {
     const existente = await prisma.pUBLICACIONUNIDAD.findFirst({
       where: { FK_unidad_funcional: idUnidad },
@@ -171,6 +172,8 @@ async function main() {
       data: {
         FK_unidad_funcional: idUnidad,
         estado_comercial: estadoComercial,
+        // Toda publicación que salió de preparación tiene precio de lista (T133).
+        precio_lista: precioLista,
         fecha_publicacion: diasDesdeHoy(-160),
         FK_usuario_creador: responsableComercializacion.id_usuario,
         FK_usuario_actualizador: responsableComercializacion.id_usuario,
@@ -286,6 +289,7 @@ async function main() {
   const publicacionA = await upsertPublicacion(
     unidadA.id_unidad_funcional,
     EstadoComercial.EN_PLAN_DE_PAGO,
+    24_000_000,
   );
   const planA = await upsertPlan({
     FK_publicacion: publicacionA.id_publicacion,
@@ -365,6 +369,7 @@ async function main() {
   const publicacionB = await upsertPublicacion(
     unidadB.id_unidad_funcional,
     EstadoComercial.EN_PLAN_DE_PAGO,
+    12_000_000,
   );
   const planB = await upsertPlan({
     FK_publicacion: publicacionB.id_publicacion,

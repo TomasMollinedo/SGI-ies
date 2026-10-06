@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { calcularCondicionEntregaResponse } from '../comercializacion/common/condicion-entrega';
 import {
@@ -11,13 +15,6 @@ import {
 } from '../../../generated/prisma/enums';
 import type { Prisma } from '../../../generated/prisma/client';
 import { QueryCatalogoDto } from './dto/query-catalogo.dto';
-
-const PLAN_ACTIVO_MAS_BARATO_SELECT = {
-  where: { estado: true },
-  select: { precio: true },
-  orderBy: { precio: 'asc' as const },
-  take: 1,
-};
 
 const UNIDAD_CATALOGO_SELECT = {
   id_unidad_funcional: true,
@@ -53,9 +50,8 @@ export class CatalogoService {
   /**
    * El catálogo se consulta desde PUBLICACIONUNIDAD, no desde UNIDADFUNCIONAL:
    * es la única forma de ordenar por `fecha_publicacion` (campo propio de la
-   * publicación) y de traer el precio más barato entre sus planes activos con
-   * un `include`/`orderBy`+`take` anidado, en una sola consulta por página —
-   * sin eso, habría que pedirle los planes a cada unidad por separado (N+1).
+   * publicación) y de leer su `precio_lista` (también propio de la
+   * publicación) en la misma consulta.
    */
   async listarCatalogo(query: QueryCatalogoDto) {
     const { FK_proyecto, localidad, tipologia, entregada, page, limit } = query;
@@ -86,9 +82,10 @@ export class CatalogoService {
       this.prisma.pUBLICACIONUNIDAD.findMany({
         where,
         select: {
+          id_publicacion: true,
           fecha_publicacion: true,
+          precio_lista: true,
           unidadFuncional: { select: UNIDAD_CATALOGO_SELECT },
-          planesEjemplo: PLAN_ACTIVO_MAS_BARATO_SELECT,
         },
         skip: (page - 1) * limit,
         take: limit,
@@ -114,7 +111,9 @@ export class CatalogoService {
         },
       },
       select: {
+        id_publicacion: true,
         fecha_publicacion: true,
+        precio_lista: true,
         unidadFuncional: {
           select: {
             ...UNIDAD_CATALOGO_SELECT,
@@ -169,8 +168,8 @@ export class CatalogoService {
    * Los proyectos con más unidades disponibles ahora mismo, hasta 4. Se
    * calcula en dos consultas (no hay forma de agrupar por proyecto en una
    * sola: `groupBy` no cruza relaciones anidadas): primero cuántas unidades
-   * disponibles tiene cada proyecto, después el precio más barato y los datos
-   * de esos 4 proyectos puntuales.
+   * disponibles tiene cada proyecto, después el menor precio de lista y los
+   * datos de esos 4 proyectos puntuales.
    */
   async obtenerDestacados() {
     const conteos = await this.prisma.uNIDADFUNCIONAL.groupBy({
@@ -202,6 +201,8 @@ export class CatalogoService {
         unidadFuncional: { FK_proyecto: { in: idsProyectosDestacados } },
       },
       select: {
+        id_publicacion: true,
+        precio_lista: true,
         unidadFuncional: {
           select: {
             FK_proyecto: true,
@@ -214,7 +215,6 @@ export class CatalogoService {
             },
           },
         },
-        planesEjemplo: PLAN_ACTIVO_MAS_BARATO_SELECT,
       },
     });
 
@@ -226,19 +226,13 @@ export class CatalogoService {
 
     for (const publicacion of publicaciones) {
       const idProyecto = publicacion.unidadFuncional.FK_proyecto;
-      const planMasBarato = publicacion.planesEjemplo.at(0);
-      const precioPlan =
-        planMasBarato === undefined
-          ? undefined
-          : exigirPrecioPlanEjemplo(planMasBarato.precio).toNumber();
+      const precioLista = exigirPrecioLista(publicacion).toNumber();
 
       datosProyecto.set(idProyecto, publicacion.unidadFuncional.proyecto);
 
-      if (precioPlan !== undefined) {
-        const precioActual = precioDesdePorProyecto.get(idProyecto);
-        if (precioActual === undefined || precioPlan < precioActual) {
-          precioDesdePorProyecto.set(idProyecto, precioPlan);
-        }
+      const precioActual = precioDesdePorProyecto.get(idProyecto);
+      if (precioActual === undefined || precioLista < precioActual) {
+        precioDesdePorProyecto.set(idProyecto, precioLista);
       }
     }
 
@@ -258,8 +252,28 @@ export class CatalogoService {
   }
 }
 
+/**
+ * Una publicación DISPONIBLE siempre tiene precio de lista: es justamente
+ * definirlo lo que la pasa a DISPONIBLE (`PublicacionService.definirPrecioLista`),
+ * y una vez definido no se puede quitar. Si falta es un dato inconsistente,
+ * no un error del visitante: por eso es un 500.
+ */
+function exigirPrecioLista(publicacion: {
+  id_publicacion: number;
+  precio_lista: Prisma.Decimal | null;
+}): Prisma.Decimal {
+  if (publicacion.precio_lista === null) {
+    throw new InternalServerErrorException(
+      `La publicación ${publicacion.id_publicacion} está Disponible sin precio de lista`,
+    );
+  }
+  return publicacion.precio_lista;
+}
+
 type PublicacionParaListado = {
+  id_publicacion: number;
   fecha_publicacion: Date;
+  precio_lista: Prisma.Decimal | null;
   unidadFuncional: {
     id_unidad_funcional: number;
     identificador: string;
@@ -275,7 +289,6 @@ type PublicacionParaListado = {
     };
     imagenes: { url: string }[];
   };
-  planesEjemplo: { precio: Prisma.Decimal | null }[];
 };
 
 function mapearItemCatalogo(publicacion: PublicacionParaListado) {
@@ -292,12 +305,9 @@ function mapearItemCatalogo(publicacion: PublicacionParaListado) {
     piso: unidadFuncional.piso,
     proyecto: { nombre: proyecto.nombre, localidad: proyecto.localidad },
     imagen_url: unidadFuncional.imagenes[0]?.url ?? null,
-    // Garantizado por reglas de negocio: una publicación DISPONIBLE siempre
-    // tiene al menos un plan activo (si se inactivan todos, la publicación
-    // vuelve a EN_PREPARACION), así que planesEjemplo[0] siempre existe acá.
-    precio_desde: exigirPrecioPlanEjemplo(
-      publicacion.planesEjemplo[0].precio,
-    ).toNumber(),
+    // El nombre del campo es del contrato del Sprint 3; desde T133 es el
+    // precio de lista (precio de contado) de la publicación.
+    precio_desde: exigirPrecioLista(publicacion).toNumber(),
     condicion_entrega: calcularCondicionEntregaResponse(proyecto),
     fecha_publicacion: publicacion.fecha_publicacion.toISOString(),
   };

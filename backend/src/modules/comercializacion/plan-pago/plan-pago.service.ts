@@ -6,7 +6,11 @@ import {
 import { PLANEJEMPLO, Prisma } from '../../../../generated/prisma/client';
 import { EstadoComercial } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { PublicacionService } from '../publicacion/publicacion.service';
+import { DECIMALES } from '../../../common/constantes/decimales';
+import {
+  advertenciaPrecioMenorAlCosto,
+  porcentajeGananciaSobreCosto,
+} from '../common/precio-sobre-costo';
 import { CreatePlanPagoDto } from './dto/create-plan-pago.dto';
 import { UpdatePlanPagoDto } from './dto/update-plan-pago.dto';
 import { QueryPlanPagoDto } from './dto/query-plan-pago.dto';
@@ -23,29 +27,16 @@ type CuotaSimulada = Pick<
   'numero' | 'importe' | 'fecha_vencimiento'
 >;
 
-/** Decimales de todo importe y porcentaje, igual que las columnas del schema. */
-const DECIMALES = 2;
-
 @Injectable()
 export class PlanPagoService {
-  constructor(
-    private readonly prisma: PrismaService,
-    /**
-     * Solo por `transicionarEstadoComercial`: ese método recibe el `tx` del
-     * llamador y nunca abre transacción propia, así que el cambio de estado
-     * de la publicación viaja dentro de la misma `$transaction` que el alta o
-     * la edición del plan. No se duplica acá ninguna regla de transiciones.
-     */
-    private readonly publicaciones: PublicacionService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Alta de un plan de pago (HU-22).
    *
-   * El plan nace activo por el `@default(true)` de PLANEJEMPLO. Si es el primer
-   * plan activo de una publicación EN_PREPARACION, la publicación pasa a
-   * DISPONIBLE en la misma transacción: sin ningún plan no hay nada que el
-   * cliente pueda comprar.
+   * El plan nace activo por el `@default(true)` de PLANEJEMPLO. Desde T133 el
+   * alta no toca el `estado_comercial` de la publicación: lo que la pasa a
+   * DISPONIBLE es definir su precio de lista (`PublicacionService.definirPrecioLista`).
    *
    * Devuelve la fila creada más tres datos derivados que NO se persisten:
    * `warning` (precio menor al costo), `porcentaje_ganancia_implicito` y
@@ -91,63 +82,44 @@ export class PlanPagoService {
     const costo = publicacion.unidadFuncional.costo;
 
     const anticipoMontoCalculado = this.resolverAnticipoMonto(dto, precio);
-    const warning = this.warningPrecioMenorAlCosto(precio, costo);
+    const warning = advertenciaPrecioMenorAlCosto(
+      'El precio del plan',
+      precio,
+      costo,
+    );
     const porcentajeGananciaImplicito = this.calcularGananciaImplicita(
       dto,
       precio,
       costo,
     );
 
-    const plan = await this.prisma.$transaction(async (tx) => {
-      const creado = await tx.pLANEJEMPLO.create({
-        data: {
-          FK_publicacion: dto.FK_publicacion,
-          nombre: dto.nombre,
-          tipo: dto.tipo,
-          precio,
-          // Si no vinieron, se omiten para que Prisma aplique el default 0.
-          ...(dto.porcentaje_ganancia !== undefined && {
-            porcentaje_ganancia: new Prisma.Decimal(dto.porcentaje_ganancia),
-          }),
-          ...(dto.margen !== undefined && {
-            margen: new Prisma.Decimal(dto.margen),
-          }),
-          // Se guarda lo que cargó el usuario (porcentaje o monto), no el
-          // monto resuelto: `anticipo_monto_calculado` es de uso interno.
-          anticipo_porcentaje:
-            dto.anticipo_porcentaje === undefined
-              ? null
-              : dto.anticipo_porcentaje,
-          anticipo_monto:
-            dto.anticipo_monto === undefined ? null : dto.anticipo_monto,
-          cantidad_cuotas:
-            dto.cantidad_cuotas === undefined ? null : dto.cantidad_cuotas,
-          periodicidad:
-            dto.periodicidad === undefined ? null : dto.periodicidad,
-          FK_usuario_creador: usuarioId,
-          FK_usuario_actualizador: usuarioId,
-        },
-      });
-
-      // Incluye al recién creado, porque corre dentro de la transacción.
-      const planesActivos = await tx.pLANEJEMPLO.count({
-        where: { FK_publicacion: dto.FK_publicacion, estado: true },
-      });
-
-      if (
-        planesActivos === 1 &&
-        publicacion.estado_comercial === EstadoComercial.EN_PREPARACION
-      ) {
-        await this.publicaciones.transicionarEstadoComercial(
-          tx,
-          dto.FK_publicacion,
-          EstadoComercial.EN_PREPARACION,
-          EstadoComercial.DISPONIBLE,
-          usuarioId,
-        );
-      }
-
-      return creado;
+    const plan = await this.prisma.pLANEJEMPLO.create({
+      data: {
+        FK_publicacion: dto.FK_publicacion,
+        nombre: dto.nombre,
+        tipo: dto.tipo,
+        precio,
+        // Si no vinieron, se omiten para que Prisma aplique el default 0.
+        ...(dto.porcentaje_ganancia !== undefined && {
+          porcentaje_ganancia: new Prisma.Decimal(dto.porcentaje_ganancia),
+        }),
+        ...(dto.margen !== undefined && {
+          margen: new Prisma.Decimal(dto.margen),
+        }),
+        // Se guarda lo que cargó el usuario (porcentaje o monto), no el
+        // monto resuelto: `anticipo_monto_calculado` es de uso interno.
+        anticipo_porcentaje:
+          dto.anticipo_porcentaje === undefined
+            ? null
+            : dto.anticipo_porcentaje,
+        anticipo_monto:
+          dto.anticipo_monto === undefined ? null : dto.anticipo_monto,
+        cantidad_cuotas:
+          dto.cantidad_cuotas === undefined ? null : dto.cantidad_cuotas,
+        periodicidad: dto.periodicidad === undefined ? null : dto.periodicidad,
+        FK_usuario_creador: usuarioId,
+        FK_usuario_actualizador: usuarioId,
+      },
     });
 
     return {
@@ -163,9 +135,8 @@ export class PlanPagoService {
    * estructurales (tipo, anticipo, cuotas, periodicidad); acá van las reglas
    * que necesitan ir a la base.
    *
-   * El cambio de `estado` puede arrastrar a la publicación: al inactivar el
-   * último plan activo vuelve a EN_PREPARACION, y al reactivar el primero
-   * vuelve a DISPONIBLE — siempre en la misma transacción que el update.
+   * Desde T133, activar o inactivar un plan no cambia el `estado_comercial`
+   * de la publicación: ese estado depende solo de su precio de lista.
    *
    * Precio, porcentaje de ganancia y margen solo se editan con el plan
    * activo: si el plan ya está inactivo y este request no lo reactiva a la
@@ -238,43 +209,32 @@ export class PlanPagoService {
     const warning =
       precioNuevo === null
         ? null
-        : this.warningPrecioMenorAlCosto(precioNuevo, costo);
+        : advertenciaPrecioMenorAlCosto(
+            'El precio del plan',
+            precioNuevo,
+            costo,
+          );
     const porcentajeGananciaImplicito =
       precioNuevo === null
         ? null
         : this.calcularGananciaImplicita(dto, precioNuevo, costo);
 
-    const cambiaEstado = dto.estado !== undefined && dto.estado !== plan.estado;
-
-    const actualizado = await this.prisma.$transaction(async (tx) => {
-      const filaActualizada = await tx.pLANEJEMPLO.update({
-        where: { id_plan_ejemplo: id },
-        data: {
-          ...(dto.precio !== undefined && {
-            precio: new Prisma.Decimal(dto.precio),
-          }),
-          ...(dto.porcentaje_ganancia !== undefined && {
-            porcentaje_ganancia: new Prisma.Decimal(dto.porcentaje_ganancia),
-          }),
-          ...(dto.margen !== undefined && {
-            margen: new Prisma.Decimal(dto.margen),
-          }),
-          ...(dto.estado !== undefined && { estado: dto.estado }),
-          FK_usuario_actualizador: usuarioId,
-          hora_actualizacion: new Date(),
-        },
-      });
-
-      if (cambiaEstado) {
-        await this.sincronizarEstadoPublicacion(
-          tx,
-          plan.FK_publicacion,
-          estadoComercial,
-          usuarioId,
-        );
-      }
-
-      return filaActualizada;
+    const actualizado = await this.prisma.pLANEJEMPLO.update({
+      where: { id_plan_ejemplo: id },
+      data: {
+        ...(dto.precio !== undefined && {
+          precio: new Prisma.Decimal(dto.precio),
+        }),
+        ...(dto.porcentaje_ganancia !== undefined && {
+          porcentaje_ganancia: new Prisma.Decimal(dto.porcentaje_ganancia),
+        }),
+        ...(dto.margen !== undefined && {
+          margen: new Prisma.Decimal(dto.margen),
+        }),
+        ...(dto.estado !== undefined && { estado: dto.estado }),
+        FK_usuario_actualizador: usuarioId,
+        hora_actualizacion: new Date(),
+      },
     });
 
     return {
@@ -384,51 +344,6 @@ export class PlanPagoService {
   }
 
   /**
-   * Alinea el `estado_comercial` de la publicación con la cantidad de planes
-   * activos que quedaron después del update.
-   *
-   * `transicionarEstadoComercial` NO contempla el caso "no corresponde hacer
-   * nada": valida el par desde/hacia contra su propio mapa y tira un `Error`
-   * de programación si no está permitido. Por eso el filtro de
-   * EN_PLAN_DE_PAGO / VENDIDA se hace acá, ANTES de llamarla: inactivar un
-   * plan de una publicación que ya tiene una venta no cambia nada.
-   */
-  private async sincronizarEstadoPublicacion(
-    tx: Prisma.TransactionClient,
-    idPublicacion: number,
-    estadoComercial: EstadoComercial,
-    usuarioId: number,
-  ): Promise<void> {
-    const planesActivos = await tx.pLANEJEMPLO.count({
-      where: { FK_publicacion: idPublicacion, estado: true },
-    });
-
-    if (planesActivos === 0 && estadoComercial === EstadoComercial.DISPONIBLE) {
-      await this.publicaciones.transicionarEstadoComercial(
-        tx,
-        idPublicacion,
-        EstadoComercial.DISPONIBLE,
-        EstadoComercial.EN_PREPARACION,
-        usuarioId,
-      );
-      return;
-    }
-
-    if (
-      planesActivos === 1 &&
-      estadoComercial === EstadoComercial.EN_PREPARACION
-    ) {
-      await this.publicaciones.transicionarEstadoComercial(
-        tx,
-        idPublicacion,
-        EstadoComercial.EN_PREPARACION,
-        EstadoComercial.DISPONIBLE,
-        usuarioId,
-      );
-    }
-  }
-
-  /**
    * El anticipo resuelto a monto, que es lo único que entiende el motor de
    * cuotas. Es un valor derivado: no se guarda en la fila, que conserva lo
    * que cargó el usuario (porcentaje o monto). T110 vuelve a resolverlo al
@@ -454,22 +369,6 @@ export class PlanPagoService {
   }
 
   /**
-   * Vender por debajo del costo se permite (puede ser una decisión comercial
-   * deliberada), pero la respuesta lo avisa. No se guarda en ninguna columna:
-   * es un dato del momento, y tanto el precio como el costo pueden cambiar.
-   */
-  private warningPrecioMenorAlCosto(
-    precio: Prisma.Decimal,
-    costo: Prisma.Decimal,
-  ): string | null {
-    if (!precio.lessThan(costo)) {
-      return null;
-    }
-
-    return `El precio del plan (${precio.toFixed(DECIMALES)}) es menor al costo de la unidad (${costo.toFixed(DECIMALES)}).`;
-  }
-
-  /**
    * Porcentaje de ganancia que queda implícito cuando Comercialización
    * escribe el precio final a mano en vez de usar la ayuda de cálculo del
    * formulario: `(precio - costo) / costo * 100`.
@@ -490,12 +389,7 @@ export class PlanPagoService {
     if (dto.porcentaje_ganancia !== undefined || dto.margen !== undefined) {
       return null;
     }
-    // Una unidad con costo 0 no tiene porcentaje de ganancia definido
-    // (sería una división por cero, que Decimal rechaza tirando error).
-    if (costo.isZero()) {
-      return null;
-    }
 
-    return precio.sub(costo).div(costo).mul(100).toDecimalPlaces(DECIMALES);
+    return porcentajeGananciaSobreCosto(precio, costo);
   }
 }
