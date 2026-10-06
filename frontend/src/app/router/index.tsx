@@ -46,6 +46,13 @@ import { CuentasCorrientesPage } from '@/features/tesoreria/cuentas-corrientes/p
 import { UnidadesFuncionalesPage } from '@/features/proyectos/unidades-funcionales/pages/UnidadesFuncionalesPage'
 import { UnidadFuncionalFormPage } from '@/features/proyectos/unidades-funcionales/pages/UnidadFuncionalFormPage'
 import { ConsultasPage } from '@/features/comercializacion/consultas/pages/ConsultasPage'
+import { ClienteDetallePage } from '@/features/comercializacion/clientes/pages/ClienteDetallePage'
+import { ClientesPage } from '@/features/comercializacion/clientes/pages/ClientesPage'
+import { PlazosFinanciacionPage } from '@/features/comercializacion/plazos-financiacion/pages/PlazosFinanciacionPage'
+import { ProyectoDetallePage } from '@/features/proyectos/pages/ProyectoDetallePage'
+import { ProyectoFormPage } from '@/features/proyectos/pages/ProyectoFormPage'
+import { ProyectosPage } from '@/features/proyectos/pages/ProyectosPage'
+import { TableroPage } from '@/features/tablero/pages/TableroPage'
 
 export const router = createBrowserRouter([
   { path: PATHS.LOGIN, element: <LoginPage /> },
@@ -265,7 +272,24 @@ export const router = createBrowserRouter([
             children: [
               {
                 index: true,
-                element: <Navigate to={PATHS.PROYECTOS.UNIDADES_FUNCIONALES} replace />,
+                element: <ProyectosPage />,
+                handle: { title: 'Proyectos' },
+              },
+              // NUEVO antes que DETALLE, para que "nuevo" no se lea como un :idProyecto.
+              {
+                path: PATHS.PROYECTOS.NUEVO,
+                element: <ProyectoFormPage modo="crear" />,
+                handle: { title: 'Nuevo proyecto' },
+              },
+              {
+                path: PATHS.PROYECTOS.EDITAR,
+                element: <ProyectoFormPage modo="editar" />,
+                handle: { title: 'Editar proyecto' },
+              },
+              {
+                path: PATHS.PROYECTOS.DETALLE,
+                element: <ProyectoDetallePage />,
+                handle: { title: 'Ficha del proyecto' },
               },
               {
                 path: PATHS.PROYECTOS.UNIDADES_FUNCIONALES,
@@ -289,7 +313,7 @@ export const router = createBrowserRouter([
               },
             ],
           },
-                    {
+          {
             path: PATHS.COMERCIALIZACION.ROOT,
             children: [
               {
@@ -327,7 +351,27 @@ export const router = createBrowserRouter([
                 element: <ConsultasPage />,
                 handle: { title: 'Consultas' },
               },
+              {
+                path: PATHS.COMERCIALIZACION.PLAZOS_FINANCIACION,
+                element: <PlazosFinanciacionPage />,
+                handle: { title: 'Plazos de Financiación' },
+              },
+              {
+                path: PATHS.COMERCIALIZACION.CLIENTES,
+                element: <ClientesPage />,
+                handle: { title: 'Clientes' },
+              },
+              {
+                path: PATHS.COMERCIALIZACION.CLIENTE_DETALLE,
+                element: <ClienteDetallePage />,
+                handle: { title: 'Ficha del cliente' },
+              },
             ],
+          },
+          {
+            path: PATHS.TABLERO.ROOT,
+            element: <TableroPage />,
+            handle: { title: 'Tablero del Gerente' },
           },
 
           { path: '*', element: <NotFoundPage /> },

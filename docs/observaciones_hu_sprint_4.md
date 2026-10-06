@@ -267,6 +267,7 @@ Ver también OBS-18 (comprobantes en la ficha del cliente).
 - **Qué dice la historia:** "Accesible desde el menú lateral únicamente para el rol Gerente General."
 - **Problema:** hasta ahora todo el sistema lo opera un único Administrador que ve todas las pantallas, y el Gerente General entra a todo. Esta sería la primera pantalla que el Administrador no puede ver, y obliga a construir el control de acceso por rol en el menú, que hoy no existe.
 - **Propuesta:** confirmar que el Administrador no debe ver el tablero. Si puede verlo, la tarea de menú y roles se simplifica.
+- **Decisión tomada:** el Administrador ve el tablero, igual que el resto de las pantallas, y el sistema sigue operándose con ese rol. No se construye control de acceso por rol en el menú. El criterio "únicamente para el rol Gerente General" queda pendiente hasta que se incorporen los roles por actor.
 
 ### OBS-28 — Variación porcentual cuando el período anterior es cero · Prioridad media
 
