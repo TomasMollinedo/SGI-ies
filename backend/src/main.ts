@@ -24,6 +24,7 @@ async function bootstrap() {
     .setDescription('API del backend de gestión para IES Constructora')
     .addBearerAuth()
     .addCookieAuth('refreshToken')
+    .addCookieAuth('refreshTokenCliente', { type: 'apiKey' }, 'cookie-cliente')
     .addTag(
       'Auth',
       `
@@ -35,6 +36,11 @@ Esquema de doble token:
 4. \`POST /auth/logout\` revoca la sesión del lado del servidor (invalida el refresh token) y limpia la cookie; el frontend debe descartar el \`accessToken\` en memoria por su cuenta.
 
 Todas las llamadas a \`/auth/*\` desde el frontend necesitan \`credentials: 'include'\` para que el browser envíe/reciba la cookie \`refreshToken\`.`,
+    )
+    .addTag(
+      'Cliente',
+      `
+Login de clientes (no USUARIO) con Google — esquema de doble token independiente del de \`/auth/*\`: \`JWT_CLIENT_SECRET\` propio, cookie \`httpOnly\` \`refreshTokenCliente\` (nombre distinto a \`refreshToken\`, para no pisarla). \`POST /cliente/login\` recibe el \`id_token\` de Google y da de alta al cliente si es la primera vez. Todas las llamadas a \`/cliente/*\` necesitan \`credentials: 'include'\`.`,
     )
     .addTag('Compras', 'Proveedores y órdenes de compra.')
     .addTag(

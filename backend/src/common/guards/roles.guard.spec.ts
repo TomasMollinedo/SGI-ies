@@ -5,6 +5,7 @@ import { Roles } from '../decorators/roles.decorator';
 import { RolNombre } from '../enums/rol.enum';
 import type { AuthenticatedUser } from '../../modules/auth/strategies/jwt.strategy';
 import { AlertaController } from '../../modules/alerta/alerta.controller';
+import { AlmacenamientoController } from '../../modules/almacenamiento/almacenamiento.controller';
 import { ArticuloController } from '../../modules/almacen/articulo/articulo.controller';
 import { CategoriaController } from '../../modules/almacen/categoria/categoria.controller';
 import { DepositoController } from '../../modules/almacen/deposito/deposito.controller';
@@ -19,8 +20,15 @@ import { FormaPagoController } from '../../modules/tesoreria/forma-pago/forma-pa
 import { TipoComprobanteController } from '../../modules/tesoreria/tipo-comprobante/tipo-comprobante.controller';
 import { PagoController } from '../../modules/tesoreria/pago/pago.controller';
 import { CuentaCorrienteController } from '../../modules/tesoreria/cuenta-corriente/cuenta-corriente.controller';
-
+import { PublicacionController } from '../../modules/comercializacion/publicacion/publicacion.controller';
+import { PlanPagoController } from '../../modules/comercializacion/plan-pago/plan-pago.controller';
+import { CobroController } from '../../modules/comercializacion/cobro/cobro.controller';
+import { DeclaracionPagoAdminController } from '../../modules/comercializacion/declaracion-pago/declaracion-pago-admin.controller';
+import { ProyectoController } from '../../modules/proyectos/proyecto.controller';
+import { UnidadFuncionalController } from '../../modules/comercializacion/unidades-funcionales/unidad-funcional.controller';
+import { VentaController } from '../../modules/comercializacion/venta/venta.controller';
 import { ComprobanteController } from '../../modules/tesoreria/comprobante/comprobante.controller';
+import { ConsultaAdminController } from '../../modules/comercializacion/consulta/consulta-admin.controller';
 /**
  * Controller de mentira, dueño de un rol que no es ni Administrador ni
  * Gerente General: hoy todos los controllers reales son de Administrador
@@ -52,6 +60,7 @@ describe('RolesGuard', () => {
     ['StockController', StockController],
     ['TipoMovimientoController', TipoMovimientoController],
     ['UnidadMedidaController', UnidadMedidaController],
+
   ];
 
   const usuario = (rol: RolNombre): AuthenticatedUser => ({
@@ -205,6 +214,135 @@ describe('RolesGuard', () => {
         ).toBe(true);
       },
     );
+  });
+
+  describe('controllers de Comercialización', () => {
+    const controllersDeComercializacion: [string, object][] = [
+      ['PublicacionController', PublicacionController],
+      ['PlanPagoController', PlanPagoController],
+      ['CobroController', CobroController],
+      ['VentaController', VentaController],
+      ['DeclaracionPagoAdminController', DeclaracionPagoAdminController],
+      ['ConsultaAdminController', ConsultaAdminController],
+    ];
+
+    it.each(controllersDeComercializacion)(
+      '%s deja entrar al Administrador, que es el rol dueño del recurso',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.ADMINISTRADOR)),
+          ),
+        ).toBe(true);
+      },
+    );
+
+    // Publicar/despublicar unidades y administrar planes de pago son tareas
+    // del Administrador, como el resto de los datos maestros del proyecto:
+    // el Responsable de Comercialización y Ventas no es el dueño de estos
+    // recursos.
+    it.each(controllersDeComercializacion)(
+      '%s rechaza al Responsable de Comercialización y Ventas',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(
+              controller,
+              usuario(RolNombre.RESPONSABLE_COMERCIALIZACION),
+            ),
+          ),
+        ).toBe(false);
+      },
+    );
+
+    it.each(controllersDeComercializacion)(
+      '%s deja entrar al Gerente General por su acceso transversal',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.GERENTE_GENERAL)),
+          ),
+        ).toBe(true);
+      },
+    );
+  });
+
+  describe('controllers de Unidades Funcionales y Proyectos', () => {
+    const controllersDeUnidadesFuncionales: [string, object][] = [
+      ['UnidadFuncionalController', UnidadFuncionalController],
+      ['ProyectoController', ProyectoController],
+    ];
+
+    it.each(controllersDeUnidadesFuncionales)(
+      '%s deja entrar al Administrador, que es el rol dueño del recurso',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.ADMINISTRADOR)),
+          ),
+        ).toBe(true);
+      },
+    );
+
+    // Cargar y mantener las unidades es tarea del Administrador, como el
+    // resto de los datos maestros del proyecto: el Responsable de Proyectos
+    // no es el dueño de estos recursos.
+    it.each(controllersDeUnidadesFuncionales)(
+      '%s rechaza al Responsable de Proyectos',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.RESPONSABLE_PROYECTOS)),
+          ),
+        ).toBe(false);
+      },
+    );
+
+    it.each(controllersDeUnidadesFuncionales)(
+      '%s deja entrar al Gerente General por su acceso transversal',
+      (_nombre, controller) => {
+        expect(
+          guard.canActivate(
+            contexto(controller, usuario(RolNombre.GERENTE_GENERAL)),
+          ),
+        ).toBe(true);
+      },
+    );
+  });
+
+  describe('AlmacenamientoController', () => {
+    it('deja entrar al Administrador, que es el rol dueño del recurso', () => {
+      expect(
+        guard.canActivate(
+          contexto(AlmacenamientoController, usuario(RolNombre.ADMINISTRADOR)),
+        ),
+      ).toBe(true);
+    });
+
+    // Es un endpoint técnico de almacenamiento (sube a MinIO/S3), no de
+    // negocio: el Responsable de Comercialización y Ventas no es su dueño,
+    // igual que Publicación y Plan de Pago quedan a cargo del Administrador.
+    it('rechaza al Responsable de Comercialización y Ventas', () => {
+      expect(
+        guard.canActivate(
+          contexto(
+            AlmacenamientoController,
+            usuario(RolNombre.RESPONSABLE_COMERCIALIZACION),
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it('deja entrar al Gerente General por su acceso transversal', () => {
+      expect(
+        guard.canActivate(
+          contexto(
+            AlmacenamientoController,
+            usuario(RolNombre.GERENTE_GENERAL),
+          ),
+        ),
+      ).toBe(true);
+    });
   });
 
   describe('sin @Roles en el controller', () => {

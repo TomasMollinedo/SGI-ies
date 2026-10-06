@@ -15,7 +15,7 @@ export function LoginPage() {
   const { mutate: iniciarSesion, isPending: iniciandoSesion, error } = useLogin()
 
   if (!verificandoSesion && usuario) {
-    return <Navigate to={PATHS.HOME} replace />
+    return <Navigate to={PATHS.SISTEMA.ROOT} replace />
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {

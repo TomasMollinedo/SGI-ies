@@ -40,4 +40,6 @@ export interface ApiErrorResponse {
   error: string
   timestamp: string
   path: string
+  /** Datos extra que algunos errores del backend adjuntan (ej. el 409 de publicación ya vigente). */
+  datos?: unknown
 }

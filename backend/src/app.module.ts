@@ -24,7 +24,17 @@ import { FormaPagoModule } from './modules/tesoreria/forma-pago/forma-pago.modul
 import { ComprobanteModule } from './modules/tesoreria/comprobante/comprobante.module';
 import { PagoModule } from './modules/tesoreria/pago/pago.module';
 import { CuentaCorrienteModule } from './modules/tesoreria/cuenta-corriente/cuenta-corriente.module';
-
+import { CatalogoModule } from './modules/catalogo/catalogo.module';
+import { AlmacenamientoModule } from './modules/almacenamiento/almacenamiento.module';
+import { PublicacionModule } from './modules/comercializacion/publicacion/publicacion.module';
+import { ClienteModule } from './modules/comercializacion/cliente/cliente.module';
+import { PlanPagoModule } from './modules/comercializacion/plan-pago/plan-pago.module';
+import { CobroModule } from './modules/comercializacion/cobro/cobro.module';
+import { UnidadFuncionalModule } from './modules/comercializacion/unidades-funcionales/unidad-funcional.module';
+import { VentaModule } from './modules/comercializacion/venta/venta.module';
+import { DeclaracionPagoModule } from './modules/comercializacion/declaracion-pago/declaracion-pago.module';
+import { ProyectoModule } from './modules/proyectos/proyecto.module';
+import { ConsultaModule } from './modules/comercializacion/consulta/consulta.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
@@ -50,6 +60,17 @@ import { CuentaCorrienteModule } from './modules/tesoreria/cuenta-corriente/cuen
     ComprobanteModule,
     PagoModule,
     CuentaCorrienteModule,
+    CatalogoModule,
+    AlmacenamientoModule,
+    PublicacionModule,
+    ClienteModule,
+    PlanPagoModule,
+    CobroModule,
+    UnidadFuncionalModule,
+    VentaModule,
+    DeclaracionPagoModule,
+    ConsultaModule,
+    ProyectoModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },

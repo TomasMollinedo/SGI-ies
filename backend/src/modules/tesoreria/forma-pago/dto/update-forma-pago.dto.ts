@@ -13,11 +13,16 @@ import { createZodDto } from 'nestjs-zod';
  * quedarían incumpliendo la regla que su forma de pago pasa a exigir.
  *
  * El `estado` tampoco se toca acá: va por PATCH /:id/baja y /:id/alta.
+ *
+ * `habilitada_autogestion` sí se puede editar libremente acá, a diferencia de
+ * `requiere_referencia`: no tiene el mismo problema de datos históricos, así
+ * que Tesorería puede prenderla o apagarla cuando quiera.
  */
 export const updateFormaPagoSchema = z
   .object({
     nombre: z.string().trim().min(1, 'El nombre es obligatorio').max(100),
     descripcion: z.string().trim().max(255),
+    habilitada_autogestion: z.boolean(),
   })
   .partial();
 

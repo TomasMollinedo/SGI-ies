@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/shared/utils/cn'
 
-export type BadgeVariant = 'active' | 'inactive' | 'error' | 'info' | 'warning'
+export type BadgeVariant = 'active' | 'inactive' | 'error' | 'info' | 'warning' | 'primary'
 
 interface BadgeProps {
   variant: BadgeVariant
@@ -21,7 +21,8 @@ interface BadgeProps {
  *   `'error'` (rojo), `'info'` (azul) o `'warning'` (ámbar) — estas dos
  *   últimas para estados intermedios de un flujo con más de dos valores,
  *   donde alta/baja no alcanza para distinguirlos (ej. los estados de una
- *   orden de compra).
+ *   orden de compra). `'primary'` (color de marca) es para un estado
+ *   final positivo que no querés que se lea ni como error ni como alta.
  * - `dot`: punto de color a la izquierda del texto. Default: `true`.
  * - `children`: el texto de la pastilla.
  * - `className`: clases extra.
@@ -51,4 +52,5 @@ const CLASES_VARIANTE: Record<BadgeVariant, { pastilla: string; punto: string }>
   error: { pastilla: 'bg-error-soft text-error', punto: 'bg-error' },
   info: { pastilla: 'bg-info-soft text-info', punto: 'bg-info' },
   warning: { pastilla: 'bg-warning-soft text-warning', punto: 'bg-warning' },
+  primary: { pastilla: 'bg-primary/10 text-primary', punto: 'bg-primary' },
 }

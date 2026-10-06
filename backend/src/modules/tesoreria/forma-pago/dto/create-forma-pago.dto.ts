@@ -17,11 +17,18 @@ import { createZodDto } from 'nestjs-zod';
  * El `.trim()` del nombre es la única normalización que hace el schema. La
  * unicidad del nombre entre formas de pago activas necesita ir a la base, así
  * que la valida el service (FORMAPAGO no tiene `nombre` unique a propósito).
+ *
+ * `habilitada_autogestion` (Sprint 3, HU-29): a diferencia de
+ * `requiere_referencia`, no queda bloqueada — Tesorería puede prenderla o
+ * apagarla libremente después desde `UpdateFormaPagoDto`. Opcional acá, sin
+ * `.default()`: si no viaja, el `@default(false)` del modelo Prisma resuelve
+ * el valor (mismo criterio que `estado`, que tampoco se manda en el alta).
  */
 export const createFormaPagoSchema = z.object({
   nombre: z.string().trim().min(1, 'El nombre es obligatorio').max(100),
   descripcion: z.string().trim().max(255).optional(),
   requiere_referencia: z.boolean(),
+  habilitada_autogestion: z.boolean().optional(),
 });
 
 export class CreateFormaPagoDto extends createZodDto(createFormaPagoSchema) {}

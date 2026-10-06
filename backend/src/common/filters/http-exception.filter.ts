@@ -48,6 +48,19 @@ export class HttpExceptionFilter extends BaseExceptionFilter {
           ? exceptionResponse
           : ((exceptionResponse as { message?: string | string[] }).message ??
             exception.message);
+      // Vía de escape explícita para datos extra en el body del error (ej.
+      // `id_publicacion_vigente` al rechazar una republicación): el service
+      // tira `new ConflictException({ message, datos: {...} })` y esa única
+      // clave se propaga tal cual. A propósito NO se hace spread de todo
+      // `exceptionResponse`: ZodValidationException (nestjs-zod) trae su
+      // propio `errors`, y expandirlo cambiaría el contrato de todas las
+      // respuestas de validación del sistema.
+      const datos =
+        typeof exceptionResponse === 'object' &&
+        exceptionResponse !== null &&
+        'datos' in exceptionResponse
+          ? { datos: exceptionResponse.datos }
+          : {};
 
       response.status(status).json({
         statusCode: status,
@@ -55,6 +68,7 @@ export class HttpExceptionFilter extends BaseExceptionFilter {
         error: exception.name,
         timestamp: new Date().toISOString(),
         path: request.url,
+        ...datos,
       });
       return;
     }

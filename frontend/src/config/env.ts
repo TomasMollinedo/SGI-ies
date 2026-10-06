@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 const envSchema = z.object({
   VITE_API_URL: z.url('VITE_API_URL debe ser una URL válida'),
+  VITE_GOOGLE_CLIENT_ID: z.string().min(1, 'VITE_GOOGLE_CLIENT_ID es obligatorio'),
 })
 
 function validarEnv(config: Record<string, unknown>) {
@@ -21,4 +22,5 @@ const parsedEnv = validarEnv(import.meta.env)
 
 export const env = {
   apiUrl: parsedEnv.VITE_API_URL,
+  googleClientId: parsedEnv.VITE_GOOGLE_CLIENT_ID,
 } as const

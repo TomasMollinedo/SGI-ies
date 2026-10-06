@@ -173,16 +173,19 @@ const formasPago = [
     nombre: 'Efectivo',
     descripcion: 'Pago en mano, sin instrumento de respaldo',
     requiere_referencia: false,
+    habilitada_autogestion: false, // sin comprobante no hay nada que declarar online
   },
   {
     nombre: 'Transferencia bancaria',
     descripcion: 'Acreditacion en cuenta del proveedor',
     requiere_referencia: true, // numero de operacion de la transferencia
+    habilitada_autogestion: true, // el cliente declara el numero de operacion online
   },
   {
     nombre: 'Cheque',
     descripcion: 'Cheque propio o de terceros endosado',
     requiere_referencia: true, // numero del cheque
+    habilitada_autogestion: true, // el cliente declara el numero de cheque online
   },
 ];
 

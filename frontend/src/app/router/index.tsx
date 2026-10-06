@@ -9,28 +9,91 @@ import { CardexPage } from '@/features/almacen/stock/pages/CardexPage'
 import { StockPage } from '@/features/almacen/stock/pages/StockPage'
 import { UnidadesMedidaPage } from '@/features/almacen/unidades-medida/pages/UnidadesMedidaPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { CompletarDatosPage } from '@/features/ecommerce/pages/CompletarDatosPage'
+import { LoginClientePage } from '@/features/ecommerce/pages/LoginClientePage'
+import { CatalogoPage } from '@/features/ecommerce/catalogo/CatalogoPage'
+import { DetalleUnidadPage } from '@/features/ecommerce/catalogo/DetalleUnidadPage'
+import { LandingPage } from '@/features/ecommerce/landing/LandingPage'
+import { PerfilPage } from '@/features/ecommerce/pages/PerfilPage'
+import { MisComprasPage } from '@/features/ecommerce/mis-compras/MisComprasPage'
+import { MiCompraDetallePage } from '@/features/ecommerce/mis-compras/MiCompraDetallePage'
+import { SitioPublicoLayout } from '@/features/ecommerce/layout/SitioPublicoLayout'
 import { MainLayout } from '@/layouts/MainLayout'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { ClienteProtectedRoute } from './ClienteProtectedRoute'
 import { PATHS } from './paths'
 import { ProtectedRoute } from './ProtectedRoute'
 import { CategoriasPage } from '@/features/almacen/categorias/pages/CategoriasPage'
 import { ProveedoresPage } from '@/features/compras/proveedores/pages/ProveedoresPage'
 import { OrdenesCompraPage } from '@/features/compras/ordenes-compra/pages/OrdenesCompraPage'
+import { PlanesPagoPublicacionPage } from '@/features/comercializacion/planes-pago/pages/PlanesPagoPublicacionPage'
+import { PublicacionDetallePage } from '@/features/comercializacion/publicaciones/pages/PublicacionDetallePage'
+import { PublicacionesPage } from '@/features/comercializacion/publicaciones/pages/PublicacionesPage'
+import { VentaDetallePage } from '@/features/comercializacion/ventas/pages/VentaDetallePage'
+import { VentasPage } from '@/features/comercializacion/ventas/pages/VentasPage'
+import { CobranzasPage } from '@/features/tesoreria/cobranzas/pages/CobranzasPage'
+import { CobroDetallePage } from '@/features/tesoreria/cobranzas/pages/CobroDetallePage'
+import { NuevoCobroPage } from '@/features/tesoreria/cobranzas/pages/NuevoCobroPage'
+import { DeclaracionesPagoPage } from '@/features/tesoreria/declaraciones-pago/pages/DeclaracionesPagoPage'
 import { ComprobantesPage } from '@/features/tesoreria/comprobantes/pages/ComprobantesPage'
 import { TiposComprobantePage } from '@/features/tesoreria/tipos-comprobante/pages/TiposComprobantePage'
 import { NuevoPagoPage } from '@/features/tesoreria/pagos/pages/NuevoPagoPage'
 import { PagosPage } from '@/features/tesoreria/pagos/pages/PagosPage'
+import { ReporteEgresosPage } from '@/features/tesoreria/pagos/pages/ReporteEgresosPage'
 import { FormasPagoPage } from '@/features/tesoreria/formas-pago/pages/FormasPagoPage'
 import { CardexCuentaCorrientePage } from '@/features/tesoreria/cuentas-corrientes/pages/CardexCuentaCorrientePage'
 import { CuentasCorrientesPage } from '@/features/tesoreria/cuentas-corrientes/pages/CuentasCorrientesPage'
+import { UnidadesFuncionalesPage } from '@/features/proyectos/unidades-funcionales/pages/UnidadesFuncionalesPage'
+import { UnidadFuncionalFormPage } from '@/features/proyectos/unidades-funcionales/pages/UnidadFuncionalFormPage'
+import { ConsultasPage } from '@/features/comercializacion/consultas/pages/ConsultasPage'
 
 export const router = createBrowserRouter([
   { path: PATHS.LOGIN, element: <LoginPage /> },
+  // Sitio público rediseñado (T109): landing y pantallas de datos del cliente,
+  // con el mismo header, el mismo pie y el mismo fondo oscuro.
+  {
+    element: <SitioPublicoLayout />,
+    children: [
+      { path: PATHS.HOME, element: <LandingPage /> },
+      { path: PATHS.ECOMMERCE.CATALOGO.ROOT, element: <CatalogoPage /> },
+      { path: PATHS.ECOMMERCE.CATALOGO.DETALLE, element: <DetalleUnidadPage /> },
+      {
+        element: <ClienteProtectedRoute requiereDatosCompletos />,
+        children: [
+          {
+            path: PATHS.ECOMMERCE.PERFIL,
+            element: <PerfilPage />,
+          },
+          {
+            path: PATHS.ECOMMERCE.MIS_COMPRAS,
+            element: <MisComprasPage />,
+          },
+          {
+            path: PATHS.ECOMMERCE.MI_COMPRA_DETALLE,
+            element: <MiCompraDetallePage />,
+          },
+        ],
+      },
+      {
+        element: <ClienteProtectedRoute />,
+        children: [
+          {
+            path: PATHS.ECOMMERCE.COMPLETAR_DATOS,
+            element: <CompletarDatosPage />,
+          },
+        ],
+      },
+      {
+        path: PATHS.ECOMMERCE.LOGIN,
+        element: <LoginClientePage />,
+      },
+    ],
+  },
   {
     element: <ProtectedRoute />,
     children: [
       {
-        path: PATHS.HOME,
+        path: PATHS.SISTEMA.ROOT,
         element: <MainLayout />,
         errorElement: <NotFoundPage />,
         children: [
@@ -164,6 +227,32 @@ export const router = createBrowserRouter([
                 element: <CardexCuentaCorrientePage />,
                 handle: { title: 'Cuenta Corriente del Proveedor' },
               },
+              {
+                path: PATHS.TESORERIA.REPORTE_EGRESOS,
+                element: <ReporteEgresosPage />,
+                handle: { title: 'Reporte de Egresos' },
+              },
+              {
+                path: PATHS.TESORERIA.COBRANZAS.ROOT,
+                element: <CobranzasPage />,
+                handle: { title: 'Cobranzas' },
+              },
+              // NUEVO antes que DETALLE, para que "nuevo" no se lea como un :idCobro.
+              {
+                path: PATHS.TESORERIA.COBRANZAS.NUEVO,
+                element: <NuevoCobroPage />,
+                handle: { title: 'Registrar cobro' },
+              },
+              {
+                path: PATHS.TESORERIA.COBRANZAS.DETALLE,
+                element: <CobroDetallePage />,
+                handle: { title: 'Detalle del cobro' },
+              },
+              {
+                path: PATHS.TESORERIA.DECLARACIONES_PAGO,
+                element: <DeclaracionesPagoPage />,
+                handle: { title: 'Declaraciones de Pago' },
+              },
             ],
           },
           {
@@ -171,18 +260,75 @@ export const router = createBrowserRouter([
             element: <AlertasPage />,
             handle: { title: 'Alertas' },
           },
-          /*
           {
             path: PATHS.PROYECTOS.ROOT,
-            element: <PlaceholderPage titulo="Proyectos" />,
-            handle: { title: 'Proyectos' },
+            children: [
+              {
+                index: true,
+                element: <Navigate to={PATHS.PROYECTOS.UNIDADES_FUNCIONALES} replace />,
+              },
+              {
+                path: PATHS.PROYECTOS.UNIDADES_FUNCIONALES,
+                element: <UnidadesFuncionalesPage />,
+                handle: { title: 'Unidades Funcionales' },
+              },
+              {
+                path: PATHS.PROYECTOS.UNIDADES_FUNCIONALES_NUEVA,
+                element: <UnidadFuncionalFormPage modo="crear" />,
+                handle: { title: 'Nueva Unidad Funcional' },
+              },
+              {
+                path: PATHS.PROYECTOS.UNIDADES_FUNCIONALES_EDITAR,
+                element: <UnidadFuncionalFormPage modo="editar" />,
+                handle: { title: 'Editar Unidad Funcional' },
+              },
+              {
+                path: PATHS.PROYECTOS.UNIDADES_FUNCIONALES_DETALLE,
+                element: <UnidadFuncionalFormPage modo="lectura" />,
+                handle: { title: 'Detalle de Unidad Funcional' },
+              },
+            ],
           },
-          {
-            path: PATHS.COMERCIAL.ROOT,
-            element: <PlaceholderPage titulo="Comercial" />,
-            handle: { title: 'Comercial' },
+                    {
+            path: PATHS.COMERCIALIZACION.ROOT,
+            children: [
+              {
+                index: true,
+                element: <Navigate to={PATHS.COMERCIALIZACION.PUBLICACIONES} replace />,
+              },
+              {
+                path: PATHS.COMERCIALIZACION.PUBLICACIONES,
+                element: <PublicacionesPage />,
+                handle: { title: 'Publicaciones' },
+              },
+              {
+                path: PATHS.COMERCIALIZACION.PUBLICACION_DETALLE,
+                element: <PublicacionDetallePage />,
+                handle: { title: 'Detalle de publicación' },
+              },
+              {
+                path: PATHS.COMERCIALIZACION.PLANES_PAGO_PUBLICACION,
+                element: <PlanesPagoPublicacionPage />,
+                handle: { title: 'Planes de Pago' },
+              },
+              {
+                path: PATHS.COMERCIALIZACION.VENTAS,
+                element: <VentasPage />,
+                handle: { title: 'Ventas' },
+              },
+              {
+                path: PATHS.COMERCIALIZACION.VENTA_DETALLE,
+                element: <VentaDetallePage />,
+                handle: { title: 'Detalle de venta' },
+              },
+
+              {
+                path: PATHS.COMERCIALIZACION.CONSULTAS,
+                element: <ConsultasPage />,
+                handle: { title: 'Consultas' },
+              },
+            ],
           },
-          */
 
           { path: '*', element: <NotFoundPage /> },
         ],

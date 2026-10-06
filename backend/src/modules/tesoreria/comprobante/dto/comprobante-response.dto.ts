@@ -68,21 +68,22 @@ const tipoComprobanteResumenSchema = z.object({
  * importe total, saldo pendiente, estado y estado de saldo — no el detalle
  * completo ni los datos de auditoría, eso lo trae el detalle.
  */
-export const comprobanteListItemSchema = comprobanteResponseSchema.pick({
-  id_comprobante_proveedor: true,
-  FK_tipo_comprobante: true,
-  letra: true,
-  punto_de_venta: true,
-  numero: true,
-  fecha_emision: true,
-  fecha_vencimiento: true,
-  FK_proveedor: true,
-  importe_total: true,
-  saldo_pendiente: true,
-  estado: true,
-  estado_saldo: true,
-})
- .extend({
+export const comprobanteListItemSchema = comprobanteResponseSchema
+  .pick({
+    id_comprobante_proveedor: true,
+    FK_tipo_comprobante: true,
+    letra: true,
+    punto_de_venta: true,
+    numero: true,
+    fecha_emision: true,
+    fecha_vencimiento: true,
+    FK_proveedor: true,
+    importe_total: true,
+    saldo_pendiente: true,
+    estado: true,
+    estado_saldo: true,
+  })
+  .extend({
     proveedor: proveedorResumenSchema,
     tipoComprobante: tipoComprobanteResumenSchema,
   });

@@ -7,6 +7,7 @@ import {
 import { Prisma } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { calcularDiasVencido } from '../../../common/validaciones/dias-vencido';
+import { validarNumeroReferencia } from '../../../common/validaciones/validar-numero-referencia';
 import { CreatePagoDto } from './dto/create-pago.dto';
 import { AnularPagoDto } from './dto/anular-pago.dto';
 import { QueryPagoDto } from './dto/query-pago.dto';
@@ -190,17 +191,6 @@ export class PagoService {
     }
 
     return formaPago;
-  }
-
-  private validarNumeroReferencia(
-    numeroReferencia: string | undefined,
-    formaPago: { requiere_referencia: boolean; nombre: string },
-  ) {
-    if (formaPago.requiere_referencia && !numeroReferencia) {
-      throw new BadRequestException(
-        `La forma de pago "${formaPago.nombre}" requiere un número de referencia`,
-      );
-    }
   }
 
   /** Default "hoy" si no viene. Nunca admite una fecha futura. */
@@ -428,7 +418,7 @@ export class PagoService {
   async create(dto: CreatePagoDto, usuarioId: number) {
     const proveedor = await this.buscarProveedorActivo(dto.FK_proveedor);
     const formaPago = await this.buscarFormaPagoActiva(dto.FK_forma_pago);
-    this.validarNumeroReferencia(dto.numero_referencia, formaPago);
+    validarNumeroReferencia(dto.numero_referencia, formaPago);
     const fechaPago = this.resolverFechaPago(dto.fecha_pago);
 
     const comprobantePorId = await this.buscarComprobantesImputables(

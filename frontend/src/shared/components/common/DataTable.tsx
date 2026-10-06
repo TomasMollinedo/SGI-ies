@@ -57,7 +57,7 @@ export function DataTable<T>({
               key={column.key}
               scope="col"
               title={column.headerTooltip}
-              className="text-content px-6 py-2 font-semibold"
+              className="text-content px-2 sm:px-6 py-2 font-semibold"
             >
               {column.label}
             </th>
@@ -69,7 +69,7 @@ export function DataTable<T>({
           Array.from({ length: skeletonRows }, (_, indice) => (
             <tr key={`skeleton-${indice}`} className="border-subtle border-b">
               {columns.map((column) => (
-                <td key={column.key} className="px-6 py-4">
+                <td key={column.key} className="px-2 sm:px-6 py-4">
                   <span className="bg-surface-muted block h-4 w-full animate-pulse rounded" />
                 </td>
               ))}
@@ -77,7 +77,7 @@ export function DataTable<T>({
           ))
         ) : data.length === 0 && emptyState ? (
           <tr>
-            <td colSpan={columns.length} className="px-6 py-2">
+            <td colSpan={columns.length} className="px-2 sm:px-6 py-2">
               {emptyState}
             </td>
           </tr>
@@ -88,7 +88,7 @@ export function DataTable<T>({
               className={`border-subtle border-b ${rowClassName?.(item) ?? ''}`}
             >
               {columns.map((column) => (
-                <td key={column.key} className="px-6 py-2">
+                <td key={column.key} className="px-2 sm:px-6 py-2">
                   {column.render(item)}
                 </td>
               ))}

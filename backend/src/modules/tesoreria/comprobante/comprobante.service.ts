@@ -5,7 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
-import { EstadoComprobante, EstadoOrdenCompra } from '../../../../generated/prisma/enums';
+import {
+  EstadoComprobante,
+  EstadoOrdenCompra,
+} from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateComprobanteDto } from './dto/create-comprobante.dto';
 import { UpdateComprobanteDto } from './dto/update-comprobante.dto';
@@ -705,7 +708,7 @@ export class ComprobanteService {
       }
     }
 
-if (refs.FK_orden_compra !== undefined) {
+    if (refs.FK_orden_compra !== undefined) {
       const ordenCompra = await this.prisma.oRDENCOMPRA.findUnique({
         where: { id_orden_compra: refs.FK_orden_compra },
         select: { id_orden_compra: true, estado: true, FK_proveedor: true },
