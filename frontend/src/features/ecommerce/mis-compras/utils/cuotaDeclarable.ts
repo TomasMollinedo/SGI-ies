@@ -22,7 +22,7 @@ export function puedeDeclararCuota(
 
 /** Una venta de contado se paga en una sola cuota, de forma presencial: no admite declaraciones. */
 export function esVentaDeContado(venta: Pick<MiVentaDetalle, 'plan'>): boolean {
-  return venta.plan.tipo === 'CONTADO'
+  return venta.plan.modalidad === 'CONTADO'
 }
 
 /** "Anticipo" para la cuota 0, "Cuota N" para el resto — mismo criterio que el cronograma. */
