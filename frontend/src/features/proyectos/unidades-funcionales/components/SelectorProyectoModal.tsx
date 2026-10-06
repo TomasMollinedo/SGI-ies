@@ -27,12 +27,14 @@ interface SelectorProyectoModalProps {
  * Envuelve al `SelectorEntidadModal` genérico, mismo patrón que
  * `SelectorArticuloModal`.
  *
- * Filtra por `estado=EN_PLANIFICACION`: es el único estado que admite altas de
- * unidades (`validarProyectoAdmiteAltas` en el backend). No reemplaza esa
- * validación —si un proyecto cambia de estado justo entre que se abre el
- * modal y se confirma el alta, el backend igual la rechaza con un 409 que el
- * formulario muestra— solo evita ofrecer de entrada opciones que ya se sabe
- * que van a fallar.
+ * Filtra por `estado_obra=EN_PLANIFICACION`: es el único estado que admite
+ * altas de unidades (`validarProyectoAdmiteAltas` en el backend). Los proyectos
+ * dados de baja no aparecen: el backend lista solo los activos por defecto.
+ *
+ * No reemplaza esa validación —si un proyecto cambia de estado justo entre que
+ * se abre el modal y se confirma el alta, el backend igual la rechaza con un
+ * 409 que el formulario muestra— solo evita ofrecer de entrada opciones que
+ * ya se sabe que van a fallar.
  */
 export function SelectorProyectoModal({
   open,
@@ -57,7 +59,7 @@ export function SelectorProyectoModal({
   const { data, isFetching, error, refetch } = useProyectos(
     {
       busqueda: busquedaDebounced || undefined,
-      estado: 'EN_PLANIFICACION',
+      estado_obra: 'EN_PLANIFICACION',
       page,
       limit: LIMITE_PAGINA,
     },

@@ -26,7 +26,11 @@ import {
   useTipologias,
   useUnidadesFuncionales,
 } from '../hooks/useUnidadesFuncionales'
-import type { FiltroEstado, Tipologia, UnidadFuncionalListItem } from '../types/unidadFuncional.types'
+import type {
+  FiltroEstado,
+  Tipologia,
+  UnidadFuncionalListItem,
+} from '../types/unidadFuncional.types'
 
 type TipoConfirmacion = 'baja' | 'reactivar'
 type EstadoConfirmacion = { tipo: TipoConfirmacion; unidad: UnidadFuncionalListItem } | null
@@ -189,7 +193,10 @@ export function UnidadesFuncionalesPage() {
         estado={estado}
         onEstadoChange={setEstado}
         acciones={
-          <Button icon={<Plus />} onClick={() => navigate(PATHS.PROYECTOS.UNIDADES_FUNCIONALES_NUEVA)}>
+          <Button
+            icon={<Plus />}
+            onClick={() => navigate(PATHS.PROYECTOS.UNIDADES_FUNCIONALES_NUEVA)}
+          >
             Nueva Unidad Funcional
           </Button>
         }
@@ -197,10 +204,13 @@ export function UnidadesFuncionalesPage() {
 
       {proyecto && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <StatTile label="Presupuesto del proyecto" value={formatearMoneda(proyecto.presupuesto)} />
+          <StatTile
+            label="Presupuesto del proyecto"
+            value={formatearMoneda(proyecto.presupuesto)}
+          />
           <StatTile
             label="Unidades cargadas / planificadas"
-            value={`${proyecto.unidades_cargadas} / ${proyecto.cantidad_unidades_planificadas ?? '—'}`}
+            value={`${proyecto.unidades_cargadas} / ${proyecto.cantidad_unidades_planificadas}`}
           />
         </div>
       )}
@@ -256,7 +266,11 @@ export function UnidadesFuncionalesPage() {
         onCancel={cerrarConfirmacion}
         onConfirm={ejecutarConfirmacion}
         variant={confirmacion?.tipo === 'baja' ? 'baja' : 'reactivar'}
-        eyebrow={confirmacion?.tipo === 'baja' ? 'Dar de baja unidad funcional' : 'Reactivar unidad funcional'}
+        eyebrow={
+          confirmacion?.tipo === 'baja'
+            ? 'Dar de baja unidad funcional'
+            : 'Reactivar unidad funcional'
+        }
         title={
           confirmacion
             ? `¿Confirmás que querés ${confirmacion.tipo === 'baja' ? 'dar de baja la' : 'reactivar la'} unidad «${confirmacion.unidad.identificador}»?`
