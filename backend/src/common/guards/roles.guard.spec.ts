@@ -31,6 +31,7 @@ import { ConsultaAdminController } from '../../modules/comercializacion/consulta
 import { ClienteAdminController } from '../../modules/comercializacion/cliente/cliente-admin.controller';
 import { PlazoFinanciacionController } from '../../modules/comercializacion/plazo-financiacion/plazo-financiacion.controller';
 import { PlanEjemploController } from '../../modules/comercializacion/plan-ejemplo/plan-ejemplo.controller';
+import { TableroController } from '../../modules/tablero/tablero.controller';
 /**
  * Controller de mentira, dueño de un rol que no es ni Administrador ni
  * Gerente General: hoy todos los controllers reales son de Administrador
@@ -311,6 +312,38 @@ describe('RolesGuard', () => {
         ).toBe(true);
       },
     );
+  });
+
+  describe('TableroController', () => {
+    it('deja entrar al Administrador, que es el rol dueño del recurso', () => {
+      expect(
+        guard.canActivate(
+          contexto(TableroController, usuario(RolNombre.ADMINISTRADOR)),
+        ),
+      ).toBe(true);
+    });
+
+    // Cualquier otro rol operativo recibe 403: el tablero es del
+    // Administrador y del Gerente General, no de las áreas.
+    it.each([
+      RolNombre.RESPONSABLE_COMERCIALIZACION,
+      RolNombre.RESPONSABLE_TESORERIA,
+      RolNombre.RESPONSABLE_COMPRAS,
+      RolNombre.RESPONSABLE_ALMACEN,
+      RolNombre.RESPONSABLE_PROYECTOS,
+    ])('rechaza al rol %s', (rol) => {
+      expect(guard.canActivate(contexto(TableroController, usuario(rol)))).toBe(
+        false,
+      );
+    });
+
+    it('deja entrar al Gerente General por su acceso transversal', () => {
+      expect(
+        guard.canActivate(
+          contexto(TableroController, usuario(RolNombre.GERENTE_GENERAL)),
+        ),
+      ).toBe(true);
+    });
   });
 
   describe('AlmacenamientoController', () => {
