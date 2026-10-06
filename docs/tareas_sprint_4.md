@@ -4,8 +4,8 @@ Tareas técnicas del Sprint 4, tomadas del tablero de GitHub Projects [Proyecto 
 
 - **Cantidad de tareas:** 37 (33 del tablero y 4 nuevas; 2 del tablero se dan de baja)
 - **Estimación total:** 188 h (BD/Infra: 16 h, Frontend: 84 h, Backend: 88 h)
-- **Última sincronización con el tablero:** 2026-10-05
-- **Estado de este archivo:** sincronizado con los issues el 2026-10-05
+- **Última sincronización con el tablero:** 2026-10-06
+- **Estado de este archivo:** sincronizado con los issues el 2026-10-06
 
 ## Cómo editar este archivo
 
@@ -45,7 +45,7 @@ Archivos compartidos a coordinar: `venta.service.ts` (T158 y T144), el módulo d
 |---|---|---|---|---|---|---|---|
 | [T121](#t121) | T120 | [#323](https://github.com/TomasMollinedo/SGI-ies/issues/323) | Infra: Migración de base de datos del Sprint 4, con el backend compilando | Transversal | BD/Infra | Ninguna | 8 h |
 | [T156](#t156) | — | [#358](https://github.com/TomasMollinedo/SGI-ies/issues/358) | Infra: Seed de escenario del Sprint 4 | Transversal | BD/Infra | T121 | 5 h |
-| [T157](#t157) | — | [#359](https://github.com/TomasMollinedo/SGI-ies/issues/359) | Front: Rutas, menú lateral y acceso por rol de las pantallas nuevas | Transversal | Frontend | Ninguna | 3 h |
+| [T157](#t157) | — | [#359](https://github.com/TomasMollinedo/SGI-ies/issues/359) | Front: Rutas y menú lateral de las pantallas nuevas | Transversal | Frontend | Ninguna | 3 h |
 | [T122](#t122) | T121 | [#324](https://github.com/TomasMollinedo/SGI-ies/issues/324) | Back: ABM de Proyecto: alta, edición, baja lógica, estado de obra, imágenes y listado | HU-31 | Backend | T121 | 8 h |
 | [T123](#t123) | T122 | [#325](https://github.com/TomasMollinedo/SGI-ies/issues/325) | Front: Formulario y listado de proyectos | HU-31 | Frontend | T122, T157 | 6 h |
 | [T124](#t124) | T123 | [#326](https://github.com/TomasMollinedo/SGI-ies/issues/326) | Back: Ficha del proyecto: presupuesto, precio estimado y situación comercial calculados | HU-31 | Backend | T121 | 5 h |
@@ -147,6 +147,16 @@ Ajustes a las tareas después de definir el DER final y de mergear la migración
 | T156 | El Punto de partida refleja que los seeds ya crean el plan de pago con TNA 0 %. Suma dejar de depender del cliente con id 1. |
 | T158 | El Punto de partida suma la doble escritura actual, las dos FK de CUOTA, las lecturas que asumen plan de ejemplo y el destino de periodicidad_congelada. |
 | T159 | Alcance reescrito con la lista exacta de columnas legado. Suma borrar el código de transición, definir los obligatorios de PLANEJEMPLO y CANCELADO según OBS-22. El enum de modalidad no se elimina. Deja de ser provisoria. |
+
+## Cambios por el cierre de T157 (2026-10-06)
+
+Ajustes a las tareas después de implementar las rutas y el menú sin acceso por rol en el frontend.
+
+| Tarea | Qué cambió y por qué |
+|---|---|
+| T157 | Sin acceso por rol en el front: el Tablero queda visible en el menú, como todas las pantallas, y el backend restringe con `@Roles(ADMINISTRADOR)`. Se quita el mecanismo de roles del Alcance y se cambia el título. Las pantallas provisorias quedan en su archivo definitivo, para que T123, T125, T127, T150, T151 y T154 no editen el router. |
+| T152 | El endpoint admite al Administrador (y al Gerente por el bypass del guard), en lugar de negarle el acceso. Responde OBS-27. |
+| T154 | No incluye acceso por rol: si la API responde 403, muestra el aviso de permisos como el resto de las pantallas. |
 
 ## Pendientes de definición
 
@@ -253,7 +263,7 @@ Sembrar los datos del Sprint 4 tal como los dejarían los servicios que todavía
 
 <a id="t157"></a>
 <!-- issue: 359 -->
-## T157 — Front: Rutas, menú lateral y acceso por rol de las pantallas nuevas
+## T157 — Front: Rutas y menú lateral de las pantallas nuevas
 
 - **Issue:** [#359](https://github.com/TomasMollinedo/SGI-ies/issues/359)
 - **Estado:** To do
@@ -273,21 +283,21 @@ Cargar una sola vez las rutas y entradas de menú de todas las pantallas interna
 ### Punto de partida
 
 - `frontend/src/app/router/paths.ts`, `frontend/src/app/router/index.tsx` y `frontend/src/layouts/navItems.ts`.
-- Hoy el menú lateral no filtra por rol: muestra todo a cualquier usuario.
+- El menú lateral no filtra por rol en ningún módulo: el acceso lo restringe el backend con `@Roles`, y cada pantalla muestra el aviso de permisos si recibe un 403.
 
 ### Alcance
 
-- [ ] Rutas y entradas de menú de Proyectos (listado, alta, edición y ficha), Plazos de Financiación, Clientes (listado y ficha) y Tablero del Gerente
-- [ ] Mecanismo para que una ruta y su entrada de menú se muestren solo a un rol, aplicado al Tablero del Gerente
-- [ ] Cada ruta nueva apunta a una pantalla provisoria hasta que mergee su tarea
+- [x] Rutas y entradas de menú de Proyectos (listado, alta, edición y ficha), Plazos de Financiación, Clientes (listado y ficha) y Tablero del Gerente
+- [x] Cada ruta nueva apunta a una pantalla provisoria en su archivo definitivo, para que su tarea reemplace el contenido sin tocar el router
+- [x] El listado de proyectos pasa a ser la pantalla de inicio de Proyectos (antes redirigía a Unidades Funcionales)
 
 ### Listo cuando
 
-- [ ] Un Administrador no ve el Tablero en el menú ni puede entrar por URL
-- [ ] El Gerente General ve el Tablero y el resto del menú
-- [ ] Pasan build, lint y format
+- [x] Cada ruta nueva abre su pantalla provisoria con su título, y el menú muestra las entradas nuevas
+- [x] Unidades Funcionales sigue funcionando igual
+- [x] Pasan build, lint y format
 
-> ⚠️ Tiene que mergear el primer día. Ninguna otra tarea del sprint agrega rutas ni entradas de menú.
+> ⚠️ Tiene que mergear el primer día. Ninguna otra tarea del sprint agrega rutas ni entradas de menú. El Tablero sigue el criterio de acceso del resto del sistema (ver OBS-27).
 
 ---
 
@@ -1458,18 +1468,16 @@ Calcular ingresos, egresos y resultado de la empresa por período.
 
 ### Alcance
 
-- [ ] Módulo nuevo del tablero, con el endpoint restringido al rol Gerente General y sumado al spec de roles
+- [ ] Módulo nuevo del tablero, con el endpoint restringido con `@Roles(ADMINISTRADOR)`, igual que el resto de los módulos (el Gerente General accede por el bypass de `RolesGuard`), y sumado al spec de roles
 - [ ] Agrupación mensual, trimestral o anual y rango de fechas; por defecto el año en curso por mes
 - [ ] Ingresos = cobros confirmados (presenciales y ecommerce) sin anulados, con apertura por proyecto y filtro opcional por proyecto
 - [ ] Egresos = pagos confirmados sin anulados, reutilizando el cálculo existente; resultado y variación contra el rango anterior de igual duración
 
 ### Listo cuando
 
-- [ ] Un Administrador recibe acceso denegado
+- [ ] Responden el Administrador y el Gerente General; otro rol recibe 403
 - [ ] Con filtro por proyecto no se devuelve el resultado
 - [ ] Sin datos, cada indicador devuelve cero
-
-> ⚠️ Es el primer endpoint que no admite al Administrador: revisar que el spec de roles lo contemple.
 
 ---
 
