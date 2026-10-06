@@ -19,12 +19,7 @@ import type {
   ComprobanteListItem,
   ComprobanteResponse,
 } from './dto/comprobante-response.dto';
-
-/**
- * Escala de todos los importes del comprobante: 2 decimales, la misma que
- * `Decimal(14,2)` en `schema.prisma`.
- */
-const DECIMALES = 2;
+import { DECIMALES } from '../../../common/constantes/decimales';
 
 /**
  * Estados de una orden de compra a los que se puede vincular un comprobante:

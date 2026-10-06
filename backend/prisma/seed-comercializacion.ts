@@ -282,6 +282,8 @@ async function main() {
     FK_unidad_funcional: number;
     estado_comercial: EstadoComercial;
     fecha_publicacion: Date;
+    precio_lista?: number;
+    porcentaje_ganancia?: number;
     vigente?: boolean;
     fecha_despublicacion?: Date;
     motivo_despublicacion?: string;
@@ -470,6 +472,8 @@ async function main() {
     FK_unidad_funcional: unidad1A.id_unidad_funcional,
     estado_comercial: EstadoComercial.DISPONIBLE,
     fecha_publicacion: new Date('2026-06-01'),
+    precio_lista: 19_000_000,
+    porcentaje_ganancia: 26.67,
   });
   await upsertPlan({
     FK_publicacion: publicacion1A.id_publicacion,
@@ -511,6 +515,8 @@ async function main() {
     FK_unidad_funcional: unidad2B.id_unidad_funcional,
     estado_comercial: EstadoComercial.EN_PLAN_DE_PAGO,
     fecha_publicacion: new Date('2026-03-01'),
+    precio_lista: 27_000_000,
+    porcentaje_ganancia: 35,
   });
   const plan2B = await upsertPlan({
     FK_publicacion: publicacion2B.id_publicacion,
@@ -607,6 +613,8 @@ async function main() {
     FK_unidad_funcional: loteOcho.id_unidad_funcional,
     estado_comercial: EstadoComercial.VENDIDA,
     fecha_publicacion: new Date('2026-06-01'),
+    precio_lista: 52_000_000,
+    porcentaje_ganancia: 23.81,
   });
   const planLoteOcho = await upsertPlan({
     FK_publicacion: publicacionLoteOcho.id_publicacion,
@@ -658,6 +666,8 @@ async function main() {
     FK_unidad_funcional: localTres.id_unidad_funcional,
     estado_comercial: EstadoComercial.DISPONIBLE,
     fecha_publicacion: new Date('2026-05-01'),
+    precio_lista: 10_000_000,
+    porcentaje_ganancia: 25,
     vigente: false,
     fecha_despublicacion: new Date('2026-07-15'),
     motivo_despublicacion:
@@ -685,12 +695,14 @@ async function main() {
       });
       if (indice === 2) continue; // U3: sin publicar, obra en curso
 
+      const precio = Math.round(costo * 1.35);
       const publicacion = await upsertPublicacion({
         FK_unidad_funcional: unidad.id_unidad_funcional,
         estado_comercial: EstadoComercial.DISPONIBLE,
         fecha_publicacion: new Date('2026-06-01'),
+        precio_lista: precio,
+        porcentaje_ganancia: 35,
       });
-      const precio = Math.round(costo * 1.35);
       await upsertPlan({
         FK_publicacion: publicacion.id_publicacion,
         nombre: `Contado ${identificador}`,
@@ -725,12 +737,14 @@ async function main() {
         superficie_cubierta: SUPERFICIE_POR_TIPOLOGIA[tipologia]!,
         costo,
       });
+      const precio = Math.round(costo * 1.3);
       const publicacion = await upsertPublicacion({
         FK_unidad_funcional: unidad.id_unidad_funcional,
         estado_comercial: EstadoComercial.VENDIDA,
         fecha_publicacion: fechaAdhesion,
+        precio_lista: precio,
+        porcentaje_ganancia: 30,
       });
-      const precio = Math.round(costo * 1.3);
       const plan = await upsertPlan({
         FK_publicacion: publicacion.id_publicacion,
         nombre: `Contado ${identificador}`,

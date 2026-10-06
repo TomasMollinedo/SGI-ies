@@ -19,6 +19,7 @@ import { AnularCobroDto } from './dto/anular-cobro.dto';
 import { QueryCobroDto } from './dto/query-cobro.dto';
 import { QueryCuotasImputablesDto } from './dto/query-cuotas-imputables.dto';
 import { QueryCuotasVencidasDto } from './dto/query-cuotas-vencidas.dto';
+import { USUARIO_RESUMEN_SELECT } from '../../../common/selects/usuario-resumen.select';
 
 const CLIENTE_RESUMEN_SELECT = {
   id_cliente: true,
@@ -32,11 +33,6 @@ const FORMA_PAGO_RESUMEN_SELECT = {
   id_forma_pago: true,
   nombre: true,
   requiere_referencia: true,
-} as const;
-
-const USUARIO_RESUMEN_SELECT = {
-  nombre: true,
-  apellido: true,
 } as const;
 
 const COBRO_LIST_ITEM_SELECT = {

@@ -20,6 +20,7 @@ import { UpdateUnidadFuncionalDto } from './dto/update-unidad-funcional.dto';
 import { QueryUnidadFuncionalDto } from './dto/query-unidad-funcional.dto';
 import { CreateImagenUnidadDto } from './dto/create-imagen-unidad.dto';
 import { OrdenarImagenesUnidadDto } from './dto/ordenar-imagenes-unidad.dto';
+import { USUARIO_RESUMEN_SELECT } from '../../../common/selects/usuario-resumen.select';
 
 /**
  * Etiquetas legibles de `TipologiaUnidad` para el catálogo que consume el
@@ -45,11 +46,6 @@ const MOTIVO_COSTO_CONGELADO =
 
 const MOTIVO_BAJA_PUBLICACION_VIGENTE =
   'tiene una publicación vigente en el ecommerce (primero hay que despublicarla)';
-
-const USUARIO_RESUMEN_SELECT = {
-  nombre: true,
-  apellido: true,
-} satisfies Prisma.USUARIOSelect;
 
 const UNIDAD_LISTADO_SELECT = {
   id_unidad_funcional: true,

@@ -10,10 +10,16 @@ import {
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { calcularCondicionEntrega } from '../common/condicion-entrega';
+import {
+  advertenciaPrecioMenorAlCosto,
+  porcentajeGananciaSobreCosto,
+} from '../common/precio-sobre-costo';
 import { CreatePublicacionDto } from './dto/create-publicacion.dto';
+import { DefinirPrecioListaDto } from './dto/definir-precio-lista.dto';
 import { DespublicarPublicacionDto } from './dto/despublicar-publicacion.dto';
 import { QueryPublicacionDto } from './dto/query-publicacion.dto';
 import { QueryUnidadesPublicablesDto } from './dto/query-unidades-publicables.dto';
+import { USUARIO_RESUMEN_SELECT } from '../../../common/selects/usuario-resumen.select';
 
 /**
  * Reusado por `publicar` (rechazo) y `findUnidadesPublicables` (motivo de
@@ -36,20 +42,19 @@ const ESTADO_COMERCIAL_LABELS: Record<EstadoComercial, string> = {
  * mecanismo genérico (`transicionarEstadoComercial`), sin endpoint propio.
  */
 const TRANSICIONES_PERMITIDAS: Record<EstadoComercial, EstadoComercial[]> = {
-  // Se activa el primer plan de pago (T105).
+  // Se define el precio de lista por primera vez (T133).
   EN_PREPARACION: [EstadoComercial.DISPONIBLE],
-  // Sin plan activo, se inactivan todos los planes (T105); o adhesión (HU-27).
-  DISPONIBLE: [EstadoComercial.EN_PREPARACION, EstadoComercial.EN_PLAN_DE_PAGO],
+  // Se confirma una venta (HU-27). No hay vuelta a EN_PREPARACION: una vez
+  // definido, el precio de lista se puede cambiar pero nunca quitar.
+  DISPONIBLE: [EstadoComercial.EN_PLAN_DE_PAGO],
   // Cancelación de la venta, o saldo total en cero.
   EN_PLAN_DE_PAGO: [EstadoComercial.DISPONIBLE, EstadoComercial.VENDIDA],
   // Anulación de un cobro que reabre saldo.
   VENDIDA: [EstadoComercial.EN_PLAN_DE_PAGO],
 };
 
-const USUARIO_RESUMEN_SELECT = {
-  nombre: true,
-  apellido: true,
-} as const;
+/** `Decimal(5, 2)`: el porcentaje más alto que entra en la columna. */
+const PORCENTAJE_GANANCIA_MAXIMO = new Prisma.Decimal('999.99');
 
 const PROYECTO_RESUMEN_SELECT = {
   id_proyecto: true,
@@ -92,6 +97,9 @@ const PUBLICACION_DETALLE_SELECT = {
   FK_unidad_funcional: true,
   estado_comercial: true,
   vigente: true,
+  precio_lista: true,
+  porcentaje_ganancia: true,
+  margen: true,
   fecha_publicacion: true,
   fecha_despublicacion: true,
   motivo_despublicacion: true,
@@ -248,9 +256,159 @@ export class PublicacionService {
   }
 
   /**
+   * Define o modifica el precio de lista de una publicación vigente (HU-22).
+   *
+   * - En preparación: guarda el precio y la publicación pasa a Disponible en
+   *   la misma transacción (HU-21). Como el precio no se puede quitar, estar
+   *   en preparación equivale a no tener precio todavía.
+   * - Disponible: solo actualiza el precio; las ventas ya confirmadas tienen
+   *   el suyo congelado en su plan de pago.
+   * - En Plan de Pago o Vendida: bloqueado (409).
+   *
+   * Porcentaje de ganancia y margen se guardan como referencia (ver
+   * `resolverReferenciaPrecio`). El costo de la unidad nunca se toca: solo
+   * se lee para calcular el porcentaje y la advertencia.
+   *
+   * Lock optimista, mismo criterio que `despublicar`: el `updateMany` lleva
+   * en el WHERE el estado leído, así que si una venta o una despublicación
+   * cambió la publicación entre la lectura y la escritura, rechaza en vez de
+   * pisar el estado nuevo.
+   *
+   * Devuelve el detalle más `warning` si el precio quedó por debajo del
+   * costo: se permite, pero se avisa.
+   */
+  async definirPrecioLista(
+    id: number,
+    dto: DefinirPrecioListaDto,
+    usuarioId: number,
+  ) {
+    const warning = await this.prisma.$transaction(async (tx) => {
+      const publicacion = await tx.pUBLICACIONUNIDAD.findUnique({
+        where: { id_publicacion: id },
+        select: {
+          vigente: true,
+          estado_comercial: true,
+          unidadFuncional: { select: { costo: true } },
+        },
+      });
+      if (!publicacion) {
+        throw new NotFoundException(`No existe una publicación con id ${id}`);
+      }
+      if (!publicacion.vigente) {
+        throw new ConflictException(
+          'La publicación fue despublicada: para definir un precio hay que volver a publicar la unidad.',
+        );
+      }
+
+      const estadoComercial = publicacion.estado_comercial;
+      if (
+        estadoComercial === EstadoComercial.EN_PLAN_DE_PAGO ||
+        estadoComercial === EstadoComercial.VENDIDA
+      ) {
+        throw new ConflictException(
+          `No se puede modificar el precio de lista: la unidad está ${ESTADO_COMERCIAL_LABELS[estadoComercial]}. Solo puede modificarse en Publicación en preparación o Disponible.`,
+        );
+      }
+
+      const precioLista = new Prisma.Decimal(dto.precio_lista);
+      const costo = publicacion.unidadFuncional.costo;
+      const referencia = this.resolverReferenciaPrecio(dto, precioLista, costo);
+
+      const { count } = await tx.pUBLICACIONUNIDAD.updateMany({
+        where: {
+          id_publicacion: id,
+          vigente: true,
+          estado_comercial: estadoComercial,
+        },
+        data: {
+          precio_lista: precioLista,
+          porcentaje_ganancia: referencia.porcentaje_ganancia,
+          margen: referencia.margen,
+          FK_usuario_actualizador: usuarioId,
+          hora_actualizacion: new Date(),
+        },
+      });
+      if (count === 0) {
+        throw new ConflictException(
+          'La publicación cambió mientras se guardaba el precio de lista; reintentá la operación.',
+        );
+      }
+
+      if (estadoComercial === EstadoComercial.EN_PREPARACION) {
+        await this.transicionarEstadoComercial(
+          tx,
+          id,
+          EstadoComercial.EN_PREPARACION,
+          EstadoComercial.DISPONIBLE,
+          usuarioId,
+        );
+      }
+
+      return advertenciaPrecioMenorAlCosto(
+        'El precio de lista',
+        precioLista,
+        costo,
+      );
+    });
+
+    return { ...(await this.findOne(id)), warning };
+  }
+
+  /**
+   * Porcentaje de ganancia y margen que se guardan junto al precio (HU-22).
+   *
+   * - Si vino alguno de los dos, Comercialización usó la ayuda de cálculo: se
+   *   guardan tal cual vinieron (el que no vino queda vacío).
+   * - Si no vino ninguno, el precio se cargó directo: se calcula el porcentaje
+   *   que representa sobre el costo y el margen queda vacío, para no contar
+   *   el mismo ajuste dos veces.
+   * - Si además el precio está por debajo del costo, los dos quedan vacíos.
+   *
+   * El porcentaje calculado es solo de referencia: si no entra en la columna
+   * (más de 999,99 %, un precio de más de 11 veces el costo) también queda
+   * vacío, en vez de rechazar un precio que es válido.
+   */
+  private resolverReferenciaPrecio(
+    dto: DefinirPrecioListaDto,
+    precioLista: Prisma.Decimal,
+    costo: Prisma.Decimal,
+  ): {
+    porcentaje_ganancia: Prisma.Decimal | null;
+    margen: Prisma.Decimal | null;
+  } {
+    const porcentajeIngresado = dto.porcentaje_ganancia ?? null;
+    const margenIngresado = dto.margen ?? null;
+
+    if (porcentajeIngresado !== null || margenIngresado !== null) {
+      return {
+        porcentaje_ganancia:
+          porcentajeIngresado === null
+            ? null
+            : new Prisma.Decimal(porcentajeIngresado),
+        margen:
+          margenIngresado === null ? null : new Prisma.Decimal(margenIngresado),
+      };
+    }
+
+    if (precioLista.lessThan(costo)) {
+      return { porcentaje_ganancia: null, margen: null };
+    }
+
+    const porcentaje = porcentajeGananciaSobreCosto(precioLista, costo);
+    return {
+      porcentaje_ganancia:
+        porcentaje !== null &&
+        porcentaje.lessThanOrEqualTo(PORCENTAJE_GANANCIA_MAXIMO)
+          ? porcentaje
+          : null,
+      margen: null,
+    };
+  }
+
+  /**
    * Mecanismo genérico de transición de `estado_comercial`, sin endpoint
-   * propio: lo invocan T105 (activar/inactivar según los planes) y la
-   * adhesión de HU-27, cada uno con su propia `$transaction` — este método
+   * propio: lo invocan el precio de lista (T133), la venta (HU-27) y los
+   * cobros, cada uno con su propia `$transaction` — este método
    * recibe el `tx` del llamador y nunca abre la suya. Una publicación no
    * vigente no puede transicionar nunca: la condición
    * `vigente: true` va siempre en el `updateMany`.
@@ -263,7 +421,7 @@ export class PublicacionService {
     idUsuario: number,
   ): Promise<void> {
     if (!TRANSICIONES_PERMITIDAS[desde]?.includes(hacia)) {
-      // Error de programación del llamador (T105 / adhesión), no un error de
+      // Error de programación del llamador (precio, venta o cobro), no un error de
       // usuario: no hay ningún input externo que pueda producir un `desde`/
       // `hacia` fuera del mapa.
       throw new Error(
@@ -367,6 +525,9 @@ export class PublicacionService {
           id_publicacion: true,
           estado_comercial: true,
           vigente: true,
+          precio_lista: true,
+          porcentaje_ganancia: true,
+          margen: true,
           fecha_publicacion: true,
           fecha_despublicacion: true,
           unidadFuncional: {

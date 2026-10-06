@@ -13,6 +13,7 @@ import {
 import { PrismaService } from '../../../prisma/prisma.service';
 import { PublicacionService } from './publicacion.service';
 import { despublicarPublicacionSchema } from './dto/despublicar-publicacion.dto';
+import { definirPrecioListaSchema } from './dto/definir-precio-lista.dto';
 
 type Args = Record<string, unknown>;
 
@@ -60,6 +61,9 @@ describe('PublicacionService', () => {
     FK_unidad_funcional: 12,
     estado_comercial: EstadoComercial.EN_PREPARACION,
     vigente: true,
+    precio_lista: null,
+    porcentaje_ganancia: null,
+    margen: null,
     fecha_publicacion: new Date('2026-09-18'),
     fecha_despublicacion: null,
     motivo_despublicacion: null,
@@ -174,6 +178,20 @@ describe('PublicacionService', () => {
         });
       },
     );
+
+    it('nace sin precio de lista, también al volver a publicar una unidad despublicada', async () => {
+      // La unidad ya tuvo una publicación con precio (no vigente): publicar
+      // crea una fila nueva, nunca reutiliza ni copia la anterior.
+      prepararPublicar('EN_EJECUCION');
+
+      await service.publicar({ FK_unidad_funcional: 12 }, USUARIO_ID);
+
+      const data = primerArgumento(tx.pUBLICACIONUNIDAD.create).data as Args;
+      expect(data).not.toHaveProperty('precio_lista');
+      expect(data).not.toHaveProperty('porcentaje_ganancia');
+      expect(data).not.toHaveProperty('margen');
+      expect(tx.pUBLICACIONUNIDAD.updateMany).not.toHaveBeenCalled();
+    });
 
     it('devuelve el detalle de la publicación creada', async () => {
       prepararPublicar('EN_EJECUCION');
@@ -433,10 +451,234 @@ describe('PublicacionService', () => {
     });
   });
 
+  describe('definirPrecioLista', () => {
+    const COSTO = new Prisma.Decimal(15000000);
+
+    /** La publicación tal como la lee `definirPrecioLista` dentro del tx. */
+    const prepararPrecio = (
+      estadoComercial: EstadoComercial,
+      vigente = true,
+    ) => {
+      tx.pUBLICACIONUNIDAD.findUnique.mockResolvedValue({
+        vigente,
+        estado_comercial: estadoComercial,
+        unidadFuncional: { costo: COSTO },
+      });
+      tx.pUBLICACIONUNIDAD.updateMany.mockResolvedValue({ count: 1 });
+      prisma.pUBLICACIONUNIDAD.findUnique.mockResolvedValue(detalleMock());
+    };
+
+    const definir = (body: Record<string, unknown>) =>
+      service.definirPrecioLista(
+        7,
+        definirPrecioListaSchema.parse(body),
+        USUARIO_ID,
+      );
+
+    /** `data` de la N-ésima llamada a `tx.pUBLICACIONUNIDAD.updateMany`. */
+    const dataDeUpdate = (llamada: number) =>
+      (tx.pUBLICACIONUNIDAD.updateMany.mock.calls as Args[][])[llamada][0]
+        .data as Record<string, unknown>;
+
+    it('en preparación: guarda el precio y pasa a DISPONIBLE dentro de la misma transacción', async () => {
+      prepararPrecio(EstadoComercial.EN_PREPARACION);
+
+      await definir({ precio_lista: 19000000 });
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.pUBLICACIONUNIDAD.updateMany).not.toHaveBeenCalled();
+      expect(tx.pUBLICACIONUNIDAD.updateMany).toHaveBeenCalledTimes(2);
+
+      // 1) El precio, con lock optimista sobre el estado leído.
+      const precio = primerArgumento(tx.pUBLICACIONUNIDAD.updateMany);
+      expect(precio.where).toEqual({
+        id_publicacion: 7,
+        vigente: true,
+        estado_comercial: EstadoComercial.EN_PREPARACION,
+      });
+      expect((dataDeUpdate(0).precio_lista as Prisma.Decimal).toFixed(2)).toBe(
+        '19000000.00',
+      );
+      expect(dataDeUpdate(0).FK_usuario_actualizador).toBe(USUARIO_ID);
+
+      // 2) La transición EN_PREPARACION -> DISPONIBLE.
+      expect(dataDeUpdate(1).estado_comercial).toBe(EstadoComercial.DISPONIBLE);
+    });
+
+    it('disponible: actualiza el precio sin transicionar', async () => {
+      prepararPrecio(EstadoComercial.DISPONIBLE);
+
+      await definir({ precio_lista: 21000000 });
+
+      expect(tx.pUBLICACIONUNIDAD.updateMany).toHaveBeenCalledTimes(1);
+      expect(primerArgumento(tx.pUBLICACIONUNIDAD.updateMany).where).toEqual({
+        id_publicacion: 7,
+        vigente: true,
+        estado_comercial: EstadoComercial.DISPONIBLE,
+      });
+      expect(dataDeUpdate(0)).not.toHaveProperty('estado_comercial');
+    });
+
+    it('precio cargado directo: calcula el porcentaje sobre el costo y deja el margen vacío', async () => {
+      prepararPrecio(EstadoComercial.DISPONIBLE);
+
+      // (19.000.000 - 15.000.000) / 15.000.000 * 100 = 26,666... -> 26,67
+      await definir({ precio_lista: 19000000 });
+
+      const data = dataDeUpdate(0);
+      expect((data.porcentaje_ganancia as Prisma.Decimal).toFixed(2)).toBe(
+        '26.67',
+      );
+      expect(data.margen).toBeNull();
+    });
+
+    it('con la ayuda de cálculo: guarda porcentaje y margen tal cual vinieron', async () => {
+      prepararPrecio(EstadoComercial.DISPONIBLE);
+
+      await definir({
+        precio_lista: 20000000,
+        porcentaje_ganancia: 30,
+        margen: 500000,
+      });
+
+      const data = dataDeUpdate(0);
+      expect((data.porcentaje_ganancia as Prisma.Decimal).toFixed(2)).toBe(
+        '30.00',
+      );
+      expect((data.margen as Prisma.Decimal).toFixed(2)).toBe('500000.00');
+    });
+
+    it('con solo uno de los dos (margen), el otro queda vacío y no se calcula nada', async () => {
+      prepararPrecio(EstadoComercial.DISPONIBLE);
+
+      await definir({ precio_lista: 15500000, margen: 500000 });
+
+      const data = dataDeUpdate(0);
+      expect(data.porcentaje_ganancia).toBeNull();
+      expect((data.margen as Prisma.Decimal).toFixed(2)).toBe('500000.00');
+    });
+
+    it('precio menor al costo: lo guarda igual, con porcentaje y margen vacíos, y la respuesta lo advierte', async () => {
+      prepararPrecio(EstadoComercial.EN_PREPARACION);
+
+      const resultado = await definir({ precio_lista: 10000000 });
+
+      const data = dataDeUpdate(0);
+      expect((data.precio_lista as Prisma.Decimal).toFixed(2)).toBe(
+        '10000000.00',
+      );
+      expect(data.porcentaje_ganancia).toBeNull();
+      expect(data.margen).toBeNull();
+      expect(resultado.warning).toContain('menor al costo');
+      expect(resultado.warning).toContain('15000000.00');
+    });
+
+    it('sin warning cuando el precio cubre el costo, y devuelve el detalle', async () => {
+      prepararPrecio(EstadoComercial.DISPONIBLE);
+
+      const resultado = await definir({ precio_lista: 19000000 });
+
+      expect(resultado.warning).toBeNull();
+      expect(resultado.id_publicacion).toBe(7);
+      expect(resultado.condicion_entrega.codigo).toBe('A_ENTREGAR_CON_FECHA');
+    });
+
+    it('si el porcentaje calculado no entra en la columna (más de 999,99 %), lo deja vacío en vez de fallar', async () => {
+      prepararPrecio(EstadoComercial.DISPONIBLE);
+
+      // (200.000.000 - 15.000.000) / 15.000.000 * 100 = 1233,33 %
+      await definir({ precio_lista: 200000000 });
+
+      expect(dataDeUpdate(0).porcentaje_ganancia).toBeNull();
+    });
+
+    it('nunca modifica el costo de la unidad: solo escribe precio, porcentaje, margen y auditoría', async () => {
+      prepararPrecio(EstadoComercial.DISPONIBLE);
+
+      await definir({ precio_lista: 19000000 });
+
+      expect(Object.keys(dataDeUpdate(0)).sort()).toEqual([
+        'FK_usuario_actualizador',
+        'hora_actualizacion',
+        'margen',
+        'porcentaje_ganancia',
+        'precio_lista',
+      ]);
+    });
+
+    it.each([EstadoComercial.EN_PLAN_DE_PAGO, EstadoComercial.VENDIDA])(
+      'rechaza con 409 si la unidad está %s, sin escribir nada',
+      async (estadoComercial) => {
+        prepararPrecio(estadoComercial);
+
+        await expect(
+          definir({ precio_lista: 19000000 }),
+        ).rejects.toBeInstanceOf(ConflictException);
+        expect(tx.pUBLICACIONUNIDAD.updateMany).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rechaza con 409 una publicación despublicada', async () => {
+      prepararPrecio(EstadoComercial.DISPONIBLE, false);
+
+      await expect(definir({ precio_lista: 19000000 })).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(tx.pUBLICACIONUNIDAD.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('rechaza con 404 si la publicación no existe', async () => {
+      tx.pUBLICACIONUNIDAD.findUnique.mockResolvedValue(null);
+
+      await expect(definir({ precio_lista: 19000000 })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('si la publicación cambió entre la lectura y la escritura (count 0), rechaza sin transicionar', async () => {
+      prepararPrecio(EstadoComercial.EN_PREPARACION);
+      tx.pUBLICACIONUNIDAD.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(definir({ precio_lista: 19000000 })).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(tx.pUBLICACIONUNIDAD.updateMany).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('precio de lista (schema del DTO)', () => {
+    it.each<[string, Record<string, unknown>]>([
+      ['sin precio', {}],
+      ['con precio 0', { precio_lista: 0 }],
+      ['con precio negativo', { precio_lista: -1 }],
+      ['con más de dos decimales', { precio_lista: 100.123 }],
+      [
+        'con porcentaje negativo',
+        { precio_lista: 100, porcentaje_ganancia: -1 },
+      ],
+      [
+        'con porcentaje mayor a 999,99',
+        { precio_lista: 100, porcentaje_ganancia: 1000 },
+      ],
+      ['con margen negativo', { precio_lista: 100, margen: -1 }],
+    ])('rechaza un body %s', (_caso, body) => {
+      expect(definirPrecioListaSchema.safeParse(body).success).toBe(false);
+    });
+
+    it('acepta porcentaje y margen en null (precio cargado directo)', () => {
+      const resultado = definirPrecioListaSchema.safeParse({
+        precio_lista: 19000000,
+        porcentaje_ganancia: null,
+        margen: null,
+      });
+
+      expect(resultado.success).toBe(true);
+    });
+  });
+
   describe('transicionarEstadoComercial', () => {
     const TRANSICIONES: [EstadoComercial, EstadoComercial][] = [
       ['EN_PREPARACION', 'DISPONIBLE'],
-      ['DISPONIBLE', 'EN_PREPARACION'],
       ['DISPONIBLE', 'EN_PLAN_DE_PAGO'],
       ['EN_PLAN_DE_PAGO', 'DISPONIBLE'],
       ['EN_PLAN_DE_PAGO', 'VENDIDA'],
@@ -486,6 +728,8 @@ describe('PublicacionService', () => {
       ['EN_PREPARACION', 'EN_PLAN_DE_PAGO'],
       ['DISPONIBLE', 'VENDIDA'],
       ['DISPONIBLE', 'DISPONIBLE'],
+      // Desde T133 ya no existe: el precio de lista no se puede quitar.
+      ['DISPONIBLE', 'EN_PREPARACION'],
     ])(
       '%s -> %s: fuera del mapa, lanza un Error de programación sin tocar la base',
       async (desde, hacia) => {
@@ -554,6 +798,20 @@ describe('PublicacionService', () => {
       });
     });
 
+    it('el select trae precio de lista, porcentaje de ganancia y margen', async () => {
+      prisma.pUBLICACIONUNIDAD.findUnique.mockResolvedValue(detalleMock());
+
+      await service.findOne(7);
+
+      const select = primerArgumento(prisma.pUBLICACIONUNIDAD.findUnique)
+        .select as Args;
+      expect(select).toMatchObject({
+        precio_lista: true,
+        porcentaje_ganancia: true,
+        margen: true,
+      });
+    });
+
     it('devuelve el costo de la unidad en el detalle', async () => {
       prisma.pUBLICACIONUNIDAD.findUnique.mockResolvedValue(detalleMock());
 
@@ -603,6 +861,18 @@ describe('PublicacionService', () => {
         where,
       );
       expect(prisma.pUBLICACIONUNIDAD.count).toHaveBeenCalledWith({ where });
+    });
+
+    it('el select trae precio de lista, porcentaje de ganancia y margen', async () => {
+      await service.findAll({ page: 1, limit: 10 });
+
+      const select = primerArgumento(prisma.pUBLICACIONUNIDAD.findMany)
+        .select as Args;
+      expect(select).toMatchObject({
+        precio_lista: true,
+        porcentaje_ganancia: true,
+        margen: true,
+      });
     });
 
     it('calcula skip y take a partir de page y limit, y devuelve meta', async () => {
