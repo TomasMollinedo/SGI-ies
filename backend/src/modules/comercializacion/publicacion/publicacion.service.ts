@@ -56,7 +56,7 @@ const PROYECTO_RESUMEN_SELECT = {
   codigo: true,
   nombre: true,
   localidad: true,
-  estado: true,
+  estado_obra: true,
   fecha_fin_estimada: true,
 } as const;
 
@@ -148,12 +148,12 @@ export class PublicacionService {
       // siempre existe.
       const proyecto = (await tx.pROYECTO.findUnique({
         where: { id_proyecto: unidad.FK_proyecto },
-        select: { estado: true },
+        select: { estado_obra: true },
       }))!;
-      if (proyecto.estado === EstadoProyecto.EN_PLANIFICACION) {
+      if (proyecto.estado_obra === EstadoProyecto.EN_PLANIFICACION) {
         throw new ConflictException(MOTIVO_PROYECTO_EN_PLANIFICACION);
       }
-      if (proyecto.estado === EstadoProyecto.CANCELADO) {
+      if (proyecto.estado_obra === EstadoProyecto.CANCELADO) {
         throw new ConflictException(
           'No se puede publicar la unidad: su proyecto fue cancelado.',
         );
@@ -325,6 +325,7 @@ export class PublicacionService {
       superficie_descubierta,
       ...unidadResto
     } = unidadFuncional;
+    const { estado_obra, ...proyectoResto } = proyecto;
 
     return {
       ...cabecera,
@@ -334,7 +335,8 @@ export class PublicacionService {
         superficie_descubierta: superficie_descubierta?.toNumber() ?? null,
       },
       imagenes,
-      proyecto,
+      // El contrato HTTP sigue exponiendo `estado`: sale de `estado_obra`.
+      proyecto: { ...proyectoResto, estado: estado_obra },
       condicion_entrega: calcularCondicionEntrega(proyecto),
     };
   }
@@ -407,7 +409,7 @@ export class PublicacionService {
 
     const where: Prisma.UNIDADFUNCIONALWhereInput = {
       estado: true,
-      proyecto: { estado: { not: EstadoProyecto.CANCELADO } },
+      proyecto: { estado_obra: { not: EstadoProyecto.CANCELADO } },
       publicaciones: { none: { vigente: true } },
       ...(FK_proyecto !== undefined && { FK_proyecto }),
       ...(tipologia !== undefined && { tipologia }),
@@ -429,7 +431,7 @@ export class PublicacionService {
               id_proyecto: true,
               codigo: true,
               nombre: true,
-              estado: true,
+              estado_obra: true,
             },
           },
         },
@@ -448,7 +450,9 @@ export class PublicacionService {
           superficie_descubierta,
           ...resto
         } = unidad;
-        const publicable = proyecto.estado !== EstadoProyecto.EN_PLANIFICACION;
+        // El contrato HTTP sigue exponiendo `estado`: sale de `estado_obra`.
+        const { estado_obra, ...proyectoResto } = proyecto;
+        const publicable = estado_obra !== EstadoProyecto.EN_PLANIFICACION;
 
         return {
           unidad: {
@@ -456,7 +460,7 @@ export class PublicacionService {
             superficie_cubierta: superficie_cubierta.toNumber(),
             superficie_descubierta: superficie_descubierta?.toNumber() ?? null,
           },
-          proyecto,
+          proyecto: { ...proyectoResto, estado: estado_obra },
           publicable,
           motivo_no_publicable: publicable
             ? null

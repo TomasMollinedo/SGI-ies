@@ -10,7 +10,7 @@ import { updatePlanPagoSchema } from './dto/update-plan-pago.dto';
 import { queryPlanPagoSchema } from './dto/query-plan-pago.dto';
 import { simularCuotasSchema } from './dto/simular-cuotas.dto';
 
-/** `data` con el que se llamó a un `create`/`update` de PLANPAGO, ya tipado. */
+/** `data` con el que se llamó a un `create`/`update` de PLANEJEMPLO, ya tipado. */
 type DataPlanPago = {
   data: {
     precio?: Prisma.Decimal;
@@ -38,11 +38,11 @@ const COSTO = new Prisma.Decimal('15000000.00');
 describe('PlanPagoService', () => {
   let service: PlanPagoService;
   let tx: {
-    pLANPAGO: { create: jest.Mock; count: jest.Mock; update: jest.Mock };
+    pLANEJEMPLO: { create: jest.Mock; count: jest.Mock; update: jest.Mock };
   };
   let prisma: {
     pUBLICACIONUNIDAD: { findUnique: jest.Mock };
-    pLANPAGO: { findUnique: jest.Mock; findMany: jest.Mock };
+    pLANEJEMPLO: { findUnique: jest.Mock; findMany: jest.Mock };
     $transaction: jest.Mock;
   };
   let publicaciones: { transicionarEstadoComercial: jest.Mock };
@@ -85,7 +85,7 @@ describe('PlanPagoService', () => {
     estado = true,
     costo: Prisma.Decimal = COSTO,
   ) => ({
-    id_plan_pago: ID_PLAN,
+    id_plan_ejemplo: ID_PLAN,
     FK_publicacion: ID_PUBLICACION,
     estado,
     publicacion: {
@@ -96,16 +96,16 @@ describe('PlanPagoService', () => {
 
   beforeEach(async () => {
     tx = {
-      pLANPAGO: {
-        create: jest.fn().mockResolvedValue({ id_plan_pago: ID_PLAN }),
+      pLANEJEMPLO: {
+        create: jest.fn().mockResolvedValue({ id_plan_ejemplo: ID_PLAN }),
         count: jest.fn().mockResolvedValue(1),
-        update: jest.fn().mockResolvedValue({ id_plan_pago: ID_PLAN }),
+        update: jest.fn().mockResolvedValue({ id_plan_ejemplo: ID_PLAN }),
       },
     };
 
     prisma = {
       pUBLICACIONUNIDAD: { findUnique: jest.fn() },
-      pLANPAGO: { findUnique: jest.fn(), findMany: jest.fn() },
+      pLANEJEMPLO: { findUnique: jest.fn(), findMany: jest.fn() },
       $transaction: jest.fn((callback: (t: typeof tx) => unknown) =>
         callback(tx),
       ),
@@ -136,7 +136,7 @@ describe('PlanPagoService', () => {
 
       const resultado = await service.create(dtoContado(), USUARIO_ID);
 
-      const data = dataDe(tx.pLANPAGO.create);
+      const data = dataDe(tx.pLANEJEMPLO.create);
       expect(data.tipo).toBe('CONTADO');
       expect(data.cantidad_cuotas).toBeNull();
       expect(data.periodicidad).toBeNull();
@@ -160,7 +160,7 @@ describe('PlanPagoService', () => {
       expect(resultado.anticipo_monto_calculado.toFixed(2)).toBe('5400000.00');
 
       // La fila conserva el porcentaje, no el monto resuelto.
-      const data = dataDe(tx.pLANPAGO.create);
+      const data = dataDe(tx.pLANEJEMPLO.create);
       expect(data.anticipo_porcentaje).toBe(20);
       expect(data.anticipo_monto).toBeNull();
       expect(data.cantidad_cuotas).toBe(6);
@@ -181,7 +181,7 @@ describe('PlanPagoService', () => {
       );
 
       expect(resultado.anticipo_monto_calculado.toFixed(2)).toBe('5000000.00');
-      expect(dataDe(tx.pLANPAGO.create).anticipo_monto).toBe(5000000);
+      expect(dataDe(tx.pLANEJEMPLO.create).anticipo_monto).toBe(5000000);
     });
 
     it('avisa con un warning si el precio es menor al costo, pero crea igual', async () => {
@@ -194,7 +194,7 @@ describe('PlanPagoService', () => {
         USUARIO_ID,
       );
 
-      expect(tx.pLANPAGO.create).toHaveBeenCalled();
+      expect(tx.pLANEJEMPLO.create).toHaveBeenCalled();
       expect(resultado.warning).toContain('menor al costo');
       expect(resultado.warning).toContain('15000000.00');
     });
@@ -220,7 +220,7 @@ describe('PlanPagoService', () => {
       expect(resultado.porcentaje_ganancia_implicito?.toFixed(2)).toBe('26.67');
 
       // Las columnas reales quedan con el default 0 de Prisma: ni se mandan.
-      const data = dataDe(tx.pLANPAGO.create);
+      const data = dataDe(tx.pLANEJEMPLO.create);
       expect(data.porcentaje_ganancia).toBeUndefined();
       expect(data.margen).toBeUndefined();
     });
@@ -236,16 +236,16 @@ describe('PlanPagoService', () => {
       );
 
       expect(resultado.porcentaje_ganancia_implicito).toBeNull();
-      expect(dataDe(tx.pLANPAGO.create).porcentaje_ganancia?.toFixed(2)).toBe(
-        '26.67',
-      );
+      expect(
+        dataDe(tx.pLANEJEMPLO.create).porcentaje_ganancia?.toFixed(2),
+      ).toBe('26.67');
     });
 
     it('pasa la publicación a DISPONIBLE cuando es el primer plan activo', async () => {
       prisma.pUBLICACIONUNIDAD.findUnique.mockResolvedValue(
         publicacionEn(EstadoComercial.EN_PREPARACION),
       );
-      tx.pLANPAGO.count.mockResolvedValue(1);
+      tx.pLANEJEMPLO.count.mockResolvedValue(1);
 
       await service.create(dtoContado(), USUARIO_ID);
 
@@ -265,7 +265,7 @@ describe('PlanPagoService', () => {
       prisma.pUBLICACIONUNIDAD.findUnique.mockResolvedValue(
         publicacionEn(EstadoComercial.DISPONIBLE),
       );
-      tx.pLANPAGO.count.mockResolvedValue(2);
+      tx.pLANEJEMPLO.count.mockResolvedValue(2);
 
       await service.create(dtoContado(), USUARIO_ID);
 
@@ -309,7 +309,7 @@ describe('PlanPagoService', () => {
 
   describe('update', () => {
     it('permite editar el precio si la publicación está EN_PREPARACION', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue(
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.EN_PREPARACION),
       );
 
@@ -319,14 +319,14 @@ describe('PlanPagoService', () => {
         USUARIO_ID,
       );
 
-      const data = dataDe(tx.pLANPAGO.update);
+      const data = dataDe(tx.pLANEJEMPLO.update);
       expect(data.precio?.toFixed(2)).toBe('21000000.00');
       expect(data.FK_usuario_actualizador).toBe(USUARIO_ID);
       expect(publicaciones.transicionarEstadoComercial).not.toHaveBeenCalled();
     });
 
     it('devuelve warning si el precio nuevo queda por debajo del costo', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue(
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.DISPONIBLE),
       );
 
@@ -340,7 +340,7 @@ describe('PlanPagoService', () => {
     });
 
     it('calcula el % de ganancia implícito cuando la edición carga el precio directo', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue(
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.DISPONIBLE),
       );
 
@@ -355,7 +355,7 @@ describe('PlanPagoService', () => {
     });
 
     it('no calcula el implícito si la edición trae porcentaje_ganancia o margen junto con el precio', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue(
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.DISPONIBLE),
       );
 
@@ -369,10 +369,10 @@ describe('PlanPagoService', () => {
     });
 
     it('no calcula warning ni implícito si la edición no tocó el precio', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue(
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.DISPONIBLE),
       );
-      tx.pLANPAGO.count.mockResolvedValue(1);
+      tx.pLANEJEMPLO.count.mockResolvedValue(1);
 
       const resultado = await service.update(
         ID_PLAN,
@@ -385,7 +385,7 @@ describe('PlanPagoService', () => {
     });
 
     it('rechaza editar el precio si la publicación está EN_PLAN_DE_PAGO', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue(
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.EN_PLAN_DE_PAGO),
       );
 
@@ -400,7 +400,7 @@ describe('PlanPagoService', () => {
     });
 
     it('rechaza editar el precio de un plan inactivo', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue(
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.DISPONIBLE, false),
       );
 
@@ -415,10 +415,10 @@ describe('PlanPagoService', () => {
     });
 
     it('permite editar el precio de un plan inactivo si el mismo request lo reactiva', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue(
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.EN_PREPARACION, false),
       );
-      tx.pLANPAGO.count.mockResolvedValue(1);
+      tx.pLANEJEMPLO.count.mockResolvedValue(1);
 
       await service.update(
         ID_PLAN,
@@ -426,16 +426,16 @@ describe('PlanPagoService', () => {
         USUARIO_ID,
       );
 
-      const data = dataDe(tx.pLANPAGO.update);
+      const data = dataDe(tx.pLANEJEMPLO.update);
       expect(data.precio?.toFixed(2)).toBe('21000000.00');
       expect(data.estado).toBe(true);
     });
 
     it('vuelve a EN_PREPARACION al inactivar el último plan activo', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue(
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.DISPONIBLE),
       );
-      tx.pLANPAGO.count.mockResolvedValue(0);
+      tx.pLANEJEMPLO.count.mockResolvedValue(0);
 
       await service.update(
         ID_PLAN,
@@ -453,10 +453,10 @@ describe('PlanPagoService', () => {
     });
 
     it('no transiciona al inactivar si quedan otros planes activos', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue(
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.DISPONIBLE),
       );
-      tx.pLANPAGO.count.mockResolvedValue(1);
+      tx.pLANEJEMPLO.count.mockResolvedValue(1);
 
       await service.update(
         ID_PLAN,
@@ -470,10 +470,10 @@ describe('PlanPagoService', () => {
     it.each([EstadoComercial.EN_PLAN_DE_PAGO, EstadoComercial.VENDIDA])(
       'no transiciona al inactivar un plan de una publicación %s',
       async (estadoComercial) => {
-        prisma.pLANPAGO.findUnique.mockResolvedValue(
+        prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
           planGuardado(estadoComercial),
         );
-        tx.pLANPAGO.count.mockResolvedValue(0);
+        tx.pLANEJEMPLO.count.mockResolvedValue(0);
 
         await service.update(
           ID_PLAN,
@@ -483,7 +483,7 @@ describe('PlanPagoService', () => {
 
         // Inactivar un plan de una publicación ya vendida no cambia nada: si
         // se llamara, la función compartida tiraría por transición inválida.
-        expect(tx.pLANPAGO.update).toHaveBeenCalled();
+        expect(tx.pLANEJEMPLO.update).toHaveBeenCalled();
         expect(
           publicaciones.transicionarEstadoComercial,
         ).not.toHaveBeenCalled();
@@ -491,10 +491,10 @@ describe('PlanPagoService', () => {
     );
 
     it('vuelve a DISPONIBLE al reactivar el primer plan activo', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue(
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.EN_PREPARACION, false),
       );
-      tx.pLANPAGO.count.mockResolvedValue(1);
+      tx.pLANEJEMPLO.count.mockResolvedValue(1);
 
       await service.update(
         ID_PLAN,
@@ -512,7 +512,7 @@ describe('PlanPagoService', () => {
     });
 
     it('no transiciona si el estado mandado es el que el plan ya tenía', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue(
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(
         planGuardado(EstadoComercial.DISPONIBLE, true),
       );
 
@@ -526,7 +526,7 @@ describe('PlanPagoService', () => {
     });
 
     it('rechaza con 404 si el plan no existe', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue(null);
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(null);
 
       await expect(
         service.update(
@@ -541,7 +541,9 @@ describe('PlanPagoService', () => {
 
   describe('findOne', () => {
     it('devuelve el plan encontrado', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue({ id_plan_pago: ID_PLAN });
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue({
+        id_plan_ejemplo: ID_PLAN,
+      });
 
       await expect(service.findOne(ID_PLAN)).resolves.toEqual({
         id_plan_pago: ID_PLAN,
@@ -549,7 +551,7 @@ describe('PlanPagoService', () => {
     });
 
     it('rechaza con 404 si el plan no existe', async () => {
-      prisma.pLANPAGO.findUnique.mockResolvedValue(null);
+      prisma.pLANEJEMPLO.findUnique.mockResolvedValue(null);
 
       await expect(service.findOne(ID_PLAN)).rejects.toThrow(NotFoundException);
     });
@@ -558,13 +560,13 @@ describe('PlanPagoService', () => {
   describe('findByPublicacion', () => {
     const where = (): Record<string, unknown> =>
       (
-        prisma.pLANPAGO.findMany.mock.calls as {
+        prisma.pLANEJEMPLO.findMany.mock.calls as {
           where: Record<string, unknown>;
         }[][]
       )[0][0].where;
 
     it('filtra solo los planes activos de la publicación por default', async () => {
-      prisma.pLANPAGO.findMany.mockResolvedValue([]);
+      prisma.pLANEJEMPLO.findMany.mockResolvedValue([]);
 
       await service.findByPublicacion(
         queryPlanPagoSchema.parse({ FK_publicacion: String(ID_PUBLICACION) }),
@@ -577,7 +579,7 @@ describe('PlanPagoService', () => {
     });
 
     it('trae solo los inactivos con estado=false', async () => {
-      prisma.pLANPAGO.findMany.mockResolvedValue([]);
+      prisma.pLANEJEMPLO.findMany.mockResolvedValue([]);
 
       await service.findByPublicacion(
         queryPlanPagoSchema.parse({
@@ -593,7 +595,7 @@ describe('PlanPagoService', () => {
     });
 
     it('no filtra por estado con estado=todos', async () => {
-      prisma.pLANPAGO.findMany.mockResolvedValue([]);
+      prisma.pLANEJEMPLO.findMany.mockResolvedValue([]);
 
       await service.findByPublicacion(
         queryPlanPagoSchema.parse({
@@ -662,8 +664,8 @@ describe('PlanPagoService', () => {
 
       expect(prisma.$transaction).not.toHaveBeenCalled();
       expect(prisma.pUBLICACIONUNIDAD.findUnique).not.toHaveBeenCalled();
-      expect(prisma.pLANPAGO.findUnique).not.toHaveBeenCalled();
-      expect(prisma.pLANPAGO.findMany).not.toHaveBeenCalled();
+      expect(prisma.pLANEJEMPLO.findUnique).not.toHaveBeenCalled();
+      expect(prisma.pLANEJEMPLO.findMany).not.toHaveBeenCalled();
     });
   });
 });

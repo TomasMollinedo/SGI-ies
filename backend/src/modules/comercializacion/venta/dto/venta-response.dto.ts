@@ -4,7 +4,7 @@ import {
   EstadoCuota,
   EstadoVenta,
   Periodicidad,
-  TipoPlanPago,
+  ModalidadPago,
   TipologiaUnidad,
 } from '../../../../../generated/prisma/enums';
 
@@ -44,7 +44,7 @@ export const ventaListItemSchema = z.object({
   fecha_adhesion: z.iso.datetime(),
   precio_congelado: z.number(),
   anticipo_congelado: z.number(),
-  tipo_plan_congelado: z.enum(TipoPlanPago),
+  tipo_plan_congelado: z.enum(ModalidadPago),
   cantidad_cuotas_congelada: z.number(),
   periodicidad_congelada: z.enum(Periodicidad).nullable(),
   estado: z.enum(EstadoVenta),

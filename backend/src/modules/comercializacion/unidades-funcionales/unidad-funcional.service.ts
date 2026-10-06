@@ -68,7 +68,7 @@ const UNIDAD_LISTADO_SELECT = {
       id_proyecto: true,
       codigo: true,
       nombre: true,
-      estado: true,
+      estado_obra: true,
       fecha_fin_estimada: true,
     },
   },
@@ -121,7 +121,7 @@ export class UnidadFuncionalService {
   async create(dto: CreateUnidadFuncionalDto, usuarioId: number) {
     const proyecto = await this.prisma.pROYECTO.findUnique({
       where: { id_proyecto: dto.FK_proyecto },
-      select: { estado: true },
+      select: { estado_obra: true },
     });
     if (!proyecto) {
       throw new NotFoundException(
@@ -129,7 +129,7 @@ export class UnidadFuncionalService {
       );
     }
 
-    this.validarProyectoAdmiteAltas(proyecto.estado);
+    this.validarProyectoAdmiteAltas(proyecto.estado_obra);
     await this.validarIdentificadorUnico(
       this.prisma,
       dto.FK_proyecto,
@@ -271,7 +271,7 @@ export class UnidadFuncionalService {
       if (!unidad.estado) {
         throw new ConflictException('La unidad ya está dada de baja');
       }
-      this.validarProyectoNoCancelado(unidad.proyecto.estado);
+      this.validarProyectoNoCancelado(unidad.proyecto.estado_obra);
 
       const motivos: string[] = [];
 
@@ -284,11 +284,11 @@ export class UnidadFuncionalService {
       }
 
       if (
-        unidad.proyecto.estado === EstadoProyecto.EN_EJECUCION ||
-        unidad.proyecto.estado === EstadoProyecto.FINALIZADO
+        unidad.proyecto.estado_obra === EstadoProyecto.EN_EJECUCION ||
+        unidad.proyecto.estado_obra === EstadoProyecto.FINALIZADO
       ) {
         motivos.push(
-          `su proyecto está ${ESTADO_PROYECTO_LABELS[unidad.proyecto.estado]} (con el proyecto en ejecución o finalizado solo se pueden editar las características descriptivas)`,
+          `su proyecto está ${ESTADO_PROYECTO_LABELS[unidad.proyecto.estado_obra]} (con el proyecto en ejecución o finalizado solo se pueden editar las características descriptivas)`,
         );
       }
 
@@ -324,7 +324,7 @@ export class UnidadFuncionalService {
         FK_proyecto: true,
         identificador: true,
         estado: true,
-        proyecto: { select: { estado: true } },
+        proyecto: { select: { estado_obra: true } },
       },
     });
     if (!unidad) {
@@ -337,7 +337,7 @@ export class UnidadFuncionalService {
       entidad: unidad,
       entidadYaActiva: 'La unidad ya está activa',
       revalidar: async () => {
-        this.validarProyectoAdmiteAltas(unidad.proyecto.estado);
+        this.validarProyectoAdmiteAltas(unidad.proyecto.estado_obra);
         await this.validarIdentificadorUnico(
           this.prisma,
           unidad.FK_proyecto,
@@ -479,7 +479,7 @@ export class UnidadFuncionalService {
         identificador: true,
         costo: true,
         estado: true,
-        proyecto: { select: { estado: true } },
+        proyecto: { select: { estado_obra: true } },
         _count: { select: { publicaciones: true } },
       },
     }))!;
@@ -549,14 +549,14 @@ export class UnidadFuncionalService {
 
   private validarEditable(unidad: {
     estado: boolean;
-    proyecto: { estado: EstadoProyecto };
+    proyecto: { estado_obra: EstadoProyecto };
   }) {
     if (!unidad.estado) {
       throw new ConflictException(
         'La unidad está dada de baja: primero hay que reactivarla.',
       );
     }
-    this.validarProyectoNoCancelado(unidad.proyecto.estado);
+    this.validarProyectoNoCancelado(unidad.proyecto.estado_obra);
   }
 }
 
@@ -571,16 +571,20 @@ function mapearListado<T extends UnidadListado>(unidad: T) {
     superficie_descubierta,
     costo,
     _count,
+    proyecto,
     ...resto
   } = unidad;
+  // El contrato HTTP sigue exponiendo `estado`: sale de `estado_obra`.
+  const { estado_obra, ...proyectoResto } = proyecto;
 
   return {
     ...resto,
+    proyecto: { ...proyectoResto, estado: estado_obra },
     superficie_cubierta: superficie_cubierta.toNumber(),
     superficie_descubierta: superficie_descubierta?.toNumber() ?? null,
     costo: costo.toNumber(),
     costo_editable: _count.publicaciones === 0,
-    condicion_entrega: calcularCondicionEntrega(unidad.proyecto),
+    condicion_entrega: calcularCondicionEntrega(proyecto),
   };
 }
 

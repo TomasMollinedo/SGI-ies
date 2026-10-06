@@ -12,7 +12,7 @@ import { Prisma } from '../../../../generated/prisma/client';
 import {
   EstadoCuota,
   EstadoVenta,
-  TipoPlanPago,
+  ModalidadPago,
 } from '../../../../generated/prisma/enums';
 import { CreateDeclaracionPagoDto } from './dto/create-declaracion-pago.dto';
 import { RechazarDeclaracionPagoDto } from './dto/rechazar-declaracion-pago.dto';
@@ -59,9 +59,18 @@ describe('DeclaracionPagoService', () => {
     id_cuota: 10,
     estado: EstadoCuota.PENDIENTE,
     saldo_pendiente: new Prisma.Decimal(1000),
+    // Las condiciones de la venta se leen de su plan de pago (ver
+    // `resolverCondicionesVenta`).
     venta: {
+      id_venta: 1,
       estado: EstadoVenta.VIGENTE,
-      tipo_plan_congelado: TipoPlanPago.FINANCIADO,
+      periodicidad_congelada: null,
+      planPago: {
+        modalidad: ModalidadPago.FINANCIADO,
+        precio_venta: new Prisma.Decimal(10000),
+        anticipo_monto: new Prisma.Decimal(1000),
+        cantidad_cuotas: 9,
+      },
     },
   };
 
@@ -224,7 +233,14 @@ describe('DeclaracionPagoService', () => {
   it('rechaza con 409 si la venta es de contado (se paga de forma presencial), aunque la cuota esté PENDIENTE', async () => {
     prisma.cUOTA.findFirst.mockResolvedValue({
       ...cuotaBase,
-      venta: { ...cuotaBase.venta, tipo_plan_congelado: TipoPlanPago.CONTADO },
+      venta: {
+        ...cuotaBase.venta,
+        planPago: {
+          ...cuotaBase.venta.planPago,
+          modalidad: ModalidadPago.CONTADO,
+          cantidad_cuotas: null,
+        },
+      },
     });
 
     await expect(service.declarar(dtoBase, CLIENTE_ID)).rejects.toBeInstanceOf(

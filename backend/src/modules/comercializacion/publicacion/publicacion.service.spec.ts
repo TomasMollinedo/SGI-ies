@@ -37,7 +37,7 @@ describe('PublicacionService', () => {
       create: jest.Mock;
       updateMany: jest.Mock;
     };
-    pLANPAGO: Record<string, jest.Mock>;
+    pLANEJEMPLO: Record<string, jest.Mock>;
     cONSULTAUNIDAD: Record<string, jest.Mock>;
   };
   let prisma: {
@@ -85,7 +85,7 @@ describe('PublicacionService', () => {
         codigo: 'PROY-TN',
         nombre: 'Torre Nogal',
         localidad: 'Resistencia, Chaco',
-        estado: estadoProyecto,
+        estado_obra: estadoProyecto,
         fecha_fin_estimada: FECHA_FIN,
       },
     },
@@ -96,7 +96,7 @@ describe('PublicacionService', () => {
     tx.$queryRaw.mockResolvedValue([
       { id_unidad_funcional: 12, estado: true, FK_proyecto: 1 },
     ]);
-    tx.pROYECTO.findUnique.mockResolvedValue({ estado: estadoProyecto });
+    tx.pROYECTO.findUnique.mockResolvedValue({ estado_obra: estadoProyecto });
     tx.pUBLICACIONUNIDAD.findFirst.mockResolvedValue(null);
     tx.pUBLICACIONUNIDAD.create.mockResolvedValue({ id_publicacion: 7 });
     prisma.pUBLICACIONUNIDAD.findUnique.mockResolvedValue(
@@ -114,7 +114,7 @@ describe('PublicacionService', () => {
         create: jest.fn(),
         updateMany: jest.fn(),
       },
-      pLANPAGO: {
+      pLANEJEMPLO: {
         create: jest.fn(),
         update: jest.fn(),
         updateMany: jest.fn(),
@@ -339,7 +339,7 @@ describe('PublicacionService', () => {
         USUARIO_ID,
       );
 
-      for (const accessor of [tx.pLANPAGO, tx.cONSULTAUNIDAD]) {
+      for (const accessor of [tx.pLANEJEMPLO, tx.cONSULTAUNIDAD]) {
         for (const mock of Object.values(accessor)) {
           expect(mock).not.toHaveBeenCalled();
         }
@@ -630,7 +630,7 @@ describe('PublicacionService', () => {
         id_proyecto: 1,
         codigo: 'PROY-X',
         nombre: 'Proyecto X',
-        estado: estadoProyecto,
+        estado_obra: estadoProyecto,
       },
     });
 
@@ -639,7 +639,7 @@ describe('PublicacionService', () => {
 
       const where = {
         estado: true,
-        proyecto: { estado: { not: 'CANCELADO' } },
+        proyecto: { estado_obra: { not: 'CANCELADO' } },
         publicaciones: { none: { vigente: true } },
       };
       expect(primerArgumento(prisma.uNIDADFUNCIONAL.findMany).where).toEqual(
@@ -658,7 +658,7 @@ describe('PublicacionService', () => {
 
       expect(primerArgumento(prisma.uNIDADFUNCIONAL.findMany).where).toEqual({
         estado: true,
-        proyecto: { estado: { not: 'CANCELADO' } },
+        proyecto: { estado_obra: { not: 'CANCELADO' } },
         publicaciones: { none: { vigente: true } },
         FK_proyecto: 4,
         tipologia: 'LOCAL_COMERCIAL',

@@ -91,7 +91,7 @@ describe('UnidadFuncionalService', () => {
     id_proyecto: 1,
     codigo: 'PROY-TN',
     nombre: 'Torre Nogal',
-    estado,
+    estado_obra: estado,
     fecha_fin_estimada: fechaFin,
   });
 
@@ -101,7 +101,7 @@ describe('UnidadFuncionalService', () => {
     identificador: '3A',
     costo: new Prisma.Decimal('100000'),
     estado: true,
-    proyecto: { estado: EstadoProyecto.EN_PLANIFICACION },
+    proyecto: { estado_obra: EstadoProyecto.EN_PLANIFICACION },
     _count: { publicaciones: 0 },
     ...sobrescribe,
   });
@@ -200,7 +200,7 @@ describe('UnidadFuncionalService', () => {
   describe('alta', () => {
     beforeEach(() => {
       prisma.pROYECTO.findUnique.mockResolvedValue({
-        estado: EstadoProyecto.EN_PLANIFICACION,
+        estado_obra: EstadoProyecto.EN_PLANIFICACION,
       });
       prisma.uNIDADFUNCIONAL.create.mockResolvedValue({
         id_unidad_funcional: ID_UNIDAD,
@@ -260,7 +260,7 @@ describe('UnidadFuncionalService', () => {
       EstadoProyecto.FINALIZADO,
       EstadoProyecto.CANCELADO,
     ])('rechaza el alta si el proyecto está %s', async (estado) => {
-      prisma.pROYECTO.findUnique.mockResolvedValue({ estado });
+      prisma.pROYECTO.findUnique.mockResolvedValue({ estado_obra: estado });
 
       const mensaje = await mensajeDeRechazo(
         service.create(DTO_ALTA, USUARIO_ID),
@@ -445,7 +445,7 @@ describe('UnidadFuncionalService', () => {
     it('con el proyecto En ejecución, y aun publicada, se siguen editando las características descriptivas', async () => {
       tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(
         filaBloqueada({
-          proyecto: { estado: EstadoProyecto.EN_EJECUCION },
+          proyecto: { estado_obra: EstadoProyecto.EN_EJECUCION },
           _count: { publicaciones: 1 },
         }),
       );
@@ -509,7 +509,7 @@ describe('UnidadFuncionalService', () => {
 
     it('rechaza editar una unidad de un proyecto Cancelado', async () => {
       tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(
-        filaBloqueada({ proyecto: { estado: EstadoProyecto.CANCELADO } }),
+        filaBloqueada({ proyecto: { estado_obra: EstadoProyecto.CANCELADO } }),
       );
 
       const mensaje = await mensajeDeRechazo(
@@ -562,7 +562,7 @@ describe('UnidadFuncionalService', () => {
       'rechaza la baja con el proyecto %s, con su propio mensaje',
       async (estadoProyecto, etiqueta) => {
         tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(
-          filaBloqueada({ proyecto: { estado: estadoProyecto } }),
+          filaBloqueada({ proyecto: { estado_obra: estadoProyecto } }),
         );
 
         const mensaje = await mensajeDeRechazo(
@@ -585,7 +585,9 @@ describe('UnidadFuncionalService', () => {
       );
 
       tx.uNIDADFUNCIONAL.findUnique.mockResolvedValueOnce(
-        filaBloqueada({ proyecto: { estado: EstadoProyecto.EN_EJECUCION } }),
+        filaBloqueada({
+          proyecto: { estado_obra: EstadoProyecto.EN_EJECUCION },
+        }),
       );
       const porProyecto = await mensajeDeRechazo(
         service.baja(ID_UNIDAD, USUARIO_ID),
@@ -596,7 +598,9 @@ describe('UnidadFuncionalService', () => {
 
     it('si se dan los dos motivos a la vez, el mensaje los informa juntos', async () => {
       tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(
-        filaBloqueada({ proyecto: { estado: EstadoProyecto.EN_EJECUCION } }),
+        filaBloqueada({
+          proyecto: { estado_obra: EstadoProyecto.EN_EJECUCION },
+        }),
       );
       tx.pUBLICACIONUNIDAD.findFirst.mockResolvedValue({ id_publicacion: 5 });
 
@@ -622,7 +626,7 @@ describe('UnidadFuncionalService', () => {
 
     it('rechaza dar de baja una unidad de un proyecto Cancelado', async () => {
       tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(
-        filaBloqueada({ proyecto: { estado: EstadoProyecto.CANCELADO } }),
+        filaBloqueada({ proyecto: { estado_obra: EstadoProyecto.CANCELADO } }),
       );
 
       const mensaje = await mensajeDeRechazo(
@@ -646,7 +650,7 @@ describe('UnidadFuncionalService', () => {
       FK_proyecto: 1,
       identificador: '3A',
       estado: false,
-      proyecto: { estado: EstadoProyecto.EN_PLANIFICACION },
+      proyecto: { estado_obra: EstadoProyecto.EN_PLANIFICACION },
       ...sobrescribe,
     });
 
@@ -676,7 +680,7 @@ describe('UnidadFuncionalService', () => {
 
     it('rechaza reactivar si el proyecto ya no está En planificación', async () => {
       prisma.uNIDADFUNCIONAL.findUnique.mockResolvedValueOnce(
-        dadaDeBaja({ proyecto: { estado: EstadoProyecto.EN_EJECUCION } }),
+        dadaDeBaja({ proyecto: { estado_obra: EstadoProyecto.EN_EJECUCION } }),
       );
 
       const mensaje = await mensajeDeRechazo(

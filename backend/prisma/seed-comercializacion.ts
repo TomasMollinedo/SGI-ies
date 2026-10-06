@@ -5,12 +5,12 @@ import {
   EstadoComercial,
   EstadoCuota,
   EstadoProyecto,
-  EstadoVenta,
+  ModalidadPago,
   Periodicidad,
   TipologiaUnidad,
-  TipoPlanPago,
 } from '../generated/prisma/enums';
 import { RolNombre } from '../src/common/enums/rol.enum';
+import { CuotaSeed, crearVentaConPlanPago } from './seed-venta-con-plan-pago';
 
 /**
  * Seed de prueba para Comercialización/Ecommerce (Sprint 3, T96): siembra la
@@ -33,7 +33,8 @@ import { RolNombre } from '../src/common/enums/rol.enum';
  *
  * Casos borde que pide explícitamente T96 (ver plan `dejar-en-testing-la-
  * snazzy-prism.md`):
- * - Un proyecto sin `fecha_fin_estimada` ni `direccion` (Barrio Los Álamos).
+ * - Un proyecto sin `fecha_fin_estimada` y con la dirección todavía "A definir"
+ *   (Barrio Los Álamos): `direccion` es obligatoria desde T121.
  * - Una publicación no vigente (LOCAL-03).
  * - Un cliente sin `dni_cuil` (Camila Ferreyra).
  * - Al menos una unidad en cada uno de los 4 `EstadoComercial`.
@@ -105,7 +106,7 @@ async function main() {
       nombre: 'Torre Nogal',
       localidad: 'Resistencia, Chaco',
       direccion: 'Av. 25 de Mayo 1200',
-      estado: EstadoProyecto.EN_EJECUCION,
+      estado_obra: EstadoProyecto.EN_EJECUCION,
       fecha_fin_estimada: new Date('2027-12-01'),
       cantidad_unidades_planificadas: 24,
       imagen_portada_url: 'https://cdn.axontech.test/proyectos/torre-nogal.jpg',
@@ -114,8 +115,8 @@ async function main() {
       codigo: 'PROY-BLA',
       nombre: 'Barrio Los Álamos',
       localidad: 'Corrientes, Corrientes',
-      direccion: null, // caso borde: proyecto en planificación, sin dirección todavía
-      estado: EstadoProyecto.EN_PLANIFICACION,
+      direccion: 'A definir', // obligatoria desde HU-31; el proyecto en planificación todavía no tiene una definitiva
+      estado_obra: EstadoProyecto.EN_PLANIFICACION,
       fecha_fin_estimada: null, // caso borde pedido explícitamente
       cantidad_unidades_planificadas: 40,
       imagen_portada_url:
@@ -128,7 +129,7 @@ async function main() {
       nombre: 'Edificio Belgrano Alto',
       localidad: 'Rosario, Santa Fe',
       direccion: 'Bv. Oroño 1450',
-      estado: EstadoProyecto.EN_EJECUCION,
+      estado_obra: EstadoProyecto.EN_EJECUCION,
       fecha_fin_estimada: new Date('2027-03-01'),
       cantidad_unidades_planificadas: 18,
       imagen_portada_url:
@@ -139,7 +140,7 @@ async function main() {
       nombre: 'Torres del Río',
       localidad: 'Santa Fe, Santa Fe',
       direccion: 'Av. Aristóbulo del Valle 3200',
-      estado: EstadoProyecto.EN_EJECUCION,
+      estado_obra: EstadoProyecto.EN_EJECUCION,
       fecha_fin_estimada: new Date('2027-09-01'),
       cantidad_unidades_planificadas: 24,
       imagen_portada_url:
@@ -150,7 +151,7 @@ async function main() {
       nombre: 'Altos del Molino',
       localidad: 'Reconquista, Santa Fe',
       direccion: 'Av. Alvear 850',
-      estado: EstadoProyecto.EN_EJECUCION,
+      estado_obra: EstadoProyecto.EN_EJECUCION,
       fecha_fin_estimada: new Date('2027-07-01'),
       cantidad_unidades_planificadas: 20,
       imagen_portada_url:
@@ -161,7 +162,7 @@ async function main() {
       nombre: 'Barrio La Merced',
       localidad: 'Formosa, Formosa',
       direccion: 'Barrio La Merced',
-      estado: EstadoProyecto.FINALIZADO,
+      estado_obra: EstadoProyecto.FINALIZADO,
       fecha_fin_estimada: new Date('2025-11-01'),
       cantidad_unidades_planificadas: 12,
       imagen_portada_url:
@@ -172,7 +173,7 @@ async function main() {
       nombre: 'Residencial Costanera',
       localidad: 'Corrientes, Corrientes',
       direccion: 'Av. Costanera 500',
-      estado: EstadoProyecto.FINALIZADO,
+      estado_obra: EstadoProyecto.FINALIZADO,
       fecha_fin_estimada: new Date('2026-02-01'),
       cantidad_unidades_planificadas: 16,
       imagen_portada_url:
@@ -183,7 +184,7 @@ async function main() {
       nombre: 'Paseo San Jorge',
       localidad: 'Resistencia, Chaco',
       direccion: 'Av. Sarmiento 2100',
-      estado: EstadoProyecto.CANCELADO,
+      estado_obra: EstadoProyecto.CANCELADO,
       fecha_fin_estimada: new Date('2026-05-01'),
       cantidad_unidades_planificadas: 20,
       imagen_portada_url:
@@ -194,7 +195,7 @@ async function main() {
       nombre: 'Vientos del Norte',
       localidad: 'Sáenz Peña, Chaco',
       direccion: 'Ruta 95 Km 3',
-      estado: EstadoProyecto.EN_PLANIFICACION,
+      estado_obra: EstadoProyecto.EN_PLANIFICACION,
       fecha_fin_estimada: new Date('2028-01-01'),
       cantidad_unidades_planificadas: 26,
       imagen_portada_url:
@@ -205,7 +206,7 @@ async function main() {
       nombre: 'Mirador del Paraná',
       localidad: 'Corrientes, Corrientes',
       direccion: 'Av. Poincaré 1200',
-      estado: EstadoProyecto.EN_PLANIFICACION,
+      estado_obra: EstadoProyecto.EN_PLANIFICACION,
       fecha_fin_estimada: new Date('2028-06-01'),
       cantidad_unidades_planificadas: 14,
       imagen_portada_url:
@@ -299,7 +300,7 @@ async function main() {
   async function upsertPlan(datos: {
     FK_publicacion: number;
     nombre: string;
-    tipo: TipoPlanPago;
+    tipo: ModalidadPago;
     precio: number;
     porcentaje_ganancia: number;
     margen: number;
@@ -308,53 +309,43 @@ async function main() {
     cantidad_cuotas?: number;
     periodicidad?: Periodicidad;
   }) {
-    const existente = await prisma.pLANPAGO.findFirst({
+    const existente = await prisma.pLANEJEMPLO.findFirst({
       where: { FK_publicacion: datos.FK_publicacion, nombre: datos.nombre },
     });
     if (existente) return existente;
 
-    return prisma.pLANPAGO.create({
+    return prisma.pLANEJEMPLO.create({
       data: { ...datos, ...auditoriaComercializacion },
     });
   }
 
   /**
    * Idempotente por FK_publicacion (una sola venta vigente por publicación
-   * en este seed). Si ya existe, no vuelve a tocar sus CUOTA — se crean
-   * anidadas solo la primera vez.
+   * en este seed). Si ya existe, no vuelve a tocar su PLANPAGO ni sus CUOTA —
+   * se crean solo la primera vez, con `crearVentaConPlanPago`.
    */
   async function upsertVenta(datos: {
     FK_cliente: number;
     FK_publicacion: number;
-    FK_plan_pago: number;
-    fecha_adhesion: Date;
+    FK_plan_ejemplo: number;
+    fecha_venta: Date;
     precio_congelado: number;
     anticipo_congelado: number;
-    tipo_plan_congelado: TipoPlanPago;
+    tipo_plan_congelado: ModalidadPago;
     cantidad_cuotas_congelada: number;
     periodicidad_congelada?: Periodicidad;
-    cuotas: {
-      numero: number;
-      importe: number;
-      fecha_vencimiento: Date;
-      saldo_pendiente: number;
-      estado: EstadoCuota;
-    }[];
+    cuotas: CuotaSeed[];
   }) {
     const existente = await prisma.vENTA.findFirst({
       where: { FK_publicacion: datos.FK_publicacion },
     });
     if (existente) return existente;
 
-    const { cuotas, ...ventaDatos } = datos;
-    return prisma.vENTA.create({
-      data: {
-        ...ventaDatos,
-        FK_usuario_creador: responsableComercializacion.id_usuario,
-        estado: EstadoVenta.VIGENTE,
-        cuotas: { create: cuotas },
-      },
-    });
+    return crearVentaConPlanPago(
+      prisma,
+      datos,
+      responsableComercializacion.id_usuario,
+    );
   }
 
   // --------------------------------------------------------------------
@@ -483,7 +474,7 @@ async function main() {
   await upsertPlan({
     FK_publicacion: publicacion1A.id_publicacion,
     nombre: 'Contado 1-A',
-    tipo: TipoPlanPago.CONTADO,
+    tipo: ModalidadPago.CONTADO,
     precio: 19_000_000, // costo 15.000.000 + margen 4.000.000 (26,67%)
     porcentaje_ganancia: 26.67,
     margen: 4_000_000,
@@ -492,7 +483,7 @@ async function main() {
   await upsertPlan({
     FK_publicacion: publicacion1A.id_publicacion,
     nombre: 'Financiado 12 cuotas 1-A',
-    tipo: TipoPlanPago.FINANCIADO,
+    tipo: ModalidadPago.FINANCIADO,
     precio: 21_000_000, // costo 15.000.000 + margen 6.000.000 (40%)
     porcentaje_ganancia: 40,
     margen: 6_000_000,
@@ -524,7 +515,7 @@ async function main() {
   const plan2B = await upsertPlan({
     FK_publicacion: publicacion2B.id_publicacion,
     nombre: 'Financiado 6 cuotas 2-B',
-    tipo: TipoPlanPago.FINANCIADO,
+    tipo: ModalidadPago.FINANCIADO,
     precio: 27_000_000, // costo 20.000.000 + margen 7.000.000 (35%)
     porcentaje_ganancia: 35,
     margen: 7_000_000,
@@ -539,11 +530,11 @@ async function main() {
   await upsertVenta({
     FK_cliente: idValentina,
     FK_publicacion: publicacion2B.id_publicacion,
-    FK_plan_pago: plan2B.id_plan_pago,
-    fecha_adhesion: new Date('2026-04-14'),
+    FK_plan_ejemplo: plan2B.id_plan_ejemplo,
+    fecha_venta: new Date('2026-04-14'),
     precio_congelado: 27_000_000,
     anticipo_congelado: 5_400_000,
-    tipo_plan_congelado: TipoPlanPago.FINANCIADO,
+    tipo_plan_congelado: ModalidadPago.FINANCIADO,
     cantidad_cuotas_congelada: 6,
     periodicidad_congelada: Periodicidad.MENSUAL,
     cuotas: [
@@ -620,7 +611,7 @@ async function main() {
   const planLoteOcho = await upsertPlan({
     FK_publicacion: publicacionLoteOcho.id_publicacion,
     nombre: 'Contado LOTE-08',
-    tipo: TipoPlanPago.CONTADO,
+    tipo: ModalidadPago.CONTADO,
     precio: 52_000_000, // costo 42.000.000 + margen 10.000.000 (23,81%)
     porcentaje_ganancia: 23.81,
     margen: 10_000_000,
@@ -632,11 +623,11 @@ async function main() {
   await upsertVenta({
     FK_cliente: idEmiliano,
     FK_publicacion: publicacionLoteOcho.id_publicacion,
-    FK_plan_pago: planLoteOcho.id_plan_pago,
-    fecha_adhesion: new Date('2026-08-01'),
+    FK_plan_ejemplo: planLoteOcho.id_plan_ejemplo,
+    fecha_venta: new Date('2026-08-01'),
     precio_congelado: 52_000_000,
     anticipo_congelado: 52_000_000,
-    tipo_plan_congelado: TipoPlanPago.CONTADO,
+    tipo_plan_congelado: ModalidadPago.CONTADO,
     cantidad_cuotas_congelada: 1,
     cuotas: [
       {
@@ -703,7 +694,7 @@ async function main() {
       await upsertPlan({
         FK_publicacion: publicacion.id_publicacion,
         nombre: `Contado ${identificador}`,
-        tipo: TipoPlanPago.CONTADO,
+        tipo: ModalidadPago.CONTADO,
         precio,
         porcentaje_ganancia: 35,
         margen: 0,
@@ -743,7 +734,7 @@ async function main() {
       const plan = await upsertPlan({
         FK_publicacion: publicacion.id_publicacion,
         nombre: `Contado ${identificador}`,
-        tipo: TipoPlanPago.CONTADO,
+        tipo: ModalidadPago.CONTADO,
         precio,
         porcentaje_ganancia: 30,
         margen: 0,
@@ -752,11 +743,11 @@ async function main() {
       await upsertVenta({
         FK_cliente: clientesPorUnidad[indice],
         FK_publicacion: publicacion.id_publicacion,
-        FK_plan_pago: plan.id_plan_pago,
-        fecha_adhesion: fechaAdhesion,
+        FK_plan_ejemplo: plan.id_plan_ejemplo,
+        fecha_venta: fechaAdhesion,
         precio_congelado: precio,
         anticipo_congelado: precio,
-        tipo_plan_congelado: TipoPlanPago.CONTADO,
+        tipo_plan_congelado: ModalidadPago.CONTADO,
         cantidad_cuotas_congelada: 1,
         cuotas: [
           {

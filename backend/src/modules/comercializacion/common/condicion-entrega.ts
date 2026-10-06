@@ -27,10 +27,10 @@ export interface CondicionEntrega {
  * la fecha con su propio helper de formato sobre el texto base.
  */
 export function calcularCondicionEntrega(proyecto: {
-  estado: EstadoProyecto;
+  estado_obra: EstadoProyecto;
   fecha_fin_estimada: Date | null;
 }): CondicionEntrega {
-  if (proyecto.estado === EstadoProyecto.FINALIZADO) {
+  if (proyecto.estado_obra === EstadoProyecto.FINALIZADO) {
     return {
       codigo: 'TERMINADA',
       texto: CONDICION_ENTREGA_TEXTOS.TERMINADA,
@@ -67,7 +67,7 @@ export interface CondicionEntregaResponse {
  * `VentaService`; se subió acá al encontrar la segunda copia (T112).
  */
 export function calcularCondicionEntregaResponse(proyecto: {
-  estado: EstadoProyecto;
+  estado_obra: EstadoProyecto;
   fecha_fin_estimada: Date | null;
 }): CondicionEntregaResponse {
   const condicion = calcularCondicionEntrega(proyecto);

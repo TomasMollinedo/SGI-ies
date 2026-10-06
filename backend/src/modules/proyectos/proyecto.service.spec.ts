@@ -25,7 +25,7 @@ describe('ProyectoService', () => {
     nombre: `Proyecto ${id}`,
     localidad: 'Resistencia, Chaco',
     direccion: null,
-    estado: EstadoProyecto.EN_PLANIFICACION,
+    estado_obra: EstadoProyecto.EN_PLANIFICACION,
     fecha_fin_estimada: null,
     cantidad_unidades_planificadas: 10,
     ...sobrescribe,
@@ -139,7 +139,7 @@ describe('ProyectoService', () => {
       });
 
       expect(primerArgumento(prisma.pROYECTO.findMany).where).toEqual({
-        estado: EstadoProyecto.EN_EJECUCION,
+        estado_obra: EstadoProyecto.EN_EJECUCION,
       });
     });
 

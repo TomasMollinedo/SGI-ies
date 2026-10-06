@@ -47,12 +47,12 @@ describe('CatalogoService', () => {
       proyecto: {
         nombre: 'Torre Nogal',
         localidad: 'Resistencia, Chaco',
-        estado: EstadoProyecto.EN_EJECUCION,
+        estado_obra: EstadoProyecto.EN_EJECUCION,
         fecha_fin_estimada: new Date('2027-12-01'),
       },
       imagenes: [{ url: 'https://cdn.test/1-a.jpg' }],
     },
-    planes: [{ precio: new Prisma.Decimal('19000000') }],
+    planesEjemplo: [{ precio: new Prisma.Decimal('19000000') }],
     ...extra,
   });
 
@@ -107,7 +107,7 @@ describe('CatalogoService', () => {
           .unidadFuncional?.proyecto,
       ).toEqual({
         localidad: { contains: 'Rosario', mode: 'insensitive' },
-        estado: { not: EstadoProyecto.FINALIZADO },
+        estado_obra: { not: EstadoProyecto.FINALIZADO },
       });
     });
 
@@ -198,7 +198,7 @@ describe('CatalogoService', () => {
           observaciones: null,
           imagenes: [{ url: 'https://cdn.test/1-a.jpg', orden: 0 }],
         },
-        planes: [
+        planesEjemplo: [
           {
             nombre: 'Contado 1-A',
             tipo: 'CONTADO',
@@ -252,7 +252,7 @@ describe('CatalogoService', () => {
               imagen_portada_url: null,
             },
           },
-          planes: [{ precio: new Prisma.Decimal('19000000') }],
+          planesEjemplo: [{ precio: new Prisma.Decimal('19000000') }],
         },
         {
           unidadFuncional: {
@@ -263,7 +263,7 @@ describe('CatalogoService', () => {
               imagen_portada_url: null,
             },
           },
-          planes: [{ precio: new Prisma.Decimal('15000000') }],
+          planesEjemplo: [{ precio: new Prisma.Decimal('15000000') }],
         },
       ]);
 
