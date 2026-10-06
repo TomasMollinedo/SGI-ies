@@ -10,9 +10,11 @@ import { createZodDto } from 'nestjs-zod';
  * saldo pendiente) dependen de consultas a la base y las valida el service.
  */
 export const createDeclaracionPagoSchema = z.object({
-  FK_cuota: z.number().int().positive(),
-  FK_forma_pago: z.number().int().positive(),
-  importe: z
+  // `coerce`: la declaración llega como multipart/form-data, así que los
+  // números vienen como texto.
+  FK_cuota: z.coerce.number().int().positive(),
+  FK_forma_pago: z.coerce.number().int().positive(),
+  importe: z.coerce
     .number()
     .positive('El importe debe ser mayor a 0')
     .multipleOf(0.01, 'El importe admite hasta dos decimales'),

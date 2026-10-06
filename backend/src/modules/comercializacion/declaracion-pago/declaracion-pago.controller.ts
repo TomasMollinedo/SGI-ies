@@ -1,14 +1,33 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Post,
+  StreamableFile,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+  ParseFilePipeBuilder,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiConflictResponse,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiNotFoundResponse,
   ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import {
+  MAX_TAMANO_COMPROBANTE_BYTES,
+  TIPOS_COMPROBANTE_PERMITIDOS,
+} from '../../almacenamiento/comprobante.constants';
 import { DeclaracionPagoService } from './declaracion-pago.service';
 import { CreateDeclaracionPagoDto } from './dto/create-declaracion-pago.dto';
 import { DeclaracionPagoResponseDto } from './dto/declaracion-pago-response.dto';
@@ -35,9 +54,11 @@ export class DeclaracionPagoController {
 
   @Post()
   @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('comprobante'))
   @ApiOperation({
     summary:
-      'Declara un pago sobre una cuota propia, pendiente de validación por Tesorería (HU-29)',
+      'Declara un pago sobre una cuota propia, con su comprobante adjunto, pendiente de validación por Tesorería (HU-29)',
     description:
       'Nace en estado PENDIENTE y no afecta el saldo de la cuota — eso ocurre recién si Tesorería la valida y la convierte en un cobro. No se admite sobre cuotas de una venta de contado.',
   })
@@ -60,8 +81,39 @@ export class DeclaracionPagoController {
   })
   declarar(
     @Body() dto: CreateDeclaracionPagoDto,
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addFileTypeValidator({ fileType: TIPOS_COMPROBANTE_PERMITIDOS.join('|') })
+        .addMaxSizeValidator({ maxSize: MAX_TAMANO_COMPROBANTE_BYTES })
+        .build({ errorHttpStatusCode: HttpStatus.BAD_REQUEST }),
+    )
+    comprobante: Express.Multer.File,
     @CurrentCliente() cliente: AuthenticatedCliente,
   ) {
-    return this.declaracionPagoService.declarar(dto, cliente.id);
+    return this.declaracionPagoService.declarar(dto, cliente.id, comprobante);
+  }
+
+  @Get(':id/comprobante')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Ver el comprobante adjunto de una declaración propia',
+    description:
+      'Solo el cliente que declaró el pago. Otra declaración, o una inexistente, responde 404.',
+  })
+  @ApiNotFoundResponse({
+    description: 'No existe la declaración para este cliente, o no tiene comprobante',
+  })
+  @ApiUnauthorizedResponse({ description: 'No autenticado' })
+  async verComprobante(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentCliente() cliente: AuthenticatedCliente,
+  ): Promise<StreamableFile> {
+    const { contenido, tipo, nombreArchivo } =
+      await this.declaracionPagoService.obtenerComprobanteDelCliente(id, cliente.id);
+
+    return new StreamableFile(contenido, {
+      type: tipo,
+      disposition: `inline; filename="${nombreArchivo.replace(/"/g, '')}"`,
+    });
   }
 }

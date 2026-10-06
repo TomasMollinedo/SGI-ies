@@ -13,6 +13,7 @@ import {
   ModalidadPago,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { AlmacenamientoService } from '../../almacenamiento/almacenamiento.service';
 import { validarNumeroReferencia } from '../../../common/validaciones/validar-numero-referencia';
 import { clienteTieneDatosCompletos } from '../cliente-auth/cliente-tiene-datos-completos';
 import { FormaPagoService } from '../../tesoreria/forma-pago/forma-pago.service';
@@ -96,6 +97,7 @@ export class DeclaracionPagoService {
     private readonly prisma: PrismaService,
     private readonly formaPagoService: FormaPagoService,
     private readonly cobroService: CobroService,
+    private readonly almacenamientoService: AlmacenamientoService,
   ) {}
 
   /**
@@ -111,7 +113,11 @@ export class DeclaracionPagoService {
    * `CUOTA.estado`: eso ocurre recién si Tesorería la valida y la convierte
    * en un `COBRO` (fuera de alcance acá).
    */
-  async declarar(dto: CreateDeclaracionPagoDto, clienteId: number) {
+  async declarar(
+    dto: CreateDeclaracionPagoDto,
+    clienteId: number,
+    comprobante: Express.Multer.File,
+  ) {
     const cliente = await this.buscarCliente(clienteId);
     this.validarDatosCompletos(cliente);
 
@@ -127,6 +133,10 @@ export class DeclaracionPagoService {
     validarNumeroReferencia(dto.numero_referencia, formaPago);
     this.validarImporteNoSuperaSaldo(dto.importe, cuota);
 
+    // Se sube recién cuando la declaración ya pasó todas las validaciones: un
+    // rechazo no deja archivos huérfanos en el bucket.
+    const { ruta } = await this.almacenamientoService.subirComprobante(comprobante);
+
     const declaracion = await this.prisma.dECLARACIONPAGO.create({
       data: {
         FK_cliente: clienteId,
@@ -134,10 +144,64 @@ export class DeclaracionPagoService {
         FK_forma_pago: dto.FK_forma_pago,
         importe: new Prisma.Decimal(dto.importe),
         numero_referencia: dto.numero_referencia,
+        comprobante_ruta: ruta,
+        comprobante_nombre_archivo: comprobante.originalname,
+        comprobante_tipo: comprobante.mimetype,
       },
     });
 
     return this.mapearRespuesta(declaracion);
+  }
+
+  /**
+   * El comprobante de una declaración propia del cliente. Si no es suya,
+   * responde el mismo 404 que si no existiera: un cliente no puede averiguar
+   * qué comprobantes existen de otros.
+   */
+  async obtenerComprobanteDelCliente(id: number, clienteId: number) {
+    const declaracion = await this.prisma.dECLARACIONPAGO.findFirst({
+      where: { id_declaracion_pago: id, FK_cliente: clienteId },
+      select: {
+        comprobante_ruta: true,
+        comprobante_nombre_archivo: true,
+      },
+    });
+
+    return this.leerComprobante(declaracion);
+  }
+
+  /** El comprobante para Tesorería y Comercialización, sin filtrar por cliente. */
+  async obtenerComprobanteInterno(id: number) {
+    const declaracion = await this.prisma.dECLARACIONPAGO.findUnique({
+      where: { id_declaracion_pago: id },
+      select: {
+        comprobante_ruta: true,
+        comprobante_nombre_archivo: true,
+      },
+    });
+
+    return this.leerComprobante(declaracion);
+  }
+
+  private async leerComprobante(
+    declaracion: {
+      comprobante_ruta: string | null;
+      comprobante_nombre_archivo: string | null;
+    } | null,
+  ) {
+    if (!declaracion?.comprobante_ruta) {
+      throw new NotFoundException('No existe un comprobante para esta declaración');
+    }
+
+    const { contenido, tipo } = await this.almacenamientoService.leerComprobante(
+      declaracion.comprobante_ruta,
+    );
+
+    return {
+      contenido,
+      tipo,
+      nombreArchivo: declaracion.comprobante_nombre_archivo ?? 'comprobante',
+    };
   }
 
   /**

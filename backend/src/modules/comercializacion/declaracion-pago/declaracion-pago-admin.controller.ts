@@ -6,6 +6,7 @@ import {
   ParseIntPipe,
   Patch,
   Query,
+  StreamableFile,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -167,5 +168,36 @@ export class DeclaracionPagoAdminController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.declaracionPagoService.validar(id, user.id);
+  }
+
+  /**
+   * Para cotejar la declaración contra el comprobante. Sobreescribe el
+   * `@Roles` de la clase: Tesorería y Comercialización también lo ven.
+   */
+  @Get(':id/comprobante')
+  @Roles(
+    RolNombre.ADMINISTRADOR,
+    RolNombre.GERENTE_GENERAL,
+    RolNombre.RESPONSABLE_TESORERIA,
+    RolNombre.RESPONSABLE_COMERCIALIZACION,
+  )
+  @ApiOperation({
+    summary:
+      'Ver el comprobante adjunto de una declaración de pago (Tesorería y Comercialización)',
+  })
+  @ApiParam({ name: 'id', type: Number })
+  @ApiNotFoundResponse({
+    description: 'No existe la declaración, o no tiene comprobante',
+  })
+  async verComprobante(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<StreamableFile> {
+    const { contenido, tipo, nombreArchivo } =
+      await this.declaracionPagoService.obtenerComprobanteInterno(id);
+
+    return new StreamableFile(contenido, {
+      type: tipo,
+      disposition: `inline; filename="${nombreArchivo.replace(/"/g, '')}"`,
+    });
   }
 }

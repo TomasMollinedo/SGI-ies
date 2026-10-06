@@ -1,17 +1,23 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
 import type { EnvConfig } from '../../config/env.schema';
+import { extensionDelComprobante } from './comprobante.constants';
 
 @Injectable()
 export class AlmacenamientoService {
   private readonly s3: S3Client;
   private readonly bucket: string;
+  private readonly bucketComprobantes: string;
   private readonly publicUrl: string;
 
   constructor(private readonly configService: ConfigService<EnvConfig, true>) {
     this.bucket = this.configService.get('STORAGE_BUCKET', { infer: true });
+    this.bucketComprobantes = this.configService.get(
+      'STORAGE_BUCKET_COMPROBANTES',
+      { infer: true },
+    );
     this.publicUrl = this.configService.get('STORAGE_PUBLIC_URL', {
       infer: true,
     });
@@ -53,5 +59,35 @@ export class AlmacenamientoService {
     );
 
     return { url: `${this.publicUrl}/${key}` };
+  }
+
+  /**
+   * Sube un comprobante al bucket privado. Devuelve la clave del objeto (la
+   * ruta que se guarda en la declaración), nunca una URL pública.
+   */
+  async subirComprobante(file: Express.Multer.File): Promise<{ ruta: string }> {
+    const key = `${randomUUID()}.${extensionDelComprobante(file.mimetype)}`;
+
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucketComprobantes,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      }),
+    );
+
+    return { ruta: key };
+  }
+
+  async leerComprobante(ruta: string): Promise<{ contenido: Buffer; tipo: string }> {
+    const respuesta = await this.s3.send(
+      new GetObjectCommand({ Bucket: this.bucketComprobantes, Key: ruta }),
+    );
+
+    return {
+      contenido: Buffer.from(await respuesta.Body!.transformToByteArray()),
+      tipo: respuesta.ContentType ?? 'application/octet-stream',
+    };
   }
 }
