@@ -1,10 +1,6 @@
 import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
-import {
-  Periodicidad,
-  ModalidadPago,
-  TipologiaUnidad,
-} from '../../../../generated/prisma/enums';
+import { TipologiaUnidad } from '../../../../generated/prisma/enums';
 
 /**
  * DTOs de la API pública del catálogo (T107). Cada schema se arma campo por
@@ -60,30 +56,77 @@ const imagenUnidadSchema = z.object({
   orden: z.number(),
 });
 
-const planActivoSchema = z.object({
+/**
+ * Plan de ejemplo (HU-22) tal como lo ve el visitante: nunca trae importes
+ * guardados, todo se calcula al responder con el precio de lista y la TNA
+ * vigente de su plazo. Un plan inactivo, o de un plazo inactivo, no aparece.
+ */
+const planEjemploSchema = z.object({
   nombre: z.string(),
-  tipo: z.enum(ModalidadPago),
-  precio: z.number(),
-  anticipo_porcentaje: z.number().nullable(),
-  anticipo_monto: z.number().nullable(),
-  cantidad_cuotas: z.number().nullable(),
-  periodicidad: z.enum(Periodicidad).nullable(),
+  anticipo_porcentaje: z.number(),
+  anticipo_monto: z.number(),
+  saldo_financiado: z.number(),
+  cantidad_cuotas: z.number(),
+  tasa_nominal_anual: z.number(),
+  valor_cuota: z.number(),
+  total_intereses: z.number(),
+  total_a_pagar: z.number(),
+});
+
+/** Plazo activo que el visitante puede elegir en la simulación libre. */
+const plazoSimuladorSchema = z.object({
+  id_plazo_financiacion: z.number(),
+  cantidad_cuotas: z.number(),
+  tasa_nominal_anual: z.number(),
 });
 
 /**
  * Detalle de una unidad: todo lo del ítem del listado, más lo que no entra en
- * una fila de catálogo (fotos, comodidades, y los planes de pago ACTIVOS con
- * su precio — un plan inactivo no aparece acá).
+ * una fila de catálogo (fotos, comodidades, planes de ejemplo y plazos del
+ * simulador).
+ *
+ * `simulador` es `null` cuando no hay ningún plazo activo: en ese caso el
+ * detalle informa únicamente el precio de contado (`precio_desde`).
  */
 export const catalogoDetalleSchema = catalogoListItemSchema.extend({
   comodidades: z.string().nullable(),
   observaciones: z.string().nullable(),
   imagenes: z.array(imagenUnidadSchema),
-  planes: z.array(planActivoSchema),
+  planes: z.array(planEjemploSchema),
+  simulador: z.object({ plazos: z.array(plazoSimuladorSchema) }).nullable(),
 });
 
 export class CatalogoDetalleResponseDto extends createZodDto(
   catalogoDetalleSchema,
+) {}
+
+/**
+ * Resultado de la simulación libre. No hay fechas de vencimiento: es una
+ * simulación sin venta, y el cronograma real nace recién al registrarla
+ * (HU-27). La cuota 0 es el anticipo.
+ */
+export const simulacionCatalogoSchema = z.object({
+  precio_lista: z.number(),
+  anticipo_monto: z.number(),
+  anticipo_porcentaje: z.number(),
+  saldo_financiado: z.number(),
+  plazo: plazoSimuladorSchema,
+  tasa_mensual: z.number(),
+  valor_cuota: z.number(),
+  total_intereses: z.number(),
+  total_a_pagar: z.number(),
+  cronograma: z.array(
+    z.object({
+      numero: z.number(),
+      importe_capital: z.number(),
+      importe_interes: z.number(),
+      importe: z.number(),
+    }),
+  ),
+});
+
+export class SimulacionCatalogoResponseDto extends createZodDto(
+  simulacionCatalogoSchema,
 ) {}
 
 export const proyectoDestacadoSchema = z.object({
