@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
 import {
+  EstadoComercial,
   EstadoProyecto,
   TipologiaUnidad,
 } from '../../../../generated/prisma/enums';
@@ -42,10 +43,13 @@ describe('UnidadFuncionalService', () => {
   let tx: {
     $queryRaw: jest.Mock;
     uNIDADFUNCIONAL: {
+      create: jest.Mock;
+      count: jest.Mock;
       findUnique: jest.Mock;
       findFirst: jest.Mock;
       update: jest.Mock;
     };
+    pROYECTO: { findUnique: jest.Mock };
     pUBLICACIONUNIDAD: { findFirst: jest.Mock };
     iMAGENUNIDAD: {
       aggregate: jest.Mock;
@@ -57,9 +61,7 @@ describe('UnidadFuncionalService', () => {
   };
   let prisma: {
     $transaction: jest.Mock;
-    pROYECTO: { findUnique: jest.Mock };
     uNIDADFUNCIONAL: {
-      create: jest.Mock;
       findFirst: jest.Mock;
       findUnique: jest.Mock;
       findMany: jest.Mock;
@@ -95,6 +97,14 @@ describe('UnidadFuncionalService', () => {
     fecha_fin_estimada: fechaFin,
   });
 
+  /** Lo que lee `validarProyectoAdmiteAltas` del proyecto ya lockeado. */
+  const proyectoLockeado = (sobrescribe: Args = {}) => ({
+    estado: true,
+    estado_obra: EstadoProyecto.EN_PLANIFICACION,
+    cantidad_unidades_planificadas: 10,
+    ...sobrescribe,
+  });
+
   /** Lo que devuelve `bloquearUnidad` (la fila ya lockeada). */
   const filaBloqueada = (sobrescribe: Args = {}) => ({
     FK_proyecto: 1,
@@ -128,6 +138,7 @@ describe('UnidadFuncionalService', () => {
     proyecto: proyectoMock(),
     imagenes: [],
     _count: { publicaciones: 0 },
+    publicaciones: [],
     ...sobrescribe,
   });
 
@@ -137,10 +148,13 @@ describe('UnidadFuncionalService', () => {
         .fn()
         .mockResolvedValue([{ id_unidad_funcional: ID_UNIDAD }]),
       uNIDADFUNCIONAL: {
+        create: jest.fn().mockResolvedValue({ id_unidad_funcional: ID_UNIDAD }),
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn(),
         findFirst: jest.fn().mockResolvedValue(null),
         update: jest.fn().mockResolvedValue({}),
       },
+      pROYECTO: { findUnique: jest.fn().mockResolvedValue(proyectoLockeado()) },
       pUBLICACIONUNIDAD: { findFirst: jest.fn().mockResolvedValue(null) },
       iMAGENUNIDAD: {
         aggregate: jest.fn(),
@@ -152,9 +166,7 @@ describe('UnidadFuncionalService', () => {
     };
     prisma = {
       $transaction: jest.fn(),
-      pROYECTO: { findUnique: jest.fn() },
       uNIDADFUNCIONAL: {
-        create: jest.fn(),
         findFirst: jest.fn().mockResolvedValue(null),
         findUnique: jest.fn().mockResolvedValue(detalleMock()),
         findMany: jest.fn(),
@@ -198,19 +210,10 @@ describe('UnidadFuncionalService', () => {
   });
 
   describe('alta', () => {
-    beforeEach(() => {
-      prisma.pROYECTO.findUnique.mockResolvedValue({
-        estado_obra: EstadoProyecto.EN_PLANIFICACION,
-      });
-      prisma.uNIDADFUNCIONAL.create.mockResolvedValue({
-        id_unidad_funcional: ID_UNIDAD,
-      });
-    });
-
     it('crea la unidad, completa la auditoría con el usuario autenticado y devuelve el detalle', async () => {
       const resultado = await service.create(DTO_ALTA, USUARIO_ID);
 
-      const { data } = primerArgumento(prisma.uNIDADFUNCIONAL.create) as {
+      const { data } = primerArgumento(tx.uNIDADFUNCIONAL.create) as {
         data: Args;
       };
       expect(data).toMatchObject({
@@ -225,7 +228,7 @@ describe('UnidadFuncionalService', () => {
     });
 
     it('rechaza un identificador repetido entre las unidades activas del mismo proyecto', async () => {
-      prisma.uNIDADFUNCIONAL.findFirst.mockResolvedValue({
+      tx.uNIDADFUNCIONAL.findFirst.mockResolvedValue({
         id_unidad_funcional: 99,
       });
 
@@ -234,7 +237,7 @@ describe('UnidadFuncionalService', () => {
       );
 
       expect(mensaje).toContain('3A');
-      expect(prisma.uNIDADFUNCIONAL.create).not.toHaveBeenCalled();
+      expect(tx.uNIDADFUNCIONAL.create).not.toHaveBeenCalled();
     });
 
     // El mismo identificador en otro proyecto, o el de una unidad dada de
@@ -243,7 +246,7 @@ describe('UnidadFuncionalService', () => {
     it('busca duplicados solo entre las unidades activas del mismo proyecto', async () => {
       await service.create(DTO_ALTA, USUARIO_ID);
 
-      const { where } = primerArgumento(prisma.uNIDADFUNCIONAL.findFirst) as {
+      const { where } = primerArgumento(tx.uNIDADFUNCIONAL.findFirst) as {
         where: Args;
       };
       expect(where.FK_proyecto).toBe(1);
@@ -260,22 +263,83 @@ describe('UnidadFuncionalService', () => {
       EstadoProyecto.FINALIZADO,
       EstadoProyecto.CANCELADO,
     ])('rechaza el alta si el proyecto está %s', async (estado) => {
-      prisma.pROYECTO.findUnique.mockResolvedValue({ estado_obra: estado });
+      tx.pROYECTO.findUnique.mockResolvedValue(
+        proyectoLockeado({ estado_obra: estado }),
+      );
 
       const mensaje = await mensajeDeRechazo(
         service.create(DTO_ALTA, USUARIO_ID),
       );
 
       expect(mensaje).toContain('En planificación');
-      expect(prisma.uNIDADFUNCIONAL.create).not.toHaveBeenCalled();
+      expect(tx.uNIDADFUNCIONAL.create).not.toHaveBeenCalled();
+    });
+
+    it('rechaza el alta si el proyecto está dado de baja', async () => {
+      tx.pROYECTO.findUnique.mockResolvedValue(
+        proyectoLockeado({ estado: false }),
+      );
+
+      const mensaje = await mensajeDeRechazo(
+        service.create(DTO_ALTA, USUARIO_ID),
+      );
+
+      expect(mensaje).toContain('dado de baja');
+      expect(tx.uNIDADFUNCIONAL.create).not.toHaveBeenCalled();
     });
 
     it('rechaza el alta si el proyecto no existe', async () => {
-      prisma.pROYECTO.findUnique.mockResolvedValue(null);
+      tx.$queryRaw.mockResolvedValue([]);
 
       await expect(service.create(DTO_ALTA, USUARIO_ID)).rejects.toThrow(
         NotFoundException,
       );
+      expect(tx.uNIDADFUNCIONAL.create).not.toHaveBeenCalled();
+    });
+
+    describe('límite de unidades planificadas', () => {
+      it('con una unidad menos que las planificadas, el alta pasa', async () => {
+        tx.uNIDADFUNCIONAL.count.mockResolvedValue(9);
+
+        await service.create(DTO_ALTA, USUARIO_ID);
+
+        expect(tx.uNIDADFUNCIONAL.create).toHaveBeenCalledTimes(1);
+      });
+
+      it('con tantas unidades activas como planificadas, rechaza e indica que primero hay que actualizar la cantidad en el proyecto', async () => {
+        tx.uNIDADFUNCIONAL.count.mockResolvedValue(10);
+
+        const mensaje = await mensajeDeRechazo(
+          service.create(DTO_ALTA, USUARIO_ID),
+        );
+
+        expect(mensaje).toContain('10 unidad(es) activa(s)');
+        expect(mensaje).toContain('10 planificada(s)');
+        expect(mensaje).toContain(
+          'Primero hay que actualizar la cantidad de unidades planificadas en el proyecto',
+        );
+        expect(tx.uNIDADFUNCIONAL.create).not.toHaveBeenCalled();
+      });
+
+      it('cuenta solo las unidades ACTIVAS del proyecto', async () => {
+        await service.create(DTO_ALTA, USUARIO_ID);
+
+        expect(primerArgumento(tx.uNIDADFUNCIONAL.count)).toEqual({
+          where: { FK_proyecto: 1, estado: true },
+        });
+      });
+
+      it('toma el lock del proyecto antes de contar, para que dos altas simultáneas no pasen el límite juntas', async () => {
+        await service.create(DTO_ALTA, USUARIO_ID);
+
+        const [sql] = tx.$queryRaw.mock.calls[0] as [Prisma.Sql];
+        expect(sql.sql).toContain('FROM "PROYECTO"');
+        expect(sql.sql).toContain('FOR UPDATE');
+        expect(sql.values).toEqual([DTO_ALTA.FK_proyecto]);
+        expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+          tx.uNIDADFUNCIONAL.count.mock.invocationCallOrder[0],
+        );
+      });
     });
   });
 
@@ -335,6 +399,109 @@ describe('UnidadFuncionalService', () => {
       expect(llamadas[0][0].where.estado).toBe(true);
       expect(llamadas[1][0].where).not.toHaveProperty('estado');
       expect(llamadas[2][0].where.estado).toBe(false);
+    });
+
+    describe('estado comercial', () => {
+      it.each([
+        EstadoComercial.EN_PREPARACION,
+        EstadoComercial.DISPONIBLE,
+        EstadoComercial.EN_PLAN_DE_PAGO,
+        EstadoComercial.VENDIDA,
+      ])(
+        'filtrar por %s busca la publicación VIGENTE en ese estado',
+        async (estado) => {
+          await service.findAll(query({ estado_comercial: estado }));
+
+          const { where } = primerArgumento(
+            prisma.uNIDADFUNCIONAL.findMany,
+          ) as {
+            where: Args;
+          };
+          expect(where.publicaciones).toEqual({
+            some: { vigente: true, estado_comercial: estado },
+          });
+        },
+      );
+
+      it('filtrar por SIN_PUBLICAR trae las unidades sin ninguna publicación vigente', async () => {
+        await service.findAll(query({ estado_comercial: 'SIN_PUBLICAR' }));
+
+        const { where } = primerArgumento(prisma.uNIDADFUNCIONAL.findMany) as {
+          where: Args;
+        };
+        expect(where.publicaciones).toEqual({ none: { vigente: true } });
+      });
+
+      it('se combina con los filtros de tipología y superficie, y filtra también el total', async () => {
+        await service.findAll(
+          query({
+            tipologia: TipologiaUnidad.COCHERA,
+            superficie_min: 10,
+            estado_comercial: EstadoComercial.DISPONIBLE,
+          }),
+        );
+
+        const esperado = {
+          estado: true,
+          tipologia: TipologiaUnidad.COCHERA,
+          superficie_cubierta: { gte: 10 },
+          publicaciones: {
+            some: { vigente: true, estado_comercial: 'DISPONIBLE' },
+          },
+        };
+        expect(primerArgumento(prisma.uNIDADFUNCIONAL.findMany).where).toEqual(
+          esperado,
+        );
+        expect(primerArgumento(prisma.uNIDADFUNCIONAL.count).where).toEqual(
+          esperado,
+        );
+      });
+
+      it('sin el filtro, no condiciona por publicaciones', async () => {
+        await service.findAll(query());
+
+        const { where } = primerArgumento(prisma.uNIDADFUNCIONAL.findMany) as {
+          where: Args;
+        };
+        expect(where).not.toHaveProperty('publicaciones');
+      });
+
+      it('cada unidad informa su estado comercial: el de su publicación vigente, o SIN_PUBLICAR', async () => {
+        prisma.uNIDADFUNCIONAL.findMany.mockResolvedValue([
+          detalleMock(),
+          detalleMock({
+            publicaciones: [{ estado_comercial: EstadoComercial.VENDIDA }],
+          }),
+          detalleMock({
+            publicaciones: [
+              { estado_comercial: EstadoComercial.EN_PREPARACION },
+            ],
+          }),
+        ]);
+
+        const { data } = await service.findAll(query());
+
+        expect(data.map((unidad) => unidad.estado_comercial)).toEqual([
+          'SIN_PUBLICAR',
+          'VENDIDA',
+          'EN_PREPARACION',
+        ]);
+        // La publicación en bruto no se filtra al contrato.
+        expect(data[1]).not.toHaveProperty('publicaciones');
+      });
+
+      it('pide al select solo la publicación vigente', async () => {
+        await service.findAll(query());
+
+        const { select } = primerArgumento(prisma.uNIDADFUNCIONAL.findMany) as {
+          select: Args;
+        };
+        expect(select.publicaciones).toEqual({
+          where: { vigente: true },
+          select: { estado_comercial: true },
+          take: 1,
+        });
+      });
     });
 
     it('devuelve `data` y `meta`, con los importes como número y el costo editable derivado', async () => {
@@ -650,16 +817,17 @@ describe('UnidadFuncionalService', () => {
       FK_proyecto: 1,
       identificador: '3A',
       estado: false,
-      proyecto: { estado_obra: EstadoProyecto.EN_PLANIFICACION },
       ...sobrescribe,
     });
 
-    it('reactiva una unidad dada de baja, y audita', async () => {
-      prisma.uNIDADFUNCIONAL.findUnique.mockResolvedValueOnce(dadaDeBaja());
+    beforeEach(() => {
+      tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(dadaDeBaja());
+    });
 
+    it('reactiva una unidad dada de baja, y audita', async () => {
       await service.activar(ID_UNIDAD, USUARIO_ID);
 
-      const { data } = primerArgumento(prisma.uNIDADFUNCIONAL.update) as {
+      const { data } = primerArgumento(tx.uNIDADFUNCIONAL.update) as {
         data: Args;
       };
       expect(data.estado).toBe(true);
@@ -667,7 +835,7 @@ describe('UnidadFuncionalService', () => {
     });
 
     it('rechaza reactivar una unidad que ya está activa', async () => {
-      prisma.uNIDADFUNCIONAL.findUnique.mockResolvedValueOnce(
+      tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(
         dadaDeBaja({ estado: true }),
       );
 
@@ -679,8 +847,8 @@ describe('UnidadFuncionalService', () => {
     });
 
     it('rechaza reactivar si el proyecto ya no está En planificación', async () => {
-      prisma.uNIDADFUNCIONAL.findUnique.mockResolvedValueOnce(
-        dadaDeBaja({ proyecto: { estado_obra: EstadoProyecto.EN_EJECUCION } }),
+      tx.pROYECTO.findUnique.mockResolvedValue(
+        proyectoLockeado({ estado_obra: EstadoProyecto.EN_EJECUCION }),
       );
 
       const mensaje = await mensajeDeRechazo(
@@ -688,21 +856,55 @@ describe('UnidadFuncionalService', () => {
       );
 
       expect(mensaje).toContain('En planificación');
+      expect(tx.uNIDADFUNCIONAL.update).not.toHaveBeenCalled();
+    });
+
+    it('rechaza reactivar si el proyecto está dado de baja', async () => {
+      tx.pROYECTO.findUnique.mockResolvedValue(
+        proyectoLockeado({ estado: false }),
+      );
+
+      const mensaje = await mensajeDeRechazo(
+        service.activar(ID_UNIDAD, USUARIO_ID),
+      );
+
+      expect(mensaje).toContain('dado de baja');
+      expect(tx.uNIDADFUNCIONAL.update).not.toHaveBeenCalled();
+    });
+
+    it('rechaza reactivar si el proyecto ya tiene tantas unidades activas como planificó', async () => {
+      tx.uNIDADFUNCIONAL.count.mockResolvedValue(10);
+
+      const mensaje = await mensajeDeRechazo(
+        service.activar(ID_UNIDAD, USUARIO_ID),
+      );
+
+      expect(mensaje).toContain(
+        'Primero hay que actualizar la cantidad de unidades planificadas en el proyecto',
+      );
+      expect(tx.uNIDADFUNCIONAL.update).not.toHaveBeenCalled();
+    });
+
+    it('con una unidad menos que las planificadas, la reactivación pasa', async () => {
+      tx.uNIDADFUNCIONAL.count.mockResolvedValue(9);
+
+      await service.activar(ID_UNIDAD, USUARIO_ID);
+
+      expect(tx.uNIDADFUNCIONAL.update).toHaveBeenCalledTimes(1);
     });
 
     it('rechaza reactivar si otra unidad activa del proyecto tomó el identificador', async () => {
-      prisma.uNIDADFUNCIONAL.findUnique.mockResolvedValueOnce(dadaDeBaja());
-      prisma.uNIDADFUNCIONAL.findFirst.mockResolvedValue({
+      tx.uNIDADFUNCIONAL.findFirst.mockResolvedValue({
         id_unidad_funcional: 99,
       });
 
       await mensajeDeRechazo(service.activar(ID_UNIDAD, USUARIO_ID));
 
-      expect(prisma.uNIDADFUNCIONAL.update).not.toHaveBeenCalled();
+      expect(tx.uNIDADFUNCIONAL.update).not.toHaveBeenCalled();
     });
 
     it('rechaza reactivar una unidad que no existe', async () => {
-      prisma.uNIDADFUNCIONAL.findUnique.mockResolvedValueOnce(null);
+      tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(null);
 
       await expect(service.activar(99, USUARIO_ID)).rejects.toThrow(
         NotFoundException,
@@ -885,6 +1087,7 @@ describe('UnidadFuncionalService', () => {
       'estado',
       'proyecto',
       '_count',
+      'publicaciones',
     ];
 
     /** Lo que devuelve el `select` del listado: el detalle, sin auditoría ni galería. */

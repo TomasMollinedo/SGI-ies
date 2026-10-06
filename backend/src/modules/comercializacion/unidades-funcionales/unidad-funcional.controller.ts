@@ -29,6 +29,7 @@ import { UpdateUnidadFuncionalDto } from './dto/update-unidad-funcional.dto';
 import { QueryUnidadFuncionalDto } from './dto/query-unidad-funcional.dto';
 import { CreateImagenUnidadDto } from './dto/create-imagen-unidad.dto';
 import { OrdenarImagenesUnidadDto } from './dto/ordenar-imagenes-unidad.dto';
+import { estadoComercialUnidadSchema } from './dto/estado-comercial-unidad';
 import {
   UnidadFuncionalDetalleResponseDto,
   UnidadFuncionalListResponseDto,
@@ -86,7 +87,7 @@ export class UnidadFuncionalController {
   @ApiNotFoundResponse({ description: 'No existe el proyecto indicado' })
   @ApiConflictResponse({
     description:
-      'Ya existe una unidad activa con ese identificador en el proyecto, o el proyecto no está En planificación',
+      'Ya existe una unidad activa con ese identificador en el proyecto; el proyecto está dado de baja o no está En planificación; o el proyecto ya tiene tantas unidades activas como planificó (primero hay que actualizar la cantidad de unidades planificadas en el proyecto)',
   })
   create(
     @Body() dto: CreateUnidadFuncionalDto,
@@ -98,7 +99,7 @@ export class UnidadFuncionalController {
   @Get()
   @ApiOperation({
     summary:
-      'Listar unidades funcionales, con filtros por proyecto, tipología y rango de superficie cubierta',
+      'Listar unidades funcionales, con filtros por proyecto, tipología, estado comercial y rango de superficie cubierta',
   })
   @ApiQuery({
     name: 'FK_proyecto',
@@ -111,6 +112,13 @@ export class UnidadFuncionalController {
     required: false,
     enum: TipologiaUnidad,
     description: 'Filtra por tipología',
+  })
+  @ApiQuery({
+    name: 'estado_comercial',
+    required: false,
+    enum: estadoComercialUnidadSchema.options,
+    description:
+      'Filtra por estado comercial, según la publicación vigente de la unidad. SIN_PUBLICAR: unidades sin publicación vigente (nunca publicadas o despublicadas).',
   })
   @ApiQuery({
     name: 'superficie_min',
@@ -246,7 +254,7 @@ export class UnidadFuncionalController {
   @ApiNotFoundResponse({ description: 'No existe una unidad con ese id' })
   @ApiConflictResponse({
     description:
-      'La unidad ya está activa; su proyecto no está En planificación; o ya existe otra unidad activa con el mismo identificador en el proyecto',
+      'La unidad ya está activa; su proyecto está dado de baja o no está En planificación; el proyecto ya tiene tantas unidades activas como planificó (primero hay que actualizar la cantidad de unidades planificadas en el proyecto); o ya existe otra unidad activa con el mismo identificador en el proyecto',
   })
   alta(
     @Param('id', ParseIntPipe) id: number,
