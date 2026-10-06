@@ -30,6 +30,7 @@ import { VentaController } from '../../modules/comercializacion/venta/venta.cont
 import { ComprobanteController } from '../../modules/tesoreria/comprobante/comprobante.controller';
 import { ConsultaAdminController } from '../../modules/comercializacion/consulta/consulta-admin.controller';
 import { PlazoFinanciacionController } from '../../modules/comercializacion/plazo-financiacion/plazo-financiacion.controller';
+import { PlanEjemploController } from '../../modules/comercializacion/plan-ejemplo/plan-ejemplo.controller';
 /**
  * Controller de mentira, dueño de un rol que no es ni Administrador ni
  * Gerente General: hoy todos los controllers reales son de Administrador
@@ -61,7 +62,6 @@ describe('RolesGuard', () => {
     ['StockController', StockController],
     ['TipoMovimientoController', TipoMovimientoController],
     ['UnidadMedidaController', UnidadMedidaController],
-
   ];
 
   const usuario = (rol: RolNombre): AuthenticatedUser => ({
@@ -226,6 +226,7 @@ describe('RolesGuard', () => {
       ['DeclaracionPagoAdminController', DeclaracionPagoAdminController],
       ['ConsultaAdminController', ConsultaAdminController],
       ['PlazoFinanciacionController', PlazoFinanciacionController],
+      ['PlanEjemploController', PlanEjemploController],
     ];
 
     it.each(controllersDeComercializacion)(
