@@ -3,7 +3,6 @@ import { createZodDto } from 'nestjs-zod';
 import {
   EstadoCuota,
   EstadoVenta,
-  Periodicidad,
   ModalidadPago,
   TipologiaUnidad,
 } from '../../../../../generated/prisma/enums';
@@ -66,25 +65,40 @@ const unidadClienteDetalleSchema = unidadClienteResumenSchema.extend({
 });
 
 /**
- * Condiciones congeladas de `VENTA` (nunca las de `PLANPAGO`, que puede haber
- * cambiado después) + el nombre del plan, solo para mostrarlo.
+ * El plan de pago acordado en la venta (HU-28), leído del PLANPAGO de la
+ * venta: lo que quedó congelado al confirmarla, aunque después cambien el
+ * precio de lista o la tasa del plazo. Saldo financiado, total de intereses y
+ * total a pagar no se guardan: se derivan del plan y de su cronograma (ver
+ * `resolverPlanAcordado`).
+ *
+ * En CONTADO no hay cuotas, tasa ni valor de cuota (vienen en `null`), el
+ * anticipo es el precio completo y el saldo financiado es 0.
  */
 const planClienteSchema = z.object({
-  nombre: z.string(),
-  tipo: z.enum(ModalidadPago),
+  modalidad: z.enum(ModalidadPago),
   precio: z.number(),
   anticipo: z.number(),
-  cantidad_cuotas: z.number(),
-  periodicidad: z.enum(Periodicidad).nullable(),
+  saldo_financiado: z.number(),
+  cantidad_cuotas: z.number().nullable(),
+  /** TNA en porcentaje (24 = 24 %). */
+  tasa_nominal_anual: z.number().nullable(),
+  valor_cuota: z.number().nullable(),
+  total_intereses: z.number(),
+  total_a_pagar: z.number(),
 });
 
 /**
  * `vencido`/`dias_vencido` ya vienen resueltos (`calcularDiasVencido` +
  * "saldada nunca está vencida"): el frontend nunca compara fechas a mano.
+ *
+ * `importe` = `importe_capital` + `importe_interes` (sistema francés). La
+ * cuota 0 (anticipo, o el total en CONTADO) es toda capital.
  */
 const cuotaClienteSchema = z.object({
   id_cuota: z.number(),
   numero: z.number(),
+  importe_capital: z.number(),
+  importe_interes: z.number(),
   importe: z.number(),
   fecha_vencimiento: z.iso.datetime(),
   saldo_pendiente: z.number(),
@@ -162,6 +176,11 @@ const declaracionPagoClienteSchema = z.object({
   motivo_rechazo: z.string().nullable(),
   hora_creacion: z.iso.datetime(),
   fecha_resolucion: z.iso.datetime().nullable(),
+  /**
+   * Si la declaración tiene el comprobante adjunto (HU-29). El archivo no
+   * viaja acá: se abre desde su propio endpoint (T146).
+   */
+  tiene_comprobante: z.boolean(),
   cuota: z.object({ id_cuota: z.number(), numero: z.number() }),
   forma_pago: formaPagoClienteResumenSchema,
   cobro: z

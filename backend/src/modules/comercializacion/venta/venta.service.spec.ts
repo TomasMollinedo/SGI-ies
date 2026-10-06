@@ -795,18 +795,41 @@ describe('VentaService', () => {
       fecha_fin_estimada: new Date('2027-01-01T00:00:00Z'),
     };
 
+    /** Una cuota como la lee el detalle, con su desglose. Por defecto, toda capital. */
+    const cuota = (parcial: {
+      id_cuota?: number;
+      numero: number;
+      importe: number;
+      importe_interes?: number;
+      fecha_vencimiento?: Date;
+      saldo_pendiente: number;
+      estado: string;
+    }) => {
+      const interes = parcial.importe_interes ?? 0;
+      return {
+        id_cuota: parcial.id_cuota ?? parcial.numero + 100,
+        numero: parcial.numero,
+        importe_capital: new Prisma.Decimal(parcial.importe - interes),
+        importe_interes: new Prisma.Decimal(interes),
+        importe: new Prisma.Decimal(parcial.importe),
+        fecha_vencimiento: parcial.fecha_vencimiento ?? new Date('2099-01-01'),
+        saldo_pendiente: new Prisma.Decimal(parcial.saldo_pendiente),
+        estado: parcial.estado,
+      };
+    };
+
     const ventaDetalleBase = {
       id_venta: 20,
       estado: 'VIGENTE',
       fecha_venta: new Date('2026-01-10T00:00:00Z'),
-      periodicidad_congelada: 'MENSUAL',
       planPago: {
         modalidad: 'FINANCIADO',
         precio_venta: new Prisma.Decimal(120000),
         anticipo_monto: new Prisma.Decimal(20000),
         cantidad_cuotas: 10,
-      },
-      planEjemplo: { nombre: 'Financiado 10 cuotas' },
+        tasa_nominal_anual: new Prisma.Decimal(24),
+        valor_cuota: new Prisma.Decimal('11132.65'),
+      } as Record<string, unknown> | null,
       publicacion: {
         unidadFuncional: {
           id_unidad_funcional: 30,
@@ -820,14 +843,7 @@ describe('VentaService', () => {
           proyecto: proyectoBase,
         },
       },
-      cuotas: [] as {
-        id_cuota?: number;
-        numero: number;
-        importe: Prisma.Decimal;
-        fecha_vencimiento: Date;
-        saldo_pendiente: Prisma.Decimal;
-        estado: string;
-      }[],
+      cuotas: [] as ReturnType<typeof cuota>[],
     };
 
     it('tira 404 si no existe una venta VIGENTE con ese id para este cliente', async () => {
@@ -844,22 +860,120 @@ describe('VentaService', () => {
       );
     });
 
-    it('mapea el plan con las condiciones acordadas en la venta (su plan de pago) y el nombre del plan de ejemplo', async () => {
-      prisma.vENTA.findFirst.mockResolvedValue(ventaDetalleBase);
+    it('devuelve el plan acordado en la venta, leído de su plan de pago y no del plan de ejemplo', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({
+        ...ventaDetalleBase,
+        cuotas: [
+          cuota({
+            numero: 0,
+            importe: 20000,
+            saldo_pendiente: 0,
+            estado: 'PAGADA',
+          }),
+          cuota({
+            numero: 1,
+            importe: 11132.65,
+            importe_interes: 2000,
+            saldo_pendiente: 11132.65,
+            estado: 'PENDIENTE',
+          }),
+          cuota({
+            numero: 2,
+            importe: 11132.65,
+            importe_interes: 1817.35,
+            saldo_pendiente: 11132.65,
+            estado: 'PENDIENTE',
+          }),
+        ],
+      });
 
       const resultado = await service.detalleVentaCliente(20, 1);
 
       expect(resultado.plan).toEqual({
-        nombre: 'Financiado 10 cuotas',
-        tipo: 'FINANCIADO',
+        modalidad: 'FINANCIADO',
         precio: 120000,
         anticipo: 20000,
+        saldo_financiado: 100000,
         cantidad_cuotas: 10,
-        periodicidad: 'MENSUAL',
+        tasa_nominal_anual: 24,
+        valor_cuota: 11132.65,
+        // Suma del interés de las cuotas del cronograma.
+        total_intereses: 3817.35,
+        total_a_pagar: 123817.35,
+      });
+
+      // Ya no se lee el plan de ejemplo: una venta del Sprint 4 puede no tener.
+      const select = (
+        prisma.vENTA.findFirst.mock.calls as {
+          select: Record<string, unknown>;
+        }[][]
+      )[0][0].select;
+      expect(select).not.toHaveProperty('planEjemplo');
+    });
+
+    it('en CONTADO no hay cuotas, tasa ni valor de cuota, y el saldo financiado es 0', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({
+        ...ventaDetalleBase,
+        planPago: {
+          modalidad: 'CONTADO',
+          precio_venta: new Prisma.Decimal(120000),
+          anticipo_monto: new Prisma.Decimal(120000),
+          cantidad_cuotas: null,
+          tasa_nominal_anual: null,
+          valor_cuota: null,
+        },
+        cuotas: [
+          cuota({
+            numero: 0,
+            importe: 120000,
+            saldo_pendiente: 0,
+            estado: 'PAGADA',
+          }),
+        ],
+      });
+
+      const resultado = await service.detalleVentaCliente(20, 1);
+
+      expect(resultado.plan).toEqual({
+        modalidad: 'CONTADO',
+        precio: 120000,
+        anticipo: 120000,
+        saldo_financiado: 0,
+        cantidad_cuotas: null,
+        tasa_nominal_anual: null,
+        valor_cuota: null,
+        total_intereses: 0,
+        total_a_pagar: 120000,
       });
     });
 
-    it('tira un 500 con mensaje claro si la venta no tiene plan de pago (dato inconsistente), sin caer a las columnas legado', async () => {
+    it('cada cuota del cronograma trae su capital y su interés', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({
+        ...ventaDetalleBase,
+        cuotas: [
+          cuota({
+            numero: 1,
+            importe: 11132.65,
+            importe_interes: 2000,
+            saldo_pendiente: 5000,
+            estado: 'PARCIAL',
+          }),
+        ],
+      });
+
+      const resultado = await service.detalleVentaCliente(20, 1);
+
+      expect(resultado.cuotas[0]).toMatchObject({
+        numero: 1,
+        importe_capital: 9132.65,
+        importe_interes: 2000,
+        importe: 11132.65,
+        saldo_pendiente: 5000,
+        estado: 'PARCIAL',
+      });
+    });
+
+    it('tira un 500 con mensaje claro si la venta no tiene plan de pago (dato inconsistente)', async () => {
       prisma.vENTA.findFirst.mockResolvedValue({
         ...ventaDetalleBase,
         planPago: null,
@@ -874,13 +988,13 @@ describe('VentaService', () => {
       prisma.vENTA.findFirst.mockResolvedValue({
         ...ventaDetalleBase,
         cuotas: [
-          {
+          cuota({
             numero: 3,
-            importe: new Prisma.Decimal(10000),
+            importe: 10000,
             fecha_vencimiento: new Date('2020-01-01T00:00:00Z'),
-            saldo_pendiente: new Prisma.Decimal(10000),
+            saldo_pendiente: 10000,
             estado: 'PENDIENTE',
-          },
+          }),
         ],
       });
 
@@ -894,13 +1008,13 @@ describe('VentaService', () => {
       prisma.vENTA.findFirst.mockResolvedValue({
         ...ventaDetalleBase,
         cuotas: [
-          {
+          cuota({
             numero: 0,
-            importe: new Prisma.Decimal(20000),
+            importe: 20000,
             fecha_vencimiento: new Date('2020-01-01T00:00:00Z'),
-            saldo_pendiente: new Prisma.Decimal(0),
+            saldo_pendiente: 0,
             estado: 'PAGADA',
-          },
+          }),
         ],
       });
 
@@ -914,20 +1028,18 @@ describe('VentaService', () => {
       prisma.vENTA.findFirst.mockResolvedValue({
         ...ventaDetalleBase,
         cuotas: [
-          {
+          cuota({
             numero: 1,
-            importe: new Prisma.Decimal(10000),
-            fecha_vencimiento: new Date('2099-01-01'),
-            saldo_pendiente: new Prisma.Decimal(10000),
+            importe: 10000,
+            saldo_pendiente: 10000,
             estado: 'PENDIENTE',
-          },
-          {
+          }),
+          cuota({
             numero: 2,
-            importe: new Prisma.Decimal(10000),
-            fecha_vencimiento: new Date('2099-01-01'),
-            saldo_pendiente: new Prisma.Decimal(4000),
+            importe: 10000,
+            saldo_pendiente: 4000,
             estado: 'PARCIAL',
-          },
+          }),
         ],
       });
 
@@ -940,14 +1052,13 @@ describe('VentaService', () => {
       prisma.vENTA.findFirst.mockResolvedValue({
         ...ventaDetalleBase,
         cuotas: [
-          {
+          cuota({
             id_cuota: 55,
             numero: 1,
-            importe: new Prisma.Decimal(10000),
-            fecha_vencimiento: new Date('2099-01-01'),
-            saldo_pendiente: new Prisma.Decimal(10000),
+            importe: 10000,
+            saldo_pendiente: 10000,
             estado: 'PENDIENTE',
-          },
+          }),
         ],
       });
 
@@ -1137,6 +1248,7 @@ describe('VentaService', () => {
       motivo_rechazo: null,
       hora_creacion: new Date('2026-09-20T15:00:00.000Z'),
       fecha_resolucion: null,
+      comprobante_ruta: null,
       cuota: { id_cuota: 55, numero: 2 },
       formaPago: { nombre: 'Transferencia' },
       cobro: null,
@@ -1209,11 +1321,30 @@ describe('VentaService', () => {
         motivo_rechazo: null,
         hora_creacion: '2026-09-20T15:00:00.000Z',
         fecha_resolucion: null,
+        tiene_comprobante: false,
         cuota: { id_cuota: 55, numero: 2 },
         forma_pago: { nombre: 'Transferencia' },
         cobro: null,
       });
       expect(resultado.data[0]).not.toHaveProperty('FK_usuario_validador');
+    });
+
+    it('indica si la declaración tiene comprobante adjunto, sin exponer su ruta', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dECLARACIONPAGO.findMany.mockResolvedValue([
+        declaracionBase({
+          id_declaracion_pago: 2,
+          comprobante_ruta: 'declaraciones/2/comprobante.pdf',
+        }),
+        declaracionBase({ id_declaracion_pago: 1 }),
+      ]);
+      prisma.dECLARACIONPAGO.count.mockResolvedValue(2);
+
+      const resultado = await service.declaracionesPagoVenta(20, 1, paginaBase);
+
+      expect(resultado.data[0].tiene_comprobante).toBe(true);
+      expect(resultado.data[1].tiene_comprobante).toBe(false);
+      expect(resultado.data[0]).not.toHaveProperty('comprobante_ruta');
     });
 
     it('una VALIDADA trae el cobro que generó con su estado, también si después se anuló', async () => {
