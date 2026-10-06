@@ -5,7 +5,6 @@ import {
   ModalidadPago,
   Periodicidad,
 } from '../generated/prisma/enums';
-import { completarDesgloseTasaCero } from '../src/modules/comercializacion/plan-pago/desglose-tasa-cero';
 
 /**
  * Helper compartido por los seeds que siembran ventas
@@ -16,8 +15,8 @@ import { completarDesgloseTasaCero } from '../src/modules/comercializacion/plan-
  * con sus columnas legado, su PLANPAGO (1 a 1) y cada CUOTA con las dos FK
  * (`FK_venta` y `FK_plan_pago`) y el desglose de capital, interés y saldo de
  * capital. Las ventas del Sprint 3 no tienen interés, así que el plan lleva
- * TNA 0 % y el desglose sale de `completarDesgloseTasaCero`, la misma
- * función que usa el service.
+ * TNA 0 % (ver `desglosarSinInteres`). Las ventas con sistema francés real
+ * las siembra T156.
  */
 
 export interface CuotaSeed {
@@ -43,6 +42,33 @@ export interface VentaSeed {
 }
 
 /**
+ * Desglose de un cronograma SIN interés (TNA 0 %): toda la cuota es capital y
+ * el saldo de capital es el precio menos lo pagado hasta esa cuota inclusive.
+ * Así la cuota 0 queda con el saldo a financiar y la última en 0.
+ *
+ * Las cuotas de un seed se escriben a mano (con su saldo pendiente y estado),
+ * por eso no salen de `calcularPlanPago`: este helper solo les completa el
+ * desglose que exige `CUOTA`.
+ */
+function desglosarSinInteres(cuotas: CuotaSeed[], precio: Prisma.Decimal) {
+  let saldo = precio;
+
+  return cuotas.map((cuota) => {
+    const importe = new Prisma.Decimal(cuota.importe);
+    saldo = saldo.sub(importe);
+
+    return {
+      numero: cuota.numero,
+      fecha_vencimiento: cuota.fecha_vencimiento,
+      importe,
+      importe_capital: importe,
+      importe_interes: new Prisma.Decimal(0),
+      saldo_capital: saldo,
+    };
+  });
+}
+
+/**
  * Crea la venta, su plan de pago y sus cuotas en una sola transacción, y
  * devuelve la venta con las cuotas ya creadas (ordenadas por `numero`).
  * La idempotencia (no crearla dos veces) queda del lado de cada seed.
@@ -54,14 +80,7 @@ export async function crearVentaConPlanPago(
 ) {
   const precio = new Prisma.Decimal(datos.precio_congelado);
 
-  const cuotas = completarDesgloseTasaCero(
-    datos.cuotas.map((cuota) => ({
-      numero: cuota.numero,
-      importe: new Prisma.Decimal(cuota.importe),
-      fecha_vencimiento: cuota.fecha_vencimiento,
-    })),
-    precio,
-  );
+  const cuotas = desglosarSinInteres(datos.cuotas, precio);
 
   // Las cuotas de un seed se escriben a mano: si no suman el precio, el saldo
   // de capital de la última no daría 0 y el dato sembrado sería inválido.

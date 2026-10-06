@@ -15,7 +15,13 @@ import {
   exigirPrecioPlanEjemplo,
   exigirTipoPlanEjemplo,
 } from './exigir-condiciones-plan-ejemplo';
-import { CuotaGenerada, generarCuotas } from './motor-cuotas';
+import { CuotaGenerada, calcularPlanPago } from './motor-cuotas';
+
+/** Lo que devuelve la simulación del Sprint 3 (ver `CuotaSimuladaDto`). */
+type CuotaSimulada = Pick<
+  CuotaGenerada,
+  'numero' | 'importe' | 'fecha_vencimiento'
+>;
 
 /** Decimales de todo importe y porcentaje, igual que las columnas del schema. */
 const DECIMALES = 2;
@@ -353,18 +359,28 @@ export class PlanPagoService {
    *
    * La fecha de venta real recién existe en la adhesión (T110): si el
    * frontend no manda una, se simula desde hoy.
+   *
+   * Hasta T134 simula sin interés (TNA 0 %, el reparto en partes iguales del
+   * Sprint 3) y conserva su contrato: número, importe y vencimiento. La
+   * periodicidad del body se ignora: todas las cuotas son mensuales.
    */
-  simularCuotas(dto: SimularCuotasDto): CuotaGenerada[] {
+  simularCuotas(dto: SimularCuotasDto): CuotaSimulada[] {
     const precio = new Prisma.Decimal(dto.precio);
 
-    return generarCuotas({
+    const { cuotas } = calcularPlanPago({
       precio,
       tipo: dto.tipo,
       anticipo_monto: this.resolverAnticipoMonto(dto, precio),
       cantidad_cuotas: dto.cantidad_cuotas ?? null,
-      periodicidad: dto.periodicidad ?? null,
+      tasa_nominal_anual: new Prisma.Decimal(0),
       fecha_venta: dto.fecha_venta ?? new Date(),
     });
+
+    return cuotas.map(({ numero, importe, fecha_vencimiento }) => ({
+      numero,
+      importe,
+      fecha_vencimiento,
+    }));
   }
 
   /**

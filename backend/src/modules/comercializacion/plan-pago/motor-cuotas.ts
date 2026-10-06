@@ -1,43 +1,37 @@
 import { Prisma } from '../../../../generated/prisma/client';
-import {
-  Periodicidad,
-  ModalidadPago,
-} from '../../../../generated/prisma/enums';
+import { ModalidadPago } from '../../../../generated/prisma/enums';
+import { DECIMALES } from '../../../common/constantes/decimales';
 
 /**
- * MOTOR DE CUOTAS — helper puro de HU-22.
+ * MOTOR DE CUOTAS — sistema francés (HU-27, HU-22, HU-25).
+ *
+ * Único lugar del backend que calcula un plan de pago: lo usan la venta
+ * presencial (simulación y confirmación), los planes de ejemplo y el
+ * simulador del catálogo. Si cada uno calculara por su cuenta, el cliente
+ * podría ver en el catálogo una cuota distinta a la que después firma.
  *
  * A propósito no importa `PrismaService` ni toca la base: recibe las
- * condiciones ya resueltas y devuelve el cronograma que habría que generar.
- * Eso es lo que permite que T110 (adhesión del cliente al plan, HU-27) lo
- * reuse tal cual dentro de su transacción, pasándole las condiciones
- * congeladas de la VENTA en vez de las del PLANPAGO.
+ * condiciones ya resueltas y devuelve el cronograma con sus totales. Así se
+ * puede usar dentro de una transacción (confirmar una venta) o fuera de
+ * cualquier transacción (simular).
  *
  * `Prisma.Decimal` (decimal.js) se importa solo como implementación de
  * números decimales — ningún cálculo de dinero usa `number`, que arrastraría
  * error de punto flotante en importes de millones.
  */
 
-/** Decimales de todo importe de dinero: `CUOTA.importe` es `Decimal(14, 2)`. */
-const DECIMALES = 2;
+/** Meses del año: la TNA se reparte en 12 tasas mensuales iguales. */
+const MESES_POR_ANIO = 12;
+
+/** Decimales con los que se informa la tasa mensual (ej. 2,0000 %). */
+const DECIMALES_TASA_MENSUAL = 4;
 
 /**
- * Cuántos meses avanza cada período. Todas las periodicidades del enum son
- * múltiplos de un mes, así que el cálculo de vencimientos es uno solo.
- */
-const MESES_POR_PERIODO: Record<Periodicidad, number> = {
-  MENSUAL: 1,
-  BIMESTRAL: 2,
-  TRIMESTRAL: 3,
-  SEMESTRAL: 6,
-  ANUAL: 12,
-};
-
-/**
- * Condiciones de las que depende el cronograma. `anticipo_monto` llega ya
- * resuelto a un importe: si el plan se cargó con `anticipo_porcentaje`, la
- * conversión a monto la hace el service antes de llamar acá (el motor no
- * conoce esa dualidad).
+ * Condiciones de las que depende el plan. `anticipo_monto` llega ya resuelto
+ * a un importe: si se cargó como porcentaje del precio, la conversión a monto
+ * la hace el service antes de llamar acá (el motor no conoce esa dualidad).
+ *
+ * Todas las cuotas son mensuales (HU-32): no hay periodicidad.
  */
 export interface CondicionesPlanPago {
   precio: Prisma.Decimal;
@@ -46,18 +40,42 @@ export interface CondicionesPlanPago {
   anticipo_monto: Prisma.Decimal;
   /** Solo FINANCIADO. Son las cuotas posteriores al anticipo (la 0 no cuenta). */
   cantidad_cuotas: number | null;
-  /** Solo FINANCIADO. */
-  periodicidad: Periodicidad | null;
-  /** Fecha de la venta/adhesión: de acá cuelgan todos los vencimientos. */
+  /**
+   * Solo FINANCIADO. Tasa nominal anual del plazo, en porcentaje (24 = 24 %),
+   * igual que `PLAZOFINANCIACION.tasa_nominal_anual`. 0 = sin interés.
+   */
+  tasa_nominal_anual: Prisma.Decimal | null;
+  /** Fecha de la venta: de acá cuelgan todos los vencimientos. */
   fecha_venta: Date;
 }
 
-/** Una fila del cronograma, con la forma que espera `CUOTA`. */
+/** Una fila del cronograma, con la forma que guarda `CUOTA`. */
 export interface CuotaGenerada {
   /** 0 = anticipo, o el 100% del precio en un plan CONTADO. */
   numero: number;
-  importe: Prisma.Decimal;
   fecha_vencimiento: Date;
+  /** Lo que la cuota amortiza de la deuda. */
+  importe_capital: Prisma.Decimal;
+  /** Interés de la cuota: saldo de capital anterior × tasa mensual. */
+  importe_interes: Prisma.Decimal;
+  /** capital + interés: lo que paga el cliente. */
+  importe: Prisma.Decimal;
+  /** Deuda del plan después de pagar esta cuota (0 en la última). */
+  saldo_capital: Prisma.Decimal;
+}
+
+/** El cronograma completo y los totales que muestran simulador, venta y perfil. */
+export interface PlanPagoCalculado {
+  cuotas: CuotaGenerada[];
+  /** precio − anticipo; 0 en CONTADO. */
+  saldo_financiado: Prisma.Decimal;
+  /** TNA ÷ 12, en porcentaje y a 4 decimales; `null` en CONTADO. Solo informativa. */
+  tasa_mensual: Prisma.Decimal | null;
+  /** Cuota fija del sistema francés (la última puede diferir unos centavos); `null` en CONTADO. */
+  valor_cuota: Prisma.Decimal | null;
+  total_intereses: Prisma.Decimal;
+  /** anticipo + suma de cuotas = precio + intereses. */
+  total_a_pagar: Prisma.Decimal;
 }
 
 /**
@@ -96,106 +114,175 @@ function sumarMeses(fecha: Date, meses: number): Date {
 }
 
 /**
- * Red de seguridad del reparto: el total repartido tiene que dar exactamente
- * el precio del plan, ni un centavo de más ni de menos. Si esto saltara
+ * Valor de la cuota fija del sistema francés, a dos decimales:
+ * `S × i / (1 − (1 + i)^−n)`. Con tasa 0 la fórmula divide por cero, y el
+ * resultado correcto es el reparto en partes iguales: `S ÷ n`.
+ */
+function calcularValorCuota(
+  saldoFinanciado: Prisma.Decimal,
+  tasaMensual: Prisma.Decimal,
+  cantidadCuotas: number,
+): Prisma.Decimal {
+  if (tasaMensual.isZero()) {
+    return saldoFinanciado.div(cantidadCuotas).toDecimalPlaces(DECIMALES);
+  }
+
+  const factor = new Prisma.Decimal(1).sub(
+    tasaMensual.add(1).pow(-cantidadCuotas),
+  );
+  return saldoFinanciado
+    .mul(tasaMensual)
+    .div(factor)
+    .toDecimalPlaces(DECIMALES);
+}
+
+/**
+ * Red de seguridad: lo amortizado entre todas las cuotas tiene que dar
+ * exactamente el precio, ni un centavo de más ni de menos. Si esto saltara
  * sería un bug del motor (no un dato inválido del usuario), por eso es un
  * `Error` pelado y no una excepción de Nest.
  */
-function verificarSumaExacta(
+function verificarCapitalExacto(
   cuotas: CuotaGenerada[],
   precio: Prisma.Decimal,
 ): void {
-  const suma = cuotas.reduce(
-    (acumulado, cuota) => acumulado.add(cuota.importe),
+  const capital = cuotas.reduce(
+    (acumulado, cuota) => acumulado.add(cuota.importe_capital),
     new Prisma.Decimal(0),
   );
 
-  if (!suma.equals(precio)) {
+  if (!capital.equals(precio)) {
     throw new Error(
-      `El reparto de cuotas no cierra: suma ${suma.toFixed(DECIMALES)} contra un precio de ${precio.toFixed(DECIMALES)}`,
+      `El cronograma no cierra: amortiza ${capital.toFixed(DECIMALES)} contra un precio de ${precio.toFixed(DECIMALES)}`,
     );
   }
 }
 
+/** Arma los totales a partir del cronograma ya calculado. */
+function conTotales(
+  cuotas: CuotaGenerada[],
+  precio: Prisma.Decimal,
+  datos: Pick<
+    PlanPagoCalculado,
+    'saldo_financiado' | 'tasa_mensual' | 'valor_cuota'
+  >,
+): PlanPagoCalculado {
+  verificarCapitalExacto(cuotas, precio);
+
+  const totalIntereses = cuotas.reduce(
+    (acumulado, cuota) => acumulado.add(cuota.importe_interes),
+    new Prisma.Decimal(0),
+  );
+
+  return {
+    cuotas,
+    ...datos,
+    total_intereses: totalIntereses,
+    total_a_pagar: precio.add(totalIntereses),
+  };
+}
+
 /**
- * Genera el cronograma completo de cuotas de un plan de pago.
+ * Calcula el plan de pago completo: cronograma de cuotas y totales.
  *
- * - CONTADO: una única cuota número 0 por el precio total, que vence el día
- *   de la venta.
- * - FINANCIADO: cuota 0 por el anticipo (vence el día de la venta) y cuotas
- *   1..N por el resto repartido en partes iguales, cada una venciendo a N
- *   períodos de la fecha de venta. La diferencia de redondeo del reparto se
- *   ajusta SOLO en la última cuota, así la suma de todo el cronograma da
- *   exactamente `precio`.
+ * - CONTADO: una única cuota número 0 por el precio total, sin interés, que
+ *   vence el día de la venta.
+ * - FINANCIADO: cuota 0 por el anticipo (sin interés, vence el día de la
+ *   venta) y cuotas 1..N por sistema francés sobre el saldo a financiar. La
+ *   cuota k vence a k meses de la fecha de venta. Por cuota:
+ *   interés = saldo anterior × i (a dos decimales), capital = cuota − interés.
+ *   La última amortiza exactamente el saldo que queda, así el saldo de capital
+ *   cierra en 0 aunque su importe difiera unos centavos de las demás.
  *
- * Las validaciones de forma (que FINANCIADO traiga cuotas y periodicidad,
- * que el anticipo no supere el precio, etc.) son del DTO y del service: acá
- * quedan como `Error` defensivo porque el motor también se usa desde T110,
- * donde los datos vienen de la VENTA y no del body.
+ * `i` (TNA ÷ 12) se usa sin redondear: solo se redondean la cuota y cada
+ * interés, que son los importes que se cobran.
+ *
+ * Las validaciones de forma (que FINANCIADO traiga cuotas y tasa, que el
+ * anticipo no supere el precio, etc.) son de los DTO y los services: acá
+ * quedan como `Error` defensivo, porque el motor también recibe condiciones
+ * que salen de la base y no del body.
  */
-export function generarCuotas(
+export function calcularPlanPago(
   condiciones: CondicionesPlanPago,
-): CuotaGenerada[] {
+): PlanPagoCalculado {
   const { precio, tipo, fecha_venta } = condiciones;
+  const cero = new Prisma.Decimal(0);
 
   if (tipo === ModalidadPago.CONTADO) {
     const cuotas: CuotaGenerada[] = [
       {
         numero: 0,
-        importe: new Prisma.Decimal(precio),
         fecha_vencimiento: sumarMeses(fecha_venta, 0),
+        importe_capital: new Prisma.Decimal(precio),
+        importe_interes: cero,
+        importe: new Prisma.Decimal(precio),
+        saldo_capital: cero,
       },
     ];
 
-    verificarSumaExacta(cuotas, precio);
-    return cuotas;
+    return conTotales(cuotas, precio, {
+      saldo_financiado: cero,
+      tasa_mensual: null,
+      valor_cuota: null,
+    });
   }
 
-  const { cantidad_cuotas: cantidadCuotas, periodicidad } = condiciones;
+  const { cantidad_cuotas: cantidadCuotas, tasa_nominal_anual: tna } =
+    condiciones;
 
   if (cantidadCuotas === null || cantidadCuotas < 1) {
     throw new Error(
       'Un plan FINANCIADO necesita una cantidad de cuotas mayor o igual a 1',
     );
   }
-  if (periodicidad === null) {
-    throw new Error('Un plan FINANCIADO necesita una periodicidad');
+  if (tna === null || tna.isNegative()) {
+    throw new Error(
+      'Un plan FINANCIADO necesita una tasa nominal anual mayor o igual a 0',
+    );
   }
 
   const anticipo = new Prisma.Decimal(condiciones.anticipo_monto);
-  const aFinanciar = precio.sub(anticipo);
-  const importeCuota = aFinanciar
-    .div(cantidadCuotas)
-    .toDecimalPlaces(DECIMALES);
-  const mesesPorPeriodo = MESES_POR_PERIODO[periodicidad];
+  const saldoFinanciado = precio.sub(anticipo);
+  const tasaMensual = tna.div(100).div(MESES_POR_ANIO);
+  const valorCuota = calcularValorCuota(
+    saldoFinanciado,
+    tasaMensual,
+    cantidadCuotas,
+  );
 
   const cuotas: CuotaGenerada[] = [
     {
       numero: 0,
-      importe: anticipo,
       fecha_vencimiento: sumarMeses(fecha_venta, 0),
+      importe_capital: anticipo,
+      importe_interes: cero,
+      importe: anticipo,
+      saldo_capital: saldoFinanciado,
     },
   ];
 
-  for (let numero = 1; numero < cantidadCuotas; numero++) {
+  let saldo = saldoFinanciado;
+  for (let numero = 1; numero <= cantidadCuotas; numero++) {
+    const interes = saldo.mul(tasaMensual).toDecimalPlaces(DECIMALES);
+    const esUltima = numero === cantidadCuotas;
+    // La última amortiza lo que queda, no `valorCuota − interés`: así el
+    // sobrante o faltante del redondeo cae entero acá y el saldo cierra en 0.
+    const capital = esUltima ? saldo : valorCuota.sub(interes);
+    saldo = saldo.sub(capital);
+
     cuotas.push({
       numero,
-      importe: importeCuota,
-      fecha_vencimiento: sumarMeses(fecha_venta, mesesPorPeriodo * numero),
+      fecha_vencimiento: sumarMeses(fecha_venta, numero),
+      importe_capital: capital,
+      importe_interes: interes,
+      importe: capital.add(interes),
+      saldo_capital: saldo,
     });
   }
 
-  // La última se calcula por diferencia, no repitiendo `importeCuota`: así el
-  // sobrante o faltante del redondeo cae entero acá y el cronograma cierra.
-  cuotas.push({
-    numero: cantidadCuotas,
-    importe: aFinanciar.sub(importeCuota.mul(cantidadCuotas - 1)),
-    fecha_vencimiento: sumarMeses(
-      fecha_venta,
-      mesesPorPeriodo * cantidadCuotas,
-    ),
+  return conTotales(cuotas, precio, {
+    saldo_financiado: saldoFinanciado,
+    tasa_mensual: tasaMensual.mul(100).toDecimalPlaces(DECIMALES_TASA_MENSUAL),
+    valor_cuota: valorCuota,
   });
-
-  verificarSumaExacta(cuotas, precio);
-  return cuotas;
 }
