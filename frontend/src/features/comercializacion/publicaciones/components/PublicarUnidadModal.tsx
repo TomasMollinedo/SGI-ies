@@ -143,8 +143,7 @@ export function PublicarUnidadModal({ open, onClose, onPublicada }: PublicarUnid
 
             <p className="text-content-muted text-xs">
               La publicación nace en «{ESTADO_COMERCIAL_META.EN_PREPARACION.label}» y pasa a «
-              {ESTADO_COMERCIAL_META.DISPONIBLE.label}» automáticamente cuando la unidad tenga un
-              plan de pago activo.
+              {ESTADO_COMERCIAL_META.DISPONIBLE.label}» cuando se defina su precio de lista.
             </p>
 
             {rechazo && (

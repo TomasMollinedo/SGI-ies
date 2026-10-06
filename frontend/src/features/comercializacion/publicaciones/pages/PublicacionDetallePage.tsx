@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { ArrowLeft, HandCoins, ShieldAlert, Undo2 } from 'lucide-react'
-import { PATHS, rutaPlanesPagoPublicacion } from '@/app/router/paths'
+import { ArrowLeft, ShieldAlert, Undo2 } from 'lucide-react'
+import { PATHS } from '@/app/router/paths'
 import { ESTADO_PROYECTO_LABEL } from '@/features/proyectos/config/proyecto.config'
 import { AuditInfo } from '@/shared/components/common/AuditInfo'
 import { DetailRow } from '@/shared/components/common/DetailRow'
@@ -14,6 +14,7 @@ import { TIPOLOGIA_LABEL } from '@/shared/config/tipologiaUnidad.config'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { textoCondicionEntrega } from '@/shared/utils/condicionEntrega'
 import { formatearFechaSinHora } from '@/shared/utils/fecha'
+import { formatearImporte } from '@/shared/utils/importe'
 import { DespublicarPublicacionModal } from '../components/DespublicarPublicacionModal'
 import { GaleriaUnidad } from '../components/GaleriaUnidad'
 import { SeccionPublicacion } from '../components/SeccionPublicacion'
@@ -35,8 +36,7 @@ const CLASES_FILA_LARGA = 'sm:flex-col sm:items-start sm:gap-1'
 /**
  * Detalle de una publicación (HU-21): la unidad con sus datos heredados en
  * vivo, sus imágenes, el proyecto con la condición de entrega y la auditoría.
- * Es de solo lectura: lo único que se hace desde acá es despublicar o ir a los
- * planes de pago.
+ * Es de solo lectura: lo único que se hace desde acá es despublicar.
  */
 export function PublicacionDetallePage() {
   const navigate = useNavigate()
@@ -200,19 +200,17 @@ export function PublicacionDetallePage() {
         <GaleriaUnidad identificador={unidad.identificador} imagenes={publicacion.imagenes} />
       </SeccionPublicacion>
 
-      <SeccionPublicacion titulo="Planes de pago">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <SeccionPublicacion titulo="Precio de lista">
+        {publicacion.precio_lista === null ? (
           <p className="text-content-muted text-xs">
-            El precio de la unidad se define en Planes de Pago, no acá.
+            Definí el precio de la unidad para que la publicación pase a Disponible.
           </p>
-          <Button
-            icon={<HandCoins />}
-            onClick={() => navigate(rutaPlanesPagoPublicacion(publicacion.id_publicacion))}
-            className="ml-auto"
-          >
-            Ver planes de pago
-          </Button>
-        </div>
+        ) : (
+          <DetailRow
+            label="Precio de lista"
+            value={formatearImporte(Number(publicacion.precio_lista))}
+          />
+        )}
       </SeccionPublicacion>
 
       <SeccionPublicacion titulo="Auditoría">
