@@ -37,13 +37,13 @@ export const NAVEGACION: ItemNavegacion[] = [
   { id: 'inicio', label: 'Inicio' },
   { id: 'nosotros', label: 'Nosotros' },
   { id: 'obras', label: 'Obras' },
-  { id: 'consultanos', label: 'Consultanos' },
+  { id: 'consultanos', label: 'Contacto' },
 ]
 
 /**
  * Ítem del menú que lleva a una ruta propia (`/catalogo`), no a un ancla de la
  * landing: por eso no vive en `NAVEGACION`, que es la lista de secciones que
- * observa `useSeccionActiva`. Se muestra al final, después de "Consultanos" —
+ * observa `useSeccionActiva`. Se muestra al final, después de "Contacto" —
  * el label aclara que lleva a otra página, no es un ancla más de la landing.
  */
 export const NAVEGACION_CATALOGO = {
@@ -88,7 +88,7 @@ export const NOSOTROS = {
 export const OBRAS = {
   etiqueta: 'Obras',
   titulo: 'Proyectos destacados',
-  subtitulo: 'Las obras con más unidades disponibles para comprar hoy.',
+  subtitulo: 'Las obras con más unidades disponibles hoy.',
   cta: 'Ver todas las obras',
   /** Textos de cada tarjeta. `{cantidad}` se reemplaza por el número real. */
   unidadesDisponibles: (cantidad: number) =>
@@ -117,15 +117,15 @@ export const COMO_FUNCIONA = {
       icono: UserPlus,
     },
     {
-      titulo: 'Reservá',
-      descripcion: 'Coordinamos la visita, el plan de pago y la reserva de tu unidad.',
+      titulo: 'Comprá en persona',
+      descripcion: 'La compra es presencial: te esperamos en nuestra oficina para acordar el plan de pago y firmar.',
       icono: ClipboardCheck,
     },
   ] satisfies PasoComoFunciona[],
 } as const
 
 export const CONTACTO = {
-  etiqueta: 'Consultanos',
+  etiqueta: 'Contacto',
   titulo: 'Hablemos de tu próxima propiedad',
   texto: 'Escribinos o acercate a la oficina: te respondemos en el día.',
   /*
