@@ -31,6 +31,7 @@ import {
   exigirDatoPlanEjemplo,
   resolverCondicionesVenta,
 } from './condiciones-venta';
+import { PLAN_ACORDADO_SELECT, resolverPlanAcordado } from './plan-acordado';
 import { CreateVentaDto } from './dto/create-venta.dto';
 import { CancelarVentaDto } from './dto/cancelar-venta.dto';
 import { QueryVentaDto } from './dto/query-venta.dto';
@@ -641,9 +642,10 @@ export class VentaService {
 
   /**
    * Detalle de una unidad del cliente autenticado (T112, HU-28): la misma
-   * cabecera de `misVentas` + la unidad ampliada, el plan (las condiciones
-   * acordadas en la venta, vía `resolverCondicionesVenta`) y el cronograma completo
-   * de cuotas con `vencido`/`dias_vencido` ya resueltos.
+   * cabecera de `misVentas` + la unidad ampliada, el plan de pago acordado en
+   * la venta (`resolverPlanAcordado`, desde T144) y el cronograma completo de
+   * cuotas con su desglose de capital e interés y `vencido`/`dias_vencido` ya
+   * resueltos.
    *
    * `NotFoundException` genérico si la venta no existe, no es de este
    * cliente, o no está VIGENTE (una cancelada ya no aparece en `misVentas`,
@@ -658,10 +660,9 @@ export class VentaService {
         estado: EstadoVenta.VIGENTE,
       },
       select: {
-        ...CONDICIONES_VENTA_SELECT,
+        ...PLAN_ACORDADO_SELECT,
         estado: true,
         fecha_venta: true,
-        planEjemplo: { select: { nombre: true } },
         publicacion: {
           select: {
             unidadFuncional: {
@@ -692,6 +693,8 @@ export class VentaService {
           select: {
             id_cuota: true,
             numero: true,
+            importe_capital: true,
+            importe_interes: true,
             importe: true,
             fecha_vencimiento: true,
             saldo_pendiente: true,
@@ -705,6 +708,8 @@ export class VentaService {
     if (!venta) {
       throw new NotFoundException('No existe una venta con ese id');
     }
+
+    const plan = resolverPlanAcordado(venta, venta.cuotas);
 
     const { unidadFuncional } = venta.publicacion;
     const { proyecto, ...unidad } = unidadFuncional;
@@ -722,6 +727,8 @@ export class VentaService {
       return {
         id_cuota: cuota.id_cuota,
         numero: cuota.numero,
+        importe_capital: cuota.importe_capital.toNumber(),
+        importe_interes: cuota.importe_interes.toNumber(),
         importe: cuota.importe.toNumber(),
         fecha_vencimiento: cuota.fecha_vencimiento.toISOString(),
         saldo_pendiente: cuota.saldo_pendiente.toNumber(),
@@ -734,12 +741,6 @@ export class VentaService {
     const saldoTotalPendiente = venta.cuotas.reduce(
       (acumulado, cuota) => acumulado.plus(cuota.saldo_pendiente),
       new Prisma.Decimal(0),
-    );
-
-    const condiciones = resolverCondicionesVenta(venta);
-    const planEjemplo = exigirDatoPlanEjemplo(
-      venta.id_venta,
-      venta.planEjemplo,
     );
 
     return {
@@ -764,12 +765,15 @@ export class VentaService {
       },
       condicion_entrega: calcularCondicionEntregaResponse(proyecto),
       plan: {
-        nombre: planEjemplo.nombre,
-        tipo: condiciones.tipo_plan_congelado,
-        precio: condiciones.precio_congelado.toNumber(),
-        anticipo: condiciones.anticipo_congelado.toNumber(),
-        cantidad_cuotas: condiciones.cantidad_cuotas_congelada,
-        periodicidad: condiciones.periodicidad_congelada,
+        modalidad: plan.modalidad,
+        precio: plan.precio.toNumber(),
+        anticipo: plan.anticipo.toNumber(),
+        saldo_financiado: plan.saldo_financiado.toNumber(),
+        cantidad_cuotas: plan.cantidad_cuotas,
+        tasa_nominal_anual: plan.tasa_nominal_anual?.toNumber() ?? null,
+        valor_cuota: plan.valor_cuota?.toNumber() ?? null,
+        total_intereses: plan.total_intereses.toNumber(),
+        total_a_pagar: plan.total_a_pagar.toNumber(),
       },
       cuotas,
       saldo_total_pendiente: saldoTotalPendiente.toNumber(),
