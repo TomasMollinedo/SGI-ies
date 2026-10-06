@@ -77,11 +77,15 @@ interface FilaCuotaProps {
 }
 
 function FilaCuota({ cuota, onDeclarar }: FilaCuotaProps) {
+  // Destacada sólo si además de vencida le queda saldo: una cuota vencida ya
+  // saldada no tiene nada que reclamarle al cliente.
+  const destacada = cuota.vencido && cuota.saldo_pendiente > 0
+
   return (
     <div
       className={cn(
         'flex flex-col gap-3 border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6',
-        cuota.vencido ? 'border-error bg-error/10' : 'border-light/15'
+        destacada ? 'border-error bg-error/10' : 'border-light/15'
       )}
     >
       <div className="flex flex-col gap-1">
@@ -91,7 +95,11 @@ function FilaCuota({ cuota, onDeclarar }: FilaCuotaProps) {
         <span className="text-light text-sm">
           Vence el {formatearFechaSinHora(cuota.fecha_vencimiento)}
         </span>
-        {cuota.vencido && (
+        <span className="text-light/60 text-xs">
+          Capital {formatearImporte(cuota.importe_capital)} · Interés{' '}
+          {formatearImporte(cuota.importe_interes)}
+        </span>
+        {destacada && (
           <span className="text-error-soft flex items-center gap-1.5 text-xs font-semibold">
             <AlertTriangle size={14} aria-hidden="true" className="shrink-0" />
             Vencida hace {cuota.dias_vencido} {cuota.dias_vencido === 1 ? 'día' : 'días'}

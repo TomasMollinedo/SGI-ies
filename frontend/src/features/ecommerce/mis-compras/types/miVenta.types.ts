@@ -50,14 +50,23 @@ interface UnidadDetalle extends UnidadResumen {
   observaciones: string | null
 }
 
-/** Condiciones congeladas al momento de la adhesión, no las de `PLANPAGO` (que puede haber cambiado). */
+/**
+ * Plan acordado en la venta (T144): lo que quedó congelado al confirmarla. Los
+ * importes derivados (saldo financiado, intereses, total) vienen calculados
+ * del backend. En CONTADO la tasa, la cuota y los intereses vienen en `null`
+ * (o en 0 para los intereses), y el saldo financiado es 0.
+ */
 interface PlanMiVenta {
-  nombre: string
-  tipo: TipoPlanPago
+  modalidad: TipoPlanPago
   precio: number
   anticipo: number
-  cantidad_cuotas: number
-  periodicidad: Periodicidad | null
+  saldo_financiado: number
+  cantidad_cuotas: number | null
+  /** TNA en porcentaje (24 = 24 %). */
+  tasa_nominal_anual: number | null
+  valor_cuota: number | null
+  total_intereses: number
+  total_a_pagar: number
 }
 
 /** `vencido`/`dias_vencido` ya vienen resueltos del backend: nunca se comparan fechas a mano acá. */
@@ -66,6 +75,8 @@ export interface CuotaMiVenta {
   id_cuota: number
   numero: number
   importe: number
+  importe_capital: number
+  importe_interes: number
   fecha_vencimiento: string
   saldo_pendiente: number
   estado: EstadoCuota
