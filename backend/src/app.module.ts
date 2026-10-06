@@ -28,7 +28,6 @@ import { CatalogoModule } from './modules/catalogo/catalogo.module';
 import { AlmacenamientoModule } from './modules/almacenamiento/almacenamiento.module';
 import { PublicacionModule } from './modules/comercializacion/publicacion/publicacion.module';
 import { ClienteModule } from './modules/comercializacion/cliente/cliente.module';
-import { PlanPagoModule } from './modules/comercializacion/plan-pago/plan-pago.module';
 import { CobroModule } from './modules/comercializacion/cobro/cobro.module';
 import { UnidadFuncionalModule } from './modules/comercializacion/unidades-funcionales/unidad-funcional.module';
 import { VentaModule } from './modules/comercializacion/venta/venta.module';
@@ -36,6 +35,7 @@ import { DeclaracionPagoModule } from './modules/comercializacion/declaracion-pa
 import { ProyectoModule } from './modules/proyectos/proyecto.module';
 import { ConsultaModule } from './modules/comercializacion/consulta/consulta.module';
 import { PlazoFinanciacionModule } from './modules/comercializacion/plazo-financiacion/plazo-financiacion.module';
+import { PlanEjemploModule } from './modules/comercializacion/plan-ejemplo/plan-ejemplo.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
@@ -65,13 +65,13 @@ import { PlazoFinanciacionModule } from './modules/comercializacion/plazo-financ
     AlmacenamientoModule,
     PublicacionModule,
     ClienteModule,
-    PlanPagoModule,
     CobroModule,
     UnidadFuncionalModule,
     VentaModule,
     DeclaracionPagoModule,
     ConsultaModule,
     PlazoFinanciacionModule,
+    PlanEjemploModule,
     ProyectoModule,
   ],
   providers: [
