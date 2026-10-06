@@ -18,6 +18,11 @@ interface ProyectoComboboxProps {
  * Filtro de proyecto con búsqueda server-side. Lo usan el listado de
  * publicaciones y la tabla emergente de unidades.
  *
+ * Solo ofrece proyectos activos (el default del backend), a propósito: uno
+ * dado de baja nunca tuvo publicaciones, ventas ni consultas. La baja exige En
+ * planificación sin unidades activas, en planificación no se publica y el
+ * estado de obra no retrocede.
+ *
  * Si el endpoint de proyectos falla (hoy puede no existir), el combo queda sin
  * opciones y lo avisa debajo: los demás filtros y la página siguen andando.
  */

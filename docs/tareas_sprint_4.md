@@ -2,10 +2,10 @@
 
 Tareas técnicas del Sprint 4, tomadas del tablero de GitHub Projects [Proyecto SGI IES](https://github.com/users/TomasMollinedo/projects/1) (campo **Sprints** = `Sprint 4`, milestone `Sprint 4`). Las historias de usuario a las que responden están en [sprint_backlog_4.md](sprint_backlog_4.md).
 
-- **Cantidad de tareas:** 37 (33 del tablero y 4 nuevas; 2 del tablero se dan de baja)
-- **Estimación total:** 188 h (BD/Infra: 16 h, Frontend: 84 h, Backend: 88 h)
+- **Cantidad de tareas:** 38 (33 del tablero y 5 nuevas; 2 del tablero se dan de baja)
+- **Estimación total:** 190 h (BD/Infra: 16 h, Frontend: 84 h, Backend: 90 h)
 - **Última sincronización con el tablero:** 2026-10-06
-- **Estado de este archivo:** sincronizado con los issues el 2026-10-06
+- **Estado de este archivo:** sincronizado con los issues el 2026-10-06 (incluye los cierres de T121 y T157, y el alta de T160)
 
 ## Cómo editar este archivo
 
@@ -18,7 +18,7 @@ Cada tarea es una sección `## T<número> — <título>` y corresponde a un issu
 
 ## Numeración
 
-El número T120 ya estaba usado por un issue del Sprint 3 ([#276](https://github.com/TomasMollinedo/SGI-ies/issues/276)), así que las tareas del Sprint 4 empiezan en T121: todas se corrieron un número respecto de como están cargadas hoy en el tablero (T120 pasó a T121, y así hasta T154, que pasó a T155). La columna "En el tablero" del resumen y de las bajas muestra el número anterior. Las tareas nuevas son T156 a T159. Los números de las tareas dadas de baja no se reutilizan.
+El número T120 ya estaba usado por un issue del Sprint 3 ([#276](https://github.com/TomasMollinedo/SGI-ies/issues/276)), así que las tareas del Sprint 4 empiezan en T121: todas se corrieron un número respecto de como están cargadas hoy en el tablero (T120 pasó a T121, y así hasta T154, que pasó a T155). La columna "En el tablero" del resumen y de las bajas muestra el número anterior. Las tareas nuevas son T156 a T160. Los números de las tareas dadas de baja no se reutilizan.
 
 ## Reglas comunes a todas las tareas
 
@@ -32,7 +32,7 @@ El número T120 ya estaba usado por un issue del Sprint 3 ([#276](https://github
 
 Las dependencias que quedan son las obligatorias: esquema antes que servicios, API antes que pantalla, y dos tareas seguidas cuando editan el mismo archivo.
 
-1. **Día 1, sin dependencias:** T121, T132, T157 y T143.
+1. **Día 1, sin dependencias:** T121, T132, T157, T143 y T160. La rama de T160 sale de `testing` después de que mergee T122, que es la que trae su sección a este archivo.
 2. **Con T121 mergeada, en paralelo:** T156, T122, T124, T126, T128, T133, T137 (con T132), T140 (con T132), T144, T146, T149 y T152.
 3. **Cadenas que no se pueden paralelizar:** T133 → T134 → T136; T137 → T158 → T138 y T139; T152 → T153; T154 → T155.
 4. **Cierre:** T159.
@@ -80,6 +80,7 @@ Archivos compartidos a coordinar: `venta.service.ts` (T158 y T144), el módulo d
 | [T154](#t154) | T153 | [#356](https://github.com/TomasMollinedo/SGI-ies/issues/356) | Front: Tablero del Gerente: indicadores, gráfico y tabla | HU-34 | Frontend | T152, T157 | 7 h |
 | [T155](#t155) | T154 | [#357](https://github.com/TomasMollinedo/SGI-ies/issues/357) | Front: Tabla de margen por proyecto y filtro por proyecto | HU-34 | Frontend | T153, T154 | 5 h |
 | [T159](#t159) | — | [#361](https://github.com/TomasMollinedo/SGI-ies/issues/361) | Infra: Limpieza del esquema: quitar lo que quedó obsoleto del Sprint 3 | Transversal | BD/Infra | T134, T140, T144, T158 | 3 h |
+| [T160](#t160) | — | [#364](https://github.com/TomasMollinedo/SGI-ies/issues/364) | Fix: Errores de tipos, lint y formato preexistentes en testing | Transversal | Backend | Ninguna | 2 h |
 
 ## Tareas del tablero que se dan de baja
 
@@ -157,6 +158,12 @@ Ajustes a las tareas después de implementar las rutas y el menú sin acceso por
 | T157 | Sin acceso por rol en el front: el Tablero queda visible en el menú, como todas las pantallas, y el backend restringe con `@Roles(ADMINISTRADOR)`. Se quita el mecanismo de roles del Alcance y se cambia el título. Las pantallas provisorias quedan en su archivo definitivo, para que T123, T125, T127, T150, T151 y T154 no editen el router. |
 | T152 | El endpoint admite al Administrador (y al Gerente por el bypass del guard), en lugar de negarle el acceso. Responde OBS-27. |
 | T154 | No incluye acceso por rol: si la API responde 403, muestra el aviso de permisos como el resto de las pantallas. |
+
+## Cambios del 2026-10-06
+
+| Tarea | Qué cambió y por qué |
+|---|---|
+| T160 | Nueva. Se cargó en el tablero por fuera de este archivo, para corregir los errores de tipos y de lint que `testing` ya traía en el backend (detectados en T121). Acá se documenta y se amplía al formato del frontend, detectado en T122: `format:check` falla por archivos que ya estaban sin formatear, así que ninguna tarea de frontend puede cumplir el criterio de format. Por eso pasa de 1 a 2 h y suma la etiqueta Frontend. |
 
 ## Pendientes de definición
 
@@ -335,6 +342,8 @@ Permitir registrar, modificar, listar y dar de baja proyectos con su estado de o
 - [ ] Portada e imágenes de diseño (render y plano) con tipo y orden de visualización
 - [ ] Baja lógica solo en proyectos En planificación sin unidades activas
 - [ ] Listado: solo activos por defecto, filtros por estado de obra y localidad, búsqueda por código o nombre y orden por nombre
+- [ ] El alta, la baja y la reactivación de unidades toman el lock de la fila del proyecto (`FOR UPDATE`, igual que `bloquearProyecto` de T122), para que las reglas de HU-31 que cuentan unidades activas no compitan con un cambio concurrente
+- [ ] No se dan de alta ni se reactivan unidades en un proyecto dado de baja (HU-20: el proyecto se elige entre los activos)
 
 ### Listo cuando
 
@@ -1634,3 +1643,42 @@ La lista sale de [Columnas legado](cambios_der_sprint_4.md#columnas-legado-se-el
 - [ ] Cobranzas y declaraciones de pago siguen funcionando
 
 > ⚠️ Es la última tarea de backend del sprint.
+
+---
+
+<a id="t160"></a>
+<!-- issue: 364 -->
+## T160 — Fix: Errores de tipos, lint y formato preexistentes en testing
+
+- **Issue:** [#364](https://github.com/TomasMollinedo/SGI-ies/issues/364)
+- **Estado:** To do
+- **Etiquetas:** Fix, Backend, Frontend
+- **Perfil sugerido:** Backend
+- **Asignado a:** Sin asignar
+- **HU:** Transversal · Calidad de código
+- **Rama:** `fix/t160-lint-preexistente`
+- **Depende de:** Ninguna
+- **Estimación:** 2 h
+- **Tipo de cambio:** Corrección
+
+### Objetivo
+
+Dejar lint, tipos y formato en verde en backend y frontend, para que las tareas del Sprint 4 puedan cumplir los criterios de lint y format de la Definition of Done.
+
+### Alcance
+
+- [ ] `src/modules/tesoreria/comprobante/comprobante.service.spec.ts:63`: corregir el TS2713 (`Decimal.Value` usado como namespace), que origina 82 errores de lint `no-unsafe-*`
+- [ ] Corregir el formato de `roles.guard.spec.ts` y `consulta-admin.controller.ts` (lo que reformatea `lint --fix`), en un commit propio
+- [ ] Aplicar Prettier al frontend, en un commit propio
+- [ ] Resolver el warning de lint de `ComprobanteForm.tsx` si es trivial; si no, dejarlo anotado
+
+### Listo cuando
+
+- [ ] En el backend, `npm run lint` da 0 errores y no deja cambios en el working tree
+- [ ] `npx tsc --noEmit -p tsconfig.json` sin errores
+- [ ] En el frontend, pasan `npm run format:check`, `npm run lint` y `npm run build`
+- [ ] Los tests del spec de comprobante son los mismos y pasan, sin `eslint-disable` a nivel archivo ni cambios en la config de ESLint
+
+> Detectado en T121: los errores ya estaban antes de la tarea. El formato del frontend se detectó en T122.
+
+> ⚠️ Reformatea muchos archivos del frontend: tiene que mergear rápido y avisar al equipo que actualice sus ramas.

@@ -28,7 +28,7 @@ const ENDPOINT = '/api/cliente/declaraciones-pago';
 
 /**
  * Desglose de las cuotas sueltas que crea este fixture: sin interés (toda la
- * cuota es capital), igual que `completarDesgloseTasaCero`. El saldo de
+ * cuota es capital), igual que un plan con TNA 0 % en `calcularPlanPago`. El saldo de
  * capital no forma un cronograma real (cada test crea su propia cuota suelta,
  * no las 10 del plan): alcanza con que sea válido para las columnas NOT NULL.
  */

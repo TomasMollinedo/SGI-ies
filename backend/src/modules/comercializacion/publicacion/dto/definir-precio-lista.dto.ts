@@ -18,7 +18,7 @@ const IMPORTE_MAXIMO = 999_999_999_999.99;
  * Los importes viajan como `number` porque es lo que hay en JSON; el service
  * los convierte a `Prisma.Decimal` antes de calcular o guardar. El
  * `multipleOf(0.01)` fija los dos decimales de las columnas, mismo criterio
- * que `CreatePlanPagoDto`.
+ * que `CreatePagoDto`.
  */
 export const definirPrecioListaSchema = z.object({
   precio_lista: z

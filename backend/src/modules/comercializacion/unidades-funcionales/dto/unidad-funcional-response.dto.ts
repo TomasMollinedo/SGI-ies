@@ -4,6 +4,7 @@ import {
   EstadoProyecto,
   TipologiaUnidad,
 } from '../../../../../generated/prisma/enums';
+import { estadoComercialUnidadSchema } from './estado-comercial-unidad';
 
 const usuarioResumenSchema = z.object({
   nombre: z.string(),
@@ -30,6 +31,11 @@ const condicionEntregaSchema = z.object({
   codigo: z.enum(['TERMINADA', 'A_ENTREGAR_CON_FECHA', 'A_ENTREGAR_SIN_FECHA']),
   texto: z.string().meta({ example: 'A entregar, fecha a confirmar' }),
   fecha_referencia: z.iso.datetime().nullable(),
+});
+
+const estadoComercialSchema = estadoComercialUnidadSchema.meta({
+  description:
+    'Estado comercial de la unidad, derivado de su publicación vigente. SIN_PUBLICAR si no tiene ninguna (nunca publicada o despublicada).',
 });
 
 const costoEditableSchema = z.boolean().meta({
@@ -72,6 +78,7 @@ export const unidadFuncionalListItemSchema = unidadFuncionalResponseSchema
     FK_usuario_actualizador: true,
   })
   .extend({
+    estado_comercial: estadoComercialSchema,
     costo_editable: costoEditableSchema,
     proyecto: proyectoResumenSchema,
     condicion_entrega: condicionEntregaSchema,
@@ -98,6 +105,7 @@ export class UnidadFuncionalListResponseDto extends createZodDto(
  */
 export const unidadFuncionalDetalleResponseSchema =
   unidadFuncionalResponseSchema.extend({
+    estado_comercial: estadoComercialSchema,
     costo_editable: costoEditableSchema,
     motivo_costo_no_editable: z.string().nullable().meta({
       description:

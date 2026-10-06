@@ -21,7 +21,6 @@ import { TipoComprobanteController } from '../../modules/tesoreria/tipo-comproba
 import { PagoController } from '../../modules/tesoreria/pago/pago.controller';
 import { CuentaCorrienteController } from '../../modules/tesoreria/cuenta-corriente/cuenta-corriente.controller';
 import { PublicacionController } from '../../modules/comercializacion/publicacion/publicacion.controller';
-import { PlanPagoController } from '../../modules/comercializacion/plan-pago/plan-pago.controller';
 import { CobroController } from '../../modules/comercializacion/cobro/cobro.controller';
 import { DeclaracionPagoAdminController } from '../../modules/comercializacion/declaracion-pago/declaracion-pago-admin.controller';
 import { ProyectoController } from '../../modules/proyectos/proyecto.controller';
@@ -29,6 +28,8 @@ import { UnidadFuncionalController } from '../../modules/comercializacion/unidad
 import { VentaController } from '../../modules/comercializacion/venta/venta.controller';
 import { ComprobanteController } from '../../modules/tesoreria/comprobante/comprobante.controller';
 import { ConsultaAdminController } from '../../modules/comercializacion/consulta/consulta-admin.controller';
+import { PlazoFinanciacionController } from '../../modules/comercializacion/plazo-financiacion/plazo-financiacion.controller';
+import { PlanEjemploController } from '../../modules/comercializacion/plan-ejemplo/plan-ejemplo.controller';
 /**
  * Controller de mentira, dueño de un rol que no es ni Administrador ni
  * Gerente General: hoy todos los controllers reales son de Administrador
@@ -60,7 +61,6 @@ describe('RolesGuard', () => {
     ['StockController', StockController],
     ['TipoMovimientoController', TipoMovimientoController],
     ['UnidadMedidaController', UnidadMedidaController],
-
   ];
 
   const usuario = (rol: RolNombre): AuthenticatedUser => ({
@@ -219,11 +219,12 @@ describe('RolesGuard', () => {
   describe('controllers de Comercialización', () => {
     const controllersDeComercializacion: [string, object][] = [
       ['PublicacionController', PublicacionController],
-      ['PlanPagoController', PlanPagoController],
       ['CobroController', CobroController],
       ['VentaController', VentaController],
       ['DeclaracionPagoAdminController', DeclaracionPagoAdminController],
       ['ConsultaAdminController', ConsultaAdminController],
+      ['PlazoFinanciacionController', PlazoFinanciacionController],
+      ['PlanEjemploController', PlanEjemploController],
     ];
 
     it.each(controllersDeComercializacion)(

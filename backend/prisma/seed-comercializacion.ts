@@ -11,11 +11,13 @@ import {
 } from '../generated/prisma/enums';
 import { RolNombre } from '../src/common/enums/rol.enum';
 import { CuotaSeed, crearVentaConPlanPago } from './seed-venta-con-plan-pago';
+import { sembrarPlazos } from './seed-plazos';
 
 /**
  * Seed de prueba para Comercialización/Ecommerce (Sprint 3, T96): siembra la
- * cadena completa PROYECTO -> UNIDADFUNCIONAL -> PUBLICACIONUNIDAD ->
- * PLANPAGO -> VENTA -> CUOTA, con volumen (10 proyectos, ~29 unidades) para
+ * cadena completa PROYECTO -> UNIDADFUNCIONAL -> PUBLICACIONUNIDAD (con
+ * precio de lista y planes de ejemplo sobre PLAZOFINANCIACION) -> VENTA ->
+ * PLANPAGO -> CUOTA, con volumen (10 proyectos, ~29 unidades) para
  * que las 19 tareas que dependen de esta rama tengan margen de datos para
  * construir y probar listados, filtros y catálogo — no solo el mínimo de
  * un caso por estado.
@@ -86,7 +88,8 @@ async function main() {
   });
   // UNIDADFUNCIONAL la mantiene Proyectos (ver comentario de
   // `costo` en schema.prisma: "Editable por Proyectos..."); PUBLICACIONUNIDAD
-  // y PLANPAGO son acciones comerciales, las mantiene Comercialización.
+  // y sus planes de ejemplo son acciones comerciales, las mantiene
+  // Comercialización.
   const auditoriaProyectos = {
     FK_usuario_creador: responsableProyectos.id_usuario,
     FK_usuario_actualizador: responsableProyectos.id_usuario,
@@ -94,6 +97,19 @@ async function main() {
   const auditoriaComercializacion = {
     FK_usuario_creador: responsableComercializacion.id_usuario,
     FK_usuario_actualizador: responsableComercializacion.id_usuario,
+  };
+
+  // Plazos de financiación (HU-32): los planes de ejemplo eligen uno.
+  const idPlazoPorCuotas = await sembrarPlazos(
+    prisma,
+    responsableComercializacion.id_usuario,
+  );
+  const plazo = (cantidadCuotas: number) => {
+    const id = idPlazoPorCuotas.get(cantidadCuotas);
+    if (id === undefined) {
+      throw new Error(`No hay un plazo sembrado de ${cantidadCuotas} cuotas`);
+    }
+    return id;
   };
 
   // --------------------------------------------------------------------
@@ -298,18 +314,18 @@ async function main() {
     });
   }
 
-  /** Idempotente por (FK_publicacion, nombre). */
+  /**
+   * Plan de ejemplo con el modelo del Sprint 4 (HU-22): nombre, anticipo en
+   * porcentaje, plazo y estado. Los importes no se guardan: los calcula la
+   * API con el precio de lista y la TNA del plazo. Idempotente por
+   * (FK_publicacion, nombre).
+   */
   async function upsertPlan(datos: {
     FK_publicacion: number;
     nombre: string;
-    tipo: ModalidadPago;
-    precio: number;
-    porcentaje_ganancia: number;
-    margen: number;
-    anticipo_porcentaje?: number;
-    anticipo_monto?: number;
-    cantidad_cuotas?: number;
-    periodicidad?: Periodicidad;
+    anticipo_porcentaje: number;
+    FK_plazo_financiacion: number;
+    estado?: boolean;
   }) {
     const existente = await prisma.pLANEJEMPLO.findFirst({
       where: { FK_publicacion: datos.FK_publicacion, nombre: datos.nombre },
@@ -433,8 +449,8 @@ async function main() {
   // vigente, con el detalle completo.
   // --------------------------------------------------------------------
 
-  // PB-A: EN_PREPARACION, sin ningún plan activo — es justamente lo que la
-  // mantiene en preparación.
+  // PB-A: EN_PREPARACION, sin precio de lista — es justamente lo que la
+  // mantiene en preparación (T133). Sin planes: solo se cargan en Disponible.
   const pbA = await upsertUnidad({
     FK_proyecto: idTorreNogal,
     identificador: 'PB-A',
@@ -453,8 +469,9 @@ async function main() {
     fecha_publicacion: new Date('2026-08-20'),
   });
 
-  // 1-A: DISPONIBLE, con un plan CONTADO y uno FINANCIADO (todavía no
-  // vendida, el comprador elige).
+  // 1-A: DISPONIBLE, todavía no vendida. Sus planes de ejemplo cubren los
+  // casos de HU-22: dos activos (uno sin interés), uno inactivo y uno cuyo
+  // plazo está dado de baja (la API no lo devuelve).
   const unidad1A = await upsertUnidad({
     FK_proyecto: idTorreNogal,
     identificador: '1-A',
@@ -477,23 +494,28 @@ async function main() {
   });
   await upsertPlan({
     FK_publicacion: publicacion1A.id_publicacion,
-    nombre: 'Contado 1-A',
-    tipo: ModalidadPago.CONTADO,
-    precio: 19_000_000, // costo 15.000.000 + margen 4.000.000 (26,67%)
-    porcentaje_ganancia: 26.67,
-    margen: 4_000_000,
-    anticipo_porcentaje: 100,
+    nombre: 'Anticipo 30 % + 12 cuotas',
+    anticipo_porcentaje: 30,
+    FK_plazo_financiacion: plazo(12),
   });
   await upsertPlan({
     FK_publicacion: publicacion1A.id_publicacion,
-    nombre: 'Financiado 12 cuotas 1-A',
-    tipo: ModalidadPago.FINANCIADO,
-    precio: 21_000_000, // costo 15.000.000 + margen 6.000.000 (40%)
-    porcentaje_ganancia: 40,
-    margen: 6_000_000,
-    anticipo_porcentaje: 30,
-    cantidad_cuotas: 12,
-    periodicidad: Periodicidad.MENSUAL,
+    nombre: 'Anticipo 50 % + 3 cuotas sin interés',
+    anticipo_porcentaje: 50,
+    FK_plazo_financiacion: plazo(3),
+  });
+  await upsertPlan({
+    FK_publicacion: publicacion1A.id_publicacion,
+    nombre: 'Anticipo 20 % + 24 cuotas',
+    anticipo_porcentaje: 20,
+    FK_plazo_financiacion: plazo(24),
+    estado: false,
+  });
+  await upsertPlan({
+    FK_publicacion: publicacion1A.id_publicacion,
+    nombre: 'Anticipo 20 % + 36 cuotas',
+    anticipo_porcentaje: 20,
+    FK_plazo_financiacion: plazo(36),
   });
 
   // 2-B: EN_PLAN_DE_PAGO, vendida a Valentina Roldán (financiado, con cuotas
@@ -518,16 +540,14 @@ async function main() {
     precio_lista: 27_000_000,
     porcentaje_ganancia: 35,
   });
+  // El plan de ejemplo que se mostraba al vender. La venta del Sprint 3 se
+  // registró sin interés (TNA 0 %); las ventas con sistema francés las siembra
+  // T156.
   const plan2B = await upsertPlan({
     FK_publicacion: publicacion2B.id_publicacion,
-    nombre: 'Financiado 6 cuotas 2-B',
-    tipo: ModalidadPago.FINANCIADO,
-    precio: 27_000_000, // costo 20.000.000 + margen 7.000.000 (35%)
-    porcentaje_ganancia: 35,
-    margen: 7_000_000,
+    nombre: 'Anticipo 20 % + 6 cuotas',
     anticipo_porcentaje: 20,
-    cantidad_cuotas: 6,
-    periodicidad: Periodicidad.MENSUAL,
+    FK_plazo_financiacion: plazo(6),
   });
   // Anticipo: 27.000.000 * 20% = 5.400.000. Resto: 21.600.000 / 6 = 3.600.000
   // por cuota. Hoy (a los fines de "vencida" en este seed) es 2026-09-14:
@@ -616,14 +636,14 @@ async function main() {
     precio_lista: 52_000_000,
     porcentaje_ganancia: 23.81,
   });
+  // El contado no es un plan de ejemplo (es el precio de lista). La venta
+  // igual apunta a un plan de ejemplo por la columna legado
+  // `VENTA.FK_plan_ejemplo`, que se elimina en T159.
   const planLoteOcho = await upsertPlan({
     FK_publicacion: publicacionLoteOcho.id_publicacion,
-    nombre: 'Contado LOTE-08',
-    tipo: ModalidadPago.CONTADO,
-    precio: 52_000_000, // costo 42.000.000 + margen 10.000.000 (23,81%)
-    porcentaje_ganancia: 23.81,
-    margen: 10_000_000,
-    anticipo_porcentaje: 100,
+    nombre: 'Anticipo 30 % + 12 cuotas',
+    anticipo_porcentaje: 30,
+    FK_plazo_financiacion: plazo(12),
   });
   // Asunción documentada acá porque el service real todavía no existe: en
   // CONTADO se genera igual una única cuota número 0, aunque
@@ -680,7 +700,7 @@ async function main() {
   // tener que escribir 24 bloques a mano).
   // --------------------------------------------------------------------
 
-  /** EN_EJECUCION: U1 y U2 publicadas DISPONIBLE con un plan CONTADO (35% de margen), U3 sin publicar. */
+  /** EN_EJECUCION: U1 y U2 publicadas DISPONIBLE (35% de margen) con un plan de ejemplo, U3 sin publicar. */
   async function sembrarProyectoEnEjecucion(codigo: string) {
     const idProyecto = idProyectoPorCodigo.get(codigo)!;
     for (const [indice, tipologia] of ROTACION_TIPOLOGIA.entries()) {
@@ -705,19 +725,16 @@ async function main() {
       });
       await upsertPlan({
         FK_publicacion: publicacion.id_publicacion,
-        nombre: `Contado ${identificador}`,
-        tipo: ModalidadPago.CONTADO,
-        precio,
-        porcentaje_ganancia: 35,
-        margen: 0,
-        anticipo_porcentaje: 100,
+        nombre: 'Anticipo 30 % + 12 cuotas',
+        anticipo_porcentaje: 30,
+        FK_plazo_financiacion: plazo(12),
       });
     }
   }
 
   /**
-   * FINALIZADO: las 3 unidades publicadas VENDIDA, cada una con su plan
-   * CONTADO (30% de margen) y una VENTA real (cuota única PAGADA). Los
+   * FINALIZADO: las 3 unidades publicadas VENDIDA (30% de margen), cada una
+   * con un plan de ejemplo y una VENTA de contado (cuota única PAGADA). Los
    * clientes se asignan explícitamente para poder sembrar a propósito el
    * caso de "cliente con 2+ unidades" (Valentina Roldán).
    */
@@ -745,14 +762,13 @@ async function main() {
         precio_lista: precio,
         porcentaje_ganancia: 30,
       });
+      // Ver LOTE-08: la venta de contado apunta al plan de ejemplo solo por
+      // la columna legado `VENTA.FK_plan_ejemplo`.
       const plan = await upsertPlan({
         FK_publicacion: publicacion.id_publicacion,
-        nombre: `Contado ${identificador}`,
-        tipo: ModalidadPago.CONTADO,
-        precio,
-        porcentaje_ganancia: 30,
-        margen: 0,
-        anticipo_porcentaje: 100,
+        nombre: 'Anticipo 30 % + 12 cuotas',
+        anticipo_porcentaje: 30,
+        FK_plazo_financiacion: plazo(12),
       });
       await upsertVenta({
         FK_cliente: clientesPorUnidad[indice],

@@ -20,6 +20,7 @@ import { UpdateUnidadFuncionalDto } from './dto/update-unidad-funcional.dto';
 import { QueryUnidadFuncionalDto } from './dto/query-unidad-funcional.dto';
 import { CreateImagenUnidadDto } from './dto/create-imagen-unidad.dto';
 import { OrdenarImagenesUnidadDto } from './dto/ordenar-imagenes-unidad.dto';
+import type { EstadoComercialUnidad } from './dto/estado-comercial-unidad';
 import { USUARIO_RESUMEN_SELECT } from '../../../common/selects/usuario-resumen.select';
 
 /**
@@ -43,6 +44,9 @@ const TIPOLOGIA_LABELS: Record<TipologiaUnidad, string> = {
  */
 const MOTIVO_COSTO_CONGELADO =
   'El costo ya no se puede modificar: la unidad tiene (o tuvo) una publicación en el ecommerce. Cualquier ajuste sobre lo que paga el cliente se hace desde el margen de Comercialización, nunca sobre el costo.';
+
+/** Estado comercial de la unidad que no tiene ninguna publicación vigente. */
+const ESTADO_COMERCIAL_SIN_PUBLICAR = 'SIN_PUBLICAR';
 
 const MOTIVO_BAJA_PUBLICACION_VIGENTE =
   'tiene una publicación vigente en el ecommerce (primero hay que despublicarla)';
@@ -71,6 +75,12 @@ const UNIDAD_LISTADO_SELECT = {
   // Cualquier publicación, vigente o histórica: alcanza para congelar el
   // costo. No hay columna que lo marque, se deriva de esta cuenta.
   _count: { select: { publicaciones: true } },
+  // A lo sumo una vigente por unidad: de ella sale el estado comercial.
+  publicaciones: {
+    where: { vigente: true },
+    select: { estado_comercial: true },
+    take: 1,
+  },
 } satisfies Prisma.UNIDADFUNCIONALSelect;
 
 const UNIDAD_DETALLE_SELECT = {
@@ -110,49 +120,45 @@ export class UnidadFuncionalService {
   }
 
   /**
-   * Alta de una unidad. Solo con el proyecto En planificación, y con el
-   * identificador libre entre las unidades activas de ese proyecto. La
-   * auditoría sale del usuario autenticado, nunca del body.
+   * Alta de una unidad. Solo con el proyecto activo y En planificación, sin
+   * superar las unidades planificadas del proyecto, y con el identificador
+   * libre entre las unidades activas de ese proyecto. La auditoría sale del
+   * usuario autenticado, nunca del body.
    */
   async create(dto: CreateUnidadFuncionalDto, usuarioId: number) {
-    const proyecto = await this.prisma.pROYECTO.findUnique({
-      where: { id_proyecto: dto.FK_proyecto },
-      select: { estado_obra: true },
-    });
-    if (!proyecto) {
-      throw new NotFoundException(
-        `No existe un proyecto con id ${dto.FK_proyecto}`,
+    const idUnidad = await this.prisma.$transaction(async (tx) => {
+      await this.validarProyectoAdmiteAltas(tx, dto.FK_proyecto);
+      await this.validarIdentificadorUnico(
+        tx,
+        dto.FK_proyecto,
+        dto.identificador,
       );
-    }
 
-    this.validarProyectoAdmiteAltas(proyecto.estado_obra);
-    await this.validarIdentificadorUnico(
-      this.prisma,
-      dto.FK_proyecto,
-      dto.identificador,
-    );
-
-    const { id_unidad_funcional } = await this.prisma.uNIDADFUNCIONAL.create({
-      data: {
-        ...dto,
-        FK_usuario_creador: usuarioId,
-        FK_usuario_actualizador: usuarioId,
-      },
-      select: { id_unidad_funcional: true },
+      const { id_unidad_funcional } = await tx.uNIDADFUNCIONAL.create({
+        data: {
+          ...dto,
+          FK_usuario_creador: usuarioId,
+          FK_usuario_actualizador: usuarioId,
+        },
+        select: { id_unidad_funcional: true },
+      });
+      return id_unidad_funcional;
     });
 
-    return this.findOne(id_unidad_funcional);
+    return this.findOne(idUnidad);
   }
 
   /**
-   * Listado paginado con filtros combinables por proyecto, tipología y rango
-   * de superficie cubierta. Sin filtro de `estado`, solo las activas. Orden
-   * por defecto: por proyecto y, dentro de cada uno, en el orden de carga.
+   * Listado paginado con filtros combinables por proyecto, tipología, estado
+   * comercial y rango de superficie cubierta. Sin filtro de `estado`, solo las
+   * activas. Orden por defecto: por proyecto y, dentro de cada uno, en el
+   * orden de carga.
    */
   async findAll(query: QueryUnidadFuncionalDto) {
     const {
       FK_proyecto,
       tipologia,
+      estado_comercial,
       superficie_min,
       superficie_max,
       estado,
@@ -167,6 +173,12 @@ export class UnidadFuncionalService {
       ...(filtroEstado !== undefined && { estado: filtroEstado }),
       ...(FK_proyecto !== undefined && { FK_proyecto }),
       ...(tipologia && { tipologia }),
+      ...(estado_comercial && {
+        publicaciones:
+          estado_comercial === ESTADO_COMERCIAL_SIN_PUBLICAR
+            ? { none: { vigente: true } }
+            : { some: { vigente: true, estado_comercial } },
+      }),
       ...((superficie_min !== undefined || superficie_max !== undefined) && {
         superficie_cubierta: {
           ...(superficie_min !== undefined && { gte: superficie_min }),
@@ -309,47 +321,44 @@ export class UnidadFuncionalService {
 
   /**
    * Alta lógica (reactivar): solo si está de baja, con las mismas condiciones
-   * que un alta nueva — proyecto En planificación e identificador todavía
-   * libre entre las activas (mientras estuvo de baja, otra unidad pudo
-   * haberlo tomado).
+   * que un alta nueva — proyecto activo y En planificación, sin superar las
+   * unidades planificadas, e identificador todavía libre entre las activas
+   * (mientras estuvo de baja, otra unidad pudo haberlo tomado).
    */
   async activar(id: number, usuarioId: number) {
-    const unidad = await this.prisma.uNIDADFUNCIONAL.findUnique({
-      where: { id_unidad_funcional: id },
-      select: {
-        FK_proyecto: true,
-        identificador: true,
-        estado: true,
-        proyecto: { select: { estado_obra: true } },
-      },
-    });
-    if (!unidad) {
-      throw new NotFoundException(
-        `No existe una unidad funcional con id ${id}`,
-      );
-    }
-
-    await reactivarEntidad({
-      entidad: unidad,
-      entidadYaActiva: 'La unidad ya está activa',
-      revalidar: async () => {
-        this.validarProyectoAdmiteAltas(unidad.proyecto.estado_obra);
-        await this.validarIdentificadorUnico(
-          this.prisma,
-          unidad.FK_proyecto,
-          unidad.identificador,
-          id,
+    await this.prisma.$transaction(async (tx) => {
+      const unidad = await tx.uNIDADFUNCIONAL.findUnique({
+        where: { id_unidad_funcional: id },
+        select: { FK_proyecto: true, identificador: true, estado: true },
+      });
+      if (!unidad) {
+        throw new NotFoundException(
+          `No existe una unidad funcional con id ${id}`,
         );
-      },
-      activar: () =>
-        this.prisma.uNIDADFUNCIONAL.update({
-          where: { id_unidad_funcional: id },
-          data: {
-            estado: true,
-            FK_usuario_actualizador: usuarioId,
-            hora_actualizacion: new Date(),
-          },
-        }),
+      }
+
+      await reactivarEntidad({
+        entidad: unidad,
+        entidadYaActiva: 'La unidad ya está activa',
+        revalidar: async () => {
+          await this.validarProyectoAdmiteAltas(tx, unidad.FK_proyecto);
+          await this.validarIdentificadorUnico(
+            tx,
+            unidad.FK_proyecto,
+            unidad.identificador,
+            id,
+          );
+        },
+        activar: () =>
+          tx.uNIDADFUNCIONAL.update({
+            where: { id_unidad_funcional: id },
+            data: {
+              estado: true,
+              FK_usuario_actualizador: usuarioId,
+              hora_actualizacion: new Date(),
+            },
+          }),
+      });
     });
 
     return this.findOne(id);
@@ -527,10 +536,55 @@ export class UnidadFuncionalService {
     });
   }
 
-  private validarProyectoAdmiteAltas(estado: EstadoProyecto) {
-    if (estado !== EstadoProyecto.EN_PLANIFICACION) {
+  /**
+   * Condiciones del PROYECTO para sumar una unidad activa, sea por un alta o
+   * por una reactivación: que exista, esté activo (HU-31), esté En
+   * planificación y no tenga ya tantas unidades activas como planificó.
+   *
+   * Toma el lock de la fila del proyecto (`SELECT ... FOR UPDATE`) y lo
+   * retiene hasta el final de la transacción: sin él, dos altas simultáneas
+   * contarían las mismas unidades activas y las dos pasarían el límite. Es el
+   * mismo lock que toma `ProyectoService` al editar las planificadas, así que
+   * tampoco se puede bajar esa cantidad justo mientras se carga una unidad.
+   */
+  private async validarProyectoAdmiteAltas(
+    tx: Prisma.TransactionClient,
+    idProyecto: number,
+  ) {
+    const filas = await tx.$queryRaw<{ id_proyecto: number }[]>(
+      Prisma.sql`SELECT "id_proyecto" FROM "PROYECTO" WHERE "id_proyecto" = ${idProyecto} FOR UPDATE`,
+    );
+    if (filas.length === 0) {
+      throw new NotFoundException(`No existe un proyecto con id ${idProyecto}`);
+    }
+
+    // La fila acaba de bloquearse: existe.
+    const proyecto = (await tx.pROYECTO.findUnique({
+      where: { id_proyecto: idProyecto },
+      select: {
+        estado: true,
+        estado_obra: true,
+        cantidad_unidades_planificadas: true,
+      },
+    }))!;
+
+    if (!proyecto.estado) {
       throw new ConflictException(
-        `No se pueden dar de alta unidades: el proyecto está ${ESTADO_PROYECTO_LABELS[estado]}. Solo se pueden cargar unidades mientras el proyecto está En planificación.`,
+        'No se pueden dar de alta unidades: el proyecto está dado de baja.',
+      );
+    }
+    if (proyecto.estado_obra !== EstadoProyecto.EN_PLANIFICACION) {
+      throw new ConflictException(
+        `No se pueden dar de alta unidades: el proyecto está ${ESTADO_PROYECTO_LABELS[proyecto.estado_obra]}. Solo se pueden cargar unidades mientras el proyecto está En planificación.`,
+      );
+    }
+
+    const activas = await tx.uNIDADFUNCIONAL.count({
+      where: { FK_proyecto: idProyecto, estado: true },
+    });
+    if (activas >= proyecto.cantidad_unidades_planificadas) {
+      throw new ConflictException(
+        `No se pueden dar de alta más unidades: el proyecto ya tiene ${activas} unidad(es) activa(s) de las ${proyecto.cantidad_unidades_planificadas} planificada(s). Primero hay que actualizar la cantidad de unidades planificadas en el proyecto.`,
       );
     }
   }
@@ -557,9 +611,10 @@ export class UnidadFuncionalService {
 }
 
 /**
- * Pasa los importes de Decimal a número y deriva `costo_editable` y la
- * condición de entrega (ninguno de los dos se persiste). Sirve tanto para el
- * listado como para el detalle: lo que el detalle trae de más pasa tal cual.
+ * Pasa los importes de Decimal a número y deriva `costo_editable`, el estado
+ * comercial y la condición de entrega (ninguno de los tres se persiste).
+ * Sirve tanto para el listado como para el detalle: lo que el detalle trae de
+ * más pasa tal cual.
  */
 function mapearListado<T extends UnidadListado>(unidad: T) {
   const {
@@ -568,6 +623,7 @@ function mapearListado<T extends UnidadListado>(unidad: T) {
     costo,
     _count,
     proyecto,
+    publicaciones,
     ...resto
   } = unidad;
   // El contrato HTTP sigue exponiendo `estado`: sale de `estado_obra`.
@@ -579,6 +635,8 @@ function mapearListado<T extends UnidadListado>(unidad: T) {
     superficie_cubierta: superficie_cubierta.toNumber(),
     superficie_descubierta: superficie_descubierta?.toNumber() ?? null,
     costo: costo.toNumber(),
+    estado_comercial: (publicaciones[0]?.estado_comercial ??
+      ESTADO_COMERCIAL_SIN_PUBLICAR) satisfies EstadoComercialUnidad,
     costo_editable: _count.publicaciones === 0,
     condicion_entrega: calcularCondicionEntrega(proyecto),
   };

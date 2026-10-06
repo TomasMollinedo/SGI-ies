@@ -12,6 +12,7 @@ import {
   EstadoProyecto,
   EstadoVenta,
   ModalidadPago,
+  Periodicidad,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { validarTelefonoSoloNumeros } from '../../../common/validaciones/telefono-solo-numeros';
@@ -19,12 +20,11 @@ import { validarDniCuilValido } from '../../../common/validaciones/dni-cuil-vali
 import { calcularDiasVencido } from '../../../common/validaciones/dias-vencido';
 import { calcularCondicionEntregaResponse } from '../common/condicion-entrega';
 import { PublicacionService } from '../publicacion/publicacion.service';
-import { completarDesgloseTasaCero } from '../plan-pago/desglose-tasa-cero';
 import {
   exigirPrecioPlanEjemplo,
   exigirTipoPlanEjemplo,
 } from '../plan-pago/exigir-condiciones-plan-ejemplo';
-import { generarCuotas } from '../plan-pago/motor-cuotas';
+import { calcularPlanPago } from '../plan-pago/motor-cuotas';
 import {
   CONDICIONES_VENTA_SELECT,
   VentaConCondiciones,
@@ -139,27 +139,28 @@ export class VentaService {
           anticipo_congelado: anticipoCongelado,
           tipo_plan_congelado: tipo,
           cantidad_cuotas_congelada: plan.cantidad_cuotas ?? 1,
-          periodicidad_congelada: plan.periodicidad,
+          // Columna legado (T159): las cuotas siempre son mensuales (HU-32),
+          // sin importar la periodicidad que tenga el plan de ejemplo.
+          periodicidad_congelada:
+            tipo === ModalidadPago.FINANCIADO ? Periodicidad.MENSUAL : null,
           FK_usuario_creador: usuarioId,
           FK_usuario_actualizador: usuarioId,
         },
       });
 
-      const cuotas = completarDesgloseTasaCero(
-        generarCuotas({
-          precio,
-          tipo,
-          anticipo_monto: anticipoCongelado,
-          cantidad_cuotas: plan.cantidad_cuotas,
-          periodicidad: plan.periodicidad,
-          fecha_venta: venta.fecha_venta,
-        }),
+      // Hasta T158 la venta se registra sin interés (TNA 0 %): el sistema
+      // francés con tasa 0 es el reparto en partes iguales del Sprint 3.
+      const { cuotas, valor_cuota } = calcularPlanPago({
         precio,
-      );
+        tipo,
+        anticipo_monto: anticipoCongelado,
+        cantidad_cuotas: plan.cantidad_cuotas,
+        tasa_nominal_anual: new Prisma.Decimal(0),
+        fecha_venta: venta.fecha_venta,
+      });
 
       // En CONTADO el anticipo es el precio completo y no hay plazo, cuotas,
-      // tasa ni valor de cuota. En FINANCIADO la tasa es 0 y el valor de
-      // cuota es el importe de la cuota 1.
+      // tasa ni valor de cuota. En FINANCIADO la tasa es 0.
       const esFinanciado = tipo === ModalidadPago.FINANCIADO;
       const planPago = await tx.pLANPAGO.create({
         data: {
@@ -170,9 +171,7 @@ export class VentaService {
           anticipo_monto: esFinanciado ? anticipoCongelado : precio,
           cantidad_cuotas: esFinanciado ? plan.cantidad_cuotas : null,
           tasa_nominal_anual: esFinanciado ? new Prisma.Decimal(0) : null,
-          valor_cuota: esFinanciado
-            ? (cuotas.find((cuota) => cuota.numero === 1)?.importe ?? null)
-            : null,
+          valor_cuota,
           FK_usuario_creador: usuarioId,
         },
       });
@@ -323,9 +322,8 @@ export class VentaService {
   /**
    * `PLANEJEMPLO.anticipo_monto`/`anticipo_porcentaje` es uno u otro, nunca
    * ambos (regla de service de T105, no expresable en el schema). El motor de
-   * cuotas solo acepta el monto ya resuelto — misma fórmula que
-   * `PlanPagoService.resolverAnticipoMonto` (privada ahí, no reusable desde
-   * acá).
+   * cuotas solo acepta el monto ya resuelto. Lee columnas legado del plan de
+   * ejemplo: lo reemplaza T158.
    */
   private resolverAnticipoMonto(plan: {
     precio: Prisma.Decimal;
