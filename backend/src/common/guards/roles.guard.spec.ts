@@ -28,6 +28,7 @@ import { UnidadFuncionalController } from '../../modules/comercializacion/unidad
 import { VentaController } from '../../modules/comercializacion/venta/venta.controller';
 import { ComprobanteController } from '../../modules/tesoreria/comprobante/comprobante.controller';
 import { ConsultaAdminController } from '../../modules/comercializacion/consulta/consulta-admin.controller';
+import { ClienteAdminController } from '../../modules/comercializacion/cliente/cliente-admin.controller';
 import { PlazoFinanciacionController } from '../../modules/comercializacion/plazo-financiacion/plazo-financiacion.controller';
 import { PlanEjemploController } from '../../modules/comercializacion/plan-ejemplo/plan-ejemplo.controller';
 /**
@@ -223,6 +224,7 @@ describe('RolesGuard', () => {
       ['VentaController', VentaController],
       ['DeclaracionPagoAdminController', DeclaracionPagoAdminController],
       ['ConsultaAdminController', ConsultaAdminController],
+      ['ClienteAdminController', ClienteAdminController],
       ['PlazoFinanciacionController', PlazoFinanciacionController],
       ['PlanEjemploController', PlanEjemploController],
     ];
