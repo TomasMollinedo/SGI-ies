@@ -5,7 +5,7 @@ Tareas técnicas del Sprint 4, tomadas del tablero de GitHub Projects [Proyecto 
 - **Cantidad de tareas:** 37 (33 del tablero y 4 nuevas; 2 del tablero se dan de baja)
 - **Estimación total:** 188 h (BD/Infra: 16 h, Frontend: 84 h, Backend: 88 h)
 - **Última sincronización con el tablero:** 2026-10-05
-- **Estado de este archivo:** sincronizado con los issues el 2026-10-05
+- **Estado de este archivo:** sincronizado con los issues el 2026-10-05 (incluye el cierre de T121)
 
 ## Cómo editar este archivo
 
@@ -325,6 +325,8 @@ Permitir registrar, modificar, listar y dar de baja proyectos con su estado de o
 - [ ] Portada e imágenes de diseño (render y plano) con tipo y orden de visualización
 - [ ] Baja lógica solo en proyectos En planificación sin unidades activas
 - [ ] Listado: solo activos por defecto, filtros por estado de obra y localidad, búsqueda por código o nombre y orden por nombre
+- [ ] El alta, la baja y la reactivación de unidades toman el lock de la fila del proyecto (`FOR UPDATE`, igual que `bloquearProyecto` de T122), para que las reglas de HU-31 que cuentan unidades activas no compitan con un cambio concurrente
+- [ ] No se dan de alta ni se reactivan unidades en un proyecto dado de baja (HU-20: el proyecto se elige entre los activos)
 
 ### Listo cuando
 
