@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Patch,
@@ -9,6 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
@@ -22,7 +25,10 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { VentaService } from './venta.service';
+import { VentaSimulacionService } from './venta-simulacion.service';
 import { CreateVentaDto } from './dto/create-venta.dto';
+import { SimularVentaDto } from './dto/simular-venta.dto';
+import { SimulacionVentaResponseDto } from './dto/simulacion-venta-response.dto';
 import { CancelarVentaDto } from './dto/cancelar-venta.dto';
 import { QueryVentaDto } from './dto/query-venta.dto';
 import { QueryBuscarClientesDto } from './dto/query-buscar-clientes.dto';
@@ -50,7 +56,40 @@ import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 })
 @Controller('ventas')
 export class VentaController {
-  constructor(private readonly ventaService: VentaService) {}
+  constructor(
+    private readonly ventaService: VentaService,
+    private readonly ventaSimulacionService: VentaSimulacionService,
+  ) {}
+
+  @Post('simular')
+  // 200 y no 201: es un cálculo, no crea ningún recurso.
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Simula el plan de pago que se está acordando con el cliente, sin guardar nada',
+    description:
+      'Calcula con sistema francés, el precio de lista y la TNA vigentes del plazo elegido (nunca vienen en el body). CONTADO: solo la publicación; una única cuota 0 por el 100 % del precio. FINANCIADO: plazo activo y anticipo en monto o en porcentaje (uno solo; se calcula el otro), mayor a 0 y menor al precio de lista. Los vencimientos se cuentan desde hoy, que es la fecha de la venta si se confirma. No crea venta, plan de pago ni cuotas.',
+  })
+  @ApiOkResponse({
+    description:
+      'Simulación: anticipo (monto y %), saldo a financiar, plazo, TNA, tasa mensual, valor de cuota, total de intereses, total a pagar y cronograma completo',
+    type: SimulacionVentaResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Body inválido (CONTADO con anticipo o plazo, FINANCIADO sin plazo o sin anticipo, ambos anticipos a la vez, porcentaje fuera de 0 % < anticipo < 100 %), o anticipo en monto mayor o igual al precio de lista',
+  })
+  @ApiNotFoundResponse({
+    description:
+      'No existe una publicación vigente o un plazo de financiación con ese id',
+  })
+  @ApiConflictResponse({
+    description:
+      'La unidad no está Disponible, el plazo está dado de baja, o no hay ningún plazo activo (solo se puede vender de contado)',
+  })
+  simular(@Body() dto: SimularVentaDto) {
+    return this.ventaSimulacionService.simular(dto);
+  }
 
   @Post()
   @ApiOperation({
