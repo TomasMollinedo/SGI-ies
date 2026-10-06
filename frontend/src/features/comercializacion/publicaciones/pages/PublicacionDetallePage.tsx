@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { ArrowLeft, ShieldAlert, Undo2 } from 'lucide-react'
 import { PATHS } from '@/app/router/paths'
+import { PrecioListaForm } from '@/features/comercializacion/planes-pago/components/PrecioListaForm'
 import { ESTADO_PROYECTO_LABEL } from '@/features/proyectos/config/proyecto.config'
 import { AuditInfo } from '@/shared/components/common/AuditInfo'
 import { DetailRow } from '@/shared/components/common/DetailRow'
@@ -14,7 +15,6 @@ import { TIPOLOGIA_LABEL } from '@/shared/config/tipologiaUnidad.config'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { textoCondicionEntrega } from '@/shared/utils/condicionEntrega'
 import { formatearFechaSinHora } from '@/shared/utils/fecha'
-import { formatearImporte } from '@/shared/utils/importe'
 import { DespublicarPublicacionModal } from '../components/DespublicarPublicacionModal'
 import { GaleriaUnidad } from '../components/GaleriaUnidad'
 import { SeccionPublicacion } from '../components/SeccionPublicacion'
@@ -36,7 +36,8 @@ const CLASES_FILA_LARGA = 'sm:flex-col sm:items-start sm:gap-1'
 /**
  * Detalle de una publicación (HU-21): la unidad con sus datos heredados en
  * vivo, sus imágenes, el proyecto con la condición de entrega y la auditoría.
- * Es de solo lectura: lo único que se hace desde acá es despublicar.
+ * Es de solo lectura salvo por dos acciones: definir el precio de lista y
+ * despublicar.
  */
 export function PublicacionDetallePage() {
   const navigate = useNavigate()
@@ -201,16 +202,7 @@ export function PublicacionDetallePage() {
       </SeccionPublicacion>
 
       <SeccionPublicacion titulo="Precio de lista">
-        {publicacion.precio_lista === null ? (
-          <p className="text-content-muted text-xs">
-            Definí el precio de la unidad para que la publicación pase a Disponible.
-          </p>
-        ) : (
-          <DetailRow
-            label="Precio de lista"
-            value={formatearImporte(Number(publicacion.precio_lista))}
-          />
-        )}
+        <PrecioListaForm publicacion={publicacion} />
       </SeccionPublicacion>
 
       <SeccionPublicacion titulo="Auditoría">

@@ -52,7 +52,7 @@ export function FiltrosPublicacionesBar({
           options={OPCIONES_ESTADO_COMERCIAL}
           value={estado}
           onChange={(evento) => onEstadoChange(evento.target.value)}
-          className="w-full sm:w-56"
+          className="w-full sm:w-60"
         />
         <ProyectoCombobox value={proyecto} onChange={onProyectoChange} className="w-full sm:w-60" />
         <Select

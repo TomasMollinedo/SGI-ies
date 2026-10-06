@@ -73,7 +73,7 @@ function conReglasDecimal(
  * payload, que es como el backend entiende "no lo cargó" (ahí aplica el
  * default 0 de la columna, o la regla que corresponda).
  */
-function decimalOpcional(opciones: OpcionesDecimal) {
+export function decimalOpcional(opciones: OpcionesDecimal) {
   return conReglasDecimal(z.string().trim(), opciones).transform((valor) =>
     valor === '' ? undefined : aNumeroDelFormulario(valor)
   )
@@ -94,7 +94,7 @@ function decimalObligatorio(opciones: OpcionesDecimal) {
  * decimales, hay que sacarlos — si no, "20.000" fallaría la regla de "hasta
  * dos decimales" (la vería como 20 con tres decimales de más).
  */
-function decimalConMilesOpcional(opciones: OpcionesDecimal) {
+export function decimalConMilesOpcional(opciones: OpcionesDecimal) {
   return z
     .string()
     .transform((valor) => valor.replace(/\./g, ''))
@@ -105,7 +105,7 @@ function decimalConMilesOpcional(opciones: OpcionesDecimal) {
  * Ejemplo: "20.000,50" se transforma primero en "20000,50" y recién
  * después se valida y convierte a number.
  */
-function decimalConMilesObligatorio(opciones: OpcionesDecimal) {
+export function decimalConMilesObligatorio(opciones: OpcionesDecimal) {
   return z
     .string()
     .transform((valor) => valor.replace(/\./g, ''))
