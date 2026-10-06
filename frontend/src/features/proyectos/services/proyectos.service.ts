@@ -20,6 +20,7 @@ export async function listarProyectos(
     params: {
       busqueda: filtros.busqueda,
       estado_obra: filtros.estado_obra,
+      estado: filtros.estado,
       page: filtros.page,
       limit: filtros.limit,
     },

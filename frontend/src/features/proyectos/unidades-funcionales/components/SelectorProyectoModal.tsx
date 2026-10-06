@@ -28,8 +28,8 @@ interface SelectorProyectoModalProps {
  * `SelectorArticuloModal`.
  *
  * Filtra por `estado_obra=EN_PLANIFICACION`: es el único estado que admite
- * altas de unidades (`validarProyectoAdmiteAltas` en el backend). Los proyectos
- * dados de baja no aparecen: el backend lista solo los activos por defecto.
+ * altas de unidades (`validarProyectoAdmiteAltas` en el backend), y por
+ * `estado=true` para ofrecer solo proyectos activos (no dados de baja).
  *
  * No reemplaza esa validación —si un proyecto cambia de estado justo entre que
  * se abre el modal y se confirma el alta, el backend igual la rechaza con un
@@ -60,6 +60,7 @@ export function SelectorProyectoModal({
     {
       busqueda: busquedaDebounced || undefined,
       estado_obra: 'EN_PLANIFICACION',
+      estado: 'true',
       page,
       limit: LIMITE_PAGINA,
     },
