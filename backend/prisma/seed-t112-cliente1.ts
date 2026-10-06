@@ -13,6 +13,7 @@ import {
 } from '../generated/prisma/enums';
 import { RolNombre } from '../src/common/enums/rol.enum';
 import { CuotaSeed, crearVentaConPlanPago } from './seed-venta-con-plan-pago';
+import { sembrarPlazos } from './seed-plazos';
 
 /**
  * Seed de prueba PUNTUAL para T112 (HU-28, "Perfil del cliente: plan
@@ -110,6 +111,12 @@ async function main() {
     where: { nombre: 'Transferencia bancaria' },
     select: { id_forma_pago: true },
   });
+  // Plazos de financiación (HU-32): los planes de ejemplo eligen uno. Mismo
+  // helper que `seed-comercializacion.ts`, así los dos seeds comparten plazos.
+  const idPlazoPorCuotas = await sembrarPlazos(
+    prisma,
+    responsableComercializacion.id_usuario,
+  );
 
   // ------------------------------------------------------------------
   // PROYECTO propio de este seed (codigo único, no pisa nada de
@@ -181,30 +188,36 @@ async function main() {
     });
   }
 
-  /** Idempotente por (FK_publicacion, nombre). */
+  /**
+   * Plan de ejemplo con el modelo del Sprint 4 (HU-22): nombre, anticipo en
+   * porcentaje y plazo; los importes los calcula la API. La venta lo
+   * referencia por la columna legado `VENTA.FK_plan_ejemplo` (T159).
+   * Idempotente por (FK_publicacion, nombre).
+   */
   async function upsertPlan(datos: {
     FK_publicacion: number;
     nombre: string;
-    precio: number;
     anticipo_porcentaje: number;
-    cantidad_cuotas: number;
+    cantidad_cuotas_plazo: number;
   }) {
     const existente = await prisma.pLANEJEMPLO.findFirst({
       where: { FK_publicacion: datos.FK_publicacion, nombre: datos.nombre },
     });
     if (existente) return existente;
 
+    const idPlazo = idPlazoPorCuotas.get(datos.cantidad_cuotas_plazo);
+    if (idPlazo === undefined) {
+      throw new Error(
+        `No hay un plazo sembrado de ${datos.cantidad_cuotas_plazo} cuotas`,
+      );
+    }
+
     return prisma.pLANEJEMPLO.create({
       data: {
         FK_publicacion: datos.FK_publicacion,
         nombre: datos.nombre,
-        tipo: ModalidadPago.FINANCIADO,
-        precio: datos.precio,
-        porcentaje_ganancia: 0,
-        margen: 0,
         anticipo_porcentaje: datos.anticipo_porcentaje,
-        cantidad_cuotas: datos.cantidad_cuotas,
-        periodicidad: Periodicidad.MENSUAL,
+        FK_plazo_financiacion: idPlazo,
         FK_usuario_creador: responsableComercializacion.id_usuario,
         FK_usuario_actualizador: responsableComercializacion.id_usuario,
       },
@@ -291,12 +304,13 @@ async function main() {
     EstadoComercial.EN_PLAN_DE_PAGO,
     24_000_000,
   );
+  // No hay un plazo de 5 cuotas: el plan de ejemplo más cercano es el de 6.
+  // La venta (5 cuotas, sin interés) es del Sprint 3; T156 la resiembra.
   const planA = await upsertPlan({
     FK_publicacion: publicacionA.id_publicacion,
-    nombre: 'Financiado 5 cuotas A-101',
-    precio: 24_000_000,
+    nombre: 'Anticipo 20 % + 6 cuotas',
     anticipo_porcentaje: 20,
-    cantidad_cuotas: 5,
+    cantidad_cuotas_plazo: 6,
   });
 
   const fechaAdhesionA = diasDesdeHoy(-140);
@@ -373,10 +387,9 @@ async function main() {
   );
   const planB = await upsertPlan({
     FK_publicacion: publicacionB.id_publicacion,
-    nombre: 'Financiado 3 cuotas B-201',
-    precio: 12_000_000,
+    nombre: 'Anticipo 25 % + 3 cuotas sin interés',
     anticipo_porcentaje: 25,
-    cantidad_cuotas: 3,
+    cantidad_cuotas_plazo: 3,
   });
 
   const fechaAdhesionB = diasDesdeHoy(-25);

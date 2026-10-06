@@ -88,7 +88,7 @@ describe('Catálogo público (e2e)', () => {
     const unidad1A = body.data.find((item) => item.identificador === '1-A');
     expect(unidad1A).toBeDefined();
     // Del seed: la publicación de 1-A tiene precio de lista $19.000.000
-    // (T133); el plan "Financiado 12 cuotas 1-A" a $21.000.000 no influye.
+    // (T133); sus planes de ejemplo no influyen.
     expect(unidad1A!.precio_desde).toBe(19000000);
   });
 
