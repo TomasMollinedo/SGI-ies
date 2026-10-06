@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
 import { TipologiaUnidad } from '../../../../../generated/prisma/enums';
+import { estadoComercialUnidadSchema } from './estado-comercial-unidad';
 
 /**
  * Filtros combinables del listado (GET /unidades-funcionales). El rango de
@@ -13,6 +14,7 @@ export const queryUnidadFuncionalSchema = z
   .object({
     FK_proyecto: z.coerce.number().int().positive().optional(),
     tipologia: z.enum(TipologiaUnidad).optional(),
+    estado_comercial: estadoComercialUnidadSchema.optional(),
     superficie_min: z.coerce.number().nonnegative().optional(),
     superficie_max: z.coerce.number().nonnegative().optional(),
     estado: z
