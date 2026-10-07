@@ -8,12 +8,22 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { DeclaracionPagoService } from '../src/modules/comercializacion/declaracion-pago/declaracion-pago.service';
 import { CobroService } from '../src/modules/comercializacion/cobro/cobro.service';
+import { AlmacenamientoService } from '../src/modules/almacenamiento/almacenamiento.service';
 import { Prisma } from '../generated/prisma/client';
 
 interface DeclaracionPagoBody {
   id_declaracion_pago: number;
   estado: string;
   importe: number;
+  comprobante_nombre_archivo: string | null;
+  comprobante_tipo: string | null;
+  tiene_comprobante: boolean;
+}
+
+interface ArchivoDePrueba {
+  contenido: Buffer;
+  filename: string;
+  contentType: string;
 }
 
 interface ApiErrorBody {
@@ -25,6 +35,23 @@ interface ApiErrorBody {
 }
 
 const ENDPOINT = '/api/cliente/declaraciones-pago';
+
+/**
+ * Contenidos mínimos con la firma real de cada formato: el tipo del
+ * comprobante se valida por contenido (magic numbers), no por el nombre ni
+ * por el mimetype que declare el cliente.
+ */
+const CONTENIDO_PDF = Buffer.from(
+  '%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n',
+  'latin1',
+);
+const CONTENIDO_TXT = Buffer.from('Esto es texto plano, no un PDF.\n');
+
+const PDF_VALIDO: ArchivoDePrueba = {
+  contenido: CONTENIDO_PDF,
+  filename: 'pago.pdf',
+  contentType: 'application/pdf',
+};
 
 /**
  * Desglose de las cuotas sueltas que crea este fixture: sin interés (toda la
@@ -67,6 +94,26 @@ describe('Declaración de pago (e2e)', () => {
   let idCliente: number;
   let idFormaPago: number;
   const declaracionesCreadas: number[] = [];
+
+  /**
+   * POST multipart como lo manda el frontend. Sin `archivo`, la request va
+   * sin la parte `comprobante`.
+   */
+  const declarar = (importe: number, archivo?: ArchivoDePrueba) => {
+    const peticion = request(app.getHttpServer())
+      .post(ENDPOINT)
+      .set('Authorization', `Bearer ${accessTokenCliente}`)
+      .field('FK_cuota', String(idCuota))
+      .field('FK_forma_pago', String(idFormaPago))
+      .field('importe', String(importe));
+
+    return archivo
+      ? peticion.attach('comprobante', archivo.contenido, {
+          filename: archivo.filename,
+          contentType: archivo.contentType,
+        })
+      : peticion;
+  };
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -216,6 +263,28 @@ describe('Declaración de pago (e2e)', () => {
   });
 
   afterAll(async () => {
+    // Los comprobantes que este test subió a MinIO: se leen las claves de la
+    // base antes de borrar las filas. Si un borrado falla no se cae la suite
+    // (queda un objeto suelto en el bucket de desarrollo, nada más).
+    const almacenamientoService = app.get(AlmacenamientoService);
+    const conComprobante = await prisma.dECLARACIONPAGO.findMany({
+      where: {
+        id_declaracion_pago: { in: declaracionesCreadas },
+        comprobante_ruta: { not: null },
+      },
+      select: { comprobante_ruta: true },
+    });
+    for (const { comprobante_ruta } of conComprobante) {
+      await almacenamientoService
+        .eliminarComprobante(comprobante_ruta!)
+        .catch((error: unknown) =>
+          console.warn(
+            `No se pudo borrar el comprobante de prueba ${comprobante_ruta}`,
+            error,
+          ),
+        );
+    }
+
     // Orden inverso al de creación, por las FK con onDelete Restrict.
     await prisma.dECLARACIONPAGO.deleteMany({
       where: { id_declaracion_pago: { in: declaracionesCreadas } },
@@ -260,17 +329,18 @@ describe('Declaración de pago (e2e)', () => {
     expect(response.status).toBe(401);
   });
 
-  it('caso feliz: declara sobre una cuota PENDIENTE real y no toca CUOTA.saldo_pendiente', async () => {
-    const response = await request(app.getHttpServer())
-      .post(ENDPOINT)
-      .set('Authorization', `Bearer ${accessTokenCliente}`)
-      .send({ FK_cuota: idCuota, FK_forma_pago: idFormaPago, importe: 500 })
-      .expect(201);
+  it('caso feliz: declara sobre una cuota PENDIENTE real, con su comprobante, y no toca CUOTA.saldo_pendiente', async () => {
+    const response = await declarar(500, PDF_VALIDO).expect(201);
 
     const body = response.body as DeclaracionPagoBody;
+    declaracionesCreadas.push(body.id_declaracion_pago);
     expect(body.estado).toBe('PENDIENTE');
     expect(body.importe).toBe(500);
-    declaracionesCreadas.push(body.id_declaracion_pago);
+    expect(body.tiene_comprobante).toBe(true);
+    expect(body.comprobante_nombre_archivo).toBe('pago.pdf');
+    expect(body.comprobante_tipo).toBe('application/pdf');
+    // La clave del objeto en el bucket no sale de la API.
+    expect(body).not.toHaveProperty('comprobante_ruta');
 
     const cuotaEnBase = await prisma.cUOTA.findUniqueOrThrow({
       where: { id_cuota: idCuota },
@@ -280,17 +350,100 @@ describe('Declaración de pago (e2e)', () => {
   });
 
   it('rechaza con 400 (shape de ApiErrorResponse) si el importe supera el saldo pendiente', async () => {
-    const response = await request(app.getHttpServer())
-      .post(ENDPOINT)
-      .set('Authorization', `Bearer ${accessTokenCliente}`)
-      .send({ FK_cuota: idCuota, FK_forma_pago: idFormaPago, importe: 5000 })
-      .expect(400);
+    const response = await declarar(5000, PDF_VALIDO).expect(400);
 
     const body = response.body as ApiErrorBody;
     expect(body.statusCode).toBe(400);
+    // El mensaje confirma que el 400 lo dio el service (el saldo) y no la
+    // validación del archivo.
+    expect(body.message).toEqual(expect.stringContaining('saldo pendiente'));
     expect(typeof body.error).toBe('string');
     expect(body.timestamp).toEqual(expect.any(String));
     expect(body.path).toBe(ENDPOINT);
+  });
+
+  describe('comprobante adjunto (T146)', () => {
+    it('sin archivo: 400', async () => {
+      const response = await declarar(500).expect(400);
+
+      expect((response.body as ApiErrorBody).statusCode).toBe(400);
+    });
+
+    it('un PDF renombrado como .png y declarado image/png se guarda como application/pdf: manda el contenido, no lo que dice el cliente', async () => {
+      const response = await declarar(500, {
+        contenido: CONTENIDO_PDF,
+        filename: 'pago.png',
+        contentType: 'image/png',
+      }).expect(201);
+
+      const body = response.body as DeclaracionPagoBody;
+      declaracionesCreadas.push(body.id_declaracion_pago);
+      expect(body.comprobante_tipo).toBe('application/pdf');
+
+      const enBase = await prisma.dECLARACIONPAGO.findUniqueOrThrow({
+        where: { id_declaracion_pago: body.id_declaracion_pago },
+      });
+      expect(enBase.comprobante_tipo).toBe('application/pdf');
+      // La extensión de la clave también sale del tipo real.
+      expect(enBase.comprobante_ruta).toMatch(/\.pdf$/);
+    });
+
+    it('un TXT renombrado como .pdf y declarado application/pdf: 400, y no crea ninguna declaración', async () => {
+      const antes = await prisma.dECLARACIONPAGO.count({
+        where: { FK_cliente: idCliente },
+      });
+
+      await declarar(500, {
+        contenido: CONTENIDO_TXT,
+        filename: 'pago.pdf',
+        contentType: 'application/pdf',
+      }).expect(400);
+
+      const despues = await prisma.dECLARACIONPAGO.count({
+        where: { FK_cliente: idCliente },
+      });
+      expect(despues).toBe(antes);
+    });
+
+    it('un archivo de más de 5 MB: 413', async () => {
+      const grande = Buffer.concat([
+        CONTENIDO_PDF,
+        Buffer.alloc(5 * 1024 * 1024),
+      ]);
+
+      await declarar(500, { ...PDF_VALIDO, contenido: grande }).expect(413);
+    });
+
+    it('guarda el nombre con tildes y caracteres fuera de latin1 tal cual, y lo sirve con headers seguros', async () => {
+      const nombre = 'constancia año–2026.pdf';
+      const alta = await declarar(500, {
+        ...PDF_VALIDO,
+        filename: nombre,
+      }).expect(201);
+
+      const body = alta.body as DeclaracionPagoBody;
+      declaracionesCreadas.push(body.id_declaracion_pago);
+      expect(body.comprobante_nombre_archivo).toBe(nombre);
+
+      const response = await request(app.getHttpServer())
+        .get(`${ENDPOINT}/${body.id_declaracion_pago}/comprobante`)
+        .set('Authorization', `Bearer ${accessTokenCliente}`)
+        .buffer(true)
+        .parse((res, callback) => {
+          const partes: Buffer[] = [];
+          res.on('data', (parte: Buffer) => partes.push(parte));
+          res.on('end', () => callback(null, Buffer.concat(partes)));
+        })
+        .expect(200);
+
+      expect(response.headers['content-type']).toBe('application/pdf');
+      expect(response.headers['x-content-type-options']).toBe('nosniff');
+      expect(response.headers['cache-control']).toBe('private, no-store');
+      expect(response.headers['content-disposition']).toBe(
+        `inline; filename="constancia a_o_2026.pdf"; filename*=UTF-8''constancia%20a%C3%B1o%E2%80%932026.pdf`,
+      );
+      expect((response.body as Buffer).equals(CONTENIDO_PDF)).toBe(true);
+    });
   });
 
   /**

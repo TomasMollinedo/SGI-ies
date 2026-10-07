@@ -34,6 +34,9 @@ export const envSchema = z.object({
   STORAGE_ACCESS_KEY: z.string().min(1, 'STORAGE_ACCESS_KEY es obligatoria'),
   STORAGE_SECRET_KEY: z.string().min(1, 'STORAGE_SECRET_KEY es obligatoria'),
   STORAGE_BUCKET: z.string().min(1, 'STORAGE_BUCKET es obligatoria'),
+  STORAGE_BUCKET_COMPROBANTES: z
+    .string()
+    .min(1, 'STORAGE_BUCKET_COMPROBANTES es obligatoria'),
   STORAGE_PUBLIC_URL: z.url('STORAGE_PUBLIC_URL debe ser una URL válida'),
 });
 

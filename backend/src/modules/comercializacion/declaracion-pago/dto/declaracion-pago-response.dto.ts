@@ -23,6 +23,12 @@ export const declaracionPagoResponseSchema = z.object({
   FK_usuario_validador: z.number().nullable(),
   FK_cobro: z.number().nullable(),
   hora_creacion: z.iso.datetime(),
+  // El comprobante adjunto. La clave del objeto en el bucket nunca se
+  // expone: el archivo se pide a `GET .../:id/comprobante`. Las declaraciones
+  // anteriores a T146 no tienen comprobante (`tiene_comprobante: false`).
+  comprobante_nombre_archivo: z.string().nullable(),
+  comprobante_tipo: z.string().nullable(),
+  tiene_comprobante: z.boolean(),
 });
 
 export class DeclaracionPagoResponseDto extends createZodDto(

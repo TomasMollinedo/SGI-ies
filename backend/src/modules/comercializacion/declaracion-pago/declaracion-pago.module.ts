@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AlmacenamientoModule } from '../../almacenamiento/almacenamiento.module';
 import { ClienteAuthModule } from '../cliente-auth/cliente-auth.module';
 import { FormaPagoModule } from '../../tesoreria/forma-pago/forma-pago.module';
 import { CobroModule } from '../cobro/cobro.module';
@@ -8,7 +9,12 @@ import { DeclaracionPagoService } from './declaracion-pago.service';
 
 /** HU-29 (Sprint 3) — Declaración de pago por autogestión del cliente. */
 @Module({
-  imports: [ClienteAuthModule, FormaPagoModule, CobroModule],
+  imports: [
+    AlmacenamientoModule,
+    ClienteAuthModule,
+    FormaPagoModule,
+    CobroModule,
+  ],
   controllers: [DeclaracionPagoController, DeclaracionPagoAdminController],
   providers: [DeclaracionPagoService],
 })

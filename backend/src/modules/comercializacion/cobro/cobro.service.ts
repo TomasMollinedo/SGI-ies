@@ -749,6 +749,19 @@ export class CobroService {
           },
           orderBy: { id_detalle_cobro: 'asc' },
         },
+        // La declaración de pago que originó el cobro (si vino de autogestión).
+        // No se expone la clave interna del comprobante, sólo si existe.
+        declaracionPago: {
+          select: {
+            id_declaracion_pago: true,
+            estado: true,
+            importe: true,
+            numero_referencia: true,
+            hora_creacion: true,
+            comprobante_nombre_archivo: true,
+            comprobante_tipo: true,
+          },
+        },
       },
     });
 
@@ -756,11 +769,18 @@ export class CobroService {
       throw new NotFoundException(`No existe un cobro con id ${id}`);
     }
 
-    const { detalles, ...cabecera } = cobro;
+    const { detalles, declaracionPago, ...cabecera } = cobro;
 
     return {
       ...cabecera,
       importe_total: cabecera.importe_total.toNumber(),
+      declaracion_pago: declaracionPago
+        ? {
+            ...declaracionPago,
+            importe: declaracionPago.importe.toNumber(),
+            tiene_comprobante: declaracionPago.comprobante_tipo !== null,
+          }
+        : null,
       detalle: detalles.map((linea) => ({
         id_detalle_cobro: linea.id_detalle_cobro,
         FK_cuota: linea.FK_cuota,

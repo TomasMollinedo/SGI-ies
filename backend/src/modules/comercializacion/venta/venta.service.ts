@@ -912,9 +912,10 @@ export class VentaService {
           motivo_rechazo: true,
           hora_creacion: true,
           fecha_resolucion: true,
-          // Solo para saber si hay comprobante: la ruta nunca viaja al
-          // cliente (el archivo se sirve por un endpoint propio, T146).
-          comprobante_ruta: true,
+          // Nombre y tipo, nunca `comprobante_ruta`: la clave del objeto no
+          // viaja al cliente (el archivo se sirve por un endpoint propio, T146).
+          comprobante_nombre_archivo: true,
+          comprobante_tipo: true,
           cuota: { select: { id_cuota: true, numero: true } },
           formaPago: { select: { nombre: true } },
           cobro: { select: { id_cobro: true, estado: true } },
@@ -936,7 +937,9 @@ export class VentaService {
         motivo_rechazo: declaracion.motivo_rechazo,
         hora_creacion: declaracion.hora_creacion.toISOString(),
         fecha_resolucion: declaracion.fecha_resolucion?.toISOString() ?? null,
-        tiene_comprobante: declaracion.comprobante_ruta !== null,
+        comprobante_nombre_archivo: declaracion.comprobante_nombre_archivo,
+        comprobante_tipo: declaracion.comprobante_tipo,
+        tiene_comprobante: declaracion.comprobante_tipo !== null,
         cuota: declaracion.cuota,
         forma_pago: declaracion.formaPago,
         cobro: declaracion.cobro,

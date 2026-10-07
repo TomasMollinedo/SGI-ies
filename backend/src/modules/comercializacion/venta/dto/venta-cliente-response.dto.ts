@@ -177,9 +177,11 @@ const declaracionPagoClienteSchema = z.object({
   hora_creacion: z.iso.datetime(),
   fecha_resolucion: z.iso.datetime().nullable(),
   /**
-   * Si la declaración tiene el comprobante adjunto (HU-29). El archivo no
-   * viaja acá: se abre desde su propio endpoint (T146).
+   * El comprobante adjunto (HU-29). El archivo no viaja acá: se abre desde
+   * `GET /cliente/declaraciones-pago/:id/comprobante` (T146).
    */
+  comprobante_nombre_archivo: z.string().nullable(),
+  comprobante_tipo: z.string().nullable(),
   tiene_comprobante: z.boolean(),
   cuota: z.object({ id_cuota: z.number(), numero: z.number() }),
   forma_pago: formaPagoClienteResumenSchema,
