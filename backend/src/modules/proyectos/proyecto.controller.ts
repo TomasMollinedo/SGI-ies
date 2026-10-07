@@ -24,6 +24,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { ProyectoService } from './proyecto.service';
+import { ProyectoFichaService } from './proyecto-ficha.service';
 import { QueryProyectoDto } from './dto/query-proyecto.dto';
 import { CreateProyectoDto } from './dto/create-proyecto.dto';
 import { UpdateProyectoDto } from './dto/update-proyecto.dto';
@@ -34,6 +35,7 @@ import {
   ProyectoDetalleResponseDto,
   ProyectoListResponseDto,
 } from './dto/proyecto-response.dto';
+import { ProyectoFichaResponseDto } from './dto/proyecto-ficha-response.dto';
 import { CatalogoItemDto } from '../../common/dto/catalogo-item.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -52,7 +54,10 @@ import { EstadoProyecto } from '../../../generated/prisma/enums';
 })
 @Controller('proyectos')
 export class ProyectoController {
-  constructor(private readonly proyectoService: ProyectoService) {}
+  constructor(
+    private readonly proyectoService: ProyectoService,
+    private readonly fichaService: ProyectoFichaService,
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -113,7 +118,7 @@ export class ProyectoController {
   @Get()
   @ApiOperation({
     summary:
-      'Listar proyectos, con su presupuesto y las unidades cargadas contra las planificadas',
+      'Listar proyectos, con su presupuesto, las unidades cargadas contra las planificadas y el porcentaje vendido',
   })
   @ApiQuery({
     name: 'busqueda',
@@ -186,6 +191,27 @@ export class ProyectoController {
   @ApiNotFoundResponse({ description: 'No existe un proyecto con ese id' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.proyectoService.findOne(id);
+  }
+
+  @Get(':id/ficha')
+  @ApiOperation({
+    summary:
+      'Obtener los datos calculados de la ficha de un proyecto: precio estimado de venta, situación comercial y lista de unidades',
+    description:
+      'Complementa a GET /proyectos/:id (que trae el presupuesto y las unidades cargadas contra las planificadas); no lo reemplaza. Todo se calcula al consultar, sobre las unidades ACTIVAS del proyecto (no las planificadas), y nada se guarda. El estado comercial de cada unidad es el de su publicación vigente, o `SIN_PUBLICAR` si no tiene. Precio estimado = suma del precio de lista de las unidades con publicación vigente y precio cargado. Porcentaje vendido = unidades En Plan de Pago o Vendidas sobre las unidades activas. Funciona también con proyectos dados de baja o Cancelados.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'id_proyecto del proyecto',
+  })
+  @ApiOkResponse({
+    description: 'Datos calculados de la ficha del proyecto',
+    type: ProyectoFichaResponseDto,
+  })
+  @ApiNotFoundResponse({ description: 'No existe un proyecto con ese id' })
+  obtenerFicha(@Param('id', ParseIntPipe) id: number) {
+    return this.fichaService.obtenerFicha(id);
   }
 
   @Patch(':id')
