@@ -22,6 +22,9 @@ export interface PublicacionListItem {
   vigente: boolean
   /** `string` por ser un `Decimal` del backend. `null` mientras está en preparación. */
   precio_lista: string | null
+  /** Referencia con la que se llegó al precio de lista: `null` si no se usó o está en preparación. */
+  porcentaje_ganancia: string | null
+  margen: string | null
   fecha_publicacion: string
   fecha_despublicacion: string | null
   unidad: UnidadResumen
@@ -45,6 +48,9 @@ export interface PublicacionDetalle {
   vigente: boolean
   /** `string` por ser un `Decimal` del backend. `null` mientras está en preparación. */
   precio_lista: string | null
+  /** Referencia con la que se llegó al precio de lista: `null` si no se usó o está en preparación. */
+  porcentaje_ganancia: string | null
+  margen: string | null
   fecha_publicacion: string
   fecha_despublicacion: string | null
   motivo_despublicacion: string | null
@@ -58,8 +64,8 @@ export interface PublicacionDetalle {
     observaciones: string | null
     /**
      * Solo lo trae el detalle, que es de la pantalla interna: el listado y el
-     * catálogo público no lo exponen. Lo necesita Planes de Pago (HU-22) como
-     * referencia para cargar los precios.
+     * catálogo público no lo exponen. Lo necesita el formulario de precio de
+     * lista (HU-22) como referencia.
      *
      * `string` y no `number` porque es un `Decimal` del backend — ver el
      * encabezado de `planPago.types.ts`.
@@ -103,4 +109,20 @@ export interface CrearPublicacionPayload {
 
 export interface DespublicarPublicacionPayload {
   motivo_despublicacion: string
+}
+
+/**
+ * Body de PATCH /publicaciones/:id/precio-lista. Porcentaje y margen son solo
+ * de referencia: si no viene ninguno, el backend entiende que el precio se
+ * cargó directo.
+ */
+export interface DefinirPrecioListaPayload {
+  precio_lista: number
+  porcentaje_ganancia?: number
+  margen?: number
+}
+
+/** Respuesta de PATCH .../precio-lista: el detalle actualizado y el aviso si el precio quedó por debajo del costo. */
+export interface PublicacionPrecioLista extends PublicacionDetalle {
+  warning: string | null
 }

@@ -3,6 +3,7 @@ import type { ApiErrorResponse, PaginatedResponse } from '@/shared/types/api.typ
 import {
   PUBLICACIONES_QUERY_KEYS,
   crearPublicacion,
+  definirPrecioLista,
   despublicarPublicacion,
   listarPublicaciones,
   listarUnidadesPublicables,
@@ -10,9 +11,11 @@ import {
 } from '../services/publicaciones.service'
 import type {
   CrearPublicacionPayload,
+  DefinirPrecioListaPayload,
   DespublicarPublicacionPayload,
   PublicacionDetalle,
   PublicacionListItem,
+  PublicacionPrecioLista,
   PublicacionesQuery,
   UnidadPublicable,
   UnidadesPublicablesQuery,
@@ -80,6 +83,22 @@ export function useDespublicarPublicacion() {
     { id: number; payload: DespublicarPublicacionPayload }
   >({
     mutationFn: ({ id, payload }) => despublicarPublicacion(id, payload),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['publicaciones'] })
+    },
+  })
+}
+
+/** Aun si falla (ej. 409 porque pasó a tener una venta) se invalida: lo que hay en pantalla quedó viejo. */
+export function useDefinirPrecioLista() {
+  const queryClient = useQueryClient()
+
+  return useMutation<
+    PublicacionPrecioLista,
+    ApiErrorResponse,
+    { id: number; payload: DefinirPrecioListaPayload }
+  >({
+    mutationFn: ({ id, payload }) => definirPrecioLista(id, payload),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['publicaciones'] })
     },

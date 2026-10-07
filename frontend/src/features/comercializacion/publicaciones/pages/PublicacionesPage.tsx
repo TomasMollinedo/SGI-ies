@@ -98,7 +98,9 @@ export function PublicacionesPage() {
         <div className="flex min-w-0 flex-col items-start gap-1 wrap-anywhere">
           {badgeEstadoPublicacion(item)}
           {item.precio_lista === null ? (
-            <p className="text-content-muted text-xs">Definí el precio de lista</p>
+            <p className="text-content-muted text-xs">
+              Ir al detalle para definir el precio de lista
+            </p>
           ) : (
             <p className="text-xs font-medium">
               Precio de lista: {formatearImporte(Number(item.precio_lista))}

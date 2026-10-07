@@ -2,10 +2,7 @@ import { formatearMoneda } from '@/features/compras/ordenes-compra/utils/formate
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import type { SelectOption } from '@/shared/components/ui/Select'
 import { Badge } from '@/shared/components/ui/Badge'
-import {
-  CLASES_BADGE_MOBILE,
-  ESTADO_COMERCIAL_META,
-} from '@/features/comercializacion/publicaciones/config/publicacion.config'
+import { ESTADO_COMERCIAL_META } from '@/features/comercializacion/publicaciones/config/publicacion.config'
 import type { BadgeVariant } from '@/shared/components/ui/Badge'
 import type { EstadoComercialUnidad, UnidadFuncionalListItem } from '../types/unidadFuncional.types'
 
@@ -53,7 +50,12 @@ export function crearColumnasUnidadesFuncionales(
   obtenerLabelTipologia: (id: string) => string
 ): DataTableColumn<UnidadFuncionalListItem>[] {
   return [
-    { key: 'identificador', label: 'Identificador', render: (item) => item.identificador },
+    {
+      key: 'identificador',
+      label: 'Identif.',
+      headerTooltip: 'Identificador',
+      render: (item) => item.identificador,
+    },
     { key: 'proyecto', label: 'Proyecto', render: (item) => item.proyecto.nombre },
     {
       key: 'tipologia',
@@ -76,10 +78,14 @@ export function crearColumnasUnidadesFuncionales(
       label: 'Estado comercial',
       render: (item) => {
         const meta = ESTADO_COMERCIAL_UNIDAD_META[item.estado_comercial]
+        // Ancho mínimo + corte solo entre palabras: con `wrap-anywhere` la columna se
+        // achicaba tanto que el texto partía letra por letra.
         return (
-          <Badge variant={meta.variant} className={CLASES_BADGE_MOBILE}>
-            {meta.label}
-          </Badge>
+          <div className="min-w-32">
+            <Badge variant={meta.variant} className="text-left whitespace-normal">
+              {meta.label}
+            </Badge>
+          </div>
         )
       },
     },

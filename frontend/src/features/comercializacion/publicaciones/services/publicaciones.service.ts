@@ -2,9 +2,11 @@ import { httpClient } from '@/shared/api/httpClient'
 import type { PaginatedResponse } from '@/shared/types/api.types'
 import type {
   CrearPublicacionPayload,
+  DefinirPrecioListaPayload,
   DespublicarPublicacionPayload,
   PublicacionDetalle,
   PublicacionListItem,
+  PublicacionPrecioLista,
   PublicacionesQuery,
   UnidadPublicable,
   UnidadesPublicablesQuery,
@@ -86,6 +88,23 @@ export async function despublicarPublicacion(
 ): Promise<PublicacionDetalle> {
   const { data } = await httpClient.patch<PublicacionDetalle>(
     `/publicaciones/${id}/despublicar`,
+    payload
+  )
+  return data
+}
+
+/**
+ * PATCH /publicaciones/:id/precio-lista — define o modifica el precio. La
+ * primera vez, el backend pasa la publicación de EN_PREPARACION a DISPONIBLE.
+ * Bloqueado (409) en EN_PLAN_DE_PAGO o VENDIDA. `warning` viene si el precio
+ * quedó por debajo del costo: se guarda igual.
+ */
+export async function definirPrecioLista(
+  id: number,
+  payload: DefinirPrecioListaPayload
+): Promise<PublicacionPrecioLista> {
+  const { data } = await httpClient.patch<PublicacionPrecioLista>(
+    `/publicaciones/${id}/precio-lista`,
     payload
   )
   return data
