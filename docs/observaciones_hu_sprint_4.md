@@ -215,6 +215,7 @@ La prioridad indica qué pasa si la observación no se responde:
 - **Qué dice la historia:** "Cuando todas las unidades activas tienen una venta vigente, el proyecto se identifica como Todas las unidades vendidas", y la situación comercial incluye el "porcentaje de unidades con venta registrada".
 - **Problema:** la cuenta se hace sobre las unidades cargadas, no sobre las planificadas. Un proyecto con 10 unidades planificadas y una sola cargada y vendida figura como "Todas las unidades vendidas" y con 100 % vendido.
 - **Decisión tomada:** el equipo va a implementar lo que dice la historia. Se deja la observación para que las Product Owners confirmen que es el comportamiento buscado o cambien la base a las unidades planificadas. La misma base se usa en el tablero del gerente (ver OBS-29).
+- **Cómo quedó implementado (T124):** la base son las unidades activas. Un proyecto sin unidades activas figura con 0 % vendido y no como "Todas las unidades vendidas".
 
 ### OBS-22 — Proyecto que se cancela · Prioridad alta
 

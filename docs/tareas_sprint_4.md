@@ -169,6 +169,22 @@ Ajustes a las tareas después de implementar el formulario y el listado de proye
 | T125 | Suma la columna de porcentaje vendido del listado. Se monta sobre el detalle que deja T123: agrega el resumen comercial y la lista de unidades, sin reescribirlo. |
 | T156 | Suma sembrar las fechas de PROYECTO ancladas a la medianoche de Argentina, como las guarda la API: los seeds actuales las dejan a la medianoche UTC. |
 
+## Cambios por el cierre de T124 (2026-10-07)
+
+Contrato que deja el backend de la ficha del proyecto. Todo se calcula al consultar, sobre las unidades activas, y nada se guarda.
+
+- **`GET /proyectos/:id/ficha`** (nuevo). Complementa a `GET /proyectos/:id`, no lo reemplaza: el presupuesto y las unidades cargadas contra las planificadas siguen saliendo del detalle. Devuelve:
+  - `precio_estimado`: `total` y `unidades_calculadas`.
+  - `situacion_comercial`: `por_estado` (siempre con las claves `SIN_PUBLICAR`, `EN_PREPARACION`, `DISPONIBLE`, `EN_PLAN_DE_PAGO` y `VENDIDA`), `porcentaje_vendido` y `todas_vendidas`.
+  - `unidades`: las activas, ordenadas por identificador con orden natural, con `id_unidad_funcional`, `identificador`, `tipologia`, `superficie_cubierta`, `costo`, `precio_lista` y `estado_comercial`.
+- **`porcentaje_vendido`** se suma a cada proyecto de `GET /proyectos` y, por herencia, a `GET /proyectos/:id` y a lo que devuelven las mutaciones.
+
+| Tarea | Qué cambió y por qué |
+|---|---|
+| T124 | El estado comercial de cada unidad sale de su publicación vigente (`SIN_PUBLICAR` si no tiene), igual que el listado de unidades de T128; no se consulta la venta. `unidades_calculadas` cuenta solo las unidades con precio de lista: una En preparación tiene publicación vigente pero todavía no tiene precio, así que no suma ni cuenta. Sin unidades activas, el porcentaje es 0 y no figura como Todas las unidades vendidas. |
+| T125 | Consume este contrato: la columna de porcentaje vendido sale de `porcentaje_vendido` del listado, y el resumen comercial y la lista de unidades, de `GET /proyectos/:id/ficha`. El indicador Todas las unidades vendidas se muestra con `todas_vendidas`, no comparando el porcentaje con 100 (está redondeado a 2 decimales). `precio_lista` llega en null para una unidad sin publicar o En preparación. Cada unidad abre su detalle con `id_unidad_funcional`. |
+| T153 | La base del porcentaje vendido ya está implementada en `proyectos/situacion-comercial.ts` (`calcularSituacionComercial`): el margen por proyecto tiene que usar la misma, para que el tablero y la ficha muestren el mismo número (OBS-29). |
+
 ## Cambios del 2026-10-06
 
 | Tarea | Qué cambió y por qué |
@@ -436,16 +452,16 @@ Calcular al consultar los datos resumen del proyecto, sin almacenarlos.
 
 ### Alcance
 
-- [ ] Precio estimado de venta = suma de precios de lista de las unidades con publicación vigente, indicando sobre cuántas unidades se calculó
-- [ ] Situación comercial: cantidad de unidades sin publicar, en preparación, Disponibles, En Plan de Pago y Vendidas, y porcentaje de unidades activas con venta registrada
-- [ ] Identificar Todas las unidades vendidas cuando todas las unidades activas tienen una venta vigente
-- [ ] Lista de unidades del proyecto con identificador, tipología, superficie cubierta, costo, precio de lista y estado comercial
-- [ ] Exponer el porcentaje vendido también en el listado de proyectos
+- [x] Precio estimado de venta = suma de precios de lista de las unidades con publicación vigente, indicando sobre cuántas unidades se calculó
+- [x] Situación comercial: cantidad de unidades sin publicar, en preparación, Disponibles, En Plan de Pago y Vendidas, y porcentaje de unidades activas con venta registrada
+- [x] Identificar Todas las unidades vendidas cuando todas las unidades activas tienen una venta vigente
+- [x] Lista de unidades del proyecto con identificador, tipología, superficie cubierta, costo, precio de lista y estado comercial
+- [x] Exponer el porcentaje vendido también en el listado de proyectos
 
 ### Listo cuando
 
-- [ ] Los valores no se guardan en tablas: se calculan en cada consulta
-- [ ] Se prueba contra los datos del seed (T156), sin esperar a las tareas de precio ni de venta
+- [x] Los valores no se guardan en tablas: se calculan en cada consulta
+- [x] Se prueba contra los datos del seed (T156), sin esperar a las tareas de precio ni de venta — se probó contra `seed-comercializacion.ts`, porque T156 todavía no está mergeada
 
 > ⚠️ Se sigue HU-31: la base son las unidades activas, no las planificadas. Un proyecto con 10 planificadas y una sola cargada y vendida figura como Todas las unidades vendidas; el caso está avisado en observaciones_hu_sprint_4.md.
 
