@@ -53,6 +53,7 @@ export function CatalogoPage() {
           onEntrega={acciones.cambiarEntrega}
           onLimpiar={acciones.limpiar}
         />
+        <p className="text-light/60 mt-4 max-w-3xl text-xs">{FILTROS.leyenda}</p>
       </div>
 
       {/*
