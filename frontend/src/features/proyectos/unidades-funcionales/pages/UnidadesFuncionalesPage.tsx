@@ -215,10 +215,14 @@ export function UnidadesFuncionalesPage() {
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <StatTile
+              className="min-w-0"
+              valueClassName="text-2xl wrap-anywhere"
               label="Presupuesto del proyecto"
               value={formatearMoneda(proyecto.presupuesto)}
             />
             <StatTile
+              className="min-w-0"
+              valueClassName="text-2xl wrap-anywhere"
               label="Unidades cargadas / planificadas"
               value={`${proyecto.unidades_cargadas} / ${proyecto.cantidad_unidades_planificadas}`}
             />
@@ -256,12 +260,15 @@ export function UnidadesFuncionalesPage() {
 
       {!isLoading && !error && unidades.length > 0 && (
         <>
-          <DataTable
-            data={unidades}
-            columns={columnas}
-            obtenerId={(item) => String(item.id_unidad_funcional)}
-            ariaLabel="Unidades funcionales"
-          />
+          {/* Con tantas columnas, por debajo de este ancho la tabla scrollea en vez de apretar el texto. */}
+          <div className="overflow-x-auto [&>table]:min-w-[64rem]">
+            <DataTable
+              data={unidades}
+              columns={columnas}
+              obtenerId={(item) => String(item.id_unidad_funcional)}
+              ariaLabel="Unidades funcionales"
+            />
+          </div>
 
           {meta && (
             <Pagination

@@ -25,6 +25,7 @@ import { esArrayDeValidationIssues, formatearMensajeError } from '@/shared/utils
 import { AvisoUnidadesPlanificadas } from '../components/AvisoUnidadesPlanificadas'
 import { GaleriaImagenesForm } from '../components/GaleriaImagenesForm'
 import { SelectorProyectoModal } from '../components/SelectorProyectoModal'
+import { SeccionPrecioListaUnidad } from '../components/SeccionPrecioListaUnidad'
 import {
   useCrearUnidadFuncional,
   useEditarUnidadFuncional,
@@ -101,8 +102,8 @@ function valoresDesdeUnidad(unidad: UnidadFuncionalDetalleType): UnidadFuncional
  * (`SelectorProyectoModal`) y, una vez creada, la unidad no puede cambiar de
  * proyecto: por eso el campo queda de solo lectura fuera del modo alta.
  *
- * El alta es en dos pasos: al guardar la cabecera, la página redirige a
- * `editar` de la unidad recién creada, donde la galería ya está habilitada.
+ * Tanto el alta como la edición vuelven al listado al guardar. La galería se
+ * habilita recién con la unidad creada, así que las imágenes se cargan al editarla.
  */
 export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) {
   const { id } = useParams<{ id: string }>()
@@ -208,9 +209,9 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
       }
 
       crear.mutate(body, {
-        onSuccess: (nuevaUnidad) => {
-          toast.success('Unidad funcional creada correctamente. Ahora podés cargar sus imágenes.')
-          navigate(rutaEditarUnidadFuncional(nuevaUnidad.id_unidad_funcional), { replace: true })
+        onSuccess: () => {
+          toast.success('Unidad funcional creada correctamente')
+          navigate(PATHS.PROYECTOS.UNIDADES_FUNCIONALES, { replace: true })
         },
         onError: manejarErrorFormulario,
       })
@@ -222,7 +223,7 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
 
       if (Object.keys(body).length === 0) {
         toast.success('No había cambios para guardar')
-        navigate(rutaDetalleUnidadFuncional(unidad.id_unidad_funcional))
+        navigate(PATHS.PROYECTOS.UNIDADES_FUNCIONALES)
         return
       }
 
@@ -231,7 +232,7 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
         {
           onSuccess: () => {
             toast.success('Unidad funcional actualizada correctamente')
-            navigate(rutaDetalleUnidadFuncional(unidad.id_unidad_funcional))
+            navigate(PATHS.PROYECTOS.UNIDADES_FUNCIONALES)
           },
           onError: manejarErrorFormulario,
         }
@@ -445,89 +446,97 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
             </div>
           </SeccionPublicacion>
 
-          <SeccionPublicacion titulo="Proyecto y presupuesto">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <span className="text-content-muted text-xs font-medium uppercase">
-                  Proyecto <span className="text-error">*</span>
-                </span>
-
-                <Controller
-                  name="FK_proyecto"
-                  control={control}
-                  render={({ field }) => (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          readOnly
-                          value={
-                            proyectoElegido
-                              ? `${proyectoElegido.codigo} — ${proyectoElegido.nombre}`
-                              : ''
-                          }
-                          placeholder="Elegí un proyecto"
-                          error={errors.FK_proyecto?.message}
-                          className="flex-1"
-                        />
-                        {esAlta && (
-                          <Button
-                            type="button"
-                            variant="primary"
-                            icon={<Building2 />}
-                            onClick={() => setModalProyectoAbierto(true)}
-                          >
-                            {proyectoElegido ? 'Cambiar' : 'Elegir proyecto'}
-                          </Button>
-                        )}
-                      </div>
-
-                      <SelectorProyectoModal
-                        open={modalProyectoAbierto}
-                        onClose={() => setModalProyectoAbierto(false)}
-                        onSeleccionar={(proyecto) => elegirProyecto(proyecto, field.onChange)}
-                      />
-                    </>
-                  )}
-                />
-              </div>
-
-              {esAlta && !proyectoElegido && (
-                <p className="text-content-muted text-xs">
-                  Elegí un proyecto para ver su presupuesto y cuántas unidades tiene cargadas contra
-                  las planificadas.
-                </p>
-              )}
-
-              {esAlta && proyectoDetalle && (
-                <AvisoUnidadesPlanificadas
-                  cargadas={proyectoDetalle.unidades_cargadas}
-                  planificadas={proyectoDetalle.cantidad_unidades_planificadas}
-                />
-              )}
-
-              {proyectoDetalle && (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <StatTile
-                    label="Presupuesto del proyecto"
-                    value={formatearMoneda(proyectoDetalle.presupuesto)}
-                  />
-                  <StatTile
-                    label="Unidades cargadas / planificadas"
-                    value={`${proyectoDetalle.unidades_cargadas} / ${proyectoDetalle.cantidad_unidades_planificadas}`}
-                  />
-                </div>
-              )}
-
-              {!esAlta && unidad && (
-                <div className="flex flex-col gap-1">
+          <div className="flex min-w-0 flex-col gap-4">
+            <SeccionPublicacion titulo="Proyecto y presupuesto">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
                   <span className="text-content-muted text-xs font-medium uppercase">
-                    Condición de entrega
+                    Proyecto <span className="text-error">*</span>
                   </span>
-                  <span className="text-content text-sm">{unidad.condicion_entrega.texto}</span>
+
+                  <Controller
+                    name="FK_proyecto"
+                    control={control}
+                    render={({ field }) => (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            readOnly
+                            value={
+                              proyectoElegido
+                                ? `${proyectoElegido.codigo} — ${proyectoElegido.nombre}`
+                                : ''
+                            }
+                            placeholder="Elegí un proyecto"
+                            error={errors.FK_proyecto?.message}
+                            className="flex-1"
+                          />
+                          {esAlta && (
+                            <Button
+                              type="button"
+                              variant="primary"
+                              icon={<Building2 />}
+                              onClick={() => setModalProyectoAbierto(true)}
+                            >
+                              {proyectoElegido ? 'Cambiar' : 'Elegir proyecto'}
+                            </Button>
+                          )}
+                        </div>
+
+                        <SelectorProyectoModal
+                          open={modalProyectoAbierto}
+                          onClose={() => setModalProyectoAbierto(false)}
+                          onSeleccionar={(proyecto) => elegirProyecto(proyecto, field.onChange)}
+                        />
+                      </>
+                    )}
+                  />
                 </div>
-              )}
-            </div>
-          </SeccionPublicacion>
+
+                {esAlta && !proyectoElegido && (
+                  <p className="text-content-muted text-xs">
+                    Elegí un proyecto para ver su presupuesto y cuántas unidades tiene cargadas
+                    contra las planificadas.
+                  </p>
+                )}
+
+                {esAlta && proyectoDetalle && (
+                  <AvisoUnidadesPlanificadas
+                    cargadas={proyectoDetalle.unidades_cargadas}
+                    planificadas={proyectoDetalle.cantidad_unidades_planificadas}
+                  />
+                )}
+
+                {proyectoDetalle && (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <StatTile
+                      className="min-w-0"
+                      valueClassName="text-2xl wrap-anywhere"
+                      label="Presupuesto del proyecto"
+                      value={formatearMoneda(proyectoDetalle.presupuesto)}
+                    />
+                    <StatTile
+                      className="min-w-0"
+                      valueClassName="text-2xl wrap-anywhere"
+                      label="Unidades cargadas / planificadas"
+                      value={`${proyectoDetalle.unidades_cargadas} / ${proyectoDetalle.cantidad_unidades_planificadas}`}
+                    />
+                  </div>
+                )}
+
+                {!esAlta && unidad && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-content-muted text-xs font-medium uppercase">
+                      Condición de entrega
+                    </span>
+                    <span className="text-content text-sm">{unidad.condicion_entrega.texto}</span>
+                  </div>
+                )}
+              </div>
+            </SeccionPublicacion>
+
+            {!esAlta && unidad && <SeccionPrecioListaUnidad unidad={unidad} />}
+          </div>
         </div>
 
         <SeccionPublicacion titulo="Galería de imágenes">
@@ -540,8 +549,8 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
             />
           ) : (
             <p className="text-content-muted text-xs">
-              Guardá la unidad para poder cargar sus imágenes: la galería se habilita apenas se
-              crea.
+              La galería se habilita una vez creada la unidad: después de guardarla, editala para
+              cargar sus imágenes.
             </p>
           )}
         </SeccionPublicacion>

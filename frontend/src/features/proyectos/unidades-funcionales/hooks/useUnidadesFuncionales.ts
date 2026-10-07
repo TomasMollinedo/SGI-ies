@@ -39,6 +39,9 @@ export function useUnidadFuncionalDetalle(id: number | null) {
     queryKey: UNIDADES_FUNCIONALES_QUERY_KEYS.DETALLE(id),
     queryFn: ({ signal }) => obtenerUnidadFuncional(id!, signal),
     enabled: id !== null,
+    // El estado comercial y el precio de lista cambian desde Publicaciones: no se sirve de caché.
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 }
 

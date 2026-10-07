@@ -197,12 +197,12 @@ export function PublicacionDetallePage() {
         </SeccionPublicacion>
       </div>
 
-      <SeccionPublicacion titulo="Imágenes">
-        <GaleriaUnidad identificador={unidad.identificador} imagenes={publicacion.imagenes} />
-      </SeccionPublicacion>
-
       <SeccionPublicacion titulo="Precio de lista">
         <PrecioListaForm publicacion={publicacion} />
+      </SeccionPublicacion>
+
+      <SeccionPublicacion titulo="Imágenes">
+        <GaleriaUnidad identificador={unidad.identificador} imagenes={publicacion.imagenes} />
       </SeccionPublicacion>
 
       <SeccionPublicacion titulo="Auditoría">
