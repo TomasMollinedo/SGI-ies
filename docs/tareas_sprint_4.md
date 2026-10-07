@@ -159,6 +159,16 @@ Ajustes a las tareas después de implementar las rutas y el menú sin acceso por
 | T152 | El endpoint admite al Administrador (y al Gerente por el bypass del guard), en lugar de negarle el acceso. Responde OBS-27. |
 | T154 | No incluye acceso por rol: si la API responde 403, muestra el aviso de permisos como el resto de las pantallas. |
 
+## Cambios por el cierre de T123 (2026-10-06)
+
+Ajustes a las tareas después de implementar el formulario y el listado de proyectos.
+
+| Tarea | Qué cambió y por qué |
+|---|---|
+| T123 | Sale el porcentaje vendido del listado: la API no lo devuelve hasta T124. Suma la base del detalle del proyecto (modo LECTURA, avance del estado de obra y baja), que el router ya apuntaba a `ProyectoDetallePage`. La galería de imágenes de unidades pasa a un componente genérico que también usa el proyecto. |
+| T125 | Suma la columna de porcentaje vendido del listado. Se monta sobre el detalle que deja T123: agrega el resumen comercial y la lista de unidades, sin reescribirlo. |
+| T156 | Suma sembrar las fechas de PROYECTO ancladas a la medianoche de Argentina, como las guarda la API: los seeds actuales las dejan a la medianoche UTC. |
+
 ## Cambios del 2026-10-06
 
 | Tarea | Qué cambió y por qué |
@@ -265,6 +275,8 @@ Sembrar los datos del Sprint 4 tal como los dejarían los servicios que todavía
 - [ ] Con el usuario gerente@axontech.test y el administrador se puede entrar al sistema
 
 > ⚠️ Es lo que permite que ficha de proyecto, clientes, perfil, catálogo y tablero no esperen a la venta nueva.
+
+> ⚠️ Las fechas de PROYECTO (`fecha_inicio` y `fecha_fin_estimada`) tienen que sembrarse ancladas a la medianoche de Argentina, igual que las guarda la API (`fechaIsoSchema`), y no con `new Date('YYYY-MM-DD')`, que las deja a la medianoche UTC, 3 horas antes. Con esa diferencia, dos fechas del mismo día pueden quedar cruzadas y la edición de un proyecto Finalizado puede rechazar una fecha de fin que no cambió (detectado en T123).
 
 ---
 
@@ -384,7 +396,7 @@ Dar al Responsable de Proyectos la pantalla para cargar y consultar proyectos.
 
 - [ ] Formulario paramétrico con modos INSERCIÓN, EDICIÓN y LECTURA
 - [ ] Carga de portada e imágenes de diseño con validación de tipo y tamaño, tipo y orden
-- [ ] Listado con código, nombre, localidad, estado de obra, unidades cargadas / planificadas, porcentaje vendido y fecha de finalización estimada
+- [ ] Listado con código, nombre, localidad, estado de obra, unidades cargadas / planificadas y fecha de finalización estimada
 - [ ] Filtros por estado de obra y localidad, y búsqueda por código o nombre
 - [ ] Modal de confirmación para la baja y para el avance de estado
 
@@ -393,6 +405,8 @@ Dar al Responsable de Proyectos la pantalla para cargar y consultar proyectos.
 - [ ] El listado muestra por defecto solo los proyectos activos
 - [ ] Una baja pide confirmación y no elimina datos físicamente
 - [ ] El avance de estado no ofrece volver a un estado anterior
+
+> ⚠️ T123 arma la base del detalle del proyecto (`ProyectoDetallePage`): el formulario en modo LECTURA, con el avance del estado de obra y la baja. El porcentaje vendido no entra acá porque la API todavía no lo devuelve (lo expone T124): la columna del listado la suma T125.
 
 ---
 
@@ -462,11 +476,14 @@ Mostrar de un vistazo la situación del proyecto.
 - [ ] Mostrar presupuesto, precio estimado y unidades cargadas respecto de las planificadas
 - [ ] Mostrar la portada y las imágenes de diseño
 - [ ] Listar las unidades con identificador, tipología, superficie, costo, precio de lista y estado comercial
+- [ ] Sumar al listado de proyectos la columna de porcentaje vendido
 
 ### Listo cuando
 
 - [ ] Cada unidad de la lista abre su detalle
 - [ ] El indicador Todas las unidades vendidas aparece solo cuando corresponde
+
+> ⚠️ Se monta sobre el detalle que deja T123 (`ProyectoDetallePage`, con el formulario en modo LECTURA, la portada, las imágenes de diseño, el avance de estado y la baja): agrega sus secciones debajo, no lo reescribe.
 
 ---
 

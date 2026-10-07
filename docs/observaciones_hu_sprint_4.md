@@ -227,6 +227,7 @@ La prioridad indica qué pasa si la observación no se responde:
 - **Qué dice la historia:** la localidad es un campo obligatorio del proyecto y el listado se filtra por localidad.
 - **Problema:** la localidad es texto libre. "Salta", "Salta Capital" y "salta" serían tres valores distintos en el filtro.
 - **Propuesta:** el filtro ofrece las localidades ya cargadas en los proyectos y busca sin distinguir mayúsculas. Indicar si en cambio se quiere una lista fija de localidades.
+- **Límite conocido (T123):** el filtro de localidad se arma con las de los proyectos activos, así que con "Dados de baja" o "Todos" puede faltar una localidad que solo tenga proyectos dados de baja.
 
 ---
 
