@@ -38,6 +38,7 @@ export async function listarUnidadesFuncionales(
       params: {
         FK_proyecto: filtros.FK_proyecto,
         tipologia: filtros.tipologia,
+        estado_comercial: filtros.estado_comercial,
         superficie_min: filtros.superficie_min,
         superficie_max: filtros.superficie_max,
         estado: filtros.estado,

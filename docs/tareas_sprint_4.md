@@ -4,8 +4,8 @@ Tareas técnicas del Sprint 4, tomadas del tablero de GitHub Projects [Proyecto 
 
 - **Cantidad de tareas:** 38 (33 del tablero y 5 nuevas; 2 del tablero se dan de baja)
 - **Estimación total:** 190 h (BD/Infra: 16 h, Frontend: 84 h, Backend: 90 h)
-- **Última sincronización con el tablero:** 2026-10-05
-- **Estado de este archivo:** sincronizado con los issues el 2026-10-05 (incluye el cierre de T121); T160 se sincronizó el 2026-10-06
+- **Última sincronización con el tablero:** 2026-10-06
+- **Estado de este archivo:** sincronizado con los issues el 2026-10-06 (incluye los cierres de T121 y T157, y el alta de T160)
 
 ## Cómo editar este archivo
 
@@ -45,7 +45,7 @@ Archivos compartidos a coordinar: `venta.service.ts` (T158 y T144), el módulo d
 |---|---|---|---|---|---|---|---|
 | [T121](#t121) | T120 | [#323](https://github.com/TomasMollinedo/SGI-ies/issues/323) | Infra: Migración de base de datos del Sprint 4, con el backend compilando | Transversal | BD/Infra | Ninguna | 8 h |
 | [T156](#t156) | — | [#358](https://github.com/TomasMollinedo/SGI-ies/issues/358) | Infra: Seed de escenario del Sprint 4 | Transversal | BD/Infra | T121 | 5 h |
-| [T157](#t157) | — | [#359](https://github.com/TomasMollinedo/SGI-ies/issues/359) | Front: Rutas, menú lateral y acceso por rol de las pantallas nuevas | Transversal | Frontend | Ninguna | 3 h |
+| [T157](#t157) | — | [#359](https://github.com/TomasMollinedo/SGI-ies/issues/359) | Front: Rutas y menú lateral de las pantallas nuevas | Transversal | Frontend | Ninguna | 3 h |
 | [T122](#t122) | T121 | [#324](https://github.com/TomasMollinedo/SGI-ies/issues/324) | Back: ABM de Proyecto: alta, edición, baja lógica, estado de obra, imágenes y listado | HU-31 | Backend | T121 | 8 h |
 | [T123](#t123) | T122 | [#325](https://github.com/TomasMollinedo/SGI-ies/issues/325) | Front: Formulario y listado de proyectos | HU-31 | Frontend | T122, T157 | 6 h |
 | [T124](#t124) | T123 | [#326](https://github.com/TomasMollinedo/SGI-ies/issues/326) | Back: Ficha del proyecto: presupuesto, precio estimado y situación comercial calculados | HU-31 | Backend | T121 | 5 h |
@@ -148,6 +148,42 @@ Ajustes a las tareas después de definir el DER final y de mergear la migración
 | T156 | El Punto de partida refleja que los seeds ya crean el plan de pago con TNA 0 %. Suma dejar de depender del cliente con id 1. |
 | T158 | El Punto de partida suma la doble escritura actual, las dos FK de CUOTA, las lecturas que asumen plan de ejemplo y el destino de periodicidad_congelada. |
 | T159 | Alcance reescrito con la lista exacta de columnas legado. Suma borrar el código de transición, definir los obligatorios de PLANEJEMPLO y CANCELADO según OBS-22. El enum de modalidad no se elimina. Deja de ser provisoria. |
+
+## Cambios por el cierre de T157 (2026-10-06)
+
+Ajustes a las tareas después de implementar las rutas y el menú sin acceso por rol en el frontend.
+
+| Tarea | Qué cambió y por qué |
+|---|---|
+| T157 | Sin acceso por rol en el front: el Tablero queda visible en el menú, como todas las pantallas, y el backend restringe con `@Roles(ADMINISTRADOR)`. Se quita el mecanismo de roles del Alcance y se cambia el título. Las pantallas provisorias quedan en su archivo definitivo, para que T123, T125, T127, T150, T151 y T154 no editen el router. |
+| T152 | El endpoint admite al Administrador (y al Gerente por el bypass del guard), en lugar de negarle el acceso. Responde OBS-27. |
+| T154 | No incluye acceso por rol: si la API responde 403, muestra el aviso de permisos como el resto de las pantallas. |
+
+## Cambios por el cierre de T123 (2026-10-06)
+
+Ajustes a las tareas después de implementar el formulario y el listado de proyectos.
+
+| Tarea | Qué cambió y por qué |
+|---|---|
+| T123 | Sale el porcentaje vendido del listado: la API no lo devuelve hasta T124. Suma la base del detalle del proyecto (modo LECTURA, avance del estado de obra y baja), que el router ya apuntaba a `ProyectoDetallePage`. La galería de imágenes de unidades pasa a un componente genérico que también usa el proyecto. |
+| T125 | Suma la columna de porcentaje vendido del listado. Se monta sobre el detalle que deja T123: agrega el resumen comercial y la lista de unidades, sin reescribirlo. |
+| T156 | Suma sembrar las fechas de PROYECTO ancladas a la medianoche de Argentina, como las guarda la API: los seeds actuales las dejan a la medianoche UTC. |
+
+## Cambios por el cierre de T124 (2026-10-07)
+
+Contrato que deja el backend de la ficha del proyecto. Todo se calcula al consultar, sobre las unidades activas, y nada se guarda.
+
+- **`GET /proyectos/:id/ficha`** (nuevo). Complementa a `GET /proyectos/:id`, no lo reemplaza: el presupuesto y las unidades cargadas contra las planificadas siguen saliendo del detalle. Devuelve:
+  - `precio_estimado`: `total` y `unidades_calculadas`.
+  - `situacion_comercial`: `por_estado` (siempre con las claves `SIN_PUBLICAR`, `EN_PREPARACION`, `DISPONIBLE`, `EN_PLAN_DE_PAGO` y `VENDIDA`), `porcentaje_vendido` y `todas_vendidas`.
+  - `unidades`: las activas, ordenadas por identificador con orden natural, con `id_unidad_funcional`, `identificador`, `tipologia`, `superficie_cubierta`, `costo`, `precio_lista` y `estado_comercial`.
+- **`porcentaje_vendido`** se suma a cada proyecto de `GET /proyectos` y, por herencia, a `GET /proyectos/:id` y a lo que devuelven las mutaciones.
+
+| Tarea | Qué cambió y por qué |
+|---|---|
+| T124 | El estado comercial de cada unidad sale de su publicación vigente (`SIN_PUBLICAR` si no tiene), igual que el listado de unidades de T128; no se consulta la venta. `unidades_calculadas` cuenta solo las unidades con precio de lista: una En preparación tiene publicación vigente pero todavía no tiene precio, así que no suma ni cuenta. Sin unidades activas, el porcentaje es 0 y no figura como Todas las unidades vendidas. |
+| T125 | Consume este contrato: la columna de porcentaje vendido sale de `porcentaje_vendido` del listado, y el resumen comercial y la lista de unidades, de `GET /proyectos/:id/ficha`. El indicador Todas las unidades vendidas se muestra con `todas_vendidas`, no comparando el porcentaje con 100 (está redondeado a 2 decimales). `precio_lista` llega en null para una unidad sin publicar o En preparación. Cada unidad abre su detalle con `id_unidad_funcional`. |
+| T153 | La base del porcentaje vendido ya está implementada en `proyectos/situacion-comercial.ts` (`calcularSituacionComercial`): el margen por proyecto tiene que usar la misma, para que el tablero y la ficha muestren el mismo número (OBS-29). |
 
 ## Cambios del 2026-10-06
 
@@ -256,11 +292,13 @@ Sembrar los datos del Sprint 4 tal como los dejarían los servicios que todavía
 
 > ⚠️ Es lo que permite que ficha de proyecto, clientes, perfil, catálogo y tablero no esperen a la venta nueva.
 
+> ⚠️ Las fechas de PROYECTO (`fecha_inicio` y `fecha_fin_estimada`) tienen que sembrarse ancladas a la medianoche de Argentina, igual que las guarda la API (`fechaIsoSchema`), y no con `new Date('YYYY-MM-DD')`, que las deja a la medianoche UTC, 3 horas antes. Con esa diferencia, dos fechas del mismo día pueden quedar cruzadas y la edición de un proyecto Finalizado puede rechazar una fecha de fin que no cambió (detectado en T123).
+
 ---
 
 <a id="t157"></a>
 <!-- issue: 359 -->
-## T157 — Front: Rutas, menú lateral y acceso por rol de las pantallas nuevas
+## T157 — Front: Rutas y menú lateral de las pantallas nuevas
 
 - **Issue:** [#359](https://github.com/TomasMollinedo/SGI-ies/issues/359)
 - **Estado:** To do
@@ -280,21 +318,21 @@ Cargar una sola vez las rutas y entradas de menú de todas las pantallas interna
 ### Punto de partida
 
 - `frontend/src/app/router/paths.ts`, `frontend/src/app/router/index.tsx` y `frontend/src/layouts/navItems.ts`.
-- Hoy el menú lateral no filtra por rol: muestra todo a cualquier usuario.
+- El menú lateral no filtra por rol en ningún módulo: el acceso lo restringe el backend con `@Roles`, y cada pantalla muestra el aviso de permisos si recibe un 403.
 
 ### Alcance
 
-- [ ] Rutas y entradas de menú de Proyectos (listado, alta, edición y ficha), Plazos de Financiación, Clientes (listado y ficha) y Tablero del Gerente
-- [ ] Mecanismo para que una ruta y su entrada de menú se muestren solo a un rol, aplicado al Tablero del Gerente
-- [ ] Cada ruta nueva apunta a una pantalla provisoria hasta que mergee su tarea
+- [x] Rutas y entradas de menú de Proyectos (listado, alta, edición y ficha), Plazos de Financiación, Clientes (listado y ficha) y Tablero del Gerente
+- [x] Cada ruta nueva apunta a una pantalla provisoria en su archivo definitivo, para que su tarea reemplace el contenido sin tocar el router
+- [x] El listado de proyectos pasa a ser la pantalla de inicio de Proyectos (antes redirigía a Unidades Funcionales)
 
 ### Listo cuando
 
-- [ ] Un Administrador no ve el Tablero en el menú ni puede entrar por URL
-- [ ] El Gerente General ve el Tablero y el resto del menú
-- [ ] Pasan build, lint y format
+- [x] Cada ruta nueva abre su pantalla provisoria con su título, y el menú muestra las entradas nuevas
+- [x] Unidades Funcionales sigue funcionando igual
+- [x] Pasan build, lint y format
 
-> ⚠️ Tiene que mergear el primer día. Ninguna otra tarea del sprint agrega rutas ni entradas de menú.
+> ⚠️ Tiene que mergear el primer día. Ninguna otra tarea del sprint agrega rutas ni entradas de menú. El Tablero sigue el criterio de acceso del resto del sistema (ver OBS-27).
 
 ---
 
@@ -374,7 +412,7 @@ Dar al Responsable de Proyectos la pantalla para cargar y consultar proyectos.
 
 - [ ] Formulario paramétrico con modos INSERCIÓN, EDICIÓN y LECTURA
 - [ ] Carga de portada e imágenes de diseño con validación de tipo y tamaño, tipo y orden
-- [ ] Listado con código, nombre, localidad, estado de obra, unidades cargadas / planificadas, porcentaje vendido y fecha de finalización estimada
+- [ ] Listado con código, nombre, localidad, estado de obra, unidades cargadas / planificadas y fecha de finalización estimada
 - [ ] Filtros por estado de obra y localidad, y búsqueda por código o nombre
 - [ ] Modal de confirmación para la baja y para el avance de estado
 
@@ -383,6 +421,8 @@ Dar al Responsable de Proyectos la pantalla para cargar y consultar proyectos.
 - [ ] El listado muestra por defecto solo los proyectos activos
 - [ ] Una baja pide confirmación y no elimina datos físicamente
 - [ ] El avance de estado no ofrece volver a un estado anterior
+
+> ⚠️ T123 arma la base del detalle del proyecto (`ProyectoDetallePage`): el formulario en modo LECTURA, con el avance del estado de obra y la baja. El porcentaje vendido no entra acá porque la API todavía no lo devuelve (lo expone T124): la columna del listado la suma T125.
 
 ---
 
@@ -412,16 +452,16 @@ Calcular al consultar los datos resumen del proyecto, sin almacenarlos.
 
 ### Alcance
 
-- [ ] Precio estimado de venta = suma de precios de lista de las unidades con publicación vigente, indicando sobre cuántas unidades se calculó
-- [ ] Situación comercial: cantidad de unidades sin publicar, en preparación, Disponibles, En Plan de Pago y Vendidas, y porcentaje de unidades activas con venta registrada
-- [ ] Identificar Todas las unidades vendidas cuando todas las unidades activas tienen una venta vigente
-- [ ] Lista de unidades del proyecto con identificador, tipología, superficie cubierta, costo, precio de lista y estado comercial
-- [ ] Exponer el porcentaje vendido también en el listado de proyectos
+- [x] Precio estimado de venta = suma de precios de lista de las unidades con publicación vigente, indicando sobre cuántas unidades se calculó
+- [x] Situación comercial: cantidad de unidades sin publicar, en preparación, Disponibles, En Plan de Pago y Vendidas, y porcentaje de unidades activas con venta registrada
+- [x] Identificar Todas las unidades vendidas cuando todas las unidades activas tienen una venta vigente
+- [x] Lista de unidades del proyecto con identificador, tipología, superficie cubierta, costo, precio de lista y estado comercial
+- [x] Exponer el porcentaje vendido también en el listado de proyectos
 
 ### Listo cuando
 
-- [ ] Los valores no se guardan en tablas: se calculan en cada consulta
-- [ ] Se prueba contra los datos del seed (T156), sin esperar a las tareas de precio ni de venta
+- [x] Los valores no se guardan en tablas: se calculan en cada consulta
+- [x] Se prueba contra los datos del seed (T156), sin esperar a las tareas de precio ni de venta — se probó contra `seed-comercializacion.ts`, porque T156 todavía no está mergeada
 
 > ⚠️ Se sigue HU-31: la base son las unidades activas, no las planificadas. Un proyecto con 10 planificadas y una sola cargada y vendida figura como Todas las unidades vendidas; el caso está avisado en observaciones_hu_sprint_4.md.
 
@@ -452,11 +492,14 @@ Mostrar de un vistazo la situación del proyecto.
 - [ ] Mostrar presupuesto, precio estimado y unidades cargadas respecto de las planificadas
 - [ ] Mostrar la portada y las imágenes de diseño
 - [ ] Listar las unidades con identificador, tipología, superficie, costo, precio de lista y estado comercial
+- [ ] Sumar al listado de proyectos la columna de porcentaje vendido
 
 ### Listo cuando
 
 - [ ] Cada unidad de la lista abre su detalle
 - [ ] El indicador Todas las unidades vendidas aparece solo cuando corresponde
+
+> ⚠️ Se monta sobre el detalle que deja T123 (`ProyectoDetallePage`, con el formulario en modo LECTURA, la portada, las imágenes de diseño, el avance de estado y la baja): agrega sus secciones debajo, no lo reescribe.
 
 ---
 
@@ -1467,18 +1510,16 @@ Calcular ingresos, egresos y resultado de la empresa por período.
 
 ### Alcance
 
-- [ ] Módulo nuevo del tablero, con el endpoint restringido al rol Gerente General y sumado al spec de roles
+- [ ] Módulo nuevo del tablero, con el endpoint restringido con `@Roles(ADMINISTRADOR)`, igual que el resto de los módulos (el Gerente General accede por el bypass de `RolesGuard`), y sumado al spec de roles
 - [ ] Agrupación mensual, trimestral o anual y rango de fechas; por defecto el año en curso por mes
 - [ ] Ingresos = cobros confirmados (presenciales y ecommerce) sin anulados, con apertura por proyecto y filtro opcional por proyecto
 - [ ] Egresos = pagos confirmados sin anulados, reutilizando el cálculo existente; resultado y variación contra el rango anterior de igual duración
 
 ### Listo cuando
 
-- [ ] Un Administrador recibe acceso denegado
+- [ ] Responden el Administrador y el Gerente General; otro rol recibe 403
 - [ ] Con filtro por proyecto no se devuelve el resultado
 - [ ] Sin datos, cada indicador devuelve cero
-
-> ⚠️ Es el primer endpoint que no admite al Administrador: revisar que el spec de roles lo contemple.
 
 ---
 

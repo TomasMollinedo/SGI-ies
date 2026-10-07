@@ -6,11 +6,13 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../../../generated/prisma/client';
 import {
+  EstadoComercial,
   EstadoProyecto,
   TipoImagenProyecto,
 } from '../../../generated/prisma/enums';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ProyectoService } from './proyecto.service';
+import { ProyectoFichaService } from './proyecto-ficha.service';
 import {
   proyectoDetalleResponseSchema,
   proyectoResponseSchema,
@@ -65,7 +67,7 @@ describe('ProyectoService', () => {
   let prisma: {
     $transaction: jest.Mock;
     pROYECTO: { findMany: jest.Mock; findUnique: jest.Mock; count: jest.Mock };
-    uNIDADFUNCIONAL: { groupBy: jest.Mock };
+    uNIDADFUNCIONAL: { groupBy: jest.Mock; findMany: jest.Mock };
   };
 
   const USUARIO_ID = 7;
@@ -149,7 +151,11 @@ describe('ProyectoService', () => {
         findUnique: jest.fn().mockResolvedValue(detalleMock()),
         count: jest.fn().mockResolvedValue(0),
       },
-      uNIDADFUNCIONAL: { groupBy: jest.fn().mockResolvedValue([]) },
+      uNIDADFUNCIONAL: {
+        groupBy: jest.fn().mockResolvedValue([]),
+        // La consulta de `ProyectoFichaService` para el porcentaje vendido.
+        findMany: jest.fn().mockResolvedValue([]),
+      },
     };
     prisma.$transaction.mockImplementation((cb: (t: unknown) => unknown) =>
       cb(tx),
@@ -158,6 +164,9 @@ describe('ProyectoService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProyectoService,
+        // El service real, sobre el mismo mock de Prisma: el porcentaje
+        // vendido se prueba con la cuenta de verdad.
+        ProyectoFichaService,
         { provide: PrismaService, useValue: prisma },
       ],
     }).compile();
@@ -217,6 +226,46 @@ describe('ProyectoService', () => {
         unidades_cargadas: 2,
         presupuesto: 500,
       });
+    });
+  });
+
+  describe('porcentaje vendido', () => {
+    const unidadActiva = (FK_proyecto: number, estado?: EstadoComercial) => ({
+      FK_proyecto,
+      publicaciones: estado
+        ? [{ estado_comercial: estado, precio_lista: new Prisma.Decimal(100) }]
+        : [],
+    });
+
+    it('el listado trae el porcentaje vendido de cada proyecto, y 0 para uno sin unidades activas', async () => {
+      prisma.pROYECTO.findMany.mockResolvedValue([proyecto(1), proyecto(2)]);
+      prisma.uNIDADFUNCIONAL.findMany.mockResolvedValue([
+        unidadActiva(1, EstadoComercial.VENDIDA),
+        unidadActiva(1, EstadoComercial.DISPONIBLE),
+        unidadActiva(1),
+      ]);
+
+      const { data } = await service.findAll(queryBase);
+
+      expect(data[0].porcentaje_vendido).toBe(33.33);
+      expect(data[1].porcentaje_vendido).toBe(0);
+      // Una sola consulta para toda la página, solo de unidades activas.
+      expect(prisma.uNIDADFUNCIONAL.findMany).toHaveBeenCalledTimes(1);
+      expect(primerArgumento(prisma.uNIDADFUNCIONAL.findMany).where).toEqual({
+        estado: true,
+        FK_proyecto: { in: [1, 2] },
+      });
+    });
+
+    it('el detalle de un proyecto trae también su porcentaje vendido', async () => {
+      prisma.uNIDADFUNCIONAL.findMany.mockResolvedValue([
+        unidadActiva(ID_PROYECTO, EstadoComercial.EN_PLAN_DE_PAGO),
+        unidadActiva(ID_PROYECTO, EstadoComercial.VENDIDA),
+      ]);
+
+      const resultado = await service.findOne(ID_PROYECTO);
+
+      expect(resultado.porcentaje_vendido).toBe(100);
     });
   });
 

@@ -560,8 +560,17 @@ export class PagoService {
    * dos, no hay período definido y se devuelve `null`. El volumen de pagos de
    * un período es chico, así que se agrupa en memoria con un `Map` en vez de
    * un GROUP BY de Postgres.
+   *
+   * Es público porque el Tablero del Gerente (T152) lo reutiliza para los
+   * egresos de cada período: por eso recibe solo los filtros que usa, no la
+   * query completa del listado.
    */
-  private async calcularResumenPeriodo(query: QueryPagoDto) {
+  async calcularResumenPeriodo(
+    query: Pick<
+      QueryPagoDto,
+      'fechaDesde' | 'fechaHasta' | 'FK_proveedor' | 'FK_forma_pago'
+    >,
+  ) {
     if (!query.fechaDesde || !query.fechaHasta) {
       return null;
     }

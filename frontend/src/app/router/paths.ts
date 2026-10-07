@@ -65,7 +65,13 @@ export const PATHS = {
   ALERTAS: { ROOT: '/sistema/alertas' },
 
   PROYECTOS: {
+    // El listado de proyectos vive en ROOT, como Comprobantes en TESORERIA.
     ROOT: '/sistema/proyectos',
+    NUEVO: '/sistema/proyectos/nuevo',
+    // Patrones de ruta, no URLs navegables: para armar las de un proyecto
+    // concreto están `rutaDetalleProyecto` y `rutaEditarProyecto`.
+    DETALLE: '/sistema/proyectos/:idProyecto',
+    EDITAR: '/sistema/proyectos/:idProyecto/editar',
     UNIDADES_FUNCIONALES: '/sistema/proyectos/unidades-funcionales',
     UNIDADES_FUNCIONALES_NUEVA: '/sistema/proyectos/unidades-funcionales/nueva',
     // Patrones de ruta, no URLs navegables: para armar las de una unidad
@@ -92,7 +98,14 @@ export const PATHS = {
     // HU-26 / T119. Sin ruta de detalle: se opera desde un modal sobre el
     // listado (DetalleConsultaModal), como "Registrar venta" en VENTAS.
     CONSULTAS: '/sistema/comercializacion/consultas',
+    PLAZOS_FINANCIACION: '/sistema/comercializacion/plazos-financiacion',
+    CLIENTES: '/sistema/comercializacion/clientes',
+    // Patrón de ruta, no una URL navegable: para armar la de un cliente
+    // concreto está `rutaDetalleCliente`.
+    CLIENTE_DETALLE: '/sistema/comercializacion/clientes/:idCliente',
   },
+
+  TABLERO: { ROOT: '/sistema/tablero' },
 
   // Sitio público del ecommerce (HU-23/24/25). Convive con el resto de las
   // rutas: HOME y estas son las públicas, /login y /sistema siguen siendo
@@ -127,6 +140,21 @@ export function rutaCardexCuentaCorriente(idProveedor: number): string {
 /** La ruta del detalle de un cobro puntual (ej. 42 → /tesoreria/cobranzas/42). */
 export function rutaDetalleCobro(idCobro: number): string {
   return PATHS.TESORERIA.COBRANZAS.DETALLE.replace(':idCobro', String(idCobro))
+}
+
+/** La ruta de la ficha de un proyecto puntual (ej. 42 → /proyectos/42). */
+export function rutaDetalleProyecto(idProyecto: number): string {
+  return PATHS.PROYECTOS.DETALLE.replace(':idProyecto', String(idProyecto))
+}
+
+/** La ruta de edición de un proyecto puntual (ej. 42 → /proyectos/42/editar). */
+export function rutaEditarProyecto(idProyecto: number): string {
+  return PATHS.PROYECTOS.EDITAR.replace(':idProyecto', String(idProyecto))
+}
+
+/** La ruta de la ficha de un cliente puntual (ej. 42 → /comercializacion/clientes/42). */
+export function rutaDetalleCliente(idCliente: number): string {
+  return PATHS.COMERCIALIZACION.CLIENTE_DETALLE.replace(':idCliente', String(idCliente))
 }
 
 /** La ruta del detalle de una unidad funcional puntual (ej. 42 → /proyectos/unidades-funcionales/42). */
@@ -168,7 +196,6 @@ export function rutaPlanesPagoPublicacion(idPublicacion: number): string {
     ':idPublicacion',
     String(idPublicacion)
   )
-
 }
 
 /** La ruta del detalle de una compra propia del cliente (ej. 20 → /mi-perfil/compras/20). */

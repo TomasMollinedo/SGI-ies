@@ -1,7 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { PROYECTOS_QUERY_KEYS } from '@/features/proyectos/services/proyectos.service'
 import type { ApiErrorResponse, PaginatedResponse } from '@/shared/types/api.types'
-import { subirImagen } from '../services/almacenamiento.service'
 import {
   UNIDADES_FUNCIONALES_QUERY_KEYS,
   agregarImagenUnidadFuncional,
@@ -39,6 +38,9 @@ export function useUnidadFuncionalDetalle(id: number | null) {
     queryKey: UNIDADES_FUNCIONALES_QUERY_KEYS.DETALLE(id),
     queryFn: ({ signal }) => obtenerUnidadFuncional(id!, signal),
     enabled: id !== null,
+    // El estado comercial y el precio de lista cambian desde Publicaciones: no se sirve de caché.
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 }
 
@@ -118,13 +120,6 @@ export function useReactivarUnidadFuncional() {
         queryKey: UNIDADES_FUNCIONALES_QUERY_KEYS.DETALLE(unidad.id_unidad_funcional),
       })
     },
-  })
-}
-
-/** Sube el archivo al almacenamiento de objetos (T97). Todavía no lo asocia a ninguna galería. */
-export function useSubirImagen() {
-  return useMutation<{ url: string }, ApiErrorResponse, File>({
-    mutationFn: subirImagen,
   })
 }
 

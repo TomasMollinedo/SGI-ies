@@ -19,7 +19,7 @@ const imagenProyectoSchema = z.object({
 
 /**
  * Ítem del listado (GET /proyectos): los datos propios del proyecto más los
- * dos valores calculados. Sin auditoría ni imágenes de diseño — eso lo trae
+ * tres valores calculados. Sin auditoría ni imágenes de diseño — eso lo trae
  * el detalle (GET /proyectos/:id).
  */
 export const proyectoResponseSchema = z.object({
@@ -45,6 +45,10 @@ export const proyectoResponseSchema = z.object({
   presupuesto: z.number().meta({
     description:
       'Suma del costo de las unidades activas, en pesos. Se calcula, no se carga ni se edita.',
+  }),
+  porcentaje_vendido: z.number().meta({
+    description:
+      'Porcentaje de unidades activas con venta vigente (En Plan de Pago o Vendida), de 0 a 100 con 2 decimales. La base son las unidades activas, no las planificadas. Sin unidades activas es 0. Se calcula, no se guarda. El desglose por estado comercial está en GET /proyectos/:id/ficha.',
   }),
 });
 

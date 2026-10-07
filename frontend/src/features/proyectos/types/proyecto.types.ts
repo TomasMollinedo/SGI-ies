@@ -28,14 +28,27 @@ export interface ProyectoResumen {
   presupuesto: number
 }
 
+/**
+ * Valor del filtro de baja lógica tal como lo espera la query del backend:
+ * sin `estado`, trae solo los activos.
+ */
+export type FiltroEstadoProyecto = 'true' | 'false' | 'todos'
+
 export interface ProyectosQuery {
   busqueda?: string
   /**
    * Filtra por estado de obra (la tabla emergente del alta de unidades solo
-   * quiere los que admiten unidades nuevas). La baja lógica no se filtra desde
-   * acá: sin ese parámetro, el backend lista solo los proyectos activos.
+   * quiere los que admiten unidades nuevas).
    */
   estado_obra?: EstadoProyecto
+  /**
+   * Baja lógica. Sin este parámetro el backend lista solo los activos; quien
+   * necesita garantizarlo (ej. la tabla emergente de unidades) lo manda
+   * explícito en vez de depender de ese default.
+   */
+  estado?: FiltroEstadoProyecto
+  /** Coincidencia exacta, sin distinguir mayúsculas. Las opciones salen de GET /proyectos/localidades. */
+  localidad?: string
   page?: number
   limit?: number
 }
@@ -64,4 +77,52 @@ export interface ProyectoDetalle extends ProyectoResumen {
   FK_usuario_actualizador: number
   usuarioCreador: UsuarioResumen
   usuarioActualizador: UsuarioResumen
+}
+
+/** Item del catálogo de localidades (GET /proyectos/localidades): `id` y `code` son la misma localidad. */
+export interface LocalidadCatalogoItem {
+  id: string
+  code: string
+  metadata: Record<string, unknown>
+}
+
+/**
+ * Body de POST /proyectos. El código lo genera el sistema y el proyecto nace
+ * En planificación y activo. Las fechas viajan como `YYYY-MM-DD`: el backend
+ * las ancla a la medianoche de Argentina.
+ */
+export interface CrearProyectoPayload {
+  nombre: string
+  direccion: string
+  localidad: string
+  cantidad_unidades_planificadas: number
+  descripcion?: string
+  fecha_inicio?: string
+  fecha_fin_estimada?: string
+  imagen_portada_url?: string
+}
+
+/**
+ * Body de PATCH /proyectos/:id. Edición parcial: solo se modifica lo que
+ * llega. En los cuatro opcionales, `null` borra el valor guardado.
+ */
+export interface EditarProyectoPayload {
+  nombre?: string
+  direccion?: string
+  localidad?: string
+  cantidad_unidades_planificadas?: number
+  descripcion?: string | null
+  fecha_inicio?: string | null
+  fecha_fin_estimada?: string | null
+  imagen_portada_url?: string | null
+}
+
+/** Los únicos destinos que acepta PATCH /proyectos/:id/estado-obra. */
+export type EstadoObraDestino = Extract<EstadoProyecto, 'EN_EJECUCION' | 'FINALIZADO'>
+
+/** Body de POST /proyectos/:id/imagenes. Sin `orden`, la imagen va al final de la galería. */
+export interface AgregarImagenProyectoPayload {
+  url: string
+  tipo: TipoImagenProyecto
+  orden?: number
 }

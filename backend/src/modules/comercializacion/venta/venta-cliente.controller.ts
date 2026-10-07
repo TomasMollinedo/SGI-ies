@@ -73,7 +73,7 @@ export class VentaClienteController {
   @ApiBearerAuth()
   @ApiOperation({
     summary:
-      'Detalle de una unidad del cliente autenticado: plan de pago y cronograma completo de cuotas (HU-28)',
+      'Detalle de una unidad del cliente autenticado: plan de pago acordado en la venta (modalidad, precio, anticipo, saldo financiado, cuotas, TNA, valor de cuota, intereses y total a pagar) y cronograma completo de cuotas con capital e interés (HU-28)',
     description:
       'El historial de pagos vive aparte, paginado (GET /cliente/ventas/:id/historial-pagos). "id" es id_venta.',
   })

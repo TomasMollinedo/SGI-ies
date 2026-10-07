@@ -18,8 +18,13 @@ import { Spinner } from '@/shared/components/ui/Spinner'
 import { useToast } from '@/shared/hooks/useToast'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { formatearMensajeError } from '@/shared/utils/apiError'
+import { AvisoUnidadesPlanificadas } from '../components/AvisoUnidadesPlanificadas'
 import { FiltrosUnidadesFuncionalesBar } from '../components/FiltrosUnidadesFuncionalesBar'
-import { LIMITE_PAGINA, crearColumnasUnidadesFuncionales } from '../config/unidadFuncional.config'
+import {
+  LIMITE_PAGINA,
+  crearColumnasUnidadesFuncionales,
+  esEstadoComercialUnidad,
+} from '../config/unidadFuncional.config'
 import {
   useDarDeBajaUnidadFuncional,
   useReactivarUnidadFuncional,
@@ -41,6 +46,7 @@ export function UnidadesFuncionalesPage() {
 
   const [proyectoId, setProyectoId] = useState('')
   const [tipologia, setTipologia] = useState('')
+  const [estadoComercial, setEstadoComercial] = useState('')
   const [superficieMin, setSuperficieMin] = useState('')
   const [superficieMax, setSuperficieMax] = useState('')
   const [estado, setEstado] = useState<FiltroEstado>('true')
@@ -51,11 +57,12 @@ export function UnidadesFuncionalesPage() {
   // Con otro filtro, la página en la que estaba parado el usuario puede no existir más.
   useEffect(() => {
     setPage(1)
-  }, [proyectoId, tipologia, superficieMin, superficieMax, estado])
+  }, [proyectoId, tipologia, estadoComercial, superficieMin, superficieMax, estado])
 
   const { data, isLoading, isFetching, error, refetch } = useUnidadesFuncionales({
     FK_proyecto: proyectoId ? Number(proyectoId) : undefined,
     tipologia: (tipologia || undefined) as Tipologia | undefined,
+    estado_comercial: esEstadoComercialUnidad(estadoComercial) ? estadoComercial : undefined,
     superficie_min: superficieMin ? Number(superficieMin) : undefined,
     superficie_max: superficieMax ? Number(superficieMax) : undefined,
     estado,
@@ -186,6 +193,8 @@ export function UnidadesFuncionalesPage() {
         onProyectoIdChange={setProyectoId}
         tipologia={tipologia}
         onTipologiaChange={setTipologia}
+        estadoComercial={estadoComercial}
+        onEstadoComercialChange={setEstadoComercial}
         superficieMin={superficieMin}
         onSuperficieMinChange={setSuperficieMin}
         superficieMax={superficieMax}
@@ -203,16 +212,26 @@ export function UnidadesFuncionalesPage() {
       />
 
       {proyecto && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <StatTile
-            label="Presupuesto del proyecto"
-            value={formatearMoneda(proyecto.presupuesto)}
+        <>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <StatTile
+              className="min-w-0"
+              valueClassName="text-2xl wrap-anywhere"
+              label="Presupuesto del proyecto"
+              value={formatearMoneda(proyecto.presupuesto)}
+            />
+            <StatTile
+              className="min-w-0"
+              valueClassName="text-2xl wrap-anywhere"
+              label="Unidades cargadas / planificadas"
+              value={`${proyecto.unidades_cargadas} / ${proyecto.cantidad_unidades_planificadas}`}
+            />
+          </div>
+          <AvisoUnidadesPlanificadas
+            cargadas={proyecto.unidades_cargadas}
+            planificadas={proyecto.cantidad_unidades_planificadas}
           />
-          <StatTile
-            label="Unidades cargadas / planificadas"
-            value={`${proyecto.unidades_cargadas} / ${proyecto.cantidad_unidades_planificadas}`}
-          />
-        </div>
+        </>
       )}
 
       {isLoading && (
@@ -241,12 +260,15 @@ export function UnidadesFuncionalesPage() {
 
       {!isLoading && !error && unidades.length > 0 && (
         <>
-          <DataTable
-            data={unidades}
-            columns={columnas}
-            obtenerId={(item) => String(item.id_unidad_funcional)}
-            ariaLabel="Unidades funcionales"
-          />
+          {/* Con tantas columnas, por debajo de este ancho la tabla scrollea en vez de apretar el texto. */}
+          <div className="overflow-x-auto [&>table]:min-w-[64rem]">
+            <DataTable
+              data={unidades}
+              columns={columnas}
+              obtenerId={(item) => String(item.id_unidad_funcional)}
+              ariaLabel="Unidades funcionales"
+            />
+          </div>
 
           {meta && (
             <Pagination

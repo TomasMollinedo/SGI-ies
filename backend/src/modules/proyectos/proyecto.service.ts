@@ -8,6 +8,7 @@ import {
 import { Prisma } from '../../../generated/prisma/client';
 import { EstadoProyecto } from '../../../generated/prisma/enums';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ProyectoFichaService } from './proyecto-ficha.service';
 import { CatalogoItemDto } from '../../common/dto/catalogo-item.dto';
 import { condicionBusquedaPorPalabras } from '../../common/validaciones/busqueda-por-palabras';
 import { validarNombreUnicoEntreActivos } from '../../common/validaciones/nombre-unico-entre-activos';
@@ -95,12 +96,16 @@ interface ProyectoBloqueado {
 /**
  * ABM de Proyecto (HU-31): alta, edición, avance del estado de obra, baja
  * lógica y galería de imágenes de diseño, además del listado y el detalle
- * que ya consumían HU-20 y HU-25. `presupuesto` y `unidades_cargadas` se
- * calculan al leer, a partir de las unidades funcionales activas.
+ * que ya consumían HU-20 y HU-25. `presupuesto`, `unidades_cargadas` y
+ * `porcentaje_vendido` se calculan al leer, a partir de las unidades
+ * funcionales activas.
  */
 @Injectable()
 export class ProyectoService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly fichaService: ProyectoFichaService,
+  ) {}
 
   /**
    * Catálogo de estados de obra para poblar el `<select>` del frontend.
@@ -232,13 +237,19 @@ export class ProyectoService {
       this.prisma.pROYECTO.count({ where }),
     ]);
 
-    const resumenes = await this.calcularResumenes(
-      proyectos.map((proyecto) => proyecto.id_proyecto),
-    );
+    const ids = proyectos.map((proyecto) => proyecto.id_proyecto);
+    const [resumenes, porcentajesVendidos] = await Promise.all([
+      this.calcularResumenes(ids),
+      this.fichaService.calcularPorcentajesVendidos(ids),
+    ]);
 
     return {
       data: proyectos.map((proyecto) =>
-        this.mapear(proyecto, resumenes.get(proyecto.id_proyecto)),
+        this.mapear(
+          proyecto,
+          resumenes.get(proyecto.id_proyecto),
+          porcentajesVendidos.get(proyecto.id_proyecto),
+        ),
       ),
       meta: { total, page, limit },
     };
@@ -258,8 +269,15 @@ export class ProyectoService {
       throw new NotFoundException(`No existe un proyecto con id ${id}`);
     }
 
-    const resumenes = await this.calcularResumenes([id]);
-    return this.mapear(proyecto, resumenes.get(id));
+    const [resumenes, porcentajesVendidos] = await Promise.all([
+      this.calcularResumenes([id]),
+      this.fichaService.calcularPorcentajesVendidos([id]),
+    ]);
+    return this.mapear(
+      proyecto,
+      resumenes.get(id),
+      porcentajesVendidos.get(id),
+    );
   }
 
   /**
@@ -658,15 +676,21 @@ export class ProyectoService {
     );
   }
 
-  /** Suma los dos valores calculados; `estado` (baja lógica) y `estado_obra` salen tal cual. */
+  /**
+   * Suma los valores calculados; `estado` (baja lógica) y `estado_obra` salen
+   * tal cual. Un proyecto sin unidades activas no tiene resumen ni
+   * porcentaje: queda todo en 0.
+   */
   private mapear<T extends ProyectoBase>(
     proyecto: T,
     resumen?: ResumenUnidades,
+    porcentajeVendido?: number,
   ) {
     return {
       ...proyecto,
       unidades_cargadas: resumen?.cargadas ?? 0,
       presupuesto: resumen?.presupuesto ?? 0,
+      porcentaje_vendido: porcentajeVendido ?? 0,
     };
   }
 }

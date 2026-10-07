@@ -17,7 +17,7 @@ interface FiltrosPublicacionesBarProps {
   onTipologiaChange: (valor: string) => void
   onLimpiar: () => void
   hayFiltros: boolean
-  /** Acciones de la pantalla (el botón de alta), alineadas a la derecha. */
+  /** Acciones de la pantalla (el botón de alta), a continuación de los filtros. */
   acciones?: ReactNode
 }
 
@@ -36,46 +36,45 @@ export function FiltrosPublicacionesBar({
   acciones,
 }: FiltrosPublicacionesBarProps) {
   return (
-    <div className="flex w-full flex-wrap items-end justify-between gap-3">
-      <div className="flex min-w-0 flex-wrap items-end gap-3">
-        <Select
-          size="sm"
-          label="Vigencia"
-          options={OPCIONES_VIGENCIA}
-          value={vigencia}
-          onChange={(evento) => onVigenciaChange(evento.target.value)}
-          className="w-full sm:w-44"
-        />
-        <Select
-          size="sm"
-          label="Estado comercial"
-          options={OPCIONES_ESTADO_COMERCIAL}
-          value={estado}
-          onChange={(evento) => onEstadoChange(evento.target.value)}
-          className="w-full sm:w-56"
-        />
-        <ProyectoCombobox value={proyecto} onChange={onProyectoChange} className="w-full sm:w-60" />
-        <Select
-          size="sm"
-          label="Tipología"
-          options={OPCIONES_TIPOLOGIA}
-          value={tipologia}
-          onChange={(evento) => onTipologiaChange(evento.target.value)}
-          className="w-full sm:w-48"
-        />
+    <div className="flex w-full flex-wrap items-end gap-3">
+      {/* Filtros y acciones comparten contenedor: si no entran en una fila, el botón de alta queda al lado de "Limpiar filtros" y no en una fila propia. */}
+      <Select
+        size="sm"
+        label="Vigencia"
+        options={OPCIONES_VIGENCIA}
+        value={vigencia}
+        onChange={(evento) => onVigenciaChange(evento.target.value)}
+        className="w-full sm:w-44"
+      />
+      <Select
+        size="sm"
+        label="Estado comercial"
+        options={OPCIONES_ESTADO_COMERCIAL}
+        value={estado}
+        onChange={(evento) => onEstadoChange(evento.target.value)}
+        className="w-full sm:w-60"
+      />
+      <ProyectoCombobox value={proyecto} onChange={onProyectoChange} className="w-full sm:w-60" />
+      <Select
+        size="sm"
+        label="Tipología"
+        options={OPCIONES_TIPOLOGIA}
+        value={tipologia}
+        onChange={(evento) => onTipologiaChange(evento.target.value)}
+        className="w-full sm:w-48"
+      />
 
-        <Button
-          size="sm"
-          icon={<FilterX />}
-          onClick={onLimpiar}
-          disabled={!hayFiltros}
-          title="Volver a los filtros por defecto"
-        >
-          Limpiar filtros
-        </Button>
-      </div>
+      <Button
+        size="sm"
+        icon={<FilterX />}
+        onClick={onLimpiar}
+        disabled={!hayFiltros}
+        title="Volver a los filtros por defecto"
+      >
+        Limpiar filtros
+      </Button>
 
-      {acciones}
+      {acciones && <div className="w-full sm:w-auto">{acciones}</div>}
     </div>
   )
 }

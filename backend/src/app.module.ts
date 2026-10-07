@@ -36,6 +36,7 @@ import { ProyectoModule } from './modules/proyectos/proyecto.module';
 import { ConsultaModule } from './modules/comercializacion/consulta/consulta.module';
 import { PlazoFinanciacionModule } from './modules/comercializacion/plazo-financiacion/plazo-financiacion.module';
 import { PlanEjemploModule } from './modules/comercializacion/plan-ejemplo/plan-ejemplo.module';
+import { TableroModule } from './modules/tablero/tablero.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
@@ -73,6 +74,7 @@ import { PlanEjemploModule } from './modules/comercializacion/plan-ejemplo/plan-
     PlazoFinanciacionModule,
     PlanEjemploModule,
     ProyectoModule,
+    TableroModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
