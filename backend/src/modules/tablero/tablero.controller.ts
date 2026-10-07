@@ -13,6 +13,7 @@ import {
 import { TableroService } from './tablero.service';
 import { QueryIngresosEgresosDto } from './dto/query-ingresos-egresos.dto';
 import { IngresosEgresosResponseDto } from './dto/ingresos-egresos-response.dto';
+import { MargenProyectoResponseDto } from './dto/margen-proyecto-response.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolNombre } from '../../common/enums/rol.enum';
 
@@ -75,5 +76,19 @@ export class TableroController {
   @ApiNotFoundResponse({ description: 'No existe un proyecto con ese id' })
   obtenerIngresosEgresos(@Query() query: QueryIngresosEgresosDto) {
     return this.tableroService.obtenerIngresosEgresos(query);
+  }
+
+  @Get('margen-proyecto')
+  @ApiOperation({
+    summary:
+      'Margen comercial de cada proyecto activo: realizado (ventas vigentes) y proyectado (unidades Disponibles), sin intereses de financiación',
+  })
+  @ApiOkResponse({
+    description:
+      'Un ítem por proyecto activo, más el margen realizado total de todos los proyectos. Todo se calcula al consultar, sin almacenarse',
+    type: MargenProyectoResponseDto,
+  })
+  obtenerMargenProyecto() {
+    return this.tableroService.obtenerMargenProyecto();
   }
 }

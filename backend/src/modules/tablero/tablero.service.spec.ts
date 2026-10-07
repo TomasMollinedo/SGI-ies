@@ -34,12 +34,80 @@ describe('TableroService', () => {
   let proyectoFindUnique: jest.Mock;
   let calcularResumenPeriodo: jest.Mock;
 
+  // obtenerMargenProyecto (T153): tres consultas independientes, cada una
+  // con su propia semilla configurable por test.
+  let proyectoFindMany: jest.Mock;
+  let ventaFindMany: jest.Mock;
+  let publicacionFindMany: jest.Mock;
+  let proyectosActivosSeed: {
+    id_proyecto: number;
+    codigo: string;
+    nombre: string;
+    unidadesActivas: number;
+  }[];
+  let ventasVigentesSeed: {
+    FK_proyecto: number;
+    unidadActiva: boolean;
+    costo: number;
+    precioVenta: number | null;
+  }[];
+  let publicacionesDisponiblesSeed: {
+    FK_proyecto: number;
+    unidadActiva: boolean;
+    costo: number;
+    precioLista: number | null;
+  }[];
+
   let lineasCobro: LineaCobro[];
   let pagos: PagoConfirmado[];
 
   beforeEach(() => {
     lineasCobro = [];
     pagos = [];
+    proyectosActivosSeed = [];
+    ventasVigentesSeed = [];
+    publicacionesDisponiblesSeed = [];
+
+    proyectoFindMany = jest.fn(() =>
+      Promise.resolve(
+        proyectosActivosSeed.map((p) => ({
+          id_proyecto: p.id_proyecto,
+          codigo: p.codigo,
+          nombre: p.nombre,
+          _count: { unidadesFuncionales: p.unidadesActivas },
+        })),
+      ),
+    );
+    ventaFindMany = jest.fn(() =>
+      Promise.resolve(
+        ventasVigentesSeed.map((v) => ({
+          publicacion: {
+            unidadFuncional: {
+              estado: v.unidadActiva,
+              costo: new Prisma.Decimal(v.costo),
+              FK_proyecto: v.FK_proyecto,
+            },
+          },
+          planPago:
+            v.precioVenta === null
+              ? null
+              : { precio_venta: new Prisma.Decimal(v.precioVenta) },
+        })),
+      ),
+    );
+    publicacionFindMany = jest.fn(() =>
+      Promise.resolve(
+        publicacionesDisponiblesSeed.map((p) => ({
+          precio_lista:
+            p.precioLista === null ? null : new Prisma.Decimal(p.precioLista),
+          unidadFuncional: {
+            estado: p.unidadActiva,
+            costo: new Prisma.Decimal(p.costo),
+            FK_proyecto: p.FK_proyecto,
+          },
+        })),
+      ),
+    );
 
     // Simula la base: filtra por el rango que pide el service, así los
     // cobros del rango anterior y del actual no se mezclan.
@@ -81,7 +149,12 @@ describe('TableroService', () => {
     service = new TableroService(
       {
         dETALLECOBRO: { findMany: detalleCobroFindMany },
-        pROYECTO: { findUnique: proyectoFindUnique },
+        pROYECTO: {
+          findUnique: proyectoFindUnique,
+          findMany: proyectoFindMany,
+        },
+        vENTA: { findMany: ventaFindMany },
+        pUBLICACIONUNIDAD: { findMany: publicacionFindMany },
       } as unknown as PrismaService,
       { calcularResumenPeriodo } as unknown as PagoService,
     );
@@ -454,6 +527,156 @@ describe('TableroService', () => {
           (p) => p.ingresos === 0 && p.egresos === 0 && p.resultado === 0,
         ),
       ).toBe(true);
+    });
+  });
+
+  describe('obtenerMargenProyecto (T153)', () => {
+    it('separa margen realizado (vendidas) y proyectado (Disponibles), y suma el total esperado', async () => {
+      proyectosActivosSeed = [
+        { id_proyecto: 1, codigo: 'P1', nombre: 'Torre A', unidadesActivas: 3 },
+      ];
+      ventasVigentesSeed = [
+        {
+          FK_proyecto: 1,
+          unidadActiva: true,
+          costo: 10000,
+          precioVenta: 15000,
+        },
+      ];
+      publicacionesDisponiblesSeed = [
+        { FK_proyecto: 1, unidadActiva: true, costo: 9000, precioLista: 12000 },
+      ];
+
+      const resultado = await service.obtenerMargenProyecto();
+
+      expect(resultado.proyectos).toHaveLength(1);
+      const [torreA] = resultado.proyectos;
+      expect(torreA.unidades_activas).toBe(3);
+      expect(torreA.unidades_vendidas).toBe(1);
+      expect(torreA.unidades_fuera_de_calculo).toBe(1); // 3 - 1 vendida - 1 disponible
+      expect(torreA.margen_realizado).toEqual({
+        importe: 5000,
+        porcentaje: 50,
+      });
+      expect(torreA.margen_proyectado).toEqual({
+        importe: 3000,
+        porcentaje: 33.33,
+      });
+      expect(torreA.margen_total_esperado).toBe(8000);
+      expect(resultado.margen_total_realizado).toBe(5000);
+    });
+
+    it('el porcentaje de unidades vendidas es sobre las activas del proyecto', async () => {
+      proyectosActivosSeed = [
+        { id_proyecto: 1, codigo: 'P1', nombre: 'Torre A', unidadesActivas: 4 },
+      ];
+      ventasVigentesSeed = [
+        {
+          FK_proyecto: 1,
+          unidadActiva: true,
+          costo: 10000,
+          precioVenta: 12000,
+        },
+      ];
+
+      const resultado = await service.obtenerMargenProyecto();
+
+      expect(resultado.proyectos[0].porcentaje_vendidas).toBe(25);
+    });
+
+    it('sin unidades activas, los porcentajes dan 0 y no NaN ni Infinity', async () => {
+      proyectosActivosSeed = [
+        { id_proyecto: 1, codigo: 'P1', nombre: 'Vacío', unidadesActivas: 0 },
+      ];
+
+      const resultado = await service.obtenerMargenProyecto();
+
+      expect(resultado.proyectos[0]).toMatchObject({
+        unidades_activas: 0,
+        porcentaje_vendidas: 0,
+        margen_realizado: { importe: 0, porcentaje: 0 },
+        margen_proyectado: { importe: 0, porcentaje: 0 },
+        margen_total_esperado: 0,
+      });
+    });
+
+    it('una unidad activa sin publicación o sin precio queda fuera del cálculo, no rompe nada', async () => {
+      proyectosActivosSeed = [
+        { id_proyecto: 1, codigo: 'P1', nombre: 'Torre A', unidadesActivas: 2 },
+      ];
+      // Ninguna venta ni publicación Disponible para este proyecto.
+
+      const resultado = await service.obtenerMargenProyecto();
+
+      expect(resultado.proyectos[0].unidades_fuera_de_calculo).toBe(2);
+      expect(resultado.proyectos[0].margen_realizado.importe).toBe(0);
+      expect(resultado.proyectos[0].margen_proyectado.importe).toBe(0);
+    });
+
+    it('el margen realizado total incluye ventas de proyectos dados de baja; el listado por proyecto no', async () => {
+      proyectosActivosSeed = [
+        { id_proyecto: 1, codigo: 'P1', nombre: 'Torre A', unidadesActivas: 1 },
+      ];
+      ventasVigentesSeed = [
+        {
+          FK_proyecto: 1,
+          unidadActiva: true,
+          costo: 10000,
+          precioVenta: 13000,
+        },
+        // Proyecto 2 no está en proyectosActivosSeed: está de baja.
+        { FK_proyecto: 2, unidadActiva: true, costo: 5000, precioVenta: 7000 },
+      ];
+
+      const resultado = await service.obtenerMargenProyecto();
+
+      expect(resultado.proyectos).toHaveLength(1);
+      expect(resultado.proyectos[0].margen_realizado.importe).toBe(3000);
+      // 3000 (proyecto activo) + 2000 (proyecto de baja) = 5000.
+      expect(resultado.margen_total_realizado).toBe(5000);
+    });
+
+    it('no cuenta una venta ni una publicación de una unidad dada de baja (red de seguridad)', async () => {
+      proyectosActivosSeed = [
+        { id_proyecto: 1, codigo: 'P1', nombre: 'Torre A', unidadesActivas: 1 },
+      ];
+      ventasVigentesSeed = [
+        {
+          FK_proyecto: 1,
+          unidadActiva: false,
+          costo: 10000,
+          precioVenta: 13000,
+        },
+      ];
+      publicacionesDisponiblesSeed = [
+        {
+          FK_proyecto: 1,
+          unidadActiva: false,
+          costo: 9000,
+          precioLista: 11000,
+        },
+      ];
+
+      const resultado = await service.obtenerMargenProyecto();
+
+      expect(resultado.proyectos[0].unidades_vendidas).toBe(0);
+      expect(resultado.proyectos[0].margen_realizado.importe).toBe(0);
+      expect(resultado.proyectos[0].margen_proyectado.importe).toBe(0);
+      expect(resultado.margen_total_realizado).toBe(0);
+    });
+
+    it('no incluye intereses: usa precio_venta, no un total con financiación', async () => {
+      proyectosActivosSeed = [
+        { id_proyecto: 1, codigo: 'P1', nombre: 'Torre A', unidadesActivas: 1 },
+      ];
+      // precio_venta = 10000 (lo acordado); si incluyera intereses sería más.
+      ventasVigentesSeed = [
+        { FK_proyecto: 1, unidadActiva: true, costo: 8000, precioVenta: 10000 },
+      ];
+
+      const resultado = await service.obtenerMargenProyecto();
+
+      expect(resultado.proyectos[0].margen_realizado.importe).toBe(2000);
     });
   });
 });

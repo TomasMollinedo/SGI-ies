@@ -46,6 +46,47 @@ type SumaIngresos = {
   >;
 };
 
+/** Margen de un grupo de unidades (vendidas o Disponibles) de un proyecto: la suma de precio − costo, y el costo total como base del porcentaje. */
+type AcumuladorMargen = {
+  cantidad: number;
+  margen: Prisma.Decimal;
+  costo: Prisma.Decimal;
+};
+
+function acumuladorVacio(): AcumuladorMargen {
+  return {
+    cantidad: 0,
+    margen: new Prisma.Decimal(0),
+    costo: new Prisma.Decimal(0),
+  };
+}
+
+function acumular(
+  mapa: Map<number, AcumuladorMargen>,
+  FK_proyecto: number,
+  precio: Prisma.Decimal,
+  costo: Prisma.Decimal,
+): void {
+  const actual = mapa.get(FK_proyecto) ?? acumuladorVacio();
+  actual.cantidad += 1;
+  actual.margen = actual.margen.plus(precio.minus(costo));
+  actual.costo = actual.costo.plus(costo);
+  mapa.set(FK_proyecto, actual);
+}
+
+/** Importe y, si hay costo de base, el porcentaje que representa sobre ese costo (0 si no hay). */
+function margenDe(acumulador: AcumuladorMargen | undefined) {
+  const margen = acumulador?.margen ?? new Prisma.Decimal(0);
+  const costo = acumulador?.costo ?? new Prisma.Decimal(0);
+
+  return {
+    importe: margen.toDecimalPlaces(2).toNumber(),
+    porcentaje: costo.isZero()
+      ? 0
+      : margen.div(costo).times(100).toDecimalPlaces(2).toNumber(),
+  };
+}
+
 @Injectable()
 export class TableroService {
   constructor(
@@ -159,6 +200,138 @@ export class TableroService {
             )
           : null,
       },
+    };
+  }
+
+  /**
+   * Margen comercial por proyecto activo (HU-34). No incluye intereses de
+   * financiación: usa `PLANPAGO.precio_venta` (lo que se acordó vender), no
+   * `total_a_pagar` (que suma los intereses de un plan financiado).
+   *
+   * - Realizado: unidades con una `VENTA` vigente — `precio_venta − costo`.
+   * - Proyectado: unidades con publicación vigente en `DISPONIBLE` — `precio_lista − costo`.
+   * - Quedan fuera del cálculo las unidades activas sin publicación vigente, o
+   *   publicadas `EN_PREPARACION` (sin precio de lista todavía).
+   * - Todo se calcula al consultar: nada de esto se guarda.
+   */
+  async obtenerMargenProyecto() {
+    const [proyectosActivos, ventasVigentes, publicacionesDisponibles] =
+      await Promise.all([
+        this.prisma.pROYECTO.findMany({
+          where: { estado: true },
+          select: {
+            id_proyecto: true,
+            codigo: true,
+            nombre: true,
+            _count: {
+              select: { unidadesFuncionales: { where: { estado: true } } },
+            },
+          },
+          orderBy: { nombre: 'asc' },
+        }),
+        this.prisma.vENTA.findMany({
+          where: { estado: 'VIGENTE' },
+          select: {
+            publicacion: {
+              select: {
+                unidadFuncional: {
+                  select: { estado: true, costo: true, FK_proyecto: true },
+                },
+              },
+            },
+            planPago: { select: { precio_venta: true } },
+          },
+        }),
+        this.prisma.pUBLICACIONUNIDAD.findMany({
+          where: { vigente: true, estado_comercial: 'DISPONIBLE' },
+          select: {
+            precio_lista: true,
+            unidadFuncional: {
+              select: { estado: true, costo: true, FK_proyecto: true },
+            },
+          },
+        }),
+      ]);
+
+    // Una unidad con venta vigente, o con publicación vigente Disponible,
+    // siempre está activa (no se puede dar de baja con publicación vigente);
+    // el filtro es una red de seguridad, no cambia el resultado esperado.
+    const realizadoPorProyecto = new Map<number, AcumuladorMargen>();
+    let margenTotalRealizado = new Prisma.Decimal(0);
+    for (const venta of ventasVigentes) {
+      const unidad = venta.publicacion.unidadFuncional;
+      if (!unidad.estado || !venta.planPago) continue;
+
+      const precioVenta = venta.planPago.precio_venta;
+      margenTotalRealizado = margenTotalRealizado.plus(
+        precioVenta.minus(unidad.costo),
+      );
+      acumular(
+        realizadoPorProyecto,
+        unidad.FK_proyecto,
+        precioVenta,
+        unidad.costo,
+      );
+    }
+
+    const proyectadoPorProyecto = new Map<number, AcumuladorMargen>();
+    for (const publicacion of publicacionesDisponibles) {
+      const unidad = publicacion.unidadFuncional;
+      // Comentario del schema: una vez definido, `precio_lista` nunca vuelve
+      // a `null`; `Disponible` sólo se llega habiéndolo definido. Si de
+      // todos modos faltara, la unidad queda fuera del cálculo, no rompe.
+      if (!unidad.estado || publicacion.precio_lista === null) continue;
+
+      acumular(
+        proyectadoPorProyecto,
+        unidad.FK_proyecto,
+        publicacion.precio_lista,
+        unidad.costo,
+      );
+    }
+
+    const proyectos = proyectosActivos.map((proyecto) => {
+      const realizado = realizadoPorProyecto.get(proyecto.id_proyecto);
+      const proyectado = proyectadoPorProyecto.get(proyecto.id_proyecto);
+      const unidadesActivas = proyecto._count.unidadesFuncionales;
+      const unidadesVendidas = realizado?.cantidad ?? 0;
+      const unidadesDisponibles = proyectado?.cantidad ?? 0;
+
+      const margenRealizado = margenDe(realizado);
+      const margenProyectado = margenDe(proyectado);
+
+      return {
+        proyecto: {
+          id_proyecto: proyecto.id_proyecto,
+          codigo: proyecto.codigo,
+          nombre: proyecto.nombre,
+        },
+        unidades_activas: unidadesActivas,
+        unidades_vendidas: unidadesVendidas,
+        porcentaje_vendidas:
+          unidadesActivas === 0
+            ? 0
+            : new Prisma.Decimal(unidadesVendidas)
+                .div(unidadesActivas)
+                .times(100)
+                .toDecimalPlaces(2)
+                .toNumber(),
+        unidades_fuera_de_calculo:
+          unidadesActivas - unidadesVendidas - unidadesDisponibles,
+        margen_realizado: margenRealizado,
+        margen_proyectado: margenProyectado,
+        margen_total_esperado: new Prisma.Decimal(margenRealizado.importe)
+          .plus(margenProyectado.importe)
+          .toDecimalPlaces(2)
+          .toNumber(),
+      };
+    });
+
+    return {
+      proyectos,
+      margen_total_realizado: margenTotalRealizado
+        .toDecimalPlaces(2)
+        .toNumber(),
     };
   }
 
