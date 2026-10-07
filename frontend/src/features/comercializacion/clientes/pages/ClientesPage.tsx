@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Eye, ShieldAlert } from 'lucide-react'
+import { ShieldAlert } from 'lucide-react'
 import { PATHS, rutaDetalleCliente } from '@/app/router/paths'
 import { DataTable } from '@/shared/components/common/DataTable'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
 import { Pagination } from '@/shared/components/common/Pagination'
+import { RowActions } from '@/shared/components/common/RowActions'
 import { EmptyState } from '@/shared/components/estados-pantalla/EmptyState'
 import { ErrorState } from '@/shared/components/estados-pantalla/ErrorState'
-import { IconButton } from '@/shared/components/ui/IconButton'
 import { Spinner } from '@/shared/components/ui/Spinner'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 import { formatearMensajeError } from '@/shared/utils/apiError'
+import { ClienteForm } from '../components/ClienteForm'
 import { FiltrosClientesBar } from '../components/FiltrosClientesBar'
 import { crearColumnasClientes, DEBOUNCE_BUSQUEDA, LIMITE_PAGINA } from '../config/cliente.config'
 import { useClientes } from '../hooks/useClientes'
@@ -39,6 +40,9 @@ export function ClientesPage() {
 
   const [filtros, setFiltros] = useState(FILTROS_VACIOS)
   const [page, setPage] = useState(1)
+  // El cliente que se está editando, o `null` con el modal cerrado. La fila
+  // del listado ya trae todo lo que el formulario necesita.
+  const [editando, setEditando] = useState<ClienteListItem | null>(null)
 
   const { busqueda, compras, mora, proyecto } = filtros
   const busquedaDebounced = useDebounce(busqueda.trim(), DEBOUNCE_BUSQUEDA)
@@ -87,16 +91,16 @@ export function ClientesPage() {
     {
       key: 'acciones',
       label: 'Acciones',
+      // Solo ver y editar: los clientes no se dan de baja nunca (conservan su
+      // historial) y no hay alta desde esta pantalla, así que `RowActions` no
+      // recibe `onDelete` ni `onReactivate` y no los renderiza. `isActive`
+      // queda en `true` porque un cliente no tiene estado: con esas dos
+      // acciones ausentes, el valor no cambia nada de lo que se dibuja.
       render: (item) => (
-        <IconButton
-          icon={<Eye />}
-          ariaLabel={`Ver la ficha de ${item.apellido ? `${item.nombre} ${item.apellido}` : item.nombre}`}
-          title="Ver ficha"
-          variant="soft"
-          size="sm"
-          bgColor="fondo-ver"
-          iconColor="info"
-          onClick={() => navigate(rutaDetalleCliente(item.id_cliente))}
+        <RowActions
+          isActive
+          onView={() => navigate(rutaDetalleCliente(item.id_cliente))}
+          onEdit={() => setEditando(item)}
         />
       ),
     },
@@ -184,6 +188,8 @@ export function ClientesPage() {
           )}
         </>
       )}
+
+      <ClienteForm cliente={editando} onClose={() => setEditando(null)} />
     </div>
   )
 }
