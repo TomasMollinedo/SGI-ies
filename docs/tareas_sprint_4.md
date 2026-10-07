@@ -5,7 +5,7 @@ Tareas técnicas del Sprint 4, tomadas del tablero de GitHub Projects [Proyecto 
 - **Cantidad de tareas:** 38 (33 del tablero y 5 nuevas; 2 del tablero se dan de baja)
 - **Estimación total:** 190 h (BD/Infra: 16 h, Frontend: 84 h, Backend: 90 h)
 - **Última sincronización con el tablero:** 2026-10-06
-- **Estado de este archivo:** sincronizado con los issues el 2026-10-06 (incluye los cierres de T121 y T157, y el alta de T160)
+- **Estado de este archivo:** sincronizado con los issues el 2026-10-06 (incluye los cierres de T121 y T157, y el alta de T160). Suma el cierre de T125 del 2026-10-07
 
 ## Cómo editar este archivo
 
@@ -184,6 +184,14 @@ Contrato que deja el backend de la ficha del proyecto. Todo se calcula al consul
 | T124 | El estado comercial de cada unidad sale de su publicación vigente (`SIN_PUBLICAR` si no tiene), igual que el listado de unidades de T128; no se consulta la venta. `unidades_calculadas` cuenta solo las unidades con precio de lista: una En preparación tiene publicación vigente pero todavía no tiene precio, así que no suma ni cuenta. Sin unidades activas, el porcentaje es 0 y no figura como Todas las unidades vendidas. |
 | T125 | Consume este contrato: la columna de porcentaje vendido sale de `porcentaje_vendido` del listado, y el resumen comercial y la lista de unidades, de `GET /proyectos/:id/ficha`. El indicador Todas las unidades vendidas se muestra con `todas_vendidas`, no comparando el porcentaje con 100 (está redondeado a 2 decimales). `precio_lista` llega en null para una unidad sin publicar o En preparación. Cada unidad abre su detalle con `id_unidad_funcional`. |
 | T153 | La base del porcentaje vendido ya está implementada en `proyectos/situacion-comercial.ts` (`calcularSituacionComercial`): el margen por proyecto tiene que usar la misma, para que el tablero y la ficha muestren el mismo número (OBS-29). |
+
+## Cambios por el cierre de T125 (2026-10-07)
+
+Cómo quedó la ficha del proyecto en el frontend.
+
+| Tarea | Qué cambió y por qué |
+|---|---|
+| T125 | El resumen (presupuesto, unidades cargadas / planificadas, precio estimado y % vendido) y la situación comercial van arriba del formulario, no debajo como decía la tarea, para que se vean de un vistazo. La lista de unidades va debajo del formulario. La portada y las imágenes de diseño ya las mostraba el modo LECTURA de T123. La ficha y el listado de proyectos se piden siempre al entrar, sin caché, porque Publicaciones, Ventas y Cobranzas cambian el % vendido y no invalidan proyectos. Cada unidad abre su detalle, y ese Volver regresa a la ficha. Limitación conocida: si desde ahí se edita la unidad, el Volver ya no regresa a la ficha. El % se muestra con hasta 2 decimales (`50 %`); el de planes de pago muestra siempre 2 (`50,00 %`), y es a propósito. |
 
 ## Cambios del 2026-10-06
 
@@ -488,16 +496,16 @@ Mostrar de un vistazo la situación del proyecto.
 
 ### Alcance
 
-- [ ] Mostrar el estado de obra y la situación comercial por separado
-- [ ] Mostrar presupuesto, precio estimado y unidades cargadas respecto de las planificadas
-- [ ] Mostrar la portada y las imágenes de diseño
-- [ ] Listar las unidades con identificador, tipología, superficie, costo, precio de lista y estado comercial
-- [ ] Sumar al listado de proyectos la columna de porcentaje vendido
+- [x] Mostrar el estado de obra y la situación comercial por separado
+- [x] Mostrar presupuesto, precio estimado y unidades cargadas respecto de las planificadas
+- [x] Mostrar la portada y las imágenes de diseño
+- [x] Listar las unidades con identificador, tipología, superficie, costo, precio de lista y estado comercial
+- [x] Sumar al listado de proyectos la columna de porcentaje vendido
 
 ### Listo cuando
 
-- [ ] Cada unidad de la lista abre su detalle
-- [ ] El indicador Todas las unidades vendidas aparece solo cuando corresponde
+- [x] Cada unidad de la lista abre su detalle
+- [x] El indicador Todas las unidades vendidas aparece solo cuando corresponde
 
 > ⚠️ Se monta sobre el detalle que deja T123 (`ProyectoDetallePage`, con el formulario en modo LECTURA, la portada, las imágenes de diseño, el avance de estado y la baja): agrega sus secciones debajo, no lo reescribe.
 

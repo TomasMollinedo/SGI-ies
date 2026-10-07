@@ -14,7 +14,7 @@ export const LIMITE_PAGINA = 10
  * `SIN_PUBLICAR`, que es una unidad sin publicación vigente: no es un estado
  * de la publicación sino su ausencia, por eso va en gris como "inactivo".
  */
-const ESTADO_COMERCIAL_UNIDAD_META: Record<
+export const ESTADO_COMERCIAL_UNIDAD_META: Record<
   EstadoComercialUnidad,
   { label: string; variant: BadgeVariant }
 > = {

@@ -13,12 +13,16 @@ import { formatearMensajeError } from '@/shared/utils/apiError'
 import { AuditoriaProyecto } from '../components/AuditoriaProyecto'
 import { CabeceraProyecto } from '../components/CabeceraProyecto'
 import { ProyectoForm } from '../components/ProyectoForm'
+import { ResumenComercialProyecto } from '../components/ResumenComercialProyecto'
+import { SituacionComercialProyecto } from '../components/SituacionComercialProyecto'
+import { UnidadesFichaProyecto } from '../components/UnidadesFichaProyecto'
 import { ESTADO_PROYECTO_LABEL } from '../config/proyecto.config'
 import { useProyectoForm } from '../hooks/useProyectoForm'
 import {
   useCambiarEstadoObraProyecto,
   useDarDeBajaProyecto,
   useProyectoDetalle,
+  useProyectoFicha,
 } from '../hooks/useProyectos'
 import {
   esProyectoModificable,
@@ -35,8 +39,9 @@ type Confirmacion = 'avanzar' | 'baja'
  * Avanzar estado de obra y Dar de baja. El avance de estado se hace solo desde
  * acá, con confirmación, y nunca ofrece volver atrás.
  *
- * Es la base de la ficha (T123). Está armada en tarjetas para que T125 agregue
- * secciones —el resumen comercial y la lista de unidades— sin reescribirla.
+ * Sobre esa base (T123) van las secciones de la ficha (T125): el resumen y la
+ * situación comercial arriba, y la lista de unidades debajo del formulario.
+ * Salen de una query aparte, así que la página no las espera ni se cae con ellas.
  */
 export function ProyectoDetallePage() {
   const { idProyecto } = useParams<{ idProyecto: string }>()
@@ -49,6 +54,14 @@ export function ProyectoDetallePage() {
 
   const { data: proyecto, isPending, error, refetch } = useProyectoDetalle(id)
   const form = useProyectoForm(proyecto)
+
+  const fichaQuery = useProyectoFicha(id)
+  // Con error no se muestra lo que haya quedado de una carga anterior: esos
+  // números pueden estar viejos.
+  const ficha = fichaQuery.isError ? undefined : fichaQuery.data
+  // Al reintentar tras un error la query sigue en error hasta que responde
+  // (`isPending` queda en false): sin esto no habría ninguna señal de carga.
+  const cargandoFicha = fichaQuery.isPending || (fichaQuery.isError && fichaQuery.isFetching)
 
   const cambiarEstadoObra = useCambiarEstadoObraProyecto()
   const baja = useDarDeBajaProyecto()
@@ -246,9 +259,25 @@ export function ProyectoDetallePage() {
         </div>
       )}
 
+      <ResumenComercialProyecto proyecto={proyecto} ficha={ficha} cargandoFicha={cargandoFicha} />
+
+      <SituacionComercialProyecto
+        ficha={ficha}
+        cargando={cargandoFicha}
+        error={fichaQuery.error ? formatearMensajeError(fichaQuery.error.message) : null}
+        onReintentar={() => fichaQuery.refetch()}
+      />
+
       <ProyectoForm modo="lectura" form={form} proyecto={proyecto} />
 
-      {/* T125 agrega acá sus secciones: resumen comercial y lista de unidades. */}
+      {/* Si la ficha falló, el error ya está en la situación comercial: no se repite. */}
+      {(!fichaQuery.isError || cargandoFicha) && (
+        <UnidadesFichaProyecto
+          idProyecto={proyecto.id_proyecto}
+          unidades={ficha?.unidades}
+          cargando={cargandoFicha}
+        />
+      )}
 
       <AuditoriaProyecto proyecto={proyecto} />
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import type { UseFormSetError } from 'react-hook-form'
-import { useNavigate, useParams } from 'react-router'
+import { useLocation, useNavigate, useParams } from 'react-router'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Building2, Check, Pencil, TriangleAlert, X } from 'lucide-react'
 import { PATHS, rutaDetalleUnidadFuncional, rutaEditarUnidadFuncional } from '@/app/router/paths'
@@ -109,10 +109,17 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
   const { id } = useParams<{ id: string }>()
   const idUnidad = id ? Number(id) : null
   const navigate = useNavigate()
+  const location = useLocation()
   const toast = useToast()
 
   const soloLectura = modo === 'lectura'
   const esAlta = modo === 'crear'
+
+  // Si se llegó desde la ficha de un proyecto, el Volver del modo LECTURA
+  // regresa ahí. Guardar, dar de baja, reactivar y salir de la edición no lo
+  // usan: siguen yendo al listado o al detalle de la unidad, porque ahí es
+  // donde se ve el resultado de esa operación.
+  const rutaProyectoOrigen = soloLectura ? leerRutaProyectoOrigen(location.state) : null
 
   const [modalProyectoAbierto, setModalProyectoAbierto] = useState(false)
   const [proyectoElegido, setProyectoElegido] = useState<ProyectoElegido | null>(null)
@@ -256,6 +263,10 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
    */
   function salirHacia(destino: Destino) {
     if (guardando) return
+    if (destino === 'listado' && rutaProyectoOrigen) {
+      navigate(rutaProyectoOrigen)
+      return
+    }
     if (isDirty && !soloLectura) {
       setConfirmarSalida(destino)
       return
@@ -274,7 +285,11 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
   if (!esAlta && errorUnidad) {
     return (
       <div className="space-y-4">
-        <BotonVolverAlListado onClick={() => salirHacia('listado')} disabled={guardando} />
+        <BotonVolverAlListado
+          onClick={() => salirHacia('listado')}
+          disabled={guardando}
+          alProyecto={rutaProyectoOrigen !== null}
+        />
         <ErrorState
           mensaje={formatearMensajeError(errorUnidad.message)}
           onReintentar={() => refetchUnidad()}
@@ -287,7 +302,11 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
 
   return (
     <div className="space-y-4">
-      <BotonVolverAlListado onClick={() => salirHacia('listado')} disabled={guardando} />
+      <BotonVolverAlListado
+        onClick={() => salirHacia('listado')}
+        disabled={guardando}
+        alProyecto={rutaProyectoOrigen !== null}
+      />
 
       <section
         aria-label="Cabecera de la unidad funcional"
@@ -594,16 +613,40 @@ export function UnidadFuncionalFormPage({ modo }: UnidadFuncionalFormPageProps) 
   )
 }
 
-function BotonVolverAlListado({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+/**
+ * La ruta de la ficha de proyecto desde la que se abrió la unidad, o `null`.
+ * El `state` de la navegación puede traer cualquier cosa: solo se acepta un
+ * string que apunte adentro de Proyectos.
+ */
+function leerRutaProyectoOrigen(state: unknown): string | null {
+  if (typeof state !== 'object' || state === null || !('volverA' in state)) return null
+  const { volverA } = state
+  return typeof volverA === 'string' && volverA.startsWith(`${PATHS.PROYECTOS.ROOT}/`)
+    ? volverA
+    : null
+}
+
+function BotonVolverAlListado({
+  onClick,
+  disabled,
+  alProyecto = false,
+}: {
+  onClick: () => void
+  disabled?: boolean
+  /** Se llegó desde la ficha de un proyecto: vuelve ahí en vez de al listado. */
+  alProyecto?: boolean
+}) {
   return (
     <Button
       size="sm"
       icon={<ArrowLeft />}
       onClick={onClick}
       disabled={disabled}
-      title="Volver al listado de unidades funcionales"
+      title={
+        alProyecto ? 'Volver a la ficha del proyecto' : 'Volver al listado de unidades funcionales'
+      }
     >
-      Volver a Unidades Funcionales
+      {alProyecto ? 'Volver al proyecto' : 'Volver a Unidades Funcionales'}
     </Button>
   )
 }

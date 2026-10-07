@@ -9,6 +9,7 @@ import type {
   ProyectoResumen,
   TipoImagenProyecto,
 } from '../types/proyecto.types'
+import { formatearPorcentaje } from '../utils/formatearPorcentaje'
 
 export const ESTADO_PROYECTO_LABEL: Record<EstadoProyecto, string> = {
   EN_PLANIFICACION: 'En planificación',
@@ -92,6 +93,13 @@ export const COLUMNAS_PROYECTOS: DataTableColumn<ProyectoResumen>[] = [
     label: 'Unidades',
     headerTooltip: 'Unidades activas cargadas / unidades planificadas',
     render: (item) => `${item.unidades_cargadas} / ${item.cantidad_unidades_planificadas}`,
+  },
+  {
+    key: 'porcentajeVendido',
+    label: '% vendido',
+    headerTooltip:
+      'Unidades En Plan de Pago o Vendidas sobre las unidades activas cargadas, no sobre las planificadas',
+    render: (item) => formatearPorcentaje(item.porcentaje_vendido),
   },
   {
     key: 'fechaFinEstimada',
