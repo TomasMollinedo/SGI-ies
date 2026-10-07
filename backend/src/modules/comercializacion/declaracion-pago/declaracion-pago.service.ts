@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../../../generated/prisma/client';
@@ -14,6 +15,8 @@ import {
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AlmacenamientoService } from '../../almacenamiento/almacenamiento.service';
+import { esTipoComprobantePermitido } from '../../almacenamiento/comprobante.constants';
+import { normalizarNombreComprobante } from './comprobante-archivo';
 import { validarNumeroReferencia } from '../../../common/validaciones/validar-numero-referencia';
 import { clienteTieneDatosCompletos } from '../cliente-auth/cliente-tiene-datos-completos';
 import { FormaPagoService } from '../../tesoreria/forma-pago/forma-pago.service';
@@ -39,6 +42,23 @@ type CuotaDeclarable = Prisma.CUOTAGetPayload<{
 }>;
 
 /**
+ * `comprobante_ruta` es la clave del objeto en el bucket privado: no sale en
+ * ninguna respuesta HTTP. Las escrituras que devuelven la fila la omiten con
+ * esto.
+ */
+const SIN_RUTA_DEL_COMPROBANTE = { comprobante_ruta: true } as const;
+
+type DeclaracionSinRuta = Prisma.DECLARACIONPAGOGetPayload<{
+  omit: typeof SIN_RUTA_DEL_COMPROBANTE;
+}>;
+
+const COMPROBANTE_PARA_LEER_SELECT = {
+  comprobante_ruta: true,
+  comprobante_nombre_archivo: true,
+  comprobante_tipo: true,
+} as const;
+
+/**
  * Lo que la bandeja de Tesorería necesita para cotejar una declaración sin
  * otra consulta. El cliente, con los mismos campos que
  * `CLIENTE_RESUMEN_SELECT` del listado de cobros.
@@ -56,6 +76,9 @@ const DECLARACION_LIST_ITEM_SELECT = {
   FK_usuario_validador: true,
   FK_cobro: true,
   hora_creacion: true,
+  // Sin `comprobante_ruta`: la clave del objeto no sale de la API.
+  comprobante_nombre_archivo: true,
+  comprobante_tipo: true,
   cliente: {
     select: {
       id_cliente: true,
@@ -93,6 +116,8 @@ const DECLARACION_LIST_ITEM_SELECT = {
 
 @Injectable()
 export class DeclaracionPagoService {
+  private readonly logger = new Logger(DeclaracionPagoService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly formaPagoService: FormaPagoService,
@@ -133,24 +158,53 @@ export class DeclaracionPagoService {
     validarNumeroReferencia(dto.numero_referencia, formaPago);
     this.validarImporteNoSuperaSaldo(dto.importe, cuota);
 
-    // Se sube recién cuando la declaración ya pasó todas las validaciones: un
-    // rechazo no deja archivos huérfanos en el bucket.
-    const { ruta } = await this.almacenamientoService.subirComprobante(comprobante);
+    // Se sube recién cuando la declaración ya pasó todas las validaciones,
+    // así un rechazo de negocio no sube nada. Igual puede quedar un archivo
+    // huérfano si falla el alta en la base: por eso el try/catch de abajo.
+    const { ruta } =
+      await this.almacenamientoService.subirComprobante(comprobante);
 
-    const declaracion = await this.prisma.dECLARACIONPAGO.create({
-      data: {
-        FK_cliente: clienteId,
-        FK_cuota: dto.FK_cuota,
-        FK_forma_pago: dto.FK_forma_pago,
-        importe: new Prisma.Decimal(dto.importe),
-        numero_referencia: dto.numero_referencia,
-        comprobante_ruta: ruta,
-        comprobante_nombre_archivo: comprobante.originalname,
-        comprobante_tipo: comprobante.mimetype,
-      },
-    });
+    let declaracion: DeclaracionSinRuta;
+    try {
+      declaracion = await this.prisma.dECLARACIONPAGO.create({
+        data: {
+          FK_cliente: clienteId,
+          FK_cuota: dto.FK_cuota,
+          FK_forma_pago: dto.FK_forma_pago,
+          importe: new Prisma.Decimal(dto.importe),
+          numero_referencia: dto.numero_referencia,
+          comprobante_ruta: ruta,
+          comprobante_nombre_archivo: normalizarNombreComprobante(
+            comprobante.originalname,
+          ),
+          // El tipo real: el controller ya lo pisó con el detectado por
+          // contenido (`overrideMimeType`).
+          comprobante_tipo: comprobante.mimetype,
+        },
+        omit: SIN_RUTA_DEL_COMPROBANTE,
+      });
+    } catch (error) {
+      await this.eliminarComprobanteHuerfano(ruta);
+      throw error;
+    }
 
     return this.mapearRespuesta(declaracion);
+  }
+
+  /**
+   * Borra el comprobante recién subido cuando el alta de la declaración
+   * falló. Nunca tira: si el borrado también falla se loguea, para que quien
+   * llama relance el error original y no este.
+   */
+  private async eliminarComprobanteHuerfano(ruta: string) {
+    try {
+      await this.almacenamientoService.eliminarComprobante(ruta);
+    } catch (error) {
+      this.logger.error(
+        `No se pudo borrar el comprobante huérfano "${ruta}" del bucket`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
   }
 
   /**
@@ -161,10 +215,7 @@ export class DeclaracionPagoService {
   async obtenerComprobanteDelCliente(id: number, clienteId: number) {
     const declaracion = await this.prisma.dECLARACIONPAGO.findFirst({
       where: { id_declaracion_pago: id, FK_cliente: clienteId },
-      select: {
-        comprobante_ruta: true,
-        comprobante_nombre_archivo: true,
-      },
+      select: COMPROBANTE_PARA_LEER_SELECT,
     });
 
     return this.leerComprobante(declaracion);
@@ -174,32 +225,35 @@ export class DeclaracionPagoService {
   async obtenerComprobanteInterno(id: number) {
     const declaracion = await this.prisma.dECLARACIONPAGO.findUnique({
       where: { id_declaracion_pago: id },
-      select: {
-        comprobante_ruta: true,
-        comprobante_nombre_archivo: true,
-      },
+      select: COMPROBANTE_PARA_LEER_SELECT,
     });
 
     return this.leerComprobante(declaracion);
   }
 
   private async leerComprobante(
-    declaracion: {
-      comprobante_ruta: string | null;
-      comprobante_nombre_archivo: string | null;
-    } | null,
+    declaracion: Prisma.DECLARACIONPAGOGetPayload<{
+      select: typeof COMPROBANTE_PARA_LEER_SELECT;
+    }> | null,
   ) {
     if (!declaracion?.comprobante_ruta) {
-      throw new NotFoundException('No existe un comprobante para esta declaración');
+      throw new NotFoundException(
+        'No existe un comprobante para esta declaración',
+      );
     }
 
-    const { contenido, tipo } = await this.almacenamientoService.leerComprobante(
+    const { contenido } = await this.almacenamientoService.leerComprobante(
       declaracion.comprobante_ruta,
     );
 
     return {
       contenido,
-      tipo,
+      // El tipo sale de la base y solo si está en la whitelist: cualquier
+      // otro valor se sirve como binario genérico, que el navegador descarga
+      // en vez de interpretar.
+      tipo: esTipoComprobantePermitido(declaracion.comprobante_tipo)
+        ? declaracion.comprobante_tipo
+        : 'application/octet-stream',
       nombreArchivo: declaracion.comprobante_nombre_archivo ?? 'comprobante',
     };
   }
@@ -252,6 +306,7 @@ export class DeclaracionPagoService {
         return {
           ...declaracion,
           importe: declaracion.importe.toNumber(),
+          tiene_comprobante: declaracion.comprobante_tipo !== null,
           cuota: {
             id_cuota: cuota.id_cuota,
             numero: cuota.numero,
@@ -375,6 +430,7 @@ export class DeclaracionPagoService {
         fecha_resolucion: new Date(),
         FK_usuario_validador: usuarioId,
       },
+      omit: SIN_RUTA_DEL_COMPROBANTE,
     });
 
     return this.mapearRespuesta(actualizada);
@@ -481,6 +537,7 @@ export class DeclaracionPagoService {
             FK_usuario_validador: usuarioId,
             fecha_resolucion: new Date(),
           },
+          omit: SIN_RUTA_DEL_COMPROBANTE,
         });
       },
     );
@@ -514,9 +571,20 @@ export class DeclaracionPagoService {
     return declaracion;
   }
 
-  private mapearRespuesta<T extends { importe: Prisma.Decimal }>(
-    declaracion: T,
-  ): Omit<T, 'importe'> & { importe: number } {
-    return { ...declaracion, importe: declaracion.importe.toNumber() };
+  /**
+   * Respuesta de `declarar`, `rechazar` y `validar`. Las consultas ya omiten
+   * `comprobante_ruta`; se vuelve a quitar acá por si alguna vez llega igual
+   * (una consulta nueva que se olvide del `omit`): la clave del objeto no
+   * sale en ninguna respuesta.
+   */
+  private mapearRespuesta(declaracion: DeclaracionSinRuta) {
+    const respuesta = {
+      ...declaracion,
+      importe: declaracion.importe.toNumber(),
+      tiene_comprobante: declaracion.comprobante_tipo !== null,
+    };
+    delete (respuesta as { comprobante_ruta?: unknown }).comprobante_ruta;
+
+    return respuesta;
   }
 }

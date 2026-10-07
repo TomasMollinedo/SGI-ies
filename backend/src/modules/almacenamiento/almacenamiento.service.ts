@@ -1,12 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
 import type { EnvConfig } from '../../config/env.schema';
 import { extensionDelComprobante } from './comprobante.constants';
 
 @Injectable()
 export class AlmacenamientoService {
+  private readonly logger = new Logger(AlmacenamientoService.name);
   private readonly s3: S3Client;
   private readonly bucket: string;
   private readonly bucketComprobantes: string;
@@ -64,9 +75,19 @@ export class AlmacenamientoService {
   /**
    * Sube un comprobante al bucket privado. Devuelve la clave del objeto (la
    * ruta que se guarda en la declaración), nunca una URL pública.
+   *
+   * `file.mimetype` tiene que ser el tipo real del archivo (el controller lo
+   * pisa con el detectado por contenido): de ahí salen la extensión y el
+   * `ContentType` del objeto. Si no está en la whitelist no se sube nada.
    */
   async subirComprobante(file: Express.Multer.File): Promise<{ ruta: string }> {
-    const key = `${randomUUID()}.${extensionDelComprobante(file.mimetype)}`;
+    const extension = extensionDelComprobante(file.mimetype);
+    if (!extension) {
+      throw new BadRequestException(
+        'El comprobante tiene que ser un PDF, un JPG o un PNG',
+      );
+    }
+    const key = `${randomUUID()}.${extension}`;
 
     await this.s3.send(
       new PutObjectCommand({
@@ -80,14 +101,34 @@ export class AlmacenamientoService {
     return { ruta: key };
   }
 
-  async leerComprobante(ruta: string): Promise<{ contenido: Buffer; tipo: string }> {
-    const respuesta = await this.s3.send(
-      new GetObjectCommand({ Bucket: this.bucketComprobantes, Key: ruta }),
-    );
+  /**
+   * Lee un comprobante del bucket privado. Si el objeto no está (la base
+   * apunta a una clave que el bucket ya no tiene), responde 404 en vez de 500
+   * y lo deja logueado: es una inconsistencia que hay que revisar.
+   */
+  async leerComprobante(ruta: string): Promise<{ contenido: Buffer }> {
+    try {
+      const respuesta = await this.s3.send(
+        new GetObjectCommand({ Bucket: this.bucketComprobantes, Key: ruta }),
+      );
 
-    return {
-      contenido: Buffer.from(await respuesta.Body!.transformToByteArray()),
-      tipo: respuesta.ContentType ?? 'application/octet-stream',
-    };
+      return {
+        contenido: Buffer.from(await respuesta.Body!.transformToByteArray()),
+      };
+    } catch (error) {
+      if (error instanceof Error && error.name === 'NoSuchKey') {
+        this.logger.error(
+          `El comprobante "${ruta}" figura en la base pero no existe en el bucket "${this.bucketComprobantes}"`,
+        );
+        throw new NotFoundException('El comprobante no está disponible');
+      }
+      throw error;
+    }
+  }
+
+  async eliminarComprobante(ruta: string): Promise<void> {
+    await this.s3.send(
+      new DeleteObjectCommand({ Bucket: this.bucketComprobantes, Key: ruta }),
+    );
   }
 }

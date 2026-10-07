@@ -131,8 +131,26 @@ export class CobroListResponseDto extends createZodDto(
   cobroListResponseSchema,
 ) {}
 
+/**
+ * La declaración de pago que originó el cobro: solo viene en un cobro de
+ * origen ECOMMERCE (nació de validar una declaración); en uno PRESENCIAL es
+ * `null`. El archivo del comprobante se pide a
+ * `GET /declaraciones-pago/:id/comprobante`.
+ */
+const declaracionPagoDelCobroSchema = z.object({
+  id_declaracion_pago: z.number(),
+  estado: z.enum(['PENDIENTE', 'VALIDADA', 'RECHAZADA']),
+  importe: z.number(),
+  numero_referencia: z.string().nullable(),
+  hora_creacion: z.iso.datetime(),
+  comprobante_nombre_archivo: z.string().nullable(),
+  comprobante_tipo: z.string().nullable(),
+  tiene_comprobante: z.boolean(),
+});
+
 /** Detalle (POST y GET /cobros/:id): cabecera completa + las líneas de imputación + auditoría. */
 export const cobroDetalleResponseSchema = cobroResponseSchema.extend({
+  declaracion_pago: declaracionPagoDelCobroSchema.nullable(),
   detalle: z.array(lineaCobroResponseSchema),
   usuarioCreador: usuarioResumenSchema,
   usuarioActualizador: usuarioResumenSchema,

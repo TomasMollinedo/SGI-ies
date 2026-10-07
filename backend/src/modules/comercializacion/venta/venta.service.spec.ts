@@ -1137,6 +1137,8 @@ describe('VentaService', () => {
       motivo_rechazo: null,
       hora_creacion: new Date('2026-09-20T15:00:00.000Z'),
       fecha_resolucion: null,
+      comprobante_nombre_archivo: 'pago.pdf',
+      comprobante_tipo: 'application/pdf',
       cuota: { id_cuota: 55, numero: 2 },
       formaPago: { nombre: 'Transferencia' },
       cobro: null,
@@ -1209,11 +1211,31 @@ describe('VentaService', () => {
         motivo_rechazo: null,
         hora_creacion: '2026-09-20T15:00:00.000Z',
         fecha_resolucion: null,
+        comprobante_nombre_archivo: 'pago.pdf',
+        comprobante_tipo: 'application/pdf',
+        tiene_comprobante: true,
         cuota: { id_cuota: 55, numero: 2 },
         forma_pago: { nombre: 'Transferencia' },
         cobro: null,
       });
       expect(resultado.data[0]).not.toHaveProperty('FK_usuario_validador');
+      expect(resultado.data[0]).not.toHaveProperty('comprobante_ruta');
+    });
+
+    it('una declaración sin comprobante (anterior a T146) responde tiene_comprobante: false', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dECLARACIONPAGO.findMany.mockResolvedValue([
+        declaracionBase({
+          comprobante_nombre_archivo: null,
+          comprobante_tipo: null,
+        }),
+      ]);
+      prisma.dECLARACIONPAGO.count.mockResolvedValue(1);
+
+      const resultado = await service.declaracionesPagoVenta(20, 1, paginaBase);
+
+      expect(resultado.data[0].tiene_comprobante).toBe(false);
+      expect(resultado.data[0].comprobante_nombre_archivo).toBeNull();
     });
 
     it('una VALIDADA trae el cobro que generó con su estado, también si después se anuló', async () => {

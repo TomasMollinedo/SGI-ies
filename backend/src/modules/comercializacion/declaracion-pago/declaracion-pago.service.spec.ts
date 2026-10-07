@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import {
   BadRequestException,
   ConflictException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { DeclaracionPagoService } from './declaracion-pago.service';
@@ -49,6 +50,7 @@ describe('DeclaracionPagoService', () => {
   let almacenamientoService: {
     subirComprobante: jest.Mock;
     leerComprobante: jest.Mock;
+    eliminarComprobante: jest.Mock;
   };
 
   const CLIENTE_ID = 1;
@@ -117,6 +119,8 @@ describe('DeclaracionPagoService', () => {
     FK_usuario_validador: null,
     FK_cobro: null,
     hora_creacion: new Date('2026-09-22T00:00:00.000Z'),
+    comprobante_nombre_archivo: 'pago.pdf',
+    comprobante_tipo: 'application/pdf',
     ...extra,
   });
 
@@ -186,8 +190,11 @@ describe('DeclaracionPagoService', () => {
       crearInterno: jest.fn().mockResolvedValue(ID_COBRO),
     };
     almacenamientoService = {
-      subirComprobante: jest.fn().mockResolvedValue({ ruta: 'clave-comprobante.pdf' }),
+      subirComprobante: jest
+        .fn()
+        .mockResolvedValue({ ruta: 'clave-comprobante.pdf' }),
       leerComprobante: jest.fn(),
+      eliminarComprobante: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -209,9 +216,9 @@ describe('DeclaracionPagoService', () => {
       telefono: null,
     });
 
-    await expect(service.declarar(dtoBase, CLIENTE_ID, comprobanteBase)).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      service.declarar(dtoBase, CLIENTE_ID, comprobanteBase),
+    ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.cUOTA.findFirst).not.toHaveBeenCalled();
     expect(prisma.dECLARACIONPAGO.create).not.toHaveBeenCalled();
   });
@@ -219,9 +226,9 @@ describe('DeclaracionPagoService', () => {
   it('rechaza con 404 si la cuota no existe o es de otro cliente (mismo error para los dos casos)', async () => {
     prisma.cUOTA.findFirst.mockResolvedValue(null);
 
-    await expect(service.declarar(dtoBase, CLIENTE_ID, comprobanteBase)).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.declarar(dtoBase, CLIENTE_ID, comprobanteBase),
+    ).rejects.toBeInstanceOf(NotFoundException);
     // El filtro de pertenencia va en el propio WHERE de la consulta, no en
     // un chequeo aparte: así una cuota ajena da el mismo 404 que una
     // inexistente, sin confirmarle al cliente que la cuota de otro existe.
@@ -242,9 +249,9 @@ describe('DeclaracionPagoService', () => {
       venta: { ...cuotaBase.venta, estado: EstadoVenta.CANCELADA },
     });
 
-    await expect(service.declarar(dtoBase, CLIENTE_ID, comprobanteBase)).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.declarar(dtoBase, CLIENTE_ID, comprobanteBase),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.dECLARACIONPAGO.create).not.toHaveBeenCalled();
   });
 
@@ -261,9 +268,9 @@ describe('DeclaracionPagoService', () => {
       },
     });
 
-    await expect(service.declarar(dtoBase, CLIENTE_ID, comprobanteBase)).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.declarar(dtoBase, CLIENTE_ID, comprobanteBase),
+    ).rejects.toBeInstanceOf(ConflictException);
 
     // Se corta antes de consultar la forma de pago: la regla es de la venta,
     // no depende de con qué pagó.
@@ -279,9 +286,9 @@ describe('DeclaracionPagoService', () => {
       estado: EstadoCuota.PAGADA,
     });
 
-    await expect(service.declarar(dtoBase, CLIENTE_ID, comprobanteBase)).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.declarar(dtoBase, CLIENTE_ID, comprobanteBase),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.dECLARACIONPAGO.create).not.toHaveBeenCalled();
   });
 
@@ -291,9 +298,9 @@ describe('DeclaracionPagoService', () => {
       estado: EstadoCuota.ANULADA,
     });
 
-    await expect(service.declarar(dtoBase, CLIENTE_ID, comprobanteBase)).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.declarar(dtoBase, CLIENTE_ID, comprobanteBase),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.dECLARACIONPAGO.create).not.toHaveBeenCalled();
   });
 
@@ -304,9 +311,9 @@ describe('DeclaracionPagoService', () => {
       ),
     );
 
-    await expect(service.declarar(dtoBase, CLIENTE_ID, comprobanteBase)).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.declarar(dtoBase, CLIENTE_ID, comprobanteBase),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(
       formaPagoService.buscarActivaHabilitadaAutogestion,
     ).toHaveBeenCalledWith(dtoBase.FK_forma_pago);
@@ -320,9 +327,9 @@ describe('DeclaracionPagoService', () => {
       ),
     );
 
-    await expect(service.declarar(dtoBase, CLIENTE_ID, comprobanteBase)).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.declarar(dtoBase, CLIENTE_ID, comprobanteBase),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.dECLARACIONPAGO.create).not.toHaveBeenCalled();
   });
 
@@ -339,7 +346,11 @@ describe('DeclaracionPagoService', () => {
 
   it('rechaza si el importe declarado supera el saldo pendiente de la cuota', async () => {
     await expect(
-      service.declarar({ ...dtoBase, importe: 1500 }, CLIENTE_ID, comprobanteBase),
+      service.declarar(
+        { ...dtoBase, importe: 1500 },
+        CLIENTE_ID,
+        comprobanteBase,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.dECLARACIONPAGO.create).not.toHaveBeenCalled();
   });
@@ -358,6 +369,7 @@ describe('DeclaracionPagoService', () => {
         comprobante_nombre_archivo: 'pago.pdf',
         comprobante_tipo: 'application/pdf',
       },
+      omit: { comprobante_ruta: true },
     });
     // Ningún método de CUOTA se invoca: la declaración nace sin efecto en
     // el saldo, eso ocurre recién si Tesorería la valida.
@@ -371,7 +383,11 @@ describe('DeclaracionPagoService', () => {
       saldo_pendiente: new Prisma.Decimal(300),
     });
 
-    await service.declarar({ ...dtoBase, importe: 300 }, CLIENTE_ID, comprobanteBase);
+    await service.declarar(
+      { ...dtoBase, importe: 300 },
+      CLIENTE_ID,
+      comprobanteBase,
+    );
 
     expect(prisma.dECLARACIONPAGO.create).toHaveBeenCalledWith({
       data: {
@@ -384,6 +400,7 @@ describe('DeclaracionPagoService', () => {
         comprobante_nombre_archivo: 'pago.pdf',
         comprobante_tipo: 'application/pdf',
       },
+      omit: { comprobante_ruta: true },
     });
     expect(prisma.cUOTA.findFirst).toHaveBeenCalledTimes(1);
   });
@@ -397,7 +414,11 @@ describe('DeclaracionPagoService', () => {
       .mockResolvedValueOnce(primeraDeclaracionCreada)
       .mockResolvedValueOnce(segundaDeclaracionCreada);
 
-    const primera = await service.declarar(dtoBase, CLIENTE_ID, comprobanteBase);
+    const primera = await service.declarar(
+      dtoBase,
+      CLIENTE_ID,
+      comprobanteBase,
+    );
     expect(primera.id_declaracion_pago).toBe(1);
     expect(primera.estado).toBe('PENDIENTE');
 
@@ -410,7 +431,11 @@ describe('DeclaracionPagoService', () => {
     // cuota, así que una RECHAZADA no bloquea volver a declarar: no tira
     // excepción, y crea una fila NUEVA (segundo `create`) en vez de
     // pisar/actualizar la anterior.
-    const segunda = await service.declarar(dtoBase, CLIENTE_ID, comprobanteBase);
+    const segunda = await service.declarar(
+      dtoBase,
+      CLIENTE_ID,
+      comprobanteBase,
+    );
     expect(segunda.id_declaracion_pago).toBe(2);
     expect(segunda.estado).toBe('PENDIENTE');
 
@@ -436,6 +461,7 @@ describe('DeclaracionPagoService', () => {
           fecha_resolucion: expect.any(Date) as Date,
           FK_usuario_validador: USUARIO_ID,
         },
+        omit: { comprobante_ruta: true },
       });
       expect(resultado.estado).toBe('RECHAZADA');
       expect(resultado.motivo_rechazo).toBe(dtoRechazar.motivo_rechazo);
@@ -513,6 +539,7 @@ describe('DeclaracionPagoService', () => {
           FK_usuario_validador: USUARIO_ID,
           fecha_resolucion: expect.any(Date) as Date,
         },
+        omit: { comprobante_ruta: true },
       });
       expect(resultado.estado).toBe('VALIDADA');
       expect(resultado.FK_cobro).toBe(ID_COBRO);
@@ -713,6 +740,7 @@ describe('DeclaracionPagoService', () => {
       expect(resultado.data[0]).toEqual({
         ...declaracionPendiente(),
         importe: 500,
+        tiene_comprobante: true,
         cliente: {
           id_cliente: CLIENTE_ID,
           nombre: 'Valentina',
@@ -783,7 +811,7 @@ describe('DeclaracionPagoService', () => {
             comprobante_ruta: 'clave-comprobante.pdf',
             comprobante_nombre_archivo: 'pago.pdf',
             comprobante_tipo: 'application/pdf',
-          }),
+          }) as unknown,
         }),
       );
     });
@@ -804,10 +832,10 @@ describe('DeclaracionPagoService', () => {
       prisma.dECLARACIONPAGO.findFirst.mockResolvedValue({
         comprobante_ruta: 'clave-comprobante.pdf',
         comprobante_nombre_archivo: 'pago.pdf',
+        comprobante_tipo: 'application/pdf',
       });
       almacenamientoService.leerComprobante.mockResolvedValue({
         contenido: Buffer.from('x'),
-        tipo: 'application/pdf',
       });
 
       const resultado = await service.obtenerComprobanteDelCliente(
@@ -817,13 +845,47 @@ describe('DeclaracionPagoService', () => {
 
       expect(prisma.dECLARACIONPAGO.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id_declaracion_pago: ID_DECLARACION, FK_cliente: CLIENTE_ID },
+          where: {
+            id_declaracion_pago: ID_DECLARACION,
+            FK_cliente: CLIENTE_ID,
+          },
         }),
       );
       expect(almacenamientoService.leerComprobante).toHaveBeenCalledWith(
         'clave-comprobante.pdf',
       );
       expect(resultado.nombreArchivo).toBe('pago.pdf');
+      expect(resultado.tipo).toBe('application/pdf');
+    });
+
+    it('sirve como binario genérico un comprobante cuyo tipo guardado no está en la whitelist', async () => {
+      prisma.dECLARACIONPAGO.findUnique.mockResolvedValue({
+        comprobante_ruta: 'clave-comprobante.pdf',
+        comprobante_nombre_archivo: 'pago.pdf',
+        comprobante_tipo: 'text/html',
+      });
+      almacenamientoService.leerComprobante.mockResolvedValue({
+        contenido: Buffer.from('x'),
+      });
+
+      const resultado = await service.obtenerComprobanteInterno(ID_DECLARACION);
+
+      expect(resultado.tipo).toBe('application/octet-stream');
+    });
+
+    it('si el archivo no está en el bucket, propaga el 404 del almacenamiento', async () => {
+      prisma.dECLARACIONPAGO.findUnique.mockResolvedValue({
+        comprobante_ruta: 'clave-comprobante.pdf',
+        comprobante_nombre_archivo: 'pago.pdf',
+        comprobante_tipo: 'application/pdf',
+      });
+      almacenamientoService.leerComprobante.mockRejectedValue(
+        new NotFoundException('El comprobante no está disponible'),
+      );
+
+      await expect(
+        service.obtenerComprobanteInterno(ID_DECLARACION),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('el cliente no ve la declaración de otro: 404 como si no existiera', async () => {
@@ -839,11 +901,155 @@ describe('DeclaracionPagoService', () => {
       prisma.dECLARACIONPAGO.findUnique.mockResolvedValue({
         comprobante_ruta: null,
         comprobante_nombre_archivo: null,
+        comprobante_tipo: null,
       });
 
       await expect(
         service.obtenerComprobanteInterno(ID_DECLARACION),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('correcciones de review de T146', () => {
+    /** Fila tal como vendría si una consulta se olvidara del `omit`. */
+    const conRuta = (extra: Partial<Record<string, unknown>> = {}) =>
+      declaracionPendiente({
+        comprobante_ruta: 'clave-comprobante.pdf',
+        ...extra,
+      });
+
+    it('declarar no devuelve comprobante_ruta (aunque la consulta la traiga) y sí tiene_comprobante', async () => {
+      prisma.dECLARACIONPAGO.create.mockResolvedValue(conRuta());
+
+      const resultado = await service.declarar(
+        dtoBase,
+        CLIENTE_ID,
+        comprobanteBase,
+      );
+
+      expect(resultado).not.toHaveProperty('comprobante_ruta');
+      expect(resultado.tiene_comprobante).toBe(true);
+      expect(resultado.comprobante_nombre_archivo).toBe('pago.pdf');
+      expect(resultado.comprobante_tipo).toBe('application/pdf');
+    });
+
+    it('rechazar no devuelve comprobante_ruta y sí tiene_comprobante', async () => {
+      prisma.dECLARACIONPAGO.update.mockResolvedValue(
+        conRuta({ estado: 'RECHAZADA' }),
+      );
+
+      const resultado = await service.rechazar(
+        ID_DECLARACION,
+        dtoRechazar,
+        USUARIO_ID,
+      );
+
+      expect(resultado).not.toHaveProperty('comprobante_ruta');
+      expect(resultado.tiene_comprobante).toBe(true);
+    });
+
+    it('validar no devuelve comprobante_ruta y sí tiene_comprobante', async () => {
+      tx.dECLARACIONPAGO.update.mockResolvedValue(
+        conRuta({ estado: 'VALIDADA', FK_cobro: ID_COBRO }),
+      );
+
+      const resultado = await service.validar(ID_DECLARACION, USUARIO_ID);
+
+      expect(resultado).not.toHaveProperty('comprobante_ruta');
+      expect(resultado.tiene_comprobante).toBe(true);
+    });
+
+    it('una declaración anterior a T146 (sin comprobante) responde tiene_comprobante: false', async () => {
+      prisma.dECLARACIONPAGO.update.mockResolvedValue(
+        declaracionPendiente({
+          estado: 'RECHAZADA',
+          comprobante_nombre_archivo: null,
+          comprobante_tipo: null,
+        }),
+      );
+
+      const resultado = await service.rechazar(
+        ID_DECLARACION,
+        dtoRechazar,
+        USUARIO_ID,
+      );
+
+      expect(resultado.tiene_comprobante).toBe(false);
+    });
+
+    it('la bandeja pide nombre y tipo del comprobante, nunca la ruta', async () => {
+      await service.listar({ page: 1, limit: 10 });
+
+      const { select } = (
+        prisma.dECLARACIONPAGO.findMany.mock.calls as [
+          { select: Record<string, unknown> },
+        ][]
+      )[0][0];
+      expect(select.comprobante_nombre_archivo).toBe(true);
+      expect(select.comprobante_tipo).toBe(true);
+      expect(select).not.toHaveProperty('comprobante_ruta');
+    });
+
+    it('guarda el nombre del archivo normalizado, no el que mandó el cliente', async () => {
+      await service.declarar(dtoBase, CLIENTE_ID, {
+        ...comprobanteBase,
+        originalname: '  ../..\\carpeta/pago\u0000 año.pdf ',
+      });
+
+      expect(prisma.dECLARACIONPAGO.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            comprobante_nombre_archivo: '....carpetapago año.pdf',
+          }) as unknown,
+        }),
+      );
+    });
+
+    describe('si el alta falla después de subir el comprobante', () => {
+      const errorDeBase = new Error('Fallo de la base al crear la declaración');
+
+      beforeEach(() => {
+        prisma.dECLARACIONPAGO.create.mockRejectedValue(errorDeBase);
+        // El service loguea el fallo del borrado: se silencia para no
+        // ensuciar la salida de los tests.
+        jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+      });
+
+      afterEach(() => {
+        jest.restoreAllMocks();
+      });
+
+      it('borra el comprobante recién subido y relanza el error original', async () => {
+        await expect(
+          service.declarar(dtoBase, CLIENTE_ID, comprobanteBase),
+        ).rejects.toBe(errorDeBase);
+
+        expect(almacenamientoService.eliminarComprobante).toHaveBeenCalledWith(
+          'clave-comprobante.pdf',
+        );
+      });
+
+      it('si además falla el borrado, igual relanza el error original (y lo loguea)', async () => {
+        almacenamientoService.eliminarComprobante.mockRejectedValue(
+          new Error('MinIO caído'),
+        );
+
+        await expect(
+          service.declarar(dtoBase, CLIENTE_ID, comprobanteBase),
+        ).rejects.toBe(errorDeBase);
+
+        expect(almacenamientoService.eliminarComprobante).toHaveBeenCalledTimes(
+          1,
+        );
+        // eslint-disable-next-line @typescript-eslint/unbound-method
+        expect(Logger.prototype.error).toHaveBeenCalled();
+      });
+    });
+
+    it('no intenta borrar nada si el alta sale bien', async () => {
+      await service.declarar(dtoBase, CLIENTE_ID, comprobanteBase);
+
+      expect(almacenamientoService.eliminarComprobante).not.toHaveBeenCalled();
     });
   });
 });

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   ParseIntPipe,
   Patch,
@@ -17,6 +18,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiProduces,
   ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -29,6 +31,8 @@ import {
   ESTADO_DECLARACION_PAGO,
 } from './dto/declaracion-pago-response.dto';
 import { QueryDeclaracionPagoDto } from './dto/query-declaracion-pago.dto';
+import { contentDispositionInline } from './comprobante-archivo';
+import { TIPOS_COMPROBANTE_PERMITIDOS } from '../../almacenamiento/comprobante.constants';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { RolNombre } from '../../../common/enums/rol.enum';
@@ -175,6 +179,8 @@ export class DeclaracionPagoAdminController {
    * `@Roles` de la clase: Tesorería y Comercialización también lo ven.
    */
   @Get(':id/comprobante')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('Cache-Control', 'private, no-store')
   @Roles(
     RolNombre.ADMINISTRADOR,
     RolNombre.GERENTE_GENERAL,
@@ -185,9 +191,16 @@ export class DeclaracionPagoAdminController {
     summary:
       'Ver el comprobante adjunto de una declaración de pago (Tesorería y Comercialización)',
   })
-  @ApiParam({ name: 'id', type: Number })
+  @ApiParam({ name: 'id', type: Number, description: 'id_declaracion_pago' })
+  @ApiProduces(...TIPOS_COMPROBANTE_PERMITIDOS)
+  // Excepción a la regla de `type: <DTO>` en las 2xx: la respuesta es el archivo, no un JSON.
+  @ApiOkResponse({
+    description: 'El archivo del comprobante, para verlo en el navegador',
+    schema: { type: 'string', format: 'binary' },
+  })
   @ApiNotFoundResponse({
-    description: 'No existe la declaración, o no tiene comprobante',
+    description:
+      'No existe la declaración, no tiene comprobante, o el archivo no está disponible',
   })
   async verComprobante(
     @Param('id', ParseIntPipe) id: number,
@@ -197,7 +210,8 @@ export class DeclaracionPagoAdminController {
 
     return new StreamableFile(contenido, {
       type: tipo,
-      disposition: `inline; filename="${nombreArchivo.replace(/"/g, '')}"`,
+      disposition: contentDispositionInline(nombreArchivo),
+      length: contenido.length,
     });
   }
 }

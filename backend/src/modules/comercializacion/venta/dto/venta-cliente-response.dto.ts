@@ -162,6 +162,10 @@ const declaracionPagoClienteSchema = z.object({
   motivo_rechazo: z.string().nullable(),
   hora_creacion: z.iso.datetime(),
   fecha_resolucion: z.iso.datetime().nullable(),
+  // El archivo se pide a `GET /cliente/declaraciones-pago/:id/comprobante`.
+  comprobante_nombre_archivo: z.string().nullable(),
+  comprobante_tipo: z.string().nullable(),
+  tiene_comprobante: z.boolean(),
   cuota: z.object({ id_cuota: z.number(), numero: z.number() }),
   forma_pago: formaPagoClienteResumenSchema,
   cobro: z
