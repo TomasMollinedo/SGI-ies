@@ -271,6 +271,14 @@ export class UnidadFuncionalService {
    * mensaje dice cuál (o los dos juntos, si se dan a la vez): la unidad tiene
    * una publicación vigente en el ecommerce, o su proyecto está En ejecución
    * o Finalizado.
+   *
+   * Toma dos locks de fila, en este orden: la UNIDAD y después su PROYECTO.
+   * El del proyecto es el mismo que toma `ProyectoService` al avanzar el
+   * estado de obra: sin él, pasar a En ejecución y dar de baja la última
+   * unidad activa podían validar a la vez, cada una con el dato viejo de la
+   * otra, y dejar un proyecto En ejecución sin unidades activas. Con el lock,
+   * la que llega segunda espera y recién después lee lo que la otra dejó
+   * commiteado.
    */
   async baja(id: number, usuarioId: number) {
     await this.prisma.$transaction(async (tx) => {
@@ -279,7 +287,19 @@ export class UnidadFuncionalService {
       if (!unidad.estado) {
         throw new ConflictException('La unidad ya está dada de baja');
       }
-      this.validarProyectoNoCancelado(unidad.proyecto.estado_obra);
+
+      // El lock del proyecto se pide DESPUÉS de saber que la unidad está
+      // activa, a propósito: `activar` lo toma en el orden inverso (proyecto y
+      // después el UPDATE de la unidad), pero solo sobre una unidad dada de
+      // baja, así que una baja y una reactivación de la misma unidad no llegan
+      // a esperarse mutuamente. `ProyectoService` cuenta las unidades activas
+      // con un `count`, sin locks de fila, y `PublicacionService.publicar` no
+      // toma el lock del proyecto: ninguno de los dos invierte el orden.
+      //
+      // El estado de obra sale de acá y no de `unidad.proyecto`: ese se leyó
+      // antes de tener el lock y puede ser el valor viejo.
+      const proyecto = await this.bloquearProyecto(tx, unidad.FK_proyecto);
+      this.validarProyectoNoCancelado(proyecto.estado_obra);
 
       const motivos: string[] = [];
 
@@ -292,11 +312,11 @@ export class UnidadFuncionalService {
       }
 
       if (
-        unidad.proyecto.estado_obra === EstadoProyecto.EN_EJECUCION ||
-        unidad.proyecto.estado_obra === EstadoProyecto.FINALIZADO
+        proyecto.estado_obra === EstadoProyecto.EN_EJECUCION ||
+        proyecto.estado_obra === EstadoProyecto.FINALIZADO
       ) {
         motivos.push(
-          `su proyecto está ${ESTADO_PROYECTO_LABELS[unidad.proyecto.estado_obra]} (con el proyecto en ejecución o finalizado solo se pueden editar las características descriptivas)`,
+          `su proyecto está ${ESTADO_PROYECTO_LABELS[proyecto.estado_obra]} (con el proyecto en ejecución o finalizado solo se pueden editar las características descriptivas)`,
         );
       }
 
@@ -537,17 +557,14 @@ export class UnidadFuncionalService {
   }
 
   /**
-   * Condiciones del PROYECTO para sumar una unidad activa, sea por un alta o
-   * por una reactivación: que exista, esté activo (HU-31), esté En
-   * planificación y no tenga ya tantas unidades activas como planificó.
-   *
-   * Toma el lock de la fila del proyecto (`SELECT ... FOR UPDATE`) y lo
-   * retiene hasta el final de la transacción: sin él, dos altas simultáneas
-   * contarían las mismas unidades activas y las dos pasarían el límite. Es el
-   * mismo lock que toma `ProyectoService` al editar las planificadas, así que
-   * tampoco se puede bajar esa cantidad justo mientras se carga una unidad.
+   * Toma el lock de la fila del proyecto (`SELECT ... FOR UPDATE`), el mismo
+   * que `ProyectoService.bloquearProyecto`, y lo retiene hasta el final de la
+   * transacción. Devuelve lo que las reglas de las unidades necesitan mirar
+   * del proyecto, leído DESPUÉS de tener el lock: si otra transacción lo
+   * estaba modificando, el `FOR UPDATE` espera a que termine y el
+   * `findUnique` ya ve lo que dejó commiteado.
    */
-  private async validarProyectoAdmiteAltas(
+  private async bloquearProyecto(
     tx: Prisma.TransactionClient,
     idProyecto: number,
   ) {
@@ -559,7 +576,7 @@ export class UnidadFuncionalService {
     }
 
     // La fila acaba de bloquearse: existe.
-    const proyecto = (await tx.pROYECTO.findUnique({
+    return (await tx.pROYECTO.findUnique({
       where: { id_proyecto: idProyecto },
       select: {
         estado: true,
@@ -567,6 +584,24 @@ export class UnidadFuncionalService {
         cantidad_unidades_planificadas: true,
       },
     }))!;
+  }
+
+  /**
+   * Condiciones del PROYECTO para sumar una unidad activa, sea por un alta o
+   * por una reactivación: que exista, esté activo (HU-31), esté En
+   * planificación y no tenga ya tantas unidades activas como planificó.
+   *
+   * Valida con el lock del proyecto tomado (ver `bloquearProyecto`): sin él,
+   * dos altas simultáneas contarían las mismas unidades activas y las dos
+   * pasarían el límite. Es el mismo lock que toma `ProyectoService` al editar
+   * las planificadas, así que tampoco se puede bajar esa cantidad justo
+   * mientras se carga una unidad.
+   */
+  private async validarProyectoAdmiteAltas(
+    tx: Prisma.TransactionClient,
+    idProyecto: number,
+  ) {
+    const proyecto = await this.bloquearProyecto(tx, idProyecto);
 
     if (!proyecto.estado) {
       throw new ConflictException(
