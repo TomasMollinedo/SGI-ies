@@ -12,6 +12,7 @@ import {
 import { RolNombre } from '../src/common/enums/rol.enum';
 import { PagoCuotaSeed, VentaSeed, sembrarVenta } from './seed-ventas';
 import { sembrarDeclaracion } from './seed-declaraciones';
+import { numeroOperacion } from './seed-referencias';
 import { ProyectoSeed, sembrarProyecto } from './seed-proyectos';
 import { sembrarPlazos } from './seed-plazos';
 import { diasDesdeHoy, mesesDesdeHoy } from './seed-fechas';
@@ -394,17 +395,21 @@ export async function sembrarComercializacion(prisma: PrismaClient) {
     FK_forma_pago: idEfectivo,
     numero_referencia: null,
   });
-  /** Cobro presencial por transferencia, con su número de referencia. */
+  /**
+   * Cobro presencial por transferencia. `semilla` identifica el pago dentro
+   * del seed y de ella sale un número de operación con formato real
+   * (`numeroOperacion`), siempre el mismo.
+   */
   const transferencia = (
     numero_cuota: number,
-    numero_referencia: string,
+    semilla: string,
     importe?: number,
   ): PagoCuotaSeed => ({
     numero_cuota,
     importe,
     origen: OrigenCobro.PRESENCIAL,
     FK_forma_pago: idTransferencia,
-    numero_referencia,
+    numero_referencia: numeroOperacion(semilla),
   });
   /** Paga completas, por transferencia, las cuotas 0 (anticipo) a `ultima`. */
   const pagosHasta = (ultima: number, referencia: string) =>
@@ -945,7 +950,7 @@ export async function sembrarComercializacion(prisma: PrismaClient) {
     FK_publicacion: publicacion2B.id_publicacion,
     numero_cuota: 4,
     importe: 300_000,
-    numero_referencia: 'TRF-2B-4-WEB',
+    numero_referencia: numeroOperacion('TRF-2B-4-WEB'),
     fecha_declaracion: diasDesdeHoy(-12),
     resolucion: {
       estado: EstadoDeclaracionPago.VALIDADA,
@@ -956,7 +961,7 @@ export async function sembrarComercializacion(prisma: PrismaClient) {
     FK_cliente: idValentina,
     FK_publicacion: publicacion2B.id_publicacion,
     numero_cuota: 5,
-    numero_referencia: 'TRF-2B-5-WEB-A',
+    numero_referencia: numeroOperacion('TRF-2B-5-WEB-A'),
     fecha_declaracion: diasDesdeHoy(-9),
     resolucion: {
       estado: EstadoDeclaracionPago.RECHAZADA,
@@ -968,7 +973,7 @@ export async function sembrarComercializacion(prisma: PrismaClient) {
     FK_cliente: idValentina,
     FK_publicacion: publicacion2B.id_publicacion,
     numero_cuota: 5,
-    numero_referencia: 'TRF-2B-5-WEB-B',
+    numero_referencia: numeroOperacion('TRF-2B-5-WEB-B'),
     fecha_declaracion: diasDesdeHoy(-2),
   });
   // Rodrigo, sobre 3-C: adelantó la cuota 3, que todavía no venció.
@@ -976,7 +981,7 @@ export async function sembrarComercializacion(prisma: PrismaClient) {
     FK_cliente: idRodrigo,
     FK_publicacion: publicacion3C.id_publicacion,
     numero_cuota: 3,
-    numero_referencia: 'TRF-3C-3-WEB',
+    numero_referencia: numeroOperacion('TRF-3C-3-WEB'),
     fecha_declaracion: diasDesdeHoy(-1),
   });
 

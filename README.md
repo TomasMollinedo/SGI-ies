@@ -50,7 +50,7 @@ npm run seed:prueba
 
 `seed:prueba` corre en orden los seeds de prueba: cuenta corriente de proveedores, Comercialización (proyectos, unidades, publicaciones, ventas, cobros y declaraciones) y un cliente para entrar al portal (ver `SEED_CLIENTE_EMAIL` en `.env`). Cada uno también se puede correr suelto: `seed:cuenta-corriente-prueba`, `seed:comercializacion` y `seed:t112-cliente1`.
 
-Se pueden correr las veces que haga falta: no duplican datos. Las fechas son relativas al día en que se corren (las cuotas vencidas siguen vencidas) y los comprobantes de las declaraciones se suben al bucket `ies-comprobantes`, así que MinIO tiene que estar levantado. `npm run seed:muestra -- --reset` borra los proyectos: no combinarlo con estos seeds.
+Se pueden correr las veces que haga falta: no duplican datos. Las fechas son relativas al día en que se corren (las cuotas vencidas siguen vencidas) y los comprobantes de las declaraciones se suben al bucket `ies-comprobantes`, así que MinIO tiene que estar levantado. Para Almacén (artículos, stock, movimientos y alertas) hay un seed aparte, `npm run seed:muestra`. No es idempotente: si ya hay stock cargado, correlo con `npm run seed:muestra -- --reset`, que borra solo el stock y lo vuelve a crear sin tocar los datos de los otros seeds.
 
 ### 3. Frontend
 

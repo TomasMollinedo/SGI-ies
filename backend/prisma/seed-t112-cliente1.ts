@@ -13,6 +13,7 @@ import { sembrarProyecto } from './seed-proyectos';
 import { PagoCuotaSeed, registrarCobro, sembrarVenta } from './seed-ventas';
 import { sembrarDeclaracion } from './seed-declaraciones';
 import { diasDesdeHoy } from './seed-fechas';
+import { numeroOperacion } from './seed-referencias';
 import { ejecutarSeed } from './seed-ejecutar';
 
 /**
@@ -132,19 +133,23 @@ export async function sembrarClientePrueba(prisma: PrismaClient) {
     FK_forma_pago: idEfectivo,
     numero_referencia: null,
   });
-  /** Cobro presencial por transferencia, con su número de referencia. */
+  /**
+   * Cobro presencial por transferencia. `semilla` identifica el pago dentro
+   * del seed y de ella sale un número de operación con formato real
+   * (`numeroOperacion`), siempre el mismo.
+   */
   const transferencia = (
     numero_cuota: number,
     importe: number | undefined,
     fecha: Date,
-    numero_referencia: string,
+    semilla: string,
   ): PagoCuotaSeed => ({
     numero_cuota,
     importe,
     fecha,
     origen: OrigenCobro.PRESENCIAL,
     FK_forma_pago: idTransferencia,
-    numero_referencia,
+    numero_referencia: numeroOperacion(semilla),
   });
 
   // ------------------------------------------------------------------
@@ -345,7 +350,7 @@ export async function sembrarClientePrueba(prisma: PrismaClient) {
     FK_publicacion: publicacionA.id_publicacion,
     numero_cuota: 2,
     importe: 500_000,
-    numero_referencia: 'TR-A101-WEB-1',
+    numero_referencia: numeroOperacion('TR-A101-WEB-1'),
     fecha_declaracion: diasDesdeHoy(-57),
     resolucion: {
       estado: EstadoDeclaracionPago.VALIDADA,
@@ -356,7 +361,7 @@ export async function sembrarClientePrueba(prisma: PrismaClient) {
     FK_publicacion: publicacionA.id_publicacion,
     numero_cuota: 2,
     importe: 500_000,
-    numero_referencia: 'TR-A101-WEB-2',
+    numero_referencia: numeroOperacion('TR-A101-WEB-2'),
     fecha_declaracion: diasDesdeHoy(-42),
     resolucion: {
       estado: EstadoDeclaracionPago.VALIDADA,
@@ -367,7 +372,7 @@ export async function sembrarClientePrueba(prisma: PrismaClient) {
   await declarar({
     FK_publicacion: publicacionA.id_publicacion,
     numero_cuota: 3,
-    numero_referencia: 'TR-A101-WEB-3',
+    numero_referencia: numeroOperacion('TR-A101-WEB-3'),
     fecha_declaracion: diasDesdeHoy(-30),
     resolucion: {
       estado: EstadoDeclaracionPago.RECHAZADA,
@@ -404,7 +409,7 @@ export async function sembrarClientePrueba(prisma: PrismaClient) {
           fecha: diasDesdeHoy(-15),
           origen: OrigenCobro.PRESENCIAL,
           FK_forma_pago: idTransferencia,
-          numero_referencia: 'TR-MIXTO-001',
+          numero_referencia: numeroOperacion('TR-MIXTO-001'),
           observaciones:
             'Transferencia única del cliente, imputada a la cuota 3 de A-101 y al anticipo de B-201',
         },
@@ -417,7 +422,7 @@ export async function sembrarClientePrueba(prisma: PrismaClient) {
   await declarar({
     FK_publicacion: publicacionA.id_publicacion,
     numero_cuota: 4,
-    numero_referencia: 'TR-A101-WEB-4',
+    numero_referencia: numeroOperacion('TR-A101-WEB-4'),
     fecha_declaracion: diasDesdeHoy(-1),
   });
 

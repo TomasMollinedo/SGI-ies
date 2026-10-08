@@ -106,7 +106,7 @@ const unidadesMedida = [
 
 const depositos = [
   {
-    nombre: 'Deposito Central',
+    nombre: 'Depósito Central',
     es_obrador: false,
     ubicacion: 'Sede central',
     descripcion: null,
