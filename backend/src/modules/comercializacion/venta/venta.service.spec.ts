@@ -1459,6 +1459,10 @@ describe('VentaService', () => {
       estado: 'CONFIRMADO',
       numero_referencia: 'TR-8891',
       formaPago: { nombre: 'Transferencia' },
+      declaracionPago: {
+        id_declaracion_pago: 7,
+        comprobante_tipo: 'application/pdf',
+      },
     };
 
     it('tira 404 si la venta no existe, no es de este cliente, o no está vigente', async () => {
@@ -1507,6 +1511,79 @@ describe('VentaService', () => {
         forma_pago: { nombre: 'Transferencia' },
         numero_referencia: 'TR-8891',
         importe_imputado: 450000,
+        declaracion_pago: { id_declaracion_pago: 7, tiene_comprobante: true },
+      });
+    });
+
+    it('un cobro PRESENCIAL no trae declaración de pago', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dETALLECOBRO.findMany.mockResolvedValue([
+        {
+          importe_imputado: new Prisma.Decimal(50000),
+          cobro: { ...cobroBase, origen: 'PRESENCIAL', declaracionPago: null },
+        },
+      ]);
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(resultado.data[0].declaracion_pago).toBeNull();
+    });
+
+    it('un cobro ECOMMERCE con comprobante trae su declaración con tiene_comprobante: true, sin exponer la ruta', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dETALLECOBRO.findMany.mockResolvedValue([
+        { importe_imputado: new Prisma.Decimal(50000), cobro: cobroBase },
+      ]);
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(resultado.data[0].declaracion_pago).toEqual({
+        id_declaracion_pago: 7,
+        tiene_comprobante: true,
+      });
+      // Viene en la misma consulta, y nunca se pide la clave del objeto.
+      expect(prisma.dETALLECOBRO.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.dETALLECOBRO.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: expect.objectContaining({
+            cobro: {
+              select: expect.objectContaining({
+                declaracionPago: {
+                  select: { id_declaracion_pago: true, comprobante_tipo: true },
+                },
+              }) as unknown,
+            },
+          }) as unknown,
+        }) as unknown,
+      );
+    });
+
+    it('un cobro ECOMMERCE de una declaración sin comprobante (Sprint 3) responde tiene_comprobante: false', async () => {
+      prisma.vENTA.findFirst.mockResolvedValue({ id_venta: 20 });
+      prisma.dETALLECOBRO.findMany.mockResolvedValue([
+        {
+          importe_imputado: new Prisma.Decimal(50000),
+          cobro: {
+            ...cobroBase,
+            declaracionPago: { id_declaracion_pago: 3, comprobante_tipo: null },
+          },
+        },
+      ]);
+
+      const resultado = await service.historialPagosVenta(20, 1, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(resultado.data[0].declaracion_pago).toEqual({
+        id_declaracion_pago: 3,
+        tiene_comprobante: false,
       });
     });
 
@@ -1546,6 +1623,11 @@ describe('VentaService', () => {
       });
 
       expect(resultado.data[0].estado).toBe('ANULADO');
+      // Anulado, sigue trayendo la declaración que lo originó.
+      expect(resultado.data[0].declaracion_pago).toEqual({
+        id_declaracion_pago: 7,
+        tiene_comprobante: true,
+      });
     });
 
     it('ordena del cobro más reciente al más antiguo', async () => {

@@ -827,6 +827,10 @@ export class VentaService {
    * ANULADO se lista igual, con su estado: no hace falta excluirlo porque
    * `CUOTA.saldo_pendiente` ya refleja la restitución hecha al anular.
    *
+   * Cada cobro trae la declaración que lo originó (`declaracion_pago`), para
+   * que el perfil pueda abrir su comprobante: `null` en los PRESENCIAL, y se
+   * conserva aunque el cobro esté ANULADO.
+   *
    * La agrupación por cobro y la paginación se hacen en memoria: el volumen
    * de cobros de una sola unidad (como mucho, unos pocos por cuota) no
    * justifica una consulta agregada en SQL.
@@ -850,6 +854,12 @@ export class VentaService {
             estado: true,
             numero_referencia: true,
             formaPago: { select: { nombre: true } },
+            // La declaración que originó el cobro (solo en los ECOMMERCE). El
+            // tipo alcanza para saber si tiene comprobante: `comprobante_ruta`
+            // no se pide, la clave del objeto no viaja al cliente.
+            declaracionPago: {
+              select: { id_declaracion_pago: true, comprobante_tipo: true },
+            },
           },
         },
       },
@@ -893,6 +903,14 @@ export class VentaService {
         forma_pago: entrada.cobro.formaPago,
         numero_referencia: entrada.cobro.numero_referencia,
         importe_imputado: entrada.importeImputado.toNumber(),
+        declaracion_pago: entrada.cobro.declaracionPago
+          ? {
+              id_declaracion_pago:
+                entrada.cobro.declaracionPago.id_declaracion_pago,
+              tiene_comprobante:
+                entrada.cobro.declaracionPago.comprobante_tipo !== null,
+            }
+          : null,
       })),
       meta: { total, page, limit },
     };
