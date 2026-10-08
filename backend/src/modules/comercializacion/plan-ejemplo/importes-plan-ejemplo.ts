@@ -1,6 +1,6 @@
 import { Prisma } from '../../../../generated/prisma/client';
 import { ModalidadPago } from '../../../../generated/prisma/enums';
-import { DECIMALES } from '../../../common/constantes/decimales';
+import { montoAnticipoDesdePorcentaje } from '../common/anticipo';
 import { PlanPagoCalculado, calcularPlanPago } from '../plan-pago/motor-cuotas';
 
 /**
@@ -52,10 +52,10 @@ export function calcularImportesPlanEjemplo(
     tasa_nominal_anual: tasaNominalAnual,
   } = condiciones;
 
-  const anticipoMonto = precioLista
-    .mul(anticipoPorcentaje)
-    .div(100)
-    .toDecimalPlaces(DECIMALES);
+  const anticipoMonto = montoAnticipoDesdePorcentaje(
+    precioLista,
+    anticipoPorcentaje,
+  );
 
   const plan = calcularPlanPago({
     precio: precioLista,

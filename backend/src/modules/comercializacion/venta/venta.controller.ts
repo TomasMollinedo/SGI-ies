@@ -93,17 +93,26 @@ export class VentaController {
 
   @Post()
   @ApiOperation({
-    summary: 'Registra una venta presencial',
+    summary:
+      'Confirma una venta presencial con el plan de pago acordado (sistema francés)',
     description:
-      'Busca o crea al cliente, valida la publicación y el plan, genera el cronograma de cuotas (motor de T105) y pasa la publicación a En Plan de Pago. Todo en una transacción: si algo falla, no queda nada creado.',
+      'Mismas condiciones que POST /ventas/simular (modalidad, anticipo en monto o porcentaje y plazo), más el cliente y lo que se le mostró en la simulación (`simulacion.precio_lista` y `simulacion.tasa_nominal_anual`, null en CONTADO). Busca o da de alta al cliente, recalcula con el precio de lista y la TNA vigentes y, si alguno cambió desde la simulación, rechaza con 409 y devuelve la simulación recalculada en `datos.simulacion`. Si no cambió nada, crea la venta, su plan de pago con las condiciones congeladas y el cronograma de cuotas, y pasa la unidad a En Plan de Pago. Todo en una transacción: si algo falla, no queda nada creado.',
   })
   @ApiCreatedResponse({
-    description: 'Venta registrada',
+    description: 'Venta registrada, con su plan acordado y el cronograma',
     type: VentaDetalleResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Body inválido (mismas reglas que la simulación; TNA de la simulación presente en CONTADO o ausente en FINANCIADO), teléfono o DNI/CUIL inválidos, o anticipo en monto mayor o igual al precio de lista',
+  })
+  @ApiNotFoundResponse({
+    description:
+      'No existe una publicación vigente o un plazo de financiación con ese id',
   })
   @ApiConflictResponse({
     description:
-      'Publicación no vigente, no disponible, plan inactivado, plan de otra publicación, o ya existe una venta vigente sobre la publicación',
+      'Cambió el precio de lista o la TNA desde la simulación (el body trae `datos.simulacion` recalculada), la unidad no está Disponible, el plazo está dado de baja, no hay plazos activos, o ya existe una venta vigente sobre la publicación',
   })
   crear(@Body() dto: CreateVentaDto, @CurrentUser() user: AuthenticatedUser) {
     return this.ventaService.crear(dto, user.id);
@@ -149,24 +158,31 @@ export class VentaController {
 
   @Get()
   @ApiOperation({
-    summary: 'Listado interno de ventas, con filtros y paginación',
+    summary:
+      'Listado interno de ventas, con su plan acordado y saldo pendiente, filtros y paginación',
   })
   @ApiQuery({ name: 'FK_cliente', required: false, type: Number })
   @ApiQuery({ name: 'FK_publicacion', required: false, type: Number })
   @ApiQuery({ name: 'FK_unidad_funcional', required: false, type: Number })
   @ApiQuery({ name: 'FK_proyecto', required: false, type: Number })
+  @ApiQuery({
+    name: 'modalidad',
+    required: false,
+    enum: ['CONTADO', 'FINANCIADO'],
+    description: 'Filtra por la modalidad del plan de pago acordado',
+  })
   @ApiQuery({ name: 'estado', required: false, enum: ['VIGENTE', 'CANCELADA'] })
   @ApiQuery({
     name: 'fechaDesde',
     required: false,
     type: String,
-    description: 'Filtra por fecha_adhesion >= (ISO 8601)',
+    description: 'Filtra por fecha_venta >= (ISO 8601)',
   })
   @ApiQuery({
     name: 'fechaHasta',
     required: false,
     type: String,
-    description: 'Filtra por fecha_adhesion <= (ISO 8601)',
+    description: 'Filtra por fecha_venta <= (ISO 8601)',
   })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
@@ -180,7 +196,8 @@ export class VentaController {
 
   @Get(':id')
   @ApiOperation({
-    summary: 'Detalle de una venta, con su cronograma de cuotas completo',
+    summary:
+      'Detalle de una venta: plan acordado y cronograma completo de cuotas con capital, interés y saldos',
   })
   @ApiParam({ name: 'id', type: Number, description: 'id_venta' })
   @ApiOkResponse({
