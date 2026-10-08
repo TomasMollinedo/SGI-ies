@@ -11,8 +11,6 @@ import {
   EstadoDeclaracionPago,
   EstadoProyecto,
   EstadoVenta,
-  ModalidadPago,
-  Periodicidad,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { validarTelefonoSoloNumeros } from '../../../common/validaciones/telefono-solo-numeros';
@@ -21,10 +19,9 @@ import { calcularDiasVencido } from '../../../common/validaciones/dias-vencido';
 import { calcularCondicionEntregaResponse } from '../common/condicion-entrega';
 import { PublicacionService } from '../publicacion/publicacion.service';
 import {
-  exigirPrecioPlanEjemplo,
-  exigirTipoPlanEjemplo,
-} from '../plan-pago/exigir-condiciones-plan-ejemplo';
-import { calcularPlanPago } from '../plan-pago/motor-cuotas';
+  SimulacionVenta,
+  VentaSimulacionService,
+} from './venta-simulacion.service';
 import {
   PLAN_ACORDADO_SELECT,
   VentaConPlanAcordado,
@@ -77,59 +74,53 @@ export class VentaService {
      * segunda venta simultánea sobre la misma publicación (ver `crear`).
      */
     private readonly publicaciones: PublicacionService,
+    /**
+     * La confirmación recalcula con el mismo cálculo de la simulación, dentro
+     * de su transacción, para comparar precio y TNA y guardar exactamente lo
+     * que se simuló.
+     */
+    private readonly simulaciones: VentaSimulacionService,
   ) {}
 
   /**
-   * Registra una venta presencial (HU-27). Orden de validación exacto,
-   * documentado también en el modelo VENTA del schema: cliente → publicación
-   * vigente → disponible → plan activo → el plan es de esta publicación → no
-   * hay otra venta vigente → crear venta → crear su plan de pago → generar
-   * cuotas → pasar la publicación a EN_PLAN_DE_PAGO. Todo en una sola
-   * transacción: si cualquier paso falla, no queda nada a medio crear (nunca
-   * una venta sin plan ni un cronograma parcial).
+   * Confirma una venta presencial (HU-27): crea la venta, su plan de pago y
+   * el cronograma de cuotas en una única transacción. Si cualquier paso
+   * falla no queda nada a medio crear (nunca una venta sin plan ni un
+   * cronograma parcial), tampoco el cliente si se daba de alta acá.
    *
-   * Doble escritura (T121): además de las columnas `*_congelado` de VENTA y
-   * de `CUOTA.FK_venta`, se crea el PLANPAGO de la venta y cada cuota lleva
-   * su `FK_plan_pago` y su desglose. El reparto en partes iguales del
-   * Sprint 3 equivale a un plan con TNA 0 %: toda la cuota es capital.
+   * Pasos, en orden:
+   * 1. Bloquea la fila de la publicación (`SELECT ... FOR UPDATE`): mientras
+   *    dura la confirmación nadie puede cambiar su precio de lista ni
+   *    venderla, así que el precio que se compara es el mismo que se guarda.
+   * 2. Busca o da de alta al cliente.
+   * 3. Recalcula el plan con `VentaSimulacionService.calcular`, el mismo
+   *    cálculo de la simulación (publicación Disponible, plazo activo,
+   *    anticipo válido), dentro de esta transacción.
+   * 4. Si el precio de lista o la TNA no son los que se le mostraron al
+   *    cliente, rechaza con 409 y devuelve la simulación recalculada en
+   *    `datos.simulacion`, para volver a acordarla.
+   * 5. Crea la venta, su PLANPAGO con las condiciones congeladas (modalidad,
+   *    precio, anticipo, plazo, cuotas, TNA y valor de cuota) y las cuotas
+   *    con su desglose. Cambios posteriores del precio de lista o de la TNA
+   *    del plazo no la afectan: el plan guarda su propia copia.
+   * 6. Pasa la publicación a EN_PLAN_DE_PAGO.
    *
-   * `dto.FK_plan_pago` es el id del plan de EJEMPLO elegido: el contrato HTTP
-   * conserva ese nombre, la columna es `VENTA.FK_plan_ejemplo`.
+   * No escribe las columnas legado de VENTA (`*_congelado`,
+   * `FK_plan_ejemplo`): nada las lee y se eliminan en T159. Las cuotas sí
+   * llevan las dos FK (`FK_venta` y `FK_plan_pago`) hasta T159.
    */
   async crear(dto: CreateVentaDto, usuarioId: number) {
     const idVenta = await this.prisma.$transaction(async (tx) => {
+      await this.bloquearPublicacion(tx, dto.FK_publicacion);
+
       const cliente = await this.buscarOCrearCliente(tx, dto.cliente);
 
-      const publicacion = await tx.pUBLICACIONUNIDAD.findUnique({
-        where: { id_publicacion: dto.FK_publicacion },
-      });
-      if (!publicacion || !publicacion.vigente) {
-        throw new ConflictException('La publicación no está vigente');
-      }
-      if (publicacion.estado_comercial !== EstadoComercial.DISPONIBLE) {
-        throw new ConflictException(
-          'La unidad no está disponible para la venta',
-        );
-      }
+      const simulacion = await this.simulaciones.calcular(dto, new Date(), tx);
+      this.validarSinCambiosDesdeLaSimulacion(dto.simulacion, simulacion);
 
-      const plan = await tx.pLANEJEMPLO.findUnique({
-        where: { id_plan_ejemplo: dto.FK_plan_pago },
-      });
-      if (!plan || !plan.estado) {
-        throw new ConflictException('El plan de pago está inactivado');
-      }
-      if (plan.FK_publicacion !== dto.FK_publicacion) {
-        throw new ConflictException(
-          'El plan de pago no pertenece a esta publicación',
-        );
-      }
-      const precio = exigirPrecioPlanEjemplo(plan.precio, ConflictException);
-      const tipo = exigirTipoPlanEjemplo(plan.tipo, ConflictException);
-
-      // Chequeo defensivo previo: por construcción, una publicación DISPONIBLE
-      // no debería tener una venta vigente — el `transicionarEstadoComercial`
-      // de más abajo es quien realmente lo garantiza contra condiciones de
-      // carrera (ver comentario del constructor).
+      // Chequeo defensivo: por construcción, una publicación DISPONIBLE no
+      // debería tener una venta vigente — el `transicionarEstadoComercial`
+      // de más abajo es quien realmente lo garantiza.
       const ventaVigente = await tx.vENTA.findFirst({
         where: {
           FK_publicacion: dto.FK_publicacion,
@@ -142,60 +133,33 @@ export class VentaService {
         );
       }
 
-      const anticipoCongelado = this.resolverAnticipoMonto({
-        precio,
-        anticipo_monto: plan.anticipo_monto,
-        anticipo_porcentaje: plan.anticipo_porcentaje,
-      });
-
       const venta = await tx.vENTA.create({
         data: {
           FK_cliente: cliente.id_cliente,
           FK_publicacion: dto.FK_publicacion,
-          FK_plan_ejemplo: dto.FK_plan_pago,
-          precio_congelado: precio,
-          anticipo_congelado: anticipoCongelado,
-          tipo_plan_congelado: tipo,
-          cantidad_cuotas_congelada: plan.cantidad_cuotas ?? 1,
-          // Columna legado (T159): las cuotas siempre son mensuales (HU-32),
-          // sin importar la periodicidad que tenga el plan de ejemplo.
-          periodicidad_congelada:
-            tipo === ModalidadPago.FINANCIADO ? Periodicidad.MENSUAL : null,
+          fecha_venta: simulacion.fecha_venta,
           FK_usuario_creador: usuarioId,
           FK_usuario_actualizador: usuarioId,
         },
       });
 
-      // Hasta T158 la venta se registra sin interés (TNA 0 %): el sistema
-      // francés con tasa 0 es el reparto en partes iguales del Sprint 3.
-      const { cuotas, valor_cuota } = calcularPlanPago({
-        precio,
-        tipo,
-        anticipo_monto: anticipoCongelado,
-        cantidad_cuotas: plan.cantidad_cuotas,
-        tasa_nominal_anual: new Prisma.Decimal(0),
-        fecha_venta: venta.fecha_venta,
-      });
-
-      // En CONTADO el anticipo es el precio completo y no hay plazo, cuotas,
-      // tasa ni valor de cuota. En FINANCIADO la tasa es 0.
-      const esFinanciado = tipo === ModalidadPago.FINANCIADO;
+      const { plazo } = simulacion;
       const planPago = await tx.pLANPAGO.create({
         data: {
           FK_venta: venta.id_venta,
-          FK_plazo_financiacion: null,
-          modalidad: tipo,
-          precio_venta: precio,
-          anticipo_monto: esFinanciado ? anticipoCongelado : precio,
-          cantidad_cuotas: esFinanciado ? plan.cantidad_cuotas : null,
-          tasa_nominal_anual: esFinanciado ? new Prisma.Decimal(0) : null,
-          valor_cuota,
+          FK_plazo_financiacion: plazo?.id_plazo_financiacion ?? null,
+          modalidad: simulacion.modalidad,
+          precio_venta: simulacion.precio_lista,
+          anticipo_monto: simulacion.anticipo_monto,
+          cantidad_cuotas: plazo?.cantidad_cuotas ?? null,
+          tasa_nominal_anual: plazo?.tasa_nominal_anual ?? null,
+          valor_cuota: simulacion.valor_cuota,
           FK_usuario_creador: usuarioId,
         },
       });
 
       await tx.cUOTA.createMany({
-        data: cuotas.map((cuota) => ({
+        data: simulacion.cuotas.map((cuota) => ({
           FK_venta: venta.id_venta,
           FK_plan_pago: planPago.id_plan_pago,
           numero: cuota.numero,
@@ -209,9 +173,8 @@ export class VentaService {
         })),
       });
 
-      // Última validación, y la única con garantía real contra condiciones de
-      // carrera: si otra venta ganó la publicación entre que la leímos arriba
-      // y este `updateMany`, acá tira ConflictException y revierte todo.
+      // Con la publicación bloqueada no debería fallar, pero sigue siendo la
+      // garantía de que se vende solo desde DISPONIBLE.
       await this.publicaciones.transicionarEstadoComercial(
         tx,
         dto.FK_publicacion,
@@ -224,6 +187,53 @@ export class VentaService {
     });
 
     return this.obtenerDetalle(idVenta);
+  }
+
+  /**
+   * Bloquea la fila de la publicación hasta el fin de la transacción, mismo
+   * patrón que `PublicacionService.publicar` con la unidad. Si no existe no
+   * hace nada: el 404 lo da después `VentaSimulacionService.calcular`.
+   */
+  private async bloquearPublicacion(
+    tx: Prisma.TransactionClient,
+    idPublicacion: number,
+  ) {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id_publicacion" FROM "PUBLICACIONUNIDAD" WHERE "id_publicacion" = ${idPublicacion} FOR UPDATE`,
+    );
+  }
+
+  /**
+   * El precio de lista y la TNA vigentes tienen que ser los que se le
+   * mostraron al cliente en la simulación. Si alguno cambió, la venta no se
+   * confirma: 409 con la simulación recalculada en `datos.simulacion`
+   * (`HttpExceptionFilter` propaga `datos` tal cual), para volver a
+   * acordarla con el cliente.
+   */
+  private validarSinCambiosDesdeLaSimulacion(
+    mostrada: CreateVentaDto['simulacion'],
+    vigente: SimulacionVenta,
+  ) {
+    const tasaVigente = vigente.plazo?.tasa_nominal_anual ?? null;
+    const cambioPrecio = !vigente.precio_lista.equals(mostrada.precio_lista);
+    const cambioTasa =
+      tasaVigente === null || mostrada.tasa_nominal_anual === null
+        ? tasaVigente !== mostrada.tasa_nominal_anual
+        : !tasaVigente.equals(mostrada.tasa_nominal_anual);
+
+    if (!cambioPrecio && !cambioTasa) {
+      return;
+    }
+
+    const cambios = [
+      ...(cambioPrecio ? ['el precio de lista'] : []),
+      ...(cambioTasa ? ['la TNA del plazo'] : []),
+    ].join(' y ');
+
+    throw new ConflictException({
+      message: `No se confirmó la venta: cambió ${cambios} desde la simulación. Revisá la simulación recalculada con el cliente antes de volver a confirmar.`,
+      datos: { simulacion: this.simulaciones.mapear(vigente) },
+    });
   }
 
   /**
