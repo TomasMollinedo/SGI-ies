@@ -54,15 +54,19 @@ export function ProyectosPage() {
     setPage(1)
   }, [busquedaDebounced, estadoObra, localidad, estado])
 
-  const { data, isLoading, isFetching, error, refetch } = useProyectos({
-    busqueda: busquedaDebounced || undefined,
-    estado_obra: esEstadoObraFiltrable(estadoObra) ? estadoObra : undefined,
-    localidad: localidad || undefined,
-    // El estado viaja siempre: no se depende del default del backend.
-    estado,
-    page,
-    limit: LIMITE_PAGINA,
-  })
+  const { data, isLoading, isFetching, error, refetch } = useProyectos(
+    {
+      busqueda: busquedaDebounced || undefined,
+      estado_obra: esEstadoObraFiltrable(estadoObra) ? estadoObra : undefined,
+      localidad: localidad || undefined,
+      // El estado viaja siempre: no se depende del default del backend.
+      estado,
+      page,
+      limit: LIMITE_PAGINA,
+    },
+    // El % vendido cambia desde otros módulos que no invalidan proyectos.
+    { refrescarAlMontar: true }
+  )
 
   const statusCode = error?.statusCode
 
