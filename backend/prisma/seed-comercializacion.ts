@@ -1,5 +1,3 @@
-import 'dotenv/config';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 import {
   EstadoComercial,
@@ -16,6 +14,7 @@ import { sembrarDeclaracion } from './seed-declaraciones';
 import { ProyectoSeed, sembrarProyecto } from './seed-proyectos';
 import { sembrarPlazos } from './seed-plazos';
 import { diasDesdeHoy, mesesDesdeHoy } from './seed-fechas';
+import { ejecutarSeed } from './seed-ejecutar';
 
 /**
  * Seed de prueba para Comercialización/Ecommerce (Sprint 3, T96): siembra la
@@ -64,10 +63,6 @@ import { diasDesdeHoy, mesesDesdeHoy } from './seed-fechas';
  *   npm run seed:comercializacion     (agrega los datos de este script)
  */
 
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
-});
-
 const COSTO_POR_TIPOLOGIA: Partial<Record<TipologiaUnidad, number>> = {
   [TipologiaUnidad.UN_DORMITORIO]: 15_000_000,
   [TipologiaUnidad.DOS_DORMITORIOS]: 20_000_000,
@@ -84,7 +79,7 @@ const ROTACION_TIPOLOGIA = [
   TipologiaUnidad.TRES_DORMITORIOS,
 ];
 
-async function main() {
+export async function sembrarComercializacion(prisma: PrismaClient) {
   // Todos los ABM y operaciones que imita este seed (proyectos, unidades,
   // publicaciones, plazos, planes, ventas, cobros y la validación de
   // declaraciones) son del rol Administrador: la auditoría queda a su nombre,
@@ -966,9 +961,5 @@ async function main() {
   );
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+// Corrido suelto (`npm run seed:...`); desde `seed-prueba.ts` solo se importa.
+if (require.main === module) ejecutarSeed(sembrarComercializacion);

@@ -1,5 +1,3 @@
-import 'dotenv/config';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 import {
   EstadoComercial,
@@ -15,6 +13,7 @@ import { sembrarProyecto } from './seed-proyectos';
 import { PagoCuotaSeed, registrarCobro, sembrarVenta } from './seed-ventas';
 import { sembrarDeclaracion } from './seed-declaraciones';
 import { diasDesdeHoy } from './seed-fechas';
+import { ejecutarSeed } from './seed-ejecutar';
 
 /**
  * Seed de prueba PUNTUAL para el perfil del cliente (T112, HU-28 "plan
@@ -61,13 +60,9 @@ import { diasDesdeHoy } from './seed-fechas';
  *   con el subtotal de B-201 únicamente, nunca con el importe_total completo.
  */
 
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
-});
-
 const EMAIL_CLIENTE_POR_DEFECTO = 'cliente.prueba@axontech.test';
 
-async function main() {
+export async function sembrarClientePrueba(prisma: PrismaClient) {
   const email =
     process.env.SEED_CLIENTE_EMAIL?.trim().toLowerCase() ||
     EMAIL_CLIENTE_POR_DEFECTO;
@@ -430,9 +425,5 @@ async function main() {
   );
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+// Corrido suelto (`npm run seed:...`); desde `seed-prueba.ts` solo se importa.
+if (require.main === module) ejecutarSeed(sembrarClientePrueba);

@@ -1,8 +1,7 @@
-import 'dotenv/config';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 import { CondicionIVA } from '../generated/prisma/enums';
 import { RolNombre } from '../src/common/enums/rol.enum';
+import { ejecutarSeed } from './seed-ejecutar';
 
 /**
  * Seed de prueba para poder probar a mano, contra datos reales:
@@ -32,15 +31,12 @@ import { RolNombre } from '../src/common/enums/rol.enum';
  *   npm run seed:cuenta-corriente-prueba
  * las veces que haga falta no duplica datos. Para arrancar de datos
  * completamente limpios (recomendado antes de una tanda de pruebas manuales):
- *   npx prisma migrate reset   (borra la base, aplica migraciones y corre seed.ts solo)
+ *   npx prisma migrate reset   (borra la base y aplica las migraciones)
+ *   npx prisma db seed         (corre seed.ts: desde Prisma 7 el reset no lo corre solo)
  *   npm run seed:cuenta-corriente-prueba   (agrega los datos de este script)
  */
 
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
-});
-
-async function main() {
+export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
   const admin = await prisma.uSUARIO.findFirstOrThrow({
     where: { rol: { nombre: RolNombre.ADMINISTRADOR } },
     select: { id_usuario: true },
@@ -562,9 +558,5 @@ async function main() {
   console.log('Seed de prueba - PAGO: 3 registros procesados (1 ANULADO).');
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+// Corrido suelto (`npm run seed:...`); desde `seed-prueba.ts` solo se importa.
+if (require.main === module) ejecutarSeed(sembrarCuentaCorrientePrueba);

@@ -45,10 +45,10 @@ La API queda en `http://localhost:3000/api`, y el Swagger (documentación intera
 
 ```bash
 npx prisma db seed
-npm run seed:cuenta-corriente-prueba
-npm run seed:comercializacion   # proyectos, unidades, publicaciones, ventas, cobros y declaraciones
-npm run seed:t112-cliente1      # un cliente para entrar al portal (ver SEED_CLIENTE_EMAIL en .env)
+npm run seed:prueba
 ```
+
+`seed:prueba` corre en orden los seeds de prueba: cuenta corriente de proveedores, Comercialización (proyectos, unidades, publicaciones, ventas, cobros y declaraciones) y un cliente para entrar al portal (ver `SEED_CLIENTE_EMAIL` en `.env`). Cada uno también se puede correr suelto: `seed:cuenta-corriente-prueba`, `seed:comercializacion` y `seed:t112-cliente1`.
 
 Se pueden correr las veces que haga falta: no duplican datos. Las fechas son relativas al día en que se corren (las cuotas vencidas siguen vencidas) y los comprobantes de las declaraciones se suben al bucket `ies-comprobantes`, así que MinIO tiene que estar levantado. `npm run seed:muestra -- --reset` borra los proyectos: no combinarlo con estos seeds.
 

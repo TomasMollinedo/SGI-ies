@@ -21,7 +21,8 @@
     "seed:muestra": "tsx prisma/seed-muestra.ts",
     "seed:cuenta-corriente-prueba": "tsx prisma/seed-cuenta-corriente-prueba.ts",
     "seed:comercializacion": "tsx prisma/seed-comercializacion.ts",
-    "seed:t112-cliente1": "tsx prisma/seed-t112-cliente1.ts"
+    "seed:t112-cliente1": "tsx prisma/seed-t112-cliente1.ts",
+    "seed:prueba": "tsx prisma/seed-prueba.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1134.0",
