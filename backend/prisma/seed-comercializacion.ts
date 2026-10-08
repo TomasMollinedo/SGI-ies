@@ -4,6 +4,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 import {
   EstadoComercial,
+  EstadoDeclaracionPago,
   EstadoProyecto,
   ModalidadPago,
   OrigenCobro,
@@ -12,6 +13,7 @@ import {
 } from '../generated/prisma/enums';
 import { RolNombre } from '../src/common/enums/rol.enum';
 import { PagoCuotaSeed, VentaSeed, sembrarVenta } from './seed-ventas';
+import { sembrarDeclaracion } from './seed-declaraciones';
 import { sembrarPlazos } from './seed-plazos';
 import { diasDesdeHoy, fechaArgentina, mesesDesdeHoy } from './seed-fechas';
 
@@ -89,6 +91,11 @@ async function main() {
   });
   const responsableComercializacion = await prisma.uSUARIO.findFirstOrThrow({
     where: { rol: { nombre: RolNombre.RESPONSABLE_COMERCIALIZACION } },
+    select: { id_usuario: true },
+  });
+  // Valida y rechaza las declaraciones de pago.
+  const responsableTesoreria = await prisma.uSUARIO.findFirstOrThrow({
+    where: { rol: { nombre: RolNombre.RESPONSABLE_TESORERIA } },
     select: { id_usuario: true },
   });
   // UNIDADFUNCIONAL la mantiene Proyectos (ver comentario de
@@ -1000,8 +1007,64 @@ async function main() {
   await sembrarProyectoSinPublicar('PROY-VNT');
   await sembrarProyectoSinPublicar('PROY-MRP');
 
+  // --------------------------------------------------------------------
+  // DECLARACIONPAGO — lo que declaran los clientes desde el portal (HU-29),
+  // en los tres estados, cada una con su comprobante PDF en el bucket.
+  // --------------------------------------------------------------------
+  const declarar = (
+    datos: Omit<Parameters<typeof sembrarDeclaracion>[1], 'FK_forma_pago'>,
+  ) =>
+    sembrarDeclaracion(
+      prisma,
+      { ...datos, FK_forma_pago: idTransferencia },
+      responsableTesoreria.id_usuario,
+    );
+
+  // Valentina, sobre 2-B: Tesorería le validó un pago a cuenta de la cuota 4
+  // (sigue Parcial y vencida: 2-B mantiene sus 3 cuotas vencidas con saldo),
+  // le rechazó una transferencia de la cuota 5 y la volvió a declarar.
+  await declarar({
+    FK_cliente: idValentina,
+    FK_publicacion: publicacion2B.id_publicacion,
+    numero_cuota: 4,
+    importe: 300_000,
+    numero_referencia: 'TRF-2B-4-WEB',
+    fecha_declaracion: diasDesdeHoy(-12),
+    resolucion: {
+      estado: EstadoDeclaracionPago.VALIDADA,
+      fecha: diasDesdeHoy(-10),
+    },
+  });
+  await declarar({
+    FK_cliente: idValentina,
+    FK_publicacion: publicacion2B.id_publicacion,
+    numero_cuota: 5,
+    numero_referencia: 'TRF-2B-5-WEB-A',
+    fecha_declaracion: diasDesdeHoy(-9),
+    resolucion: {
+      estado: EstadoDeclaracionPago.RECHAZADA,
+      fecha: diasDesdeHoy(-7),
+      motivo: 'La transferencia no figura en el extracto bancario',
+    },
+  });
+  await declarar({
+    FK_cliente: idValentina,
+    FK_publicacion: publicacion2B.id_publicacion,
+    numero_cuota: 5,
+    numero_referencia: 'TRF-2B-5-WEB-B',
+    fecha_declaracion: diasDesdeHoy(-2),
+  });
+  // Rodrigo, sobre 3-C: adelantó la cuota 3, que todavía no venció.
+  await declarar({
+    FK_cliente: idRodrigo,
+    FK_publicacion: publicacion3C.id_publicacion,
+    numero_cuota: 3,
+    numero_referencia: 'TRF-3C-3-WEB',
+    fecha_declaracion: diasDesdeHoy(-1),
+  });
+
   console.log(
-    'Seed comercialización - UNIDADFUNCIONAL/PUBLICACIONUNIDAD/VENTA/PLANPAGO/CUOTA/COBRO: listo (6 hero + 24 extra unidades).',
+    'Seed comercialización - UNIDADFUNCIONAL/PUBLICACIONUNIDAD/VENTA/PLANPAGO/CUOTA/COBRO/DECLARACIONPAGO: listo (6 hero + 24 extra unidades).',
   );
 }
 
