@@ -69,8 +69,8 @@ export class VentaService {
      * Solo por `transicionarEstadoComercial`: recibe el `tx` del llamador y
      * nunca abre transacción propia, así que el cambio de estado de la
      * publicación viaja dentro de la misma `$transaction` que la venta o la
-     * cancelación. Es también el mecanismo de bloqueo optimista contra una
-     * segunda venta simultánea sobre la misma publicación (ver `crear`).
+     * cancelación. En `crear` es la segunda barrera contra una venta doble:
+     * la primera es el bloqueo de la fila de la publicación.
      */
     private readonly publicaciones: PublicacionService,
     /**
@@ -107,6 +107,12 @@ export class VentaService {
    * No escribe las columnas legado de VENTA (`*_congelado`,
    * `FK_plan_ejemplo`): nada las lee y se eliminan en T159. Las cuotas sí
    * llevan las dos FK (`FK_venta` y `FK_plan_pago`) hasta T159.
+   *
+   * Límite conocido: el bloqueo es sobre la publicación, no sobre el plazo.
+   * Si alguien edita la TNA del plazo en el mismo instante en que se
+   * confirma, la venta puede guardarse con la tasa leída un momento antes.
+   * Se acepta a propósito: es una ventana mínima y bloquear también el plazo
+   * frenaría todas las ventas con ese plazo mientras dura cada confirmación.
    */
   async crear(dto: CreateVentaDto, usuarioId: number) {
     const idVenta = await this.prisma.$transaction(async (tx) => {

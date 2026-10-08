@@ -6,17 +6,16 @@ import {
 } from '../../../../generated/prisma/enums';
 
 /**
- * ÚNICO lugar que traduce el PLANPAGO de una venta a las "condiciones
- * congeladas" que exponen los contratos HTTP del Sprint 3 (`precio_congelado`,
- * `anticipo_congelado`, `tipo_plan_congelado`, `cantidad_cuotas_congelada` y
- * `periodicidad_congelada`).
+ * Código de transición del Sprint 3: traduce el PLANPAGO de una venta a las
+ * "condiciones congeladas" con los nombres del contrato viejo
+ * (`precio_congelado`, `anticipo_congelado`, `tipo_plan_congelado`,
+ * `cantidad_cuotas_congelada` y `periodicidad_congelada`).
  *
- * Desde T121 las condiciones de la venta viven en su PLANPAGO (1 a 1); las
- * columnas `*_congelado` de VENTA se siguen escribiendo pero ya no se leen,
- * salvo `periodicidad_congelada`, que no tiene equivalente en PLANPAGO.
- * Cualquier service que necesite una de estas condiciones usa
- * `CONDICIONES_VENTA_SELECT` + `resolverCondicionesVenta`, nunca las columnas
- * directamente.
+ * Desde T158 el único que lo usa es `DeclaracionPagoService` (para saber si
+ * la venta es de contado); las ventas ya exponen su plan con
+ * `plan-acordado.ts`. Las ventas nuevas no escriben las columnas `*_congelado`
+ * de VENTA, así que `periodicidad_congelada` viene en `null` para ellas. Se
+ * elimina en T159.
  */
 export const CONDICIONES_VENTA_SELECT = {
   id_venta: true,
