@@ -149,24 +149,31 @@ export class VentaController {
 
   @Get()
   @ApiOperation({
-    summary: 'Listado interno de ventas, con filtros y paginación',
+    summary:
+      'Listado interno de ventas, con su plan acordado y saldo pendiente, filtros y paginación',
   })
   @ApiQuery({ name: 'FK_cliente', required: false, type: Number })
   @ApiQuery({ name: 'FK_publicacion', required: false, type: Number })
   @ApiQuery({ name: 'FK_unidad_funcional', required: false, type: Number })
   @ApiQuery({ name: 'FK_proyecto', required: false, type: Number })
+  @ApiQuery({
+    name: 'modalidad',
+    required: false,
+    enum: ['CONTADO', 'FINANCIADO'],
+    description: 'Filtra por la modalidad del plan de pago acordado',
+  })
   @ApiQuery({ name: 'estado', required: false, enum: ['VIGENTE', 'CANCELADA'] })
   @ApiQuery({
     name: 'fechaDesde',
     required: false,
     type: String,
-    description: 'Filtra por fecha_adhesion >= (ISO 8601)',
+    description: 'Filtra por fecha_venta >= (ISO 8601)',
   })
   @ApiQuery({
     name: 'fechaHasta',
     required: false,
     type: String,
-    description: 'Filtra por fecha_adhesion <= (ISO 8601)',
+    description: 'Filtra por fecha_venta <= (ISO 8601)',
   })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
@@ -180,7 +187,8 @@ export class VentaController {
 
   @Get(':id')
   @ApiOperation({
-    summary: 'Detalle de una venta, con su cronograma de cuotas completo',
+    summary:
+      'Detalle de una venta: plan acordado y cronograma completo de cuotas con capital, interés y saldos',
   })
   @ApiParam({ name: 'id', type: Number, description: 'id_venta' })
   @ApiOkResponse({

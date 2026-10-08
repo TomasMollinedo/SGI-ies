@@ -26,12 +26,11 @@ import {
 } from '../plan-pago/exigir-condiciones-plan-ejemplo';
 import { calcularPlanPago } from '../plan-pago/motor-cuotas';
 import {
-  CONDICIONES_VENTA_SELECT,
-  VentaConCondiciones,
-  exigirDatoPlanEjemplo,
-  resolverCondicionesVenta,
-} from './condiciones-venta';
-import { PLAN_ACORDADO_SELECT, resolverPlanAcordado } from './plan-acordado';
+  PLAN_ACORDADO_SELECT,
+  VentaConPlanAcordado,
+  mapearPlanAcordado,
+  resolverPlanAcordado,
+} from './plan-acordado';
 import { CreateVentaDto } from './dto/create-venta.dto';
 import { CancelarVentaDto } from './dto/cancelar-venta.dto';
 import { QueryVentaDto } from './dto/query-venta.dto';
@@ -46,6 +45,24 @@ const CLIENTE_SELECT = {
   dni_cuil: true,
   email: true,
   telefono: true,
+} as const;
+
+/** Lo que el listado necesita de cada cuota: intereses (para el plan) y saldo. */
+const CUOTA_RESUMEN_SELECT = {
+  importe_interes: true,
+  saldo_pendiente: true,
+  estado: true,
+} as const;
+
+/** Cada cuota del cronograma en el detalle, con su desglose completo. */
+const CUOTA_DETALLE_SELECT = {
+  ...CUOTA_RESUMEN_SELECT,
+  id_cuota: true,
+  numero: true,
+  fecha_vencimiento: true,
+  importe_capital: true,
+  importe: true,
+  saldo_capital: true,
 } as const;
 
 @Injectable()
@@ -411,12 +428,19 @@ export class VentaService {
     return this.obtenerDetalle(idVenta);
   }
 
+  /**
+   * Listado interno de ventas (HU-27), con filtros combinables por cliente,
+   * publicación, unidad, proyecto, modalidad, estado y período (sobre
+   * `fecha_venta`, OBS-16). Cada venta trae su plan acordado y su saldo
+   * pendiente.
+   */
   async listar(query: QueryVentaDto) {
     const {
       FK_cliente,
       FK_publicacion,
       FK_unidad_funcional,
       FK_proyecto,
+      modalidad,
       estado,
       fechaDesde,
       fechaHasta,
@@ -428,6 +452,7 @@ export class VentaService {
       ...(FK_cliente !== undefined && { FK_cliente }),
       ...(FK_publicacion !== undefined && { FK_publicacion }),
       ...(estado !== undefined && { estado }),
+      ...(modalidad !== undefined && { planPago: { modalidad } }),
       ...((FK_unidad_funcional !== undefined || FK_proyecto !== undefined) && {
         publicacion: {
           ...(FK_unidad_funcional !== undefined && { FK_unidad_funcional }),
@@ -447,7 +472,7 @@ export class VentaService {
     const [data, total] = await Promise.all([
       this.prisma.vENTA.findMany({
         where,
-        select: this.ventaSelect(),
+        select: this.ventaSelect(CUOTA_RESUMEN_SELECT),
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { fecha_venta: 'desc' },
@@ -461,22 +486,17 @@ export class VentaService {
     };
   }
 
+  /**
+   * Detalle de una venta (HU-27): lo mismo que el listado, más el cronograma
+   * completo de su plan de pago con el desglose de cada cuota y quién la
+   * registró.
+   */
   async obtenerDetalle(idVenta: number) {
     const venta = await this.prisma.vENTA.findUnique({
       where: { id_venta: idVenta },
       select: {
-        ...this.ventaSelect(),
+        ...this.ventaSelect(CUOTA_DETALLE_SELECT),
         usuarioCreador: { select: { nombre: true, apellido: true } },
-        cuotas: {
-          select: {
-            numero: true,
-            importe: true,
-            fecha_vencimiento: true,
-            saldo_pendiente: true,
-            estado: true,
-          },
-          orderBy: { numero: 'asc' },
-        },
       },
     });
 
@@ -487,10 +507,14 @@ export class VentaService {
     return {
       ...this.mapearVenta(venta),
       usuarioCreador: venta.usuarioCreador,
-      cuotas: venta.cuotas.map((cuota) => ({
+      cuotas: (venta.planPago?.cuotas ?? []).map((cuota) => ({
+        id_cuota: cuota.id_cuota,
         numero: cuota.numero,
-        importe: cuota.importe.toNumber(),
         fecha_vencimiento: cuota.fecha_vencimiento.toISOString(),
+        importe_capital: cuota.importe_capital.toNumber(),
+        importe_interes: cuota.importe_interes.toNumber(),
+        importe: cuota.importe.toNumber(),
+        saldo_capital: cuota.saldo_capital.toNumber(),
         saldo_pendiente: cuota.saldo_pendiente.toNumber(),
         estado: cuota.estado,
       })),
@@ -498,21 +522,33 @@ export class VentaService {
   }
 
   /**
+   * Lo que se lee de una venta para el listado y el detalle: el plan acordado
+   * con las cuotas de su cronograma (el listado solo necesita lo que hace al
+   * saldo y a los intereses; el detalle, el desglose completo), el cliente y
+   * la unidad.
+   *
+   * Las cuotas se leen por el plan de pago (`CUOTA.FK_plan_pago`), no por la
+   * venta: `CUOTA.FK_venta` es columna legado y se elimina en T159.
+   *
    * `unidad`/`proyecto` viajan igual que en `PublicacionController.findAll`
    * (mismo `select` anidado sobre `publicacion.unidadFuncional`): sin esto,
    * el listado y el detalle de venta solo tenían `FK_publicacion`, un id sin
-   * significado para quien mira la pantalla — no había forma de saber qué
-   * unidad se vendió sin un pedido aparte por cada fila.
+   * significado para quien mira la pantalla.
    */
-  private ventaSelect() {
+  private ventaSelect<C extends typeof CUOTA_RESUMEN_SELECT>(cuotas: C) {
     return {
-      ...CONDICIONES_VENTA_SELECT,
+      ...PLAN_ACORDADO_SELECT,
+      planPago: {
+        select: {
+          ...PLAN_ACORDADO_SELECT.planPago.select,
+          cuotas: { select: cuotas, orderBy: { numero: 'asc' as const } },
+        },
+      },
       fecha_venta: true,
       estado: true,
       motivo_cancelacion: true,
       fecha_cancelacion: true,
       FK_publicacion: true,
-      FK_plan_ejemplo: true,
       cliente: { select: CLIENTE_SELECT },
       publicacion: {
         select: {
@@ -763,17 +799,7 @@ export class VentaService {
         localidad: proyecto.localidad,
       },
       condicion_entrega: calcularCondicionEntregaResponse(proyecto),
-      plan: {
-        modalidad: plan.modalidad,
-        precio: plan.precio.toNumber(),
-        anticipo: plan.anticipo.toNumber(),
-        saldo_financiado: plan.saldo_financiado.toNumber(),
-        cantidad_cuotas: plan.cantidad_cuotas,
-        tasa_nominal_anual: plan.tasa_nominal_anual?.toNumber() ?? null,
-        valor_cuota: plan.valor_cuota?.toNumber() ?? null,
-        total_intereses: plan.total_intereses.toNumber(),
-        total_a_pagar: plan.total_a_pagar.toNumber(),
-      },
+      plan: mapearPlanAcordado(plan),
       cuotas,
       saldo_total_pendiente: saldoTotalPendiente.toNumber(),
     };
@@ -949,59 +975,70 @@ export class VentaService {
   }
 
   /**
-   * Arma la respuesta de venta con los nombres del contrato del Sprint 3:
-   * `fecha_adhesion` sale de `fecha_venta`, `FK_plan_pago` de
-   * `FK_plan_ejemplo`, y las condiciones `*_congelado` del plan de pago.
+   * La venta con la forma del contrato (`ventaListItemSchema`): el plan
+   * acordado sale de su PLANPAGO (`resolverPlanAcordado`), nunca del plan de
+   * ejemplo ni de las columnas `*_congelado` de VENTA, que son legado.
+   *
+   * El saldo pendiente suma solo las cuotas no anuladas: una venta cancelada
+   * conserva su plan y sus cuotas (ANULADA), pero ya no debe nada.
    */
-  private mapearVenta(
-    venta: VentaConCondiciones & {
-      fecha_venta: Date;
-      estado: string;
-      motivo_cancelacion: string | null;
-      fecha_cancelacion: Date | null;
-      FK_publicacion: number;
-      FK_plan_ejemplo: number | null;
-      cliente: {
-        id_cliente: number;
-        nombre: string;
-        apellido: string | null;
-        dni_cuil: string | null;
-        email: string;
-        telefono: string | null;
+  private mapearVenta(venta: {
+    id_venta: number;
+    planPago:
+      | (NonNullable<VentaConPlanAcordado['planPago']> & {
+          cuotas: {
+            importe_interes: Prisma.Decimal;
+            saldo_pendiente: Prisma.Decimal;
+            estado: EstadoCuota;
+          }[];
+        })
+      | null;
+    fecha_venta: Date;
+    estado: string;
+    motivo_cancelacion: string | null;
+    fecha_cancelacion: Date | null;
+    FK_publicacion: number;
+    cliente: {
+      id_cliente: number;
+      nombre: string;
+      apellido: string | null;
+      dni_cuil: string | null;
+      email: string;
+      telefono: string | null;
+    };
+    publicacion: {
+      unidadFuncional: {
+        id_unidad_funcional: number;
+        identificador: string;
+        tipologia: string;
+        proyecto: { id_proyecto: number; codigo: string; nombre: string };
       };
-      publicacion: {
-        unidadFuncional: {
-          id_unidad_funcional: number;
-          identificador: string;
-          tipologia: string;
-          proyecto: { id_proyecto: number; codigo: string; nombre: string };
-        };
-      };
-    },
-  ) {
+    };
+  }) {
     const { unidadFuncional } = venta.publicacion;
     const { proyecto, ...unidad } = unidadFuncional;
-    const condiciones = resolverCondicionesVenta(venta);
+    const cuotas = venta.planPago?.cuotas ?? [];
+    const plan = resolverPlanAcordado(venta, cuotas);
+
+    const saldoPendiente = cuotas
+      .filter((cuota) => cuota.estado !== EstadoCuota.ANULADA)
+      .reduce(
+        (acumulado, cuota) => acumulado.add(cuota.saldo_pendiente),
+        new Prisma.Decimal(0),
+      );
 
     return {
       id_venta: venta.id_venta,
-      fecha_adhesion: venta.fecha_venta.toISOString(),
-      precio_congelado: condiciones.precio_congelado.toNumber(),
-      anticipo_congelado: condiciones.anticipo_congelado.toNumber(),
-      tipo_plan_congelado: condiciones.tipo_plan_congelado,
-      cantidad_cuotas_congelada: condiciones.cantidad_cuotas_congelada,
-      periodicidad_congelada: condiciones.periodicidad_congelada,
+      fecha_venta: venta.fecha_venta.toISOString(),
       estado: venta.estado,
       motivo_cancelacion: venta.motivo_cancelacion,
       fecha_cancelacion: venta.fecha_cancelacion?.toISOString() ?? null,
       cliente: venta.cliente,
       FK_publicacion: venta.FK_publicacion,
-      FK_plan_pago: exigirDatoPlanEjemplo(
-        venta.id_venta,
-        venta.FK_plan_ejemplo,
-      ),
       unidad,
       proyecto,
+      plan: mapearPlanAcordado(plan),
+      saldo_pendiente: saldoPendiente.toNumber(),
     };
   }
 }

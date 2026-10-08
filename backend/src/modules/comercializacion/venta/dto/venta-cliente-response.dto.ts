@@ -79,6 +79,10 @@ const planClienteSchema = z.object({
   precio: z.number(),
   anticipo: z.number(),
   saldo_financiado: z.number(),
+  /** El plazo elegido al comprar; `null` en CONTADO y en ventas sin plazo (Sprint 3). */
+  plazo: z
+    .object({ id_plazo_financiacion: z.number(), codigo: z.string() })
+    .nullable(),
   cantidad_cuotas: z.number().nullable(),
   /** TNA en porcentaje (24 = 24 %). */
   tasa_nominal_anual: z.number().nullable(),

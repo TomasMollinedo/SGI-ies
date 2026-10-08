@@ -53,6 +53,7 @@ describe('VentaService', () => {
       findUnique: jest.Mock;
       findMany: jest.Mock;
       findFirst: jest.Mock;
+      count: jest.Mock;
     };
     dETALLECOBRO: {
       findMany: jest.Mock;
@@ -114,21 +115,71 @@ describe('VentaService', () => {
     FK_publicacion: 10,
   };
 
+  /** Una cuota como la lee el detalle de venta, con su desglose. */
+  const cuotaDetalle = (datos: {
+    numero: number;
+    importe: number;
+    interes?: number;
+    saldo_capital: number;
+    saldo_pendiente: number;
+    estado: string;
+  }) => ({
+    id_cuota: 100 + datos.numero,
+    numero: datos.numero,
+    fecha_vencimiento: new Date('2026-08-01T00:00:00Z'),
+    importe_capital: new Prisma.Decimal(datos.importe - (datos.interes ?? 0)),
+    importe_interes: new Prisma.Decimal(datos.interes ?? 0),
+    importe: new Prisma.Decimal(datos.importe),
+    saldo_capital: new Prisma.Decimal(datos.saldo_capital),
+    saldo_pendiente: new Prisma.Decimal(datos.saldo_pendiente),
+    estado: datos.estado,
+  });
+
+  /**
+   * Venta como la lee `obtenerDetalle`: plan acordado con las cuotas de su
+   * cronograma. Precio 100.000, anticipo 20.000 y 2 cuotas al 24 %.
+   */
   const ventaDetalleCompleta = {
     id_venta: ID_VENTA,
     fecha_venta: new Date('2026-08-01T00:00:00Z'),
-    periodicidad_congelada: 'MENSUAL',
     planPago: {
       modalidad: 'FINANCIADO',
       precio_venta: new Prisma.Decimal(100000),
       anticipo_monto: new Prisma.Decimal(20000),
-      cantidad_cuotas: 10,
-    },
-    estado: 'CANCELADA',
-    motivo_cancelacion: dto.motivo_cancelacion,
-    fecha_cancelacion: new Date('2026-09-22T00:00:00Z'),
+      cantidad_cuotas: 2,
+      tasa_nominal_anual: new Prisma.Decimal(24),
+      valor_cuota: new Prisma.Decimal('41207.92'),
+      plazoFinanciacion: { id_plazo_financiacion: 3, codigo: 'PLZ-003' },
+      cuotas: [
+        cuotaDetalle({
+          numero: 0,
+          importe: 20000,
+          saldo_capital: 80000,
+          saldo_pendiente: 0,
+          estado: 'PAGADA',
+        }),
+        cuotaDetalle({
+          numero: 1,
+          importe: 41207.92,
+          interes: 1600,
+          saldo_capital: 40392.08,
+          saldo_pendiente: 41207.92,
+          estado: 'PENDIENTE',
+        }),
+        cuotaDetalle({
+          numero: 2,
+          importe: 41199.92,
+          interes: 807.84,
+          saldo_capital: 0,
+          saldo_pendiente: 10000,
+          estado: 'PARCIAL',
+        }),
+      ],
+    } as Record<string, unknown> | null,
+    estado: 'VIGENTE',
+    motivo_cancelacion: null as string | null,
+    fecha_cancelacion: null as Date | null,
     FK_publicacion: 10,
-    FK_plan_ejemplo: 5,
     cliente: {
       id_cliente: 1,
       nombre: 'Valentina',
@@ -149,7 +200,6 @@ describe('VentaService', () => {
       nombre: 'Ana',
       apellido: 'Gómez',
     },
-    cuotas: [],
   };
 
   const clienteValido: CreateVentaDto['cliente'] = {
@@ -211,6 +261,7 @@ describe('VentaService', () => {
         findUnique: jest.fn().mockResolvedValue(ventaDetalleCompleta),
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(0),
       },
 
       dETALLECOBRO: {
@@ -628,6 +679,24 @@ describe('VentaService', () => {
     });
 
     it('caso feliz: sin cobro confirmado ni declaración pendiente, cancela, anula las cuotas y libera la publicación', async () => {
+      // La venta como queda después de cancelar: plan conservado y cuotas ANULADA.
+      const planPago = ventaDetalleCompleta.planPago as {
+        cuotas: { estado: string }[];
+      };
+      prisma.vENTA.findUnique.mockResolvedValue({
+        ...ventaDetalleCompleta,
+        estado: 'CANCELADA',
+        motivo_cancelacion: dto.motivo_cancelacion,
+        fecha_cancelacion: new Date('2026-09-22T00:00:00Z'),
+        planPago: {
+          ...planPago,
+          cuotas: planPago.cuotas.map((cuota) => ({
+            ...cuota,
+            estado: 'ANULADA',
+          })),
+        },
+      });
+
       const resultado = await service.cancelar(ID_VENTA, dto, USUARIO_ID);
 
       expect(tx.vENTA.update).toHaveBeenCalledWith({
@@ -662,6 +731,128 @@ describe('VentaService', () => {
       );
 
       expect(resultado.estado).toBe('CANCELADA');
+      // El plan se conserva como registro histórico; ya no se debe nada.
+      expect(resultado.plan.precio).toBe(100000);
+      expect(resultado.cuotas).toHaveLength(3);
+      expect(resultado.saldo_pendiente).toBe(0);
+    });
+  });
+
+  describe('listar y obtenerDetalle (vista interna)', () => {
+    it('el detalle devuelve el plan acordado, el saldo pendiente y el cronograma desglosado', async () => {
+      const resultado = await service.obtenerDetalle(ID_VENTA);
+
+      expect(resultado.plan).toEqual({
+        modalidad: 'FINANCIADO',
+        precio: 100000,
+        anticipo: 20000,
+        saldo_financiado: 80000,
+        plazo: { id_plazo_financiacion: 3, codigo: 'PLZ-003' },
+        cantidad_cuotas: 2,
+        tasa_nominal_anual: 24,
+        valor_cuota: 41207.92,
+        // 1.600 + 807,84
+        total_intereses: 2407.84,
+        total_a_pagar: 102407.84,
+      });
+      // 0 + 41.207,92 + 10.000
+      expect(resultado.saldo_pendiente).toBe(51207.92);
+      expect(resultado.cuotas[1]).toEqual({
+        id_cuota: 101,
+        numero: 1,
+        fecha_vencimiento: '2026-08-01T00:00:00.000Z',
+        importe_capital: 39607.92,
+        importe_interes: 1600,
+        importe: 41207.92,
+        saldo_capital: 40392.08,
+        saldo_pendiente: 41207.92,
+        estado: 'PENDIENTE',
+      });
+      expect(resultado.usuarioCreador).toEqual({
+        nombre: 'Ana',
+        apellido: 'Gómez',
+      });
+    });
+
+    it('no expone el contrato del Sprint 3 ni depende del plan de ejemplo', async () => {
+      const resultado = await service.obtenerDetalle(ID_VENTA);
+
+      for (const campo of [
+        'FK_plan_pago',
+        'fecha_adhesion',
+        'precio_congelado',
+        'anticipo_congelado',
+        'tipo_plan_congelado',
+        'cantidad_cuotas_congelada',
+        'periodicidad_congelada',
+      ]) {
+        expect(resultado).not.toHaveProperty(campo);
+      }
+      expect(resultado.fecha_venta).toBe('2026-08-01T00:00:00.000Z');
+
+      const select = (
+        prisma.vENTA.findUnique.mock.calls as {
+          select: Record<string, unknown>;
+        }[][]
+      )[0][0].select;
+      expect(select).not.toHaveProperty('FK_plan_ejemplo');
+      expect(select).not.toHaveProperty('planEjemplo');
+      // Las cuotas se leen por el plan de pago, no por la columna legado FK_venta.
+      expect(select).not.toHaveProperty('cuotas');
+    });
+
+    it('el detalle tira 404 si la venta no existe', async () => {
+      prisma.vENTA.findUnique.mockResolvedValue(null);
+
+      await expect(service.obtenerDetalle(ID_VENTA)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('una venta sin plan de pago es un dato inconsistente: 500', async () => {
+      prisma.vENTA.findUnique.mockResolvedValue({
+        ...ventaDetalleCompleta,
+        planPago: null,
+      });
+
+      await expect(service.obtenerDetalle(ID_VENTA)).rejects.toThrow(
+        new InternalServerErrorException(
+          `La venta ${ID_VENTA} no tiene plan de pago`,
+        ),
+      );
+    });
+
+    it('el listado mapea cada venta con su plan y su saldo pendiente', async () => {
+      prisma.vENTA.findMany.mockResolvedValue([ventaDetalleCompleta]);
+      prisma.vENTA.count.mockResolvedValue(1);
+
+      const resultado = await service.listar({ page: 1, limit: 10 });
+
+      expect(resultado.data[0].plan.modalidad).toBe('FINANCIADO');
+      expect(resultado.data[0].plan.tasa_nominal_anual).toBe(24);
+      expect(resultado.data[0].saldo_pendiente).toBe(51207.92);
+      expect(resultado.data[0]).not.toHaveProperty('cuotas');
+      expect(resultado.meta).toEqual({ total: 1, page: 1, limit: 10 });
+    });
+
+    it('filtra por modalidad del plan acordado, combinable con el período sobre fecha_venta', async () => {
+      const fechaDesde = new Date('2026-01-01T00:00:00Z');
+
+      await service.listar({
+        modalidad: 'CONTADO',
+        fechaDesde,
+        page: 1,
+        limit: 10,
+      });
+
+      expect(prisma.vENTA.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            planPago: { modalidad: 'CONTADO' },
+            fecha_venta: { gte: fechaDesde },
+          },
+        }) as unknown,
+      );
     });
   });
 
@@ -894,6 +1085,7 @@ describe('VentaService', () => {
         precio: 120000,
         anticipo: 20000,
         saldo_financiado: 100000,
+        plazo: null,
         cantidad_cuotas: 10,
         tasa_nominal_anual: 24,
         valor_cuota: 11132.65,
@@ -939,6 +1131,7 @@ describe('VentaService', () => {
         precio: 120000,
         anticipo: 120000,
         saldo_financiado: 0,
+        plazo: null,
         cantidad_cuotas: null,
         tasa_nominal_anual: null,
         valor_cuota: null,
