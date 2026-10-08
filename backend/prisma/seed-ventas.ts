@@ -6,17 +6,20 @@ import {
   EstadoVenta,
   ModalidadPago,
   OrigenCobro,
-  Periodicidad,
 } from '../generated/prisma/enums';
 import { calcularPlanPago } from '../src/modules/comercializacion/plan-pago/motor-cuotas';
+import { montoAnticipoDesdePorcentaje } from '../src/modules/comercializacion/common/anticipo';
 
 /**
  * Helper compartido por los seeds que siembran ventas. No es un seed: no se
  * ejecuta solo.
  *
- * Deja cada venta como la dejan los servicios del Sprint 4:
+ * Deja cada venta como la deja `VentaService.crear` (T158):
  * - el plan de pago lo calcula `calcularPlanPago` (sistema francés, T132),
- *   el mismo motor que usa la API: nada de cuotas escritas a mano;
+ *   el mismo motor que usa la API: nada de cuotas escritas a mano, y el
+ *   anticipo sale de `montoAnticipoDesdePorcentaje`, igual que en la venta;
+ * - la venta no escribe las columnas legado de VENTA (`FK_plan_ejemplo` y
+ *   `*_congelado`), que nada lee y se eliminan en T159;
  * - el PLANPAGO congela modalidad, precio, anticipo, plazo, cuotas, TNA y
  *   valor de cuota (T158);
  * - cada cuota lleva las dos FK (`FK_venta` y `FK_plan_pago`) hasta T159;
@@ -26,10 +29,8 @@ import { calcularPlanPago } from '../src/modules/comercializacion/plan-pago/moto
  *   cuota queda PAGADA sin el cobro que la pagó: el tablero (T152) suma
  *   cobros, no cuotas.
  *
- * Mientras T158 no esté en `testing`, la venta sigue escribiendo las
- * columnas legado de VENTA (`FK_plan_ejemplo` y `*_congelado`): el listado de
- * ventas de antes de T158 las necesita. No molestan después; las elimina
- * T159.
+ * Una venta cancelada queda como después de `VentaService.cancelar`: cuotas
+ * ANULADA, plan conservado y la unidad otra vez Disponible.
  */
 
 /** El plazo elegido, con lo que el plan copia de él. */
@@ -58,8 +59,6 @@ export interface PagoCuotaSeed {
 export interface VentaSeed {
   FK_cliente: number;
   FK_publicacion: number;
-  /** Columna legado (T159): el plan de ejemplo de la publicación. */
-  FK_plan_ejemplo: number;
   fecha_venta: Date;
   precio: number;
   modalidad: ModalidadPago;
@@ -114,10 +113,11 @@ export async function sembrarVenta(
     );
   }
 
-  // Misma cuenta que la simulación de la venta: el porcentaje del precio,
-  // redondeado a centavos.
   const anticipo = esFinanciado
-    ? precio.mul(datos.anticipo_porcentaje!).div(100).toDecimalPlaces(2)
+    ? montoAnticipoDesdePorcentaje(
+        precio,
+        new Prisma.Decimal(datos.anticipo_porcentaje!),
+      )
     : precio;
   const tna = esFinanciado
     ? new Prisma.Decimal(datos.plazo!.tasa_nominal_anual)
@@ -141,15 +141,6 @@ export async function sembrarVenta(
         estado: datos.cancelacion ? EstadoVenta.CANCELADA : EstadoVenta.VIGENTE,
         motivo_cancelacion: datos.cancelacion?.motivo ?? null,
         fecha_cancelacion: datos.cancelacion?.fecha ?? null,
-        // Legado (T159), ver el comentario del archivo.
-        FK_plan_ejemplo: datos.FK_plan_ejemplo,
-        precio_congelado: precio,
-        anticipo_congelado: anticipo,
-        tipo_plan_congelado: datos.modalidad,
-        cantidad_cuotas_congelada: esFinanciado
-          ? datos.plazo!.cantidad_cuotas
-          : 1,
-        periodicidad_congelada: esFinanciado ? Periodicidad.MENSUAL : null,
         FK_usuario_creador: usuarioId,
         FK_usuario_actualizador: usuarioId,
       },

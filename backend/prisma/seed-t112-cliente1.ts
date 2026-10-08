@@ -29,8 +29,9 @@ import { diasDesdeHoy } from './seed-fechas';
  * (`ClienteAuthService` busca por email antes de crear uno nuevo). Para
  * entrar con tu cuenta, poné tu email de Google en `SEED_CLIENTE_EMAIL`.
  *
- * Necesita que ya haya corrido `prisma/seed.ts` (usuarios de rol Responsable
- * de Proyectos/Comercialización/Tesorería y las FORMAPAGO "Efectivo" y
+ * Necesita que ya haya corrido `prisma/seed.ts` (el usuario Administrador, a
+ * cuyo nombre queda la auditoría como en `seed-comercializacion.ts`, y las
+ * FORMAPAGO "Efectivo" y
  * "Transferencia bancaria") y MinIO levantado (los comprobantes de las
  * declaraciones se suben al bucket). Es idempotente: correr
  *   npm run seed:t112-cliente1
@@ -98,18 +99,12 @@ async function main() {
     `Seed T112 - CLIENTE ${email} (id ${idCliente}): ${existente ? 'ya existía' : 'creado sin cuenta de Google, se vincula en el primer login'}.`,
   );
 
-  const responsableProyectos = await prisma.uSUARIO.findFirstOrThrow({
-    where: { rol: { nombre: RolNombre.RESPONSABLE_PROYECTOS } },
-    select: { id_usuario: true },
-  });
-  const responsableComercializacion = await prisma.uSUARIO.findFirstOrThrow({
-    where: { rol: { nombre: RolNombre.RESPONSABLE_COMERCIALIZACION } },
-    select: { id_usuario: true },
-  });
-  const responsableTesoreria = await prisma.uSUARIO.findFirstOrThrow({
-    where: { rol: { nombre: RolNombre.RESPONSABLE_TESORERIA } },
-    select: { id_usuario: true },
-  });
+  const { id_usuario: idAdministrador } = await prisma.uSUARIO.findFirstOrThrow(
+    {
+      where: { rol: { nombre: RolNombre.ADMINISTRADOR } },
+      select: { id_usuario: true },
+    },
+  );
   const { id_forma_pago: idEfectivo } = await prisma.fORMAPAGO.findFirstOrThrow(
     { where: { nombre: 'Efectivo' }, select: { id_forma_pago: true } },
   );
@@ -120,10 +115,7 @@ async function main() {
     });
   // Plazos de financiación (HU-32). Mismo helper que
   // `seed-comercializacion.ts`, así los dos seeds comparten plazos.
-  const plazoPorCuotas = await sembrarPlazos(
-    prisma,
-    responsableComercializacion.id_usuario,
-  );
+  const plazoPorCuotas = await sembrarPlazos(prisma, idAdministrador);
   const plazo = (cantidadCuotas: number) => {
     const encontrado = plazoPorCuotas.get(cantidadCuotas);
     if (encontrado === undefined) {
@@ -177,14 +169,14 @@ async function main() {
       portada: null,
       imagenes: [],
     },
-    responsableProyectos.id_usuario,
+    idAdministrador,
   );
 
   /**
-   * Unidad publicada En Plan de Pago con el plan de ejemplo con el que se
-   * vendió. Idempotente por (proyecto, identificador), publicación por
-   * unidad y plan por (publicación, nombre), mismo criterio que
-   * `seed-comercializacion.ts`.
+   * Unidad publicada En Plan de Pago, con el plan de ejemplo que se le
+   * ofreció. Devuelve la publicación. Idempotente por (proyecto,
+   * identificador), publicación por unidad y plan por (publicación,
+   * nombre), mismo criterio que `seed-comercializacion.ts`.
    */
   async function upsertUnidadVendida(datos: {
     identificador: string;
@@ -211,8 +203,8 @@ async function main() {
           superficie_cubierta: datos.superficie_cubierta,
           piso: datos.piso,
           costo: datos.costo,
-          FK_usuario_creador: responsableProyectos.id_usuario,
-          FK_usuario_actualizador: responsableProyectos.id_usuario,
+          FK_usuario_creador: idAdministrador,
+          FK_usuario_actualizador: idAdministrador,
         },
       }));
 
@@ -227,37 +219,38 @@ async function main() {
           precio_lista: datos.precio_lista,
           porcentaje_ganancia: datos.porcentaje_ganancia,
           fecha_publicacion: diasDesdeHoy(-160),
-          FK_usuario_creador: responsableComercializacion.id_usuario,
-          FK_usuario_actualizador: responsableComercializacion.id_usuario,
+          FK_usuario_creador: idAdministrador,
+          FK_usuario_actualizador: idAdministrador,
         },
       }));
 
-    const plan =
-      (await prisma.pLANEJEMPLO.findFirst({
-        where: {
-          FK_publicacion: publicacion.id_publicacion,
-          nombre: datos.plan.nombre,
-        },
-      })) ??
-      (await prisma.pLANEJEMPLO.create({
+    const planExistente = await prisma.pLANEJEMPLO.findFirst({
+      where: {
+        FK_publicacion: publicacion.id_publicacion,
+        nombre: datos.plan.nombre,
+      },
+    });
+    if (!planExistente) {
+      await prisma.pLANEJEMPLO.create({
         data: {
           FK_publicacion: publicacion.id_publicacion,
           nombre: datos.plan.nombre,
           anticipo_porcentaje: datos.plan.anticipo_porcentaje,
           FK_plazo_financiacion: plazo(datos.plan.cuotas).id_plazo_financiacion,
-          FK_usuario_creador: responsableComercializacion.id_usuario,
-          FK_usuario_actualizador: responsableComercializacion.id_usuario,
+          FK_usuario_creador: idAdministrador,
+          FK_usuario_actualizador: idAdministrador,
         },
-      }));
+      });
+    }
 
-    return { publicacion, plan };
+    return publicacion;
   }
 
   // ------------------------------------------------------------------
   // A-101 — anticipo 20 % (4.800.000) + 6 cuotas de 3.370.084,12 (TNA 18 %).
   // Vendida hace 140 días: vencieron el anticipo y las cuotas 1 a 4.
   // ------------------------------------------------------------------
-  const unidadA = await upsertUnidadVendida({
+  const publicacionA = await upsertUnidadVendida({
     identificador: 'A-101',
     tipologia: TipologiaUnidad.DOS_DORMITORIOS,
     superficie_cubierta: 58,
@@ -275,8 +268,7 @@ async function main() {
     prisma,
     {
       FK_cliente: idCliente,
-      FK_publicacion: unidadA.publicacion.id_publicacion,
-      FK_plan_ejemplo: unidadA.plan.id_plan_ejemplo,
+      FK_publicacion: publicacionA.id_publicacion,
       fecha_venta: diasDesdeHoy(-140),
       precio: 24_000_000,
       modalidad: ModalidadPago.FINANCIADO,
@@ -301,14 +293,14 @@ async function main() {
         },
       ],
     },
-    responsableComercializacion.id_usuario,
+    idAdministrador,
   );
 
   // ------------------------------------------------------------------
   // B-201 — anticipo 25 % (3.000.000) + 3 cuotas sin interés de 3.000.000.
   // Vendida hace 25 días: solo venció el anticipo, que paga el cobro mixto.
   // ------------------------------------------------------------------
-  const unidadB = await upsertUnidadVendida({
+  const publicacionB = await upsertUnidadVendida({
     identificador: 'B-201',
     tipologia: TipologiaUnidad.UN_DORMITORIO,
     superficie_cubierta: 42,
@@ -326,15 +318,14 @@ async function main() {
     prisma,
     {
       FK_cliente: idCliente,
-      FK_publicacion: unidadB.publicacion.id_publicacion,
-      FK_plan_ejemplo: unidadB.plan.id_plan_ejemplo,
+      FK_publicacion: publicacionB.id_publicacion,
       fecha_venta: diasDesdeHoy(-25),
       precio: 12_000_000,
       modalidad: ModalidadPago.FINANCIADO,
       anticipo_porcentaje: 25,
       plazo: plazo(3),
     },
-    responsableComercializacion.id_usuario,
+    idAdministrador,
   );
 
   // ------------------------------------------------------------------
@@ -350,12 +341,12 @@ async function main() {
     sembrarDeclaracion(
       prisma,
       { ...datos, FK_cliente: idCliente, FK_forma_pago: idTransferencia },
-      responsableTesoreria.id_usuario,
+      idAdministrador,
     );
 
   // Cuota 2 de A-101: dos pagos de 500.000 declarados y validados.
   await declarar({
-    FK_publicacion: unidadA.publicacion.id_publicacion,
+    FK_publicacion: publicacionA.id_publicacion,
     numero_cuota: 2,
     importe: 500_000,
     numero_referencia: 'TR-A101-WEB-1',
@@ -366,7 +357,7 @@ async function main() {
     },
   });
   await declarar({
-    FK_publicacion: unidadA.publicacion.id_publicacion,
+    FK_publicacion: publicacionA.id_publicacion,
     numero_cuota: 2,
     importe: 500_000,
     numero_referencia: 'TR-A101-WEB-2',
@@ -378,7 +369,7 @@ async function main() {
   });
   // Cuota 3 de A-101: una declaración rechazada.
   await declarar({
-    FK_publicacion: unidadA.publicacion.id_publicacion,
+    FK_publicacion: publicacionA.id_publicacion,
     numero_cuota: 3,
     numero_referencia: 'TR-A101-WEB-3',
     fecha_declaracion: diasDesdeHoy(-30),
@@ -395,7 +386,7 @@ async function main() {
   const anticipoB = await prisma.cUOTA.findFirstOrThrow({
     where: {
       numero: 0,
-      venta: { FK_publicacion: unidadB.publicacion.id_publicacion },
+      venta: { FK_publicacion: publicacionB.id_publicacion },
     },
   });
   const yaTieneMixto = await prisma.dETALLECOBRO.findFirst({
@@ -405,7 +396,7 @@ async function main() {
     const cuota3A = await prisma.cUOTA.findFirstOrThrow({
       where: {
         numero: 3,
-        venta: { FK_publicacion: unidadA.publicacion.id_publicacion },
+        venta: { FK_publicacion: publicacionA.id_publicacion },
       },
     });
     await prisma.$transaction((tx) =>
@@ -421,14 +412,14 @@ async function main() {
           observaciones:
             'Transferencia única que Tesorería imputó a A-101 y B-201 (T112: caso de cobro partido entre unidades)',
         },
-        responsableTesoreria.id_usuario,
+        idAdministrador,
       ),
     );
   }
 
   // Cuota 4 de A-101 (vencida): una declaración que Tesorería todavía no revisó.
   await declarar({
-    FK_publicacion: unidadA.publicacion.id_publicacion,
+    FK_publicacion: publicacionA.id_publicacion,
     numero_cuota: 4,
     numero_referencia: 'TR-A101-WEB-4',
     fecha_declaracion: diasDesdeHoy(-1),

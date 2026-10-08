@@ -29,8 +29,7 @@ import { diasDesdeHoy, mesesDesdeHoy } from './seed-fechas';
  * Aparte de `prisma/seed.ts` a propósito, igual criterio que
  * `seed-cuenta-corriente-prueba.ts`: ese seed base debe quedar idempotente y
  * mínimo, sin datos transaccionales de prueba. Este script asume que ya
- * corrió (necesita los usuarios de rol Responsable de Proyectos y
- * Responsable de Comercialización y Ventas, y las FORMAPAGO que crea
+ * corrió (necesita el usuario Administrador y las FORMAPAGO que crea
  * `seed.ts`) y agrega encima los datos de Comercialización.
  *
  * Inserta filas directo con Prisma ya en el estado que dejarían los services
@@ -86,37 +85,23 @@ const ROTACION_TIPOLOGIA = [
 ];
 
 async function main() {
-  const responsableProyectos = await prisma.uSUARIO.findFirstOrThrow({
-    where: { rol: { nombre: RolNombre.RESPONSABLE_PROYECTOS } },
-    select: { id_usuario: true },
-  });
-  const responsableComercializacion = await prisma.uSUARIO.findFirstOrThrow({
-    where: { rol: { nombre: RolNombre.RESPONSABLE_COMERCIALIZACION } },
-    select: { id_usuario: true },
-  });
-  // Valida y rechaza las declaraciones de pago.
-  const responsableTesoreria = await prisma.uSUARIO.findFirstOrThrow({
-    where: { rol: { nombre: RolNombre.RESPONSABLE_TESORERIA } },
-    select: { id_usuario: true },
-  });
-  // UNIDADFUNCIONAL la mantiene Proyectos (ver comentario de
-  // `costo` en schema.prisma: "Editable por Proyectos..."); PUBLICACIONUNIDAD
-  // y sus planes de ejemplo son acciones comerciales, las mantiene
-  // Comercialización.
-  const auditoriaProyectos = {
-    FK_usuario_creador: responsableProyectos.id_usuario,
-    FK_usuario_actualizador: responsableProyectos.id_usuario,
-  };
-  const auditoriaComercializacion = {
-    FK_usuario_creador: responsableComercializacion.id_usuario,
-    FK_usuario_actualizador: responsableComercializacion.id_usuario,
+  // Todos los ABM y operaciones que imita este seed (proyectos, unidades,
+  // publicaciones, plazos, planes, ventas, cobros y la validación de
+  // declaraciones) son del rol Administrador: la auditoría queda a su nombre,
+  // como si los hubiera cargado desde la API.
+  const { id_usuario: idAdministrador } = await prisma.uSUARIO.findFirstOrThrow(
+    {
+      where: { rol: { nombre: RolNombre.ADMINISTRADOR } },
+      select: { id_usuario: true },
+    },
+  );
+  const auditoria = {
+    FK_usuario_creador: idAdministrador,
+    FK_usuario_actualizador: idAdministrador,
   };
 
   // Plazos de financiación (HU-32): los planes de ejemplo eligen uno.
-  const plazoPorCuotas = await sembrarPlazos(
-    prisma,
-    responsableComercializacion.id_usuario,
-  );
+  const plazoPorCuotas = await sembrarPlazos(prisma, idAdministrador);
   const plazoVenta = (cantidadCuotas: number) => {
     const encontrado = plazoPorCuotas.get(cantidadCuotas);
     if (encontrado === undefined) {
@@ -299,11 +284,7 @@ async function main() {
 
   const idProyectoPorCodigo = new Map<string, number>();
   for (const datos of proyectosDatos) {
-    const proyecto = await sembrarProyecto(
-      prisma,
-      datos,
-      responsableProyectos.id_usuario,
-    );
+    const proyecto = await sembrarProyecto(prisma, datos, idAdministrador);
     idProyectoPorCodigo.set(datos.clave, proyecto.id_proyecto);
   }
   console.log(
@@ -338,7 +319,7 @@ async function main() {
     if (existente) return existente;
 
     return prisma.uNIDADFUNCIONAL.create({
-      data: { ...datos, ...auditoriaProyectos },
+      data: { ...datos, ...auditoria },
     });
   }
 
@@ -371,7 +352,7 @@ async function main() {
     if (existente) return existente;
 
     return prisma.pUBLICACIONUNIDAD.create({
-      data: { ...datos, ...auditoriaComercializacion },
+      data: { ...datos, ...auditoria },
     });
   }
 
@@ -394,7 +375,7 @@ async function main() {
     if (existente) return existente;
 
     return prisma.pLANEJEMPLO.create({
-      data: { ...datos, ...auditoriaComercializacion },
+      data: { ...datos, ...auditoria },
     });
   }
 
@@ -437,7 +418,7 @@ async function main() {
 
   /** Ver `sembrarVenta`: idempotente por publicación. */
   const venderUnidad = (datos: VentaSeed) =>
-    sembrarVenta(prisma, datos, responsableComercializacion.id_usuario);
+    sembrarVenta(prisma, datos, idAdministrador);
 
   // --------------------------------------------------------------------
   // CLIENTE — 6 filas (upsert real por `google_sub`, único en BD)
@@ -565,7 +546,7 @@ async function main() {
     precio_lista: 19_000_000,
     porcentaje_ganancia: 26.67,
   });
-  const plan1A = await upsertPlan({
+  await upsertPlan({
     FK_publicacion: publicacion1A.id_publicacion,
     nombre: 'Anticipo 30 % + 12 cuotas',
     anticipo_porcentaje: 30,
@@ -595,7 +576,6 @@ async function main() {
   await venderUnidad({
     FK_cliente: idEmiliano,
     FK_publicacion: publicacion1A.id_publicacion,
-    FK_plan_ejemplo: plan1A.id_plan_ejemplo,
     fecha_venta: mesesDesdeHoy(-3),
     precio: 19_000_000,
     modalidad: ModalidadPago.FINANCIADO,
@@ -634,7 +614,7 @@ async function main() {
     precio_lista: 20_000_000,
     porcentaje_ganancia: 25,
   });
-  const plan2B = await upsertPlan({
+  await upsertPlan({
     FK_publicacion: publicacion2B.id_publicacion,
     nombre: 'Anticipo 50 % + 12 cuotas',
     anticipo_porcentaje: 50,
@@ -643,7 +623,6 @@ async function main() {
   await venderUnidad({
     FK_cliente: idValentina,
     FK_publicacion: publicacion2B.id_publicacion,
-    FK_plan_ejemplo: plan2B.id_plan_ejemplo,
     fecha_venta: diasDesdeHoy(-170),
     precio: 20_000_000,
     modalidad: ModalidadPago.FINANCIADO,
@@ -686,7 +665,7 @@ async function main() {
     precio_lista: 40_000_000,
     porcentaje_ganancia: 33.33,
   });
-  const plan3C = await upsertPlan({
+  await upsertPlan({
     FK_publicacion: publicacion3C.id_publicacion,
     nombre: 'Anticipo 30 % + 24 cuotas',
     anticipo_porcentaje: 30,
@@ -695,7 +674,6 @@ async function main() {
   await venderUnidad({
     FK_cliente: idRodrigo,
     FK_publicacion: publicacion3C.id_publicacion,
-    FK_plan_ejemplo: plan3C.id_plan_ejemplo,
     fecha_venta: diasDesdeHoy(-65),
     precio: 40_000_000,
     modalidad: ModalidadPago.FINANCIADO,
@@ -724,10 +702,9 @@ async function main() {
     precio_lista: 52_000_000,
     porcentaje_ganancia: 23.81,
   });
-  // El contado no es un plan de ejemplo (es el precio de lista). La venta
-  // igual apunta a un plan de ejemplo por la columna legado
-  // `VENTA.FK_plan_ejemplo`, que se elimina en T159.
-  const planLoteOcho = await upsertPlan({
+  // El plan de ejemplo que se ofrecía antes de venderla; se vendió de
+  // contado, al precio de lista.
+  await upsertPlan({
     FK_publicacion: publicacionLoteOcho.id_publicacion,
     nombre: 'Anticipo 30 % + 12 cuotas',
     anticipo_porcentaje: 30,
@@ -736,7 +713,6 @@ async function main() {
   await venderUnidad({
     FK_cliente: idEmiliano,
     FK_publicacion: publicacionLoteOcho.id_publicacion,
-    FK_plan_ejemplo: planLoteOcho.id_plan_ejemplo,
     fecha_venta: diasDesdeHoy(-60),
     precio: 52_000_000,
     modalidad: ModalidadPago.CONTADO,
@@ -847,15 +823,15 @@ async function main() {
         porcentaje_ganancia: 30,
       });
 
-      // El plan de ejemplo con el que se vendió. En contado, ver LOTE-08:
-      // solo lo pide la columna legado `VENTA.FK_plan_ejemplo`.
+      // El plan de ejemplo que se ofrecía: el de la financiación con la que
+      // se vendió o, si fue de contado, uno de 30 % + 12 cuotas.
       const venta = ventas[indice];
       const { anticipo_porcentaje, cantidad_cuotas } = venta.financiacion ?? {
         anticipo_porcentaje: 30,
         cantidad_cuotas: 12,
       };
       const plazoPlan = plazoVenta(cantidad_cuotas);
-      const plan = await upsertPlan({
+      await upsertPlan({
         FK_publicacion: publicacion.id_publicacion,
         nombre: `Anticipo ${anticipo_porcentaje} % + ${cantidad_cuotas} cuotas${plazoPlan.tasa_nominal_anual === 0 ? ' sin interés' : ''}`,
         anticipo_porcentaje,
@@ -866,7 +842,6 @@ async function main() {
       await venderUnidad({
         FK_cliente: venta.FK_cliente,
         FK_publicacion: publicacion.id_publicacion,
-        FK_plan_ejemplo: plan.id_plan_ejemplo,
         fecha_venta: venta.fecha_venta,
         precio,
         ...(venta.financiacion
@@ -940,7 +915,7 @@ async function main() {
     sembrarDeclaracion(
       prisma,
       { ...datos, FK_forma_pago: idTransferencia },
-      responsableTesoreria.id_usuario,
+      idAdministrador,
     );
 
   // Valentina, sobre 2-B: Tesorería le validó un pago a cuenta de la cuota 4
