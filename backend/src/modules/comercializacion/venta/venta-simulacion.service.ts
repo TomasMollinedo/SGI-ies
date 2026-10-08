@@ -13,6 +13,7 @@ import {
 import { PrismaService } from '../../../prisma/prisma.service';
 import { DECIMALES } from '../../../common/constantes/decimales';
 import { PlazoFinanciacionService } from '../plazo-financiacion/plazo-financiacion.service';
+import { montoAnticipoDesdePorcentaje } from '../common/anticipo';
 import { PlanPagoCalculado, calcularPlanPago } from '../plan-pago/motor-cuotas';
 import { SimularVentaDto } from './dto/simular-venta.dto';
 
@@ -77,13 +78,20 @@ export class VentaSimulacionService {
    *
    * `fechaVenta` es hoy por defecto: la fecha de una venta es la del día en
    * que se confirma y no es editable.
+   *
+   * `cliente` es la transacción de quien llama, si la hay: la confirmación de
+   * la venta (T158) recalcula dentro de su propia `$transaction`, después de
+   * bloquear la publicación, para que el precio que compara sea el mismo que
+   * guarda. Simular, sin transacción, usa el cliente común.
    */
   async calcular(
     dto: SimularVentaDto,
     fechaVenta: Date = new Date(),
+    cliente: Prisma.TransactionClient = this.prisma,
   ): Promise<SimulacionVenta> {
     const precioLista = await this.buscarPrecioListaDisponible(
       dto.FK_publicacion,
+      cliente,
     );
 
     if (dto.modalidad === ModalidadPago.CONTADO) {
@@ -136,8 +144,9 @@ export class VentaSimulacionService {
    */
   private async buscarPrecioListaDisponible(
     idPublicacion: number,
+    cliente: Prisma.TransactionClient,
   ): Promise<Prisma.Decimal> {
-    const publicacion = await this.prisma.pUBLICACIONUNIDAD.findUnique({
+    const publicacion = await cliente.pUBLICACIONUNIDAD.findUnique({
       where: { id_publicacion: idPublicacion },
       select: { vigente: true, estado_comercial: true, precio_lista: true },
     });
@@ -210,7 +219,7 @@ export class VentaSimulacionService {
       porcentaje = monto.div(precioLista).mul(100).toDecimalPlaces(DECIMALES);
     } else {
       porcentaje = new Prisma.Decimal(dto.anticipo_porcentaje!);
-      monto = precioLista.mul(porcentaje).div(100).toDecimalPlaces(DECIMALES);
+      monto = montoAnticipoDesdePorcentaje(precioLista, porcentaje);
     }
 
     if (!monto.greaterThan(0)) {
@@ -220,8 +229,12 @@ export class VentaSimulacionService {
     return { monto, porcentaje };
   }
 
-  /** La simulación con los importes como strings de decimales fijos. */
-  private mapear(simulacion: SimulacionVenta) {
+  /**
+   * La simulación con los importes como strings de decimales fijos (ver
+   * `SimulacionVentaResponseDto`). Pública porque la confirmación (T158) la
+   * devuelve recalculada cuando el precio o la TNA cambiaron.
+   */
+  mapear(simulacion: SimulacionVenta) {
     const plazo = simulacion.plazo;
 
     return {

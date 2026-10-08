@@ -154,6 +154,23 @@ describe('VentaSimulacionService', () => {
       );
       expect(simulacion.valor_cuota?.toFixed(2)).toBe('945595.97');
     });
+
+    it('con la transacción de quien llama, lee la publicación con ese cliente y no con el común', async () => {
+      const tx = {
+        pUBLICACIONUNIDAD: {
+          findUnique: jest.fn().mockResolvedValue(publicacion()),
+        },
+      };
+
+      await service.calcular(
+        financiado(),
+        FECHA_VENTA,
+        tx as unknown as Prisma.TransactionClient,
+      );
+
+      expect(tx.pUBLICACIONUNIDAD.findUnique).toHaveBeenCalledTimes(1);
+      expect(prisma.pUBLICACIONUNIDAD.findUnique).not.toHaveBeenCalled();
+    });
   });
 
   describe('CONTADO', () => {
