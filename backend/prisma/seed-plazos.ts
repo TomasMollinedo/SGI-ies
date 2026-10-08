@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Prisma, PrismaClient } from '../generated/prisma/client';
+import type { PlazoVentaSeed } from './seed-ventas';
 
 /**
  * Helper compartido por los seeds que siembran planes de ejemplo
@@ -54,24 +55,29 @@ const PLAZOS: PlazoSeed[] = [
 ];
 
 /**
- * Crea los plazos que falten y devuelve el id de cada uno por cantidad de
- * cuotas. Idempotente por `cantidad_cuotas`: si ya existe un plazo con esa
- * cantidad, lo reutiliza tal cual.
+ * Crea los plazos que falten y devuelve cada uno (id, cuotas y TNA) por
+ * cantidad de cuotas. Idempotente por `cantidad_cuotas`: si ya existe un
+ * plazo con esa cantidad, lo reutiliza tal cual (con la TNA que tenga).
  */
 export async function sembrarPlazos(
   prisma: PrismaClient,
   usuarioId: number,
-): Promise<Map<number, number>> {
-  const idPorCuotas = new Map<number, number>();
+): Promise<Map<number, PlazoVentaSeed>> {
+  const plazoPorCuotas = new Map<number, PlazoVentaSeed>();
+  const select = {
+    id_plazo_financiacion: true,
+    cantidad_cuotas: true,
+    tasa_nominal_anual: true,
+  };
 
   for (const datos of PLAZOS) {
     const existente = await prisma.pLAZOFINANCIACION.findFirst({
       where: { cantidad_cuotas: datos.cantidad_cuotas },
-      select: { id_plazo_financiacion: true },
+      select,
     });
 
     if (existente) {
-      idPorCuotas.set(datos.cantidad_cuotas, existente.id_plazo_financiacion);
+      plazoPorCuotas.set(datos.cantidad_cuotas, aPlazoVenta(existente));
       continue;
     }
 
@@ -95,11 +101,20 @@ export async function sembrarPlazos(
         data: {
           codigo: `PLZ-${String(fila.id_plazo_financiacion).padStart(3, '0')}`,
         },
+        select,
       });
     });
 
-    idPorCuotas.set(datos.cantidad_cuotas, creado.id_plazo_financiacion);
+    plazoPorCuotas.set(datos.cantidad_cuotas, aPlazoVenta(creado));
   }
 
-  return idPorCuotas;
+  return plazoPorCuotas;
+}
+
+function aPlazoVenta(fila: {
+  id_plazo_financiacion: number;
+  cantidad_cuotas: number;
+  tasa_nominal_anual: Prisma.Decimal;
+}): PlazoVentaSeed {
+  return { ...fila, tasa_nominal_anual: fila.tasa_nominal_anual.toNumber() };
 }

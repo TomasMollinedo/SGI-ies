@@ -1,17 +1,22 @@
-import 'dotenv/config';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 import {
   EstadoComercial,
-  EstadoCuota,
+  EstadoConsulta,
+  EstadoDeclaracionPago,
   EstadoProyecto,
   ModalidadPago,
-  Periodicidad,
+  OrigenCobro,
+  TipoImagenProyecto,
   TipologiaUnidad,
 } from '../generated/prisma/enums';
 import { RolNombre } from '../src/common/enums/rol.enum';
-import { CuotaSeed, crearVentaConPlanPago } from './seed-venta-con-plan-pago';
+import { PagoCuotaSeed, VentaSeed, sembrarVenta } from './seed-ventas';
+import { sembrarDeclaracion } from './seed-declaraciones';
+import { numeroOperacion } from './seed-referencias';
+import { ProyectoSeed, sembrarProyecto } from './seed-proyectos';
 import { sembrarPlazos } from './seed-plazos';
+import { diasDesdeHoy, mesesDesdeHoy } from './seed-fechas';
+import { ejecutarSeed } from './seed-ejecutar';
 
 /**
  * Seed de prueba para Comercialización/Ecommerce (Sprint 3, T96): siembra la
@@ -25,23 +30,27 @@ import { sembrarPlazos } from './seed-plazos';
  * Aparte de `prisma/seed.ts` a propósito, igual criterio que
  * `seed-cuenta-corriente-prueba.ts`: ese seed base debe quedar idempotente y
  * mínimo, sin datos transaccionales de prueba. Este script asume que ya
- * corrió (necesita los usuarios de rol Responsable de Proyectos y
- * Responsable de Comercialización y Ventas, y las FORMAPAGO que crea
+ * corrió (necesita el usuario Administrador y las FORMAPAGO que crea
  * `seed.ts`) y agrega encima los datos de Comercialización.
  *
  * Inserta filas directo con Prisma ya en el estado que dejarían los services
- * reales de cada HU (todavía no existen) si un usuario real hubiera operado
- * el sistema — no hace falta levantar el backend para tener datos de prueba.
+ * de cada HU si un usuario real hubiera operado el sistema — no hace falta
+ * levantar el backend para tener datos de prueba. Las ventas las siembra
+ * `sembrarVenta` (`seed-ventas.ts`) con el sistema francés de T132 y un cobro
+ * por cada pago, y las fechas son relativas a hoy (`seed-fechas.ts`) para que
+ * las cuotas vencidas sigan vencidas el día que se corra.
  *
  * Casos borde que pide explícitamente T96 (ver plan `dejar-en-testing-la-
  * snazzy-prism.md`):
- * - Un proyecto sin `fecha_fin_estimada` y con la dirección todavía "A definir"
- *   (Barrio Los Álamos): `direccion` es obligatoria desde T121.
+ * - Un proyecto En ejecución sin `fecha_fin_estimada` (Barrio Los Álamos):
+ *   su condición de entrega es "A entregar, fecha a confirmar".
  * - Una publicación no vigente (LOCAL-03).
  * - Un cliente sin `dni_cuil` (Camila Ferreyra).
  * - Al menos una unidad en cada uno de los 4 `EstadoComercial`.
  * - Al menos 3 cuotas vencidas con saldo pendiente (venta de Valentina Roldán
- *   sobre 2-B).
+ *   sobre 2-B, que además es el caso de prueba del sistema francés de T132).
+ * - Una venta financiada al día (3-C), ventas de contado, ventas financiadas
+ *   ya pagadas (con y sin interés), un cobro anulado y una venta cancelada.
  * - Un cliente con 2+ unidades en proyectos distintos (Valentina Roldán),
  *   para el criterio de HU-28 ("historial agrupado por unidad, no por
  *   cobro", decisión 14 del DER).
@@ -50,16 +59,11 @@ import { sembrarPlazos } from './seed-plazos';
  *   npm run seed:comercializacion
  * las veces que haga falta no duplica datos. Para arrancar de datos
  * completamente limpios:
- *   npx prisma migrate reset          (borra la base, aplica migraciones y corre seed.ts solo)
+ *   npx prisma migrate reset          (borra la base y aplica las migraciones)
+ *   npx prisma db seed                (corre seed.ts: desde Prisma 7 el reset no lo corre solo)
  *   npm run seed:cuenta-corriente-prueba
  *   npm run seed:comercializacion     (agrega los datos de este script)
  */
-
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
-});
-
-// Hoy, a los fines de "vencida" en los comentarios de este archivo: 2026-09-14.
 
 const COSTO_POR_TIPOLOGIA: Partial<Record<TipologiaUnidad, number>> = {
   [TipologiaUnidad.UN_DORMITORIO]: 15_000_000,
@@ -77,178 +81,213 @@ const ROTACION_TIPOLOGIA = [
   TipologiaUnidad.TRES_DORMITORIOS,
 ];
 
-async function main() {
-  const responsableProyectos = await prisma.uSUARIO.findFirstOrThrow({
-    where: { rol: { nombre: RolNombre.RESPONSABLE_PROYECTOS } },
-    select: { id_usuario: true },
-  });
-  const responsableComercializacion = await prisma.uSUARIO.findFirstOrThrow({
-    where: { rol: { nombre: RolNombre.RESPONSABLE_COMERCIALIZACION } },
-    select: { id_usuario: true },
-  });
-  // UNIDADFUNCIONAL la mantiene Proyectos (ver comentario de
-  // `costo` en schema.prisma: "Editable por Proyectos..."); PUBLICACIONUNIDAD
-  // y sus planes de ejemplo son acciones comerciales, las mantiene
-  // Comercialización.
-  const auditoriaProyectos = {
-    FK_usuario_creador: responsableProyectos.id_usuario,
-    FK_usuario_actualizador: responsableProyectos.id_usuario,
-  };
-  const auditoriaComercializacion = {
-    FK_usuario_creador: responsableComercializacion.id_usuario,
-    FK_usuario_actualizador: responsableComercializacion.id_usuario,
+export async function sembrarComercializacion(prisma: PrismaClient) {
+  // Todos los ABM y operaciones que imita este seed (proyectos, unidades,
+  // publicaciones, plazos, planes, ventas, cobros y la validación de
+  // declaraciones) son del rol Administrador: la auditoría queda a su nombre,
+  // como si los hubiera cargado desde la API.
+  const { id_usuario: idAdministrador } = await prisma.uSUARIO.findFirstOrThrow(
+    {
+      where: { rol: { nombre: RolNombre.ADMINISTRADOR } },
+      select: { id_usuario: true },
+    },
+  );
+  const auditoria = {
+    FK_usuario_creador: idAdministrador,
+    FK_usuario_actualizador: idAdministrador,
   };
 
   // Plazos de financiación (HU-32): los planes de ejemplo eligen uno.
-  const idPlazoPorCuotas = await sembrarPlazos(
-    prisma,
-    responsableComercializacion.id_usuario,
-  );
-  const plazo = (cantidadCuotas: number) => {
-    const id = idPlazoPorCuotas.get(cantidadCuotas);
-    if (id === undefined) {
+  const plazoPorCuotas = await sembrarPlazos(prisma, idAdministrador);
+  const plazoVenta = (cantidadCuotas: number) => {
+    const encontrado = plazoPorCuotas.get(cantidadCuotas);
+    if (encontrado === undefined) {
       throw new Error(`No hay un plazo sembrado de ${cantidadCuotas} cuotas`);
     }
-    return id;
+    return encontrado;
   };
+  const plazo = (cantidadCuotas: number) =>
+    plazoVenta(cantidadCuotas).id_plazo_financiacion;
 
   // --------------------------------------------------------------------
-  // PROYECTO — 10 filas (upsert real por `codigo`, único en BD)
+  // PROYECTO — 10 filas, como las deja el ABM de Proyecto (T122), ver
+  // `sembrarProyecto`. `clave` es solo para referenciarlos dentro de este
+  // script: el código lo genera el sistema.
+  // - Cubre los tres estados de obra de HU-31 y uno Cancelado, que sigue en
+  //   el enum hasta que se responda OBS-22 (T159).
   // --------------------------------------------------------------------
-  const proyectosDatos = [
-    // Los 2 "hero": cargan los casos borde de PROYECTO pedidos por T96.
+  const proyectosDatos: (ProyectoSeed & { clave: string })[] = [
+    // Los 2 "hero": cargan los casos borde de PROYECTO.
     {
-      codigo: 'PROY-TN',
+      clave: 'PROY-TN',
       nombre: 'Torre Nogal',
+      descripcion:
+        'Torre de 12 pisos con departamentos de 1 y 2 dormitorios, cocheras y amenities.',
       localidad: 'Resistencia, Chaco',
       direccion: 'Av. 25 de Mayo 1200',
       estado_obra: EstadoProyecto.EN_EJECUCION,
-      fecha_fin_estimada: new Date('2027-12-01'),
+      fecha_inicio: '2025-03-01',
+      fecha_fin_estimada: '2027-12-01',
       cantidad_unidades_planificadas: 24,
-      imagen_portada_url: 'https://cdn.axontech.test/proyectos/torre-nogal.jpg',
+      portada: 'torre-nogal.jpg',
+      imagenes: [
+        { tipo: TipoImagenProyecto.RENDER, archivo: 'torre-nogal-fachada.jpg' },
+        { tipo: TipoImagenProyecto.RENDER, archivo: 'torre-nogal-hall.jpg' },
+        {
+          tipo: TipoImagenProyecto.PLANO,
+          archivo: 'torre-nogal-planta-tipo.png',
+        },
+      ],
     },
     {
-      codigo: 'PROY-BLA',
+      // Caso borde: En ejecución sin fecha de finalización estimada. Su
+      // condición de entrega es "A entregar, fecha a confirmar" (HU-20).
+      clave: 'PROY-BLA',
       nombre: 'Barrio Los Álamos',
+      descripcion: null,
       localidad: 'Corrientes, Corrientes',
-      direccion: 'A definir', // obligatoria desde HU-31; el proyecto en planificación todavía no tiene una definitiva
-      estado_obra: EstadoProyecto.EN_PLANIFICACION,
-      fecha_fin_estimada: null, // caso borde pedido explícitamente
+      direccion: 'Ruta Nacional 12 Km 1028',
+      estado_obra: EstadoProyecto.EN_EJECUCION,
+      fecha_inicio: '2025-08-01',
+      fecha_fin_estimada: null,
       cantidad_unidades_planificadas: 40,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/barrio-los-alamos.jpg',
+      portada: 'barrio-los-alamos.jpg',
+      imagenes: [
+        {
+          tipo: TipoImagenProyecto.PLANO,
+          archivo: 'barrio-los-alamos-loteo.png',
+        },
+      ],
     },
-    // 8 más, para dar volumen real y cubrir los 4 EstadoProyecto con varios
+    // 8 más, para dar volumen real y cubrir los estados de obra con varios
     // ejemplos cada uno.
     {
-      codigo: 'PROY-EBA',
+      clave: 'PROY-EBA',
       nombre: 'Edificio Belgrano Alto',
+      descripcion: 'Edificio de 9 pisos frente al Bv. Oroño.',
       localidad: 'Rosario, Santa Fe',
       direccion: 'Bv. Oroño 1450',
       estado_obra: EstadoProyecto.EN_EJECUCION,
-      fecha_fin_estimada: new Date('2027-03-01'),
+      fecha_inicio: '2025-01-15',
+      fecha_fin_estimada: '2027-03-01',
       cantidad_unidades_planificadas: 18,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/edificio-belgrano-alto.jpg',
+      portada: 'edificio-belgrano-alto.jpg',
+      imagenes: [
+        {
+          tipo: TipoImagenProyecto.RENDER,
+          archivo: 'belgrano-alto-fachada.jpg',
+        },
+        { tipo: TipoImagenProyecto.PLANO, archivo: 'belgrano-alto-planta.png' },
+      ],
     },
     {
-      codigo: 'PROY-TDR',
+      clave: 'PROY-TDR',
       nombre: 'Torres del Río',
+      descripcion: null,
       localidad: 'Santa Fe, Santa Fe',
       direccion: 'Av. Aristóbulo del Valle 3200',
       estado_obra: EstadoProyecto.EN_EJECUCION,
-      fecha_fin_estimada: new Date('2027-09-01'),
+      fecha_inicio: '2025-06-01',
+      fecha_fin_estimada: '2027-09-01',
       cantidad_unidades_planificadas: 24,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/torres-del-rio.jpg',
+      portada: 'torres-del-rio.jpg',
+      imagenes: [],
     },
     {
-      codigo: 'PROY-ALM',
+      clave: 'PROY-ALM',
       nombre: 'Altos del Molino',
+      descripcion: null,
       localidad: 'Reconquista, Santa Fe',
       direccion: 'Av. Alvear 850',
       estado_obra: EstadoProyecto.EN_EJECUCION,
-      fecha_fin_estimada: new Date('2027-07-01'),
+      fecha_inicio: '2025-05-01',
+      fecha_fin_estimada: '2027-07-01',
       cantidad_unidades_planificadas: 20,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/altos-del-molino.jpg',
+      portada: 'altos-del-molino.jpg',
+      imagenes: [],
     },
     {
-      codigo: 'PROY-BLM',
+      clave: 'PROY-BLM',
       nombre: 'Barrio La Merced',
+      descripcion: 'Barrio de casas de 1 a 3 dormitorios, ya entregado.',
       localidad: 'Formosa, Formosa',
       direccion: 'Barrio La Merced',
       estado_obra: EstadoProyecto.FINALIZADO,
-      fecha_fin_estimada: new Date('2025-11-01'),
+      fecha_inicio: '2023-09-01',
+      fecha_fin_estimada: '2025-11-01',
       cantidad_unidades_planificadas: 12,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/barrio-la-merced.jpg',
+      portada: 'barrio-la-merced.jpg',
+      imagenes: [
+        { tipo: TipoImagenProyecto.RENDER, archivo: 'la-merced-casas.jpg' },
+      ],
     },
     {
-      codigo: 'PROY-RCT',
+      clave: 'PROY-RCT',
       nombre: 'Residencial Costanera',
+      descripcion: null,
       localidad: 'Corrientes, Corrientes',
       direccion: 'Av. Costanera 500',
       estado_obra: EstadoProyecto.FINALIZADO,
-      fecha_fin_estimada: new Date('2026-02-01'),
+      fecha_inicio: '2024-02-01',
+      fecha_fin_estimada: '2026-02-01',
       cantidad_unidades_planificadas: 16,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/residencial-costanera.jpg',
+      portada: 'residencial-costanera.jpg',
+      imagenes: [],
     },
     {
-      codigo: 'PROY-PSJ',
+      clave: 'PROY-PSJ',
       nombre: 'Paseo San Jorge',
+      descripcion: 'Proyecto suspendido por falta de financiamiento.',
       localidad: 'Resistencia, Chaco',
       direccion: 'Av. Sarmiento 2100',
       estado_obra: EstadoProyecto.CANCELADO,
-      fecha_fin_estimada: new Date('2026-05-01'),
+      fecha_inicio: '2024-10-01',
+      fecha_fin_estimada: '2026-05-01',
       cantidad_unidades_planificadas: 20,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/paseo-san-jorge.jpg',
+      portada: 'paseo-san-jorge.jpg',
+      imagenes: [],
     },
     {
-      codigo: 'PROY-VNT',
+      clave: 'PROY-VNT',
       nombre: 'Vientos del Norte',
+      descripcion: null,
       localidad: 'Sáenz Peña, Chaco',
       direccion: 'Ruta 95 Km 3',
       estado_obra: EstadoProyecto.EN_PLANIFICACION,
-      fecha_fin_estimada: new Date('2028-01-01'),
+      fecha_inicio: null,
+      fecha_fin_estimada: '2028-01-01',
       cantidad_unidades_planificadas: 26,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/vientos-del-norte.jpg',
+      portada: 'vientos-del-norte.jpg',
+      imagenes: [],
     },
     {
-      codigo: 'PROY-MRP',
+      clave: 'PROY-MRP',
       nombre: 'Mirador del Paraná',
+      descripcion:
+        'Torre frente al río con departamentos de 2 y 3 dormitorios.',
       localidad: 'Corrientes, Corrientes',
       direccion: 'Av. Poincaré 1200',
       estado_obra: EstadoProyecto.EN_PLANIFICACION,
-      fecha_fin_estimada: new Date('2028-06-01'),
+      fecha_inicio: '2027-03-01',
+      fecha_fin_estimada: '2028-06-01',
       cantidad_unidades_planificadas: 14,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/mirador-del-parana.jpg',
+      portada: 'mirador-del-parana.jpg',
+      imagenes: [
+        { tipo: TipoImagenProyecto.RENDER, archivo: 'mirador-vista-rio.jpg' },
+        { tipo: TipoImagenProyecto.PLANO, archivo: 'mirador-planta-tipo.png' },
+      ],
     },
   ];
 
-  for (const proyecto of proyectosDatos) {
-    await prisma.pROYECTO.upsert({
-      where: { codigo: proyecto.codigo },
-      update: proyecto,
-      create: { ...proyecto, ...auditoriaProyectos },
-    });
+  const idProyectoPorCodigo = new Map<string, number>();
+  for (const datos of proyectosDatos) {
+    const proyecto = await sembrarProyecto(prisma, datos, idAdministrador);
+    idProyectoPorCodigo.set(datos.clave, proyecto.id_proyecto);
   }
   console.log(
-    `Seed comercialización - PROYECTO: ${proyectosDatos.length} registros procesados.`,
+    `Seed comercialización - PROYECTO: ${proyectosDatos.length} registros procesados, con sus imágenes de diseño.`,
   );
 
-  const idProyectoPorCodigo = new Map(
-    (
-      await prisma.pROYECTO.findMany({
-        where: { codigo: { in: proyectosDatos.map((p) => p.codigo) } },
-        select: { id_proyecto: true, codigo: true },
-      })
-    ).map((p) => [p.codigo, p.id_proyecto]),
-  );
   const idTorreNogal = idProyectoPorCodigo.get('PROY-TN')!;
   const idBarrioLosAlamos = idProyectoPorCodigo.get('PROY-BLA')!;
 
@@ -277,7 +316,7 @@ async function main() {
     if (existente) return existente;
 
     return prisma.uNIDADFUNCIONAL.create({
-      data: { ...datos, ...auditoriaProyectos },
+      data: { ...datos, ...auditoria },
     });
   }
 
@@ -310,7 +349,7 @@ async function main() {
     if (existente) return existente;
 
     return prisma.pUBLICACIONUNIDAD.create({
-      data: { ...datos, ...auditoriaComercializacion },
+      data: { ...datos, ...auditoria },
     });
   }
 
@@ -333,38 +372,54 @@ async function main() {
     if (existente) return existente;
 
     return prisma.pLANEJEMPLO.create({
-      data: { ...datos, ...auditoriaComercializacion },
+      data: { ...datos, ...auditoria },
     });
   }
 
+  // Formas de pago que crea `seed.ts`. La transferencia exige número de
+  // referencia; el efectivo, no.
+  const { id_forma_pago: idEfectivo } = await prisma.fORMAPAGO.findFirstOrThrow(
+    { where: { nombre: 'Efectivo' }, select: { id_forma_pago: true } },
+  );
+  const { id_forma_pago: idTransferencia } =
+    await prisma.fORMAPAGO.findFirstOrThrow({
+      where: { nombre: 'Transferencia bancaria' },
+      select: { id_forma_pago: true },
+    });
+
+  /** Cobro presencial en efectivo; ver `PagoCuotaSeed` para los opcionales. */
+  const efectivo = (numero_cuota: number, importe?: number): PagoCuotaSeed => ({
+    numero_cuota,
+    importe,
+    origen: OrigenCobro.PRESENCIAL,
+    FK_forma_pago: idEfectivo,
+    numero_referencia: null,
+  });
   /**
-   * Idempotente por FK_publicacion (una sola venta vigente por publicación
-   * en este seed). Si ya existe, no vuelve a tocar su PLANPAGO ni sus CUOTA —
-   * se crean solo la primera vez, con `crearVentaConPlanPago`.
+   * Cobro presencial por transferencia. `semilla` identifica el pago dentro
+   * del seed y de ella sale un número de operación con formato real
+   * (`numeroOperacion`), siempre el mismo.
    */
-  async function upsertVenta(datos: {
-    FK_cliente: number;
-    FK_publicacion: number;
-    FK_plan_ejemplo: number;
-    fecha_venta: Date;
-    precio_congelado: number;
-    anticipo_congelado: number;
-    tipo_plan_congelado: ModalidadPago;
-    cantidad_cuotas_congelada: number;
-    periodicidad_congelada?: Periodicidad;
-    cuotas: CuotaSeed[];
-  }) {
-    const existente = await prisma.vENTA.findFirst({
-      where: { FK_publicacion: datos.FK_publicacion },
-    });
-    if (existente) return existente;
-
-    return crearVentaConPlanPago(
-      prisma,
-      datos,
-      responsableComercializacion.id_usuario,
+  const transferencia = (
+    numero_cuota: number,
+    semilla: string,
+    importe?: number,
+  ): PagoCuotaSeed => ({
+    numero_cuota,
+    importe,
+    origen: OrigenCobro.PRESENCIAL,
+    FK_forma_pago: idTransferencia,
+    numero_referencia: numeroOperacion(semilla),
+  });
+  /** Paga completas, por transferencia, las cuotas 0 (anticipo) a `ultima`. */
+  const pagosHasta = (ultima: number, referencia: string) =>
+    Array.from({ length: ultima + 1 }, (_, numero) =>
+      transferencia(numero, `${referencia}-${numero}`),
     );
-  }
+
+  /** Ver `sembrarVenta`: idempotente por publicación. */
+  const venderUnidad = (datos: VentaSeed) =>
+    sembrarVenta(prisma, datos, idAdministrador);
 
   // --------------------------------------------------------------------
   // CLIENTE — 6 filas (upsert real por `google_sub`, único en BD)
@@ -400,7 +455,8 @@ async function main() {
       nombre: 'Braian',
       apellido: 'Sosa',
       dni_cuil: '23412345678',
-      telefono: '3624223344',
+      // Corregido por el administrador desde la ficha (ver auditoría abajo).
+      telefono: '3624223355',
     },
     {
       google_sub: '108234459812340005',
@@ -443,6 +499,28 @@ async function main() {
   const idBraian = idClientePorGoogleSub.get('108234459812340004')!;
   const idMicaela = idClientePorGoogleSub.get('108234459812340005')!;
   const idRodrigo = idClientePorGoogleSub.get('108234459812340006')!;
+  const idCamila = idClientePorGoogleSub.get('108234459812340003')!;
+
+  // Auditoría de la ficha del cliente (HU-33): los dos caminos de edición.
+  // Braian: el administrador le corrigió el teléfono (queda quién y cuándo,
+  // como `ClienteAdminService.actualizar`). Micaela: editó sus datos desde el
+  // portal (solo queda la fecha, sin usuario interno). El resto nunca se
+  // editó. Se reescribe en cada corrida para que la fecha siga siendo
+  // reciente.
+  await prisma.cLIENTE.update({
+    where: { id_cliente: idBraian },
+    data: {
+      FK_usuario_actualizador: idAdministrador,
+      hora_actualizacion: diasDesdeHoy(-5),
+    },
+  });
+  await prisma.cLIENTE.update({
+    where: { id_cliente: idMicaela },
+    data: {
+      FK_usuario_actualizador: null,
+      hora_actualizacion: diasDesdeHoy(-12),
+    },
+  });
 
   // --------------------------------------------------------------------
   // Proyectos "hero" — cargan los 4 EstadoComercial + la publicación no
@@ -466,7 +544,7 @@ async function main() {
   await upsertPublicacion({
     FK_unidad_funcional: pbA.id_unidad_funcional,
     estado_comercial: EstadoComercial.EN_PREPARACION,
-    fecha_publicacion: new Date('2026-08-20'),
+    fecha_publicacion: diasDesdeHoy(-20),
   });
 
   // 1-A: DISPONIBLE, todavía no vendida. Sus planes de ejemplo cubren los
@@ -488,7 +566,7 @@ async function main() {
   const publicacion1A = await upsertPublicacion({
     FK_unidad_funcional: unidad1A.id_unidad_funcional,
     estado_comercial: EstadoComercial.DISPONIBLE,
-    fecha_publicacion: new Date('2026-06-01'),
+    fecha_publicacion: mesesDesdeHoy(-4),
     precio_lista: 19_000_000,
     porcentaje_ganancia: 26.67,
   });
@@ -517,9 +595,29 @@ async function main() {
     anticipo_porcentaje: 20,
     FK_plazo_financiacion: plazo(36),
   });
+  // Una venta cancelada antes de pagar el anticipo: sus cuotas quedan
+  // anuladas y la unidad vuelve a Disponible, como la deja la cancelación.
+  await venderUnidad({
+    FK_cliente: idEmiliano,
+    FK_publicacion: publicacion1A.id_publicacion,
+    fecha_venta: mesesDesdeHoy(-3),
+    precio: 19_000_000,
+    modalidad: ModalidadPago.FINANCIADO,
+    anticipo_porcentaje: 30,
+    plazo: plazoVenta(12),
+    cancelacion: {
+      fecha: mesesDesdeHoy(-2),
+      motivo: 'El cliente desistió de la compra antes de pagar el anticipo',
+    },
+  });
 
-  // 2-B: EN_PLAN_DE_PAGO, vendida a Valentina Roldán (financiado, con cuotas
-  // vencidas — el caso borde principal de cuotas que pide T96).
+  // 2-B: EN_PLAN_DE_PAGO, vendida a Valentina Roldán. Es el caso de prueba
+  // del sistema francés (T132): precio 20.000.000, anticipo 50 %, 12 cuotas
+  // con TNA 24 % -> cuota 945.595,97, la última 945.595,92 e intereses por
+  // 1.347.151,59. Vendida hace 170 días, así que vencieron el anticipo y las
+  // cuotas 1 a 5; la 6 vence en unos días. Pagó el anticipo (en dos cobros),
+  // las cuotas 1 y 2, y parte de la 3: quedan 3 cuotas vencidas con saldo
+  // (3, 4 y 5), el caso borde principal de mora.
   const unidad2B = await upsertUnidad({
     FK_proyecto: idTorreNogal,
     identificador: '2-B',
@@ -527,7 +625,7 @@ async function main() {
     superficie_cubierta: 62.3,
     superficie_descubierta: 8.5,
     piso: '2',
-    costo: 20_000_000,
+    costo: 16_000_000,
   });
   await upsertImagen(
     unidad2B.id_unidad_funcional,
@@ -536,84 +634,76 @@ async function main() {
   const publicacion2B = await upsertPublicacion({
     FK_unidad_funcional: unidad2B.id_unidad_funcional,
     estado_comercial: EstadoComercial.EN_PLAN_DE_PAGO,
-    fecha_publicacion: new Date('2026-03-01'),
-    precio_lista: 27_000_000,
-    porcentaje_ganancia: 35,
+    fecha_publicacion: mesesDesdeHoy(-7),
+    precio_lista: 20_000_000,
+    porcentaje_ganancia: 25,
   });
-  // El plan de ejemplo que se mostraba al vender. La venta del Sprint 3 se
-  // registró sin interés (TNA 0 %); las ventas con sistema francés las siembra
-  // T156.
-  const plan2B = await upsertPlan({
+  await upsertPlan({
     FK_publicacion: publicacion2B.id_publicacion,
-    nombre: 'Anticipo 20 % + 6 cuotas',
-    anticipo_porcentaje: 20,
-    FK_plazo_financiacion: plazo(6),
+    nombre: 'Anticipo 50 % + 12 cuotas',
+    anticipo_porcentaje: 50,
+    FK_plazo_financiacion: plazo(12),
   });
-  // Anticipo: 27.000.000 * 20% = 5.400.000. Resto: 21.600.000 / 6 = 3.600.000
-  // por cuota. Hoy (a los fines de "vencida" en este seed) es 2026-09-14:
-  // las cuotas 3, 4 y 5 ya vencieron y siguen con saldo -> exactamente 3
-  // cuotas vencidas con saldo, el criterio explícito del "Listo cuando".
-  await upsertVenta({
+  await venderUnidad({
     FK_cliente: idValentina,
     FK_publicacion: publicacion2B.id_publicacion,
-    FK_plan_ejemplo: plan2B.id_plan_ejemplo,
-    fecha_venta: new Date('2026-04-14'),
-    precio_congelado: 27_000_000,
-    anticipo_congelado: 5_400_000,
-    tipo_plan_congelado: ModalidadPago.FINANCIADO,
-    cantidad_cuotas_congelada: 6,
-    periodicidad_congelada: Periodicidad.MENSUAL,
-    cuotas: [
+    fecha_venta: diasDesdeHoy(-170),
+    precio: 20_000_000,
+    modalidad: ModalidadPago.FINANCIADO,
+    anticipo_porcentaje: 50,
+    plazo: plazoVenta(12),
+    pagos: [
+      // Anticipo de 10.000.000 en dos cobros: transferencia y el resto en efectivo.
+      transferencia(0, 'TRF-2B-0', 6_000_000),
+      efectivo(0),
+      // Una transferencia que el banco rechazó: el cobro quedó anulado.
       {
-        numero: 0,
-        importe: 5_400_000,
-        fecha_vencimiento: new Date('2026-04-14'),
-        saldo_pendiente: 0,
-        estado: EstadoCuota.PAGADA,
+        ...transferencia(1, 'TRF-2B-1-RECHAZADA'),
+        anulado: { motivo: 'El banco rechazó la transferencia' },
       },
-      {
-        numero: 1,
-        importe: 3_600_000,
-        fecha_vencimiento: new Date('2026-05-14'),
-        saldo_pendiente: 0,
-        estado: EstadoCuota.PAGADA,
-      },
-      {
-        numero: 2,
-        importe: 3_600_000,
-        fecha_vencimiento: new Date('2026-06-14'),
-        saldo_pendiente: 0,
-        estado: EstadoCuota.PAGADA,
-      },
-      {
-        numero: 3,
-        importe: 3_600_000,
-        fecha_vencimiento: new Date('2026-07-14'),
-        saldo_pendiente: 3_600_000,
-        estado: EstadoCuota.PENDIENTE,
-      }, // vencida (1)
-      {
-        numero: 4,
-        importe: 3_600_000,
-        fecha_vencimiento: new Date('2026-08-14'),
-        saldo_pendiente: 1_600_000,
-        estado: EstadoCuota.PARCIAL,
-      }, // vencida (2), pagó 2.000.000
-      {
-        numero: 5,
-        importe: 3_600_000,
-        fecha_vencimiento: new Date('2026-09-01'),
-        saldo_pendiente: 3_600_000,
-        estado: EstadoCuota.PENDIENTE,
-      }, // vencida (3)
-      {
-        numero: 6,
-        importe: 3_600_000,
-        fecha_vencimiento: new Date('2026-10-14'),
-        saldo_pendiente: 3_600_000,
-        estado: EstadoCuota.PENDIENTE,
-      }, // a futuro, contraste
+      transferencia(1, 'TRF-2B-1'),
+      transferencia(2, 'TRF-2B-2'),
+      efectivo(3, 500_000),
     ],
+  });
+
+  // 3-C: EN_PLAN_DE_PAGO y al día, vendida a Rodrigo Acosta con el plazo de
+  // 24 cuotas (TNA 36 %). Pagó todo lo que venció; la cuota 3 vence a futuro.
+  const unidad3C = await upsertUnidad({
+    FK_proyecto: idTorreNogal,
+    identificador: '3-C',
+    tipologia: TipologiaUnidad.TRES_DORMITORIOS,
+    superficie_cubierta: 84.5,
+    superficie_descubierta: 10,
+    piso: '3',
+    costo: 30_000_000,
+  });
+  await upsertImagen(
+    unidad3C.id_unidad_funcional,
+    'https://cdn.axontech.test/unidades/3-c.jpg',
+  );
+  const publicacion3C = await upsertPublicacion({
+    FK_unidad_funcional: unidad3C.id_unidad_funcional,
+    estado_comercial: EstadoComercial.EN_PLAN_DE_PAGO,
+    fecha_publicacion: mesesDesdeHoy(-4),
+    precio_lista: 40_000_000,
+    porcentaje_ganancia: 33.33,
+  });
+  await upsertPlan({
+    FK_publicacion: publicacion3C.id_publicacion,
+    nombre: 'Anticipo 30 % + 24 cuotas',
+    anticipo_porcentaje: 30,
+    FK_plazo_financiacion: plazo(24),
+  });
+  await venderUnidad({
+    FK_cliente: idRodrigo,
+    FK_publicacion: publicacion3C.id_publicacion,
+    fecha_venta: diasDesdeHoy(-65),
+    precio: 40_000_000,
+    modalidad: ModalidadPago.FINANCIADO,
+    anticipo_porcentaje: 30,
+    plazo: plazoVenta(24),
+    pagos: pagosHasta(2, 'TRF-3C'),
   });
 
   // LOTE-08: VENDIDA, contado, vendida a Emiliano Duarte.
@@ -632,40 +722,25 @@ async function main() {
   const publicacionLoteOcho = await upsertPublicacion({
     FK_unidad_funcional: loteOcho.id_unidad_funcional,
     estado_comercial: EstadoComercial.VENDIDA,
-    fecha_publicacion: new Date('2026-06-01'),
+    fecha_publicacion: mesesDesdeHoy(-4),
     precio_lista: 52_000_000,
     porcentaje_ganancia: 23.81,
   });
-  // El contado no es un plan de ejemplo (es el precio de lista). La venta
-  // igual apunta a un plan de ejemplo por la columna legado
-  // `VENTA.FK_plan_ejemplo`, que se elimina en T159.
-  const planLoteOcho = await upsertPlan({
+  // El plan de ejemplo que se ofrecía antes de venderla; se vendió de
+  // contado, al precio de lista.
+  await upsertPlan({
     FK_publicacion: publicacionLoteOcho.id_publicacion,
     nombre: 'Anticipo 30 % + 12 cuotas',
     anticipo_porcentaje: 30,
     FK_plazo_financiacion: plazo(12),
   });
-  // Asunción documentada acá porque el service real todavía no existe: en
-  // CONTADO se genera igual una única cuota número 0, aunque
-  // PLANPAGO.cantidad_cuotas sea null para ese tipo.
-  await upsertVenta({
+  await venderUnidad({
     FK_cliente: idEmiliano,
     FK_publicacion: publicacionLoteOcho.id_publicacion,
-    FK_plan_ejemplo: planLoteOcho.id_plan_ejemplo,
-    fecha_venta: new Date('2026-08-01'),
-    precio_congelado: 52_000_000,
-    anticipo_congelado: 52_000_000,
-    tipo_plan_congelado: ModalidadPago.CONTADO,
-    cantidad_cuotas_congelada: 1,
-    cuotas: [
-      {
-        numero: 0,
-        importe: 52_000_000,
-        fecha_vencimiento: new Date('2026-08-01'),
-        saldo_pendiente: 0,
-        estado: EstadoCuota.PAGADA,
-      },
-    ],
+    fecha_venta: diasDesdeHoy(-60),
+    precio: 52_000_000,
+    modalidad: ModalidadPago.CONTADO,
+    pagos: [transferencia(0, 'TRF-LOTE08')],
   });
 
   // LOCAL-03: caso borde pedido — publicación DISPONIBLE despublicada
@@ -682,14 +757,14 @@ async function main() {
     localTres.id_unidad_funcional,
     'https://cdn.axontech.test/unidades/local-03.jpg',
   );
-  await upsertPublicacion({
+  const publicacionLocalTres = await upsertPublicacion({
     FK_unidad_funcional: localTres.id_unidad_funcional,
     estado_comercial: EstadoComercial.DISPONIBLE,
-    fecha_publicacion: new Date('2026-05-01'),
+    fecha_publicacion: mesesDesdeHoy(-5),
     precio_lista: 10_000_000,
     porcentaje_ganancia: 25,
     vigente: false,
-    fecha_despublicacion: new Date('2026-07-15'),
+    fecha_despublicacion: mesesDesdeHoy(-3),
     motivo_despublicacion:
       'Local retirado temporalmente del catálogo por refacción de la fachada',
   });
@@ -719,7 +794,7 @@ async function main() {
       const publicacion = await upsertPublicacion({
         FK_unidad_funcional: unidad.id_unidad_funcional,
         estado_comercial: EstadoComercial.DISPONIBLE,
-        fecha_publicacion: new Date('2026-06-01'),
+        fecha_publicacion: mesesDesdeHoy(-4),
         precio_lista: precio,
         porcentaje_ganancia: 35,
       });
@@ -732,16 +807,25 @@ async function main() {
     }
   }
 
+  /** Cómo se vendió cada unidad de un proyecto finalizado. */
+  interface VentaFinalizadaSeed {
+    FK_cliente: number;
+    fecha_venta: Date;
+    /** Sin financiación, es de contado. */
+    financiacion?: { anticipo_porcentaje: number; cantidad_cuotas: number };
+  }
+
   /**
-   * FINALIZADO: las 3 unidades publicadas VENDIDA (30% de margen), cada una
-   * con un plan de ejemplo y una VENTA de contado (cuota única PAGADA). Los
-   * clientes se asignan explícitamente para poder sembrar a propósito el
-   * caso de "cliente con 2+ unidades" (Valentina Roldán).
+   * FINALIZADO: las 3 unidades publicadas VENDIDA (30% de margen), con la
+   * venta totalmente pagada: cada cuota tiene su cobro, así los ingresos de
+   * esos meses aparecen en el tablero. Los clientes se asignan explícitamente
+   * para poder sembrar a propósito el caso de "cliente con 2+ unidades"
+   * (Valentina Roldán).
    */
   async function sembrarProyectoFinalizado(
     codigo: string,
-    fechaAdhesion: Date,
-    clientesPorUnidad: [number, number, number],
+    fechaPublicacion: Date,
+    ventas: [VentaFinalizadaSeed, VentaFinalizadaSeed, VentaFinalizadaSeed],
   ) {
     const idProyecto = idProyectoPorCodigo.get(codigo)!;
     for (const [indice, tipologia] of ROTACION_TIPOLOGIA.entries()) {
@@ -758,36 +842,43 @@ async function main() {
       const publicacion = await upsertPublicacion({
         FK_unidad_funcional: unidad.id_unidad_funcional,
         estado_comercial: EstadoComercial.VENDIDA,
-        fecha_publicacion: fechaAdhesion,
+        fecha_publicacion: fechaPublicacion,
         precio_lista: precio,
         porcentaje_ganancia: 30,
       });
-      // Ver LOTE-08: la venta de contado apunta al plan de ejemplo solo por
-      // la columna legado `VENTA.FK_plan_ejemplo`.
-      const plan = await upsertPlan({
-        FK_publicacion: publicacion.id_publicacion,
-        nombre: 'Anticipo 30 % + 12 cuotas',
+
+      // El plan de ejemplo que se ofrecía: el de la financiación con la que
+      // se vendió o, si fue de contado, uno de 30 % + 12 cuotas.
+      const venta = ventas[indice];
+      const { anticipo_porcentaje, cantidad_cuotas } = venta.financiacion ?? {
         anticipo_porcentaje: 30,
-        FK_plazo_financiacion: plazo(12),
-      });
-      await upsertVenta({
-        FK_cliente: clientesPorUnidad[indice],
+        cantidad_cuotas: 12,
+      };
+      const plazoPlan = plazoVenta(cantidad_cuotas);
+      await upsertPlan({
         FK_publicacion: publicacion.id_publicacion,
-        FK_plan_ejemplo: plan.id_plan_ejemplo,
-        fecha_venta: fechaAdhesion,
-        precio_congelado: precio,
-        anticipo_congelado: precio,
-        tipo_plan_congelado: ModalidadPago.CONTADO,
-        cantidad_cuotas_congelada: 1,
-        cuotas: [
-          {
-            numero: 0,
-            importe: precio,
-            fecha_vencimiento: fechaAdhesion,
-            saldo_pendiente: 0,
-            estado: EstadoCuota.PAGADA,
-          },
-        ],
+        nombre: `Anticipo ${anticipo_porcentaje} % + ${cantidad_cuotas} cuotas${plazoPlan.tasa_nominal_anual === 0 ? ' sin interés' : ''}`,
+        anticipo_porcentaje,
+        FK_plazo_financiacion: plazoPlan.id_plazo_financiacion,
+      });
+
+      const referencia = `TRF-${codigo.slice(5)}-${identificador}`;
+      await venderUnidad({
+        FK_cliente: venta.FK_cliente,
+        FK_publicacion: publicacion.id_publicacion,
+        fecha_venta: venta.fecha_venta,
+        precio,
+        ...(venta.financiacion
+          ? {
+              modalidad: ModalidadPago.FINANCIADO,
+              anticipo_porcentaje,
+              plazo: plazoPlan,
+              pagos: pagosHasta(cantidad_cuotas, referencia),
+            }
+          : {
+              modalidad: ModalidadPago.CONTADO,
+              pagos: [transferencia(0, referencia)],
+            }),
       });
     }
   }
@@ -810,31 +901,197 @@ async function main() {
   await sembrarProyectoEnEjecucion('PROY-TDR');
   await sembrarProyectoEnEjecucion('PROY-ALM');
 
-  // Barrio La Merced: U1 -> Valentina (su 2da unidad, en otro proyecto:
-  // siembra a propósito el caso "cliente con 2+ unidades" de HU-28).
-  await sembrarProyectoFinalizado('PROY-BLM', new Date('2025-10-15'), [
-    idValentina,
-    idBraian,
-    idBraian,
+  // Barrio La Merced: todo de contado. U1 -> Valentina (su 2da unidad, en
+  // otro proyecto: siembra a propósito el caso "cliente con 2+ unidades" de
+  // HU-28).
+  await sembrarProyectoFinalizado('PROY-BLM', mesesDesdeHoy(-10), [
+    { FK_cliente: idValentina, fecha_venta: mesesDesdeHoy(-9) },
+    { FK_cliente: idBraian, fecha_venta: mesesDesdeHoy(-8) },
+    { FK_cliente: idBraian, fecha_venta: mesesDesdeHoy(-7) },
   ]);
-  await sembrarProyectoFinalizado('PROY-RCT', new Date('2026-01-10'), [
-    idMicaela,
-    idMicaela,
-    idRodrigo,
+  // Residencial Costanera: dos ventas financiadas ya canceladas (una sin
+  // interés y otra con el plazo de 6 cuotas) y una de contado.
+  await sembrarProyectoFinalizado('PROY-RCT', mesesDesdeHoy(-9), [
+    {
+      FK_cliente: idMicaela,
+      fecha_venta: mesesDesdeHoy(-5),
+      financiacion: { anticipo_porcentaje: 40, cantidad_cuotas: 3 },
+    },
+    { FK_cliente: idMicaela, fecha_venta: mesesDesdeHoy(-4) },
+    {
+      FK_cliente: idRodrigo,
+      fecha_venta: mesesDesdeHoy(-8),
+      financiacion: { anticipo_porcentaje: 30, cantidad_cuotas: 6 },
+    },
   ]);
 
   await sembrarProyectoSinPublicar('PROY-PSJ');
   await sembrarProyectoSinPublicar('PROY-VNT');
   await sembrarProyectoSinPublicar('PROY-MRP');
 
+  // --------------------------------------------------------------------
+  // DECLARACIONPAGO — lo que declaran los clientes desde el portal (HU-29),
+  // en los tres estados, cada una con su comprobante PDF en el bucket.
+  // --------------------------------------------------------------------
+  const declarar = (
+    datos: Omit<Parameters<typeof sembrarDeclaracion>[1], 'FK_forma_pago'>,
+  ) =>
+    sembrarDeclaracion(
+      prisma,
+      { ...datos, FK_forma_pago: idTransferencia },
+      idAdministrador,
+    );
+
+  // Valentina, sobre 2-B: Tesorería le validó un pago a cuenta de la cuota 4
+  // (sigue Parcial y vencida: 2-B mantiene sus 3 cuotas vencidas con saldo),
+  // le rechazó una transferencia de la cuota 5 y la volvió a declarar.
+  await declarar({
+    FK_cliente: idValentina,
+    FK_publicacion: publicacion2B.id_publicacion,
+    numero_cuota: 4,
+    importe: 300_000,
+    numero_referencia: numeroOperacion('TRF-2B-4-WEB'),
+    fecha_declaracion: diasDesdeHoy(-12),
+    resolucion: {
+      estado: EstadoDeclaracionPago.VALIDADA,
+      fecha: diasDesdeHoy(-10),
+    },
+  });
+  await declarar({
+    FK_cliente: idValentina,
+    FK_publicacion: publicacion2B.id_publicacion,
+    numero_cuota: 5,
+    numero_referencia: numeroOperacion('TRF-2B-5-WEB-A'),
+    fecha_declaracion: diasDesdeHoy(-9),
+    resolucion: {
+      estado: EstadoDeclaracionPago.RECHAZADA,
+      fecha: diasDesdeHoy(-7),
+      motivo: 'La transferencia no figura en el extracto bancario',
+    },
+  });
+  await declarar({
+    FK_cliente: idValentina,
+    FK_publicacion: publicacion2B.id_publicacion,
+    numero_cuota: 5,
+    numero_referencia: numeroOperacion('TRF-2B-5-WEB-B'),
+    fecha_declaracion: diasDesdeHoy(-2),
+  });
+  // Rodrigo, sobre 3-C: adelantó la cuota 3, que todavía no venció.
+  await declarar({
+    FK_cliente: idRodrigo,
+    FK_publicacion: publicacion3C.id_publicacion,
+    numero_cuota: 3,
+    numero_referencia: numeroOperacion('TRF-3C-3-WEB'),
+    fecha_declaracion: diasDesdeHoy(-1),
+  });
+
+  // --------------------------------------------------------------------
+  // CONSULTAUNIDAD — preguntas de los clientes desde el catálogo (HU-26),
+  // pendientes y respondidas. Como `ConsultaService.crear`, cada una se hizo
+  // cuando la unidad estaba publicada y Disponible, aunque después se haya
+  // vendido o despublicado (las consultas no se borran nunca). Las responde
+  // el administrador, dueño de la bandeja de consultas.
+  // --------------------------------------------------------------------
+  /** Idempotente por (cliente, publicación, texto). */
+  async function upsertConsulta(datos: {
+    FK_cliente: number;
+    FK_publicacion: number;
+    texto: string;
+    fecha: Date;
+    respuesta?: { texto: string; fecha: Date };
+  }) {
+    const existente = await prisma.cONSULTAUNIDAD.findFirst({
+      where: {
+        FK_cliente: datos.FK_cliente,
+        FK_publicacion: datos.FK_publicacion,
+        texto: datos.texto,
+      },
+    });
+    if (existente) return existente;
+
+    return prisma.cONSULTAUNIDAD.create({
+      data: {
+        FK_cliente: datos.FK_cliente,
+        FK_publicacion: datos.FK_publicacion,
+        texto: datos.texto,
+        hora_creacion: datos.fecha,
+        ...(datos.respuesta && {
+          estado: EstadoConsulta.RESPONDIDA,
+          respuesta: datos.respuesta.texto,
+          fecha_respuesta: datos.respuesta.fecha,
+          FK_usuario_respuesta: idAdministrador,
+        }),
+      },
+    });
+  }
+
+  const publicacionBelgranoU1 = await prisma.pUBLICACIONUNIDAD.findFirstOrThrow(
+    {
+      where: {
+        unidadFuncional: {
+          FK_proyecto: idProyectoPorCodigo.get('PROY-EBA')!,
+          identificador: 'U1',
+        },
+      },
+    },
+  );
+
+  // Valentina preguntó por 2-B antes de comprarla.
+  await upsertConsulta({
+    FK_cliente: idValentina,
+    FK_publicacion: publicacion2B.id_publicacion,
+    texto:
+      '¿La unidad 2-B tiene balcón al frente? ¿Se puede financiar en 12 cuotas?',
+    fecha: diasDesdeHoy(-190),
+    respuesta: {
+      texto:
+        'Sí, el balcón da a la avenida. Tenemos un plan con 50 % de anticipo y 12 cuotas; te esperamos en la oficina para armarlo.',
+      fecha: diasDesdeHoy(-189),
+    },
+  });
+  // Camila (sin compras): una respondida sobre LOCAL-03, que después se
+  // despublicó, y una pendiente sobre 1-A.
+  await upsertConsulta({
+    FK_cliente: idCamila,
+    FK_publicacion: publicacionLocalTres.id_publicacion,
+    texto: '¿El local se puede usar para gastronomía? ¿Tiene salida de humos?',
+    fecha: mesesDesdeHoy(-4),
+    respuesta: {
+      texto:
+        'Está habilitado para comercio en general; la salida de humos se puede agregar, consultanos por el costo.',
+      fecha: diasDesdeHoy(-119),
+    },
+  });
+  await upsertConsulta({
+    FK_cliente: idCamila,
+    FK_publicacion: publicacion1A.id_publicacion,
+    texto: '¿Cuándo se entrega la unidad 1-A? ¿Incluye cochera?',
+    fecha: diasDesdeHoy(-3),
+  });
+  // Braian: respondida sobre 1-A.
+  await upsertConsulta({
+    FK_cliente: idBraian,
+    FK_publicacion: publicacion1A.id_publicacion,
+    texto: '¿Aceptan una unidad usada como parte de pago?',
+    fecha: diasDesdeHoy(-20),
+    respuesta: {
+      texto:
+        'Por ahora no tomamos unidades usadas; podés ver los planes con anticipo y cuotas en la ficha de la unidad.',
+      fecha: diasDesdeHoy(-19),
+    },
+  });
+  // Emiliano: pendiente sobre una unidad de Edificio Belgrano Alto.
+  await upsertConsulta({
+    FK_cliente: idEmiliano,
+    FK_publicacion: publicacionBelgranoU1.id_publicacion,
+    texto: '¿Qué orientación tiene la U1 y en qué piso está?',
+    fecha: diasDesdeHoy(-6),
+  });
+
   console.log(
-    'Seed comercialización - UNIDADFUNCIONAL/PUBLICACIONUNIDAD/PLANPAGO/VENTA/CUOTA: listo (5 hero + 24 extra unidades).',
+    'Seed comercialización - UNIDADFUNCIONAL/PUBLICACIONUNIDAD/VENTA/PLANPAGO/CUOTA/COBRO/DECLARACIONPAGO/CONSULTAUNIDAD: listo (6 hero + 24 extra unidades).',
   );
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+// Corrido suelto (`npm run seed:...`); desde `seed-prueba.ts` solo se importa.
+if (require.main === module) ejecutarSeed(sembrarComercializacion);
