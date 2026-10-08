@@ -1,29 +1,23 @@
-export type AccionRechazoVenta = 'ELEGIR_OTRA_UNIDAD' | 'ELEGIR_OTRO_PLAN' | 'NINGUNA'
+export type AccionRechazoVenta = 'ELEGIR_OTRA_UNIDAD' | 'NINGUNA'
 
 /**
- * Los 409 de `POST /ventas` son texto plano (`venta.service.ts` y
- * `transicionarEstadoComercial` en `publicacion.service.ts`), no un código —
- * se distinguen por el contenido del mensaje. Mapea cada uno a una acción
- * concreta para que el modal de confirmación pueda ofrecer "Volver a elegir
- * unidad/plan" en vez de un error genérico.
+ * Los 409/404 de `POST /ventas` son texto plano (`venta.service.ts` y
+ * `venta-simulacion.service.ts`), no un código — se distinguen por el
+ * contenido del mensaje. El cambio de precio o de TNA no pasa por acá: ese
+ * 409 trae la simulación recalculada en `datos.simulacion` y se maneja aparte
+ * (ver `simulacionDelError`). Esto es para el resto: si la unidad dejó de
+ * estar disponible, no tiene sentido mostrar una simulación corregida — hay
+ * que elegir otra.
  */
 export function clasificarRechazoVenta(mensaje: string): AccionRechazoVenta {
   const normalizado = mensaje.toLowerCase()
 
   if (
     normalizado.includes('no está disponible') ||
-    normalizado.includes('ya existe una venta vigente') ||
-    normalizado.includes('cambió mientras se procesaba') ||
-    normalizado.includes('no está vigente')
+    normalizado.includes('no existe una publicación vigente') ||
+    normalizado.includes('ya existe una venta vigente')
   ) {
     return 'ELEGIR_OTRA_UNIDAD'
-  }
-
-  if (
-    normalizado.includes('inactivado') ||
-    normalizado.includes('no pertenece a esta publicación')
-  ) {
-    return 'ELEGIR_OTRO_PLAN'
   }
 
   return 'NINGUNA'

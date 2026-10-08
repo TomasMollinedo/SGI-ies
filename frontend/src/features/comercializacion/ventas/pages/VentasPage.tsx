@@ -259,10 +259,9 @@ export function VentasPage() {
       <RegistrarVentaModal
         open={registrarAbierto}
         onClose={() => setRegistrarAbierto(false)}
-        onVentaRegistrada={(venta) => {
-          setRegistrarAbierto(false)
-          navigate(rutaDetalleVenta(venta.id_venta))
-        }}
+        // Vuelve al listado (no al detalle): ya se refresca solo, porque
+        // `useCrearVenta` invalida la lista al confirmar.
+        onVentaRegistrada={() => setRegistrarAbierto(false)}
       />
     </div>
   )

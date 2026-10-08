@@ -75,3 +75,22 @@ export interface PlazosFinanciacionQuery {
 
 /** Cómo opera el formulario: lo decide quien lo abre (HU-32). */
 export type ModoFormulario = 'insercion' | 'edicion' | 'lectura'
+
+/**
+ * Ítem del catálogo de plazos activos (GET /plazos-financiacion/catalogo),
+ * para las tablas emergentes de la venta y de los planes de ejemplo (HU-27 /
+ * HU-22). `id` es el `id_plazo_financiacion` como string (lo que acepta
+ * cualquier `<select>`); `code`, "N cuotas".
+ */
+export interface PlazoFinanciacionCatalogoItem {
+  id: string
+  code: string
+  metadata: {
+    codigo: string
+    cantidad_cuotas: number
+    /** Porcentaje con dos decimales, ej. "18.50". */
+    tasa_nominal_anual: string
+    /** TNA ÷ 12 con cuatro decimales, ej. "1.5417". */
+    tasa_mensual: string
+  }
+}
