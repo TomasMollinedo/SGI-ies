@@ -11,18 +11,17 @@ import { Button } from '@/shared/components/ui/Button'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { formatearFecha } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
-import {
-  PERIODICIDAD_LABEL,
-  TIPO_PLAN_LABEL,
-} from '@/features/comercializacion/planes-pago/config/planPago.config'
+import { TIPO_PLAN_LABEL } from '@/features/comercializacion/planes-pago/config/planPago.config'
 import { CancelarVentaModal } from '../components/CancelarVentaModal'
 import type { VentaACancelar } from '../components/CancelarVentaModal'
-import { badgeEstadoCuota, badgeEstadoVenta } from '../config/venta.config'
+import { badgeEstadoCuota, badgeEstadoVenta, SIN_DATO } from '../config/venta.config'
 import { useVentaDetalle } from '../hooks/useVentas'
 import type { CuotaVenta } from '../types/venta.types'
 
 const COLUMNAS_CUOTAS: DataTableColumn<CuotaVenta>[] = [
   { key: 'numero', label: 'Cuota', render: (c) => (c.numero === 0 ? 'Anticipo' : `#${c.numero}`) },
+  { key: 'capital', label: 'Capital', render: (c) => formatearImporte(c.importe_capital) },
+  { key: 'interes', label: 'Interés', render: (c) => formatearImporte(c.importe_interes) },
   { key: 'importe', label: 'Importe', render: (c) => formatearImporte(c.importe) },
   { key: 'vencimiento', label: 'Vencimiento', render: (c) => formatearFecha(c.fecha_vencimiento) },
   { key: 'saldo', label: 'Saldo pendiente', render: (c) => formatearImporte(c.saldo_pendiente) },
@@ -94,18 +93,22 @@ export function VentaDetallePage() {
         </div>
 
         <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-          <Fila etiqueta="Precio" valor={formatearImporte(venta.precio_congelado)} />
-          <Fila etiqueta="Anticipo" valor={formatearImporte(venta.anticipo_congelado)} />
-          <Fila etiqueta="Plan" valor={TIPO_PLAN_LABEL[venta.tipo_plan_congelado]} />
+          <Fila etiqueta="Precio" valor={formatearImporte(venta.plan.precio)} />
+          <Fila etiqueta="Anticipo" valor={formatearImporte(venta.plan.anticipo)} />
+          <Fila etiqueta="Modalidad" valor={TIPO_PLAN_LABEL[venta.plan.modalidad]} />
+          <Fila etiqueta="Cuotas" valor={`${venta.plan.cantidad_cuotas ?? SIN_DATO}`} />
           <Fila
-            etiqueta="Cuotas"
-            valor={`${venta.cantidad_cuotas_congelada}${
-              venta.periodicidad_congelada
-                ? ` · ${PERIODICIDAD_LABEL[venta.periodicidad_congelada]}`
-                : ''
-            }`}
+            etiqueta="TNA"
+            valor={venta.plan.tasa_nominal_anual === null ? SIN_DATO : `${venta.plan.tasa_nominal_anual} %`}
           />
-          <Fila etiqueta="Fecha de adhesión" valor={formatearFecha(venta.fecha_adhesion)} />
+          <Fila
+            etiqueta="Valor de cuota"
+            valor={venta.plan.valor_cuota === null ? SIN_DATO : formatearImporte(venta.plan.valor_cuota)}
+          />
+          <Fila etiqueta="Saldo financiado" valor={formatearImporte(venta.plan.saldo_financiado)} />
+          <Fila etiqueta="Total de intereses" valor={formatearImporte(venta.plan.total_intereses)} />
+          <Fila etiqueta="Total a pagar" valor={formatearImporte(venta.plan.total_a_pagar)} />
+          <Fila etiqueta="Fecha de venta" valor={formatearFecha(venta.fecha_venta)} />
           <Fila
             etiqueta="Registrada por"
             valor={`${venta.usuarioCreador.nombre} ${venta.usuarioCreador.apellido}`}

@@ -27,6 +27,7 @@ export async function listarVentas(
       FK_cliente: filtros.FK_cliente,
       FK_publicacion: filtros.FK_publicacion,
       FK_proyecto: filtros.FK_proyecto,
+      modalidad: filtros.modalidad,
       estado: filtros.estado,
       fechaDesde: filtros.fechaDesde,
       fechaHasta: filtros.fechaHasta,
