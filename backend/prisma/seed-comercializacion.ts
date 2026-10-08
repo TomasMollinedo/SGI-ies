@@ -59,7 +59,8 @@ import { diasDesdeHoy, mesesDesdeHoy } from './seed-fechas';
  *   npm run seed:comercializacion
  * las veces que haga falta no duplica datos. Para arrancar de datos
  * completamente limpios:
- *   npx prisma migrate reset          (borra la base, aplica migraciones y corre seed.ts solo)
+ *   npx prisma migrate reset          (borra la base y aplica las migraciones)
+ *   npx prisma db seed                (corre seed.ts: desde Prisma 7 el reset no lo corre solo)
  *   npm run seed:cuenta-corriente-prueba
  *   npm run seed:comercializacion     (agrega los datos de este script)
  */
