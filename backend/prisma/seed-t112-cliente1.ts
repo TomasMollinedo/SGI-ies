@@ -113,7 +113,7 @@ async function main() {
   });
   // Plazos de financiación (HU-32): los planes de ejemplo eligen uno. Mismo
   // helper que `seed-comercializacion.ts`, así los dos seeds comparten plazos.
-  const idPlazoPorCuotas = await sembrarPlazos(
+  const plazoPorCuotas = await sembrarPlazos(
     prisma,
     responsableComercializacion.id_usuario,
   );
@@ -205,8 +205,8 @@ async function main() {
     });
     if (existente) return existente;
 
-    const idPlazo = idPlazoPorCuotas.get(datos.cantidad_cuotas_plazo);
-    if (idPlazo === undefined) {
+    const plazo = plazoPorCuotas.get(datos.cantidad_cuotas_plazo);
+    if (plazo === undefined) {
       throw new Error(
         `No hay un plazo sembrado de ${datos.cantidad_cuotas_plazo} cuotas`,
       );
@@ -217,7 +217,7 @@ async function main() {
         FK_publicacion: datos.FK_publicacion,
         nombre: datos.nombre,
         anticipo_porcentaje: datos.anticipo_porcentaje,
-        FK_plazo_financiacion: idPlazo,
+        FK_plazo_financiacion: plazo.id_plazo_financiacion,
         FK_usuario_creador: responsableComercializacion.id_usuario,
         FK_usuario_actualizador: responsableComercializacion.id_usuario,
       },

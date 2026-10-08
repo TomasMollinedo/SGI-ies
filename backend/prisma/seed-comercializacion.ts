@@ -4,17 +4,16 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 import {
   EstadoComercial,
-  EstadoCuota,
   EstadoProyecto,
   ModalidadPago,
-  Periodicidad,
+  OrigenCobro,
   TipoImagenProyecto,
   TipologiaUnidad,
 } from '../generated/prisma/enums';
 import { RolNombre } from '../src/common/enums/rol.enum';
-import { CuotaSeed, crearVentaConPlanPago } from './seed-venta-con-plan-pago';
+import { PagoCuotaSeed, VentaSeed, sembrarVenta } from './seed-ventas';
 import { sembrarPlazos } from './seed-plazos';
-import { fechaArgentina } from './seed-fechas';
+import { diasDesdeHoy, fechaArgentina, mesesDesdeHoy } from './seed-fechas';
 
 /**
  * Seed de prueba para Comercialización/Ecommerce (Sprint 3, T96): siembra la
@@ -33,8 +32,11 @@ import { fechaArgentina } from './seed-fechas';
  * `seed.ts`) y agrega encima los datos de Comercialización.
  *
  * Inserta filas directo con Prisma ya en el estado que dejarían los services
- * reales de cada HU (todavía no existen) si un usuario real hubiera operado
- * el sistema — no hace falta levantar el backend para tener datos de prueba.
+ * de cada HU si un usuario real hubiera operado el sistema — no hace falta
+ * levantar el backend para tener datos de prueba. Las ventas las siembra
+ * `sembrarVenta` (`seed-ventas.ts`) con el sistema francés de T132 y un cobro
+ * por cada pago, y las fechas son relativas a hoy (`seed-fechas.ts`) para que
+ * las cuotas vencidas sigan vencidas el día que se corra.
  *
  * Casos borde que pide explícitamente T96 (ver plan `dejar-en-testing-la-
  * snazzy-prism.md`):
@@ -44,7 +46,9 @@ import { fechaArgentina } from './seed-fechas';
  * - Un cliente sin `dni_cuil` (Camila Ferreyra).
  * - Al menos una unidad en cada uno de los 4 `EstadoComercial`.
  * - Al menos 3 cuotas vencidas con saldo pendiente (venta de Valentina Roldán
- *   sobre 2-B).
+ *   sobre 2-B, que además es el caso de prueba del sistema francés de T132).
+ * - Una venta financiada al día (3-C), ventas de contado, ventas financiadas
+ *   ya pagadas (con y sin interés), un cobro anulado y una venta cancelada.
  * - Un cliente con 2+ unidades en proyectos distintos (Valentina Roldán),
  *   para el criterio de HU-28 ("historial agrupado por unidad, no por
  *   cobro", decisión 14 del DER).
@@ -61,8 +65,6 @@ import { fechaArgentina } from './seed-fechas';
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
-
-// Hoy, a los fines de "vencida" en los comentarios de este archivo: 2026-09-14.
 
 const COSTO_POR_TIPOLOGIA: Partial<Record<TipologiaUnidad, number>> = {
   [TipologiaUnidad.UN_DORMITORIO]: 15_000_000,
@@ -103,17 +105,19 @@ async function main() {
   };
 
   // Plazos de financiación (HU-32): los planes de ejemplo eligen uno.
-  const idPlazoPorCuotas = await sembrarPlazos(
+  const plazoPorCuotas = await sembrarPlazos(
     prisma,
     responsableComercializacion.id_usuario,
   );
-  const plazo = (cantidadCuotas: number) => {
-    const id = idPlazoPorCuotas.get(cantidadCuotas);
-    if (id === undefined) {
+  const plazoVenta = (cantidadCuotas: number) => {
+    const encontrado = plazoPorCuotas.get(cantidadCuotas);
+    if (encontrado === undefined) {
       throw new Error(`No hay un plazo sembrado de ${cantidadCuotas} cuotas`);
     }
-    return id;
+    return encontrado;
   };
+  const plazo = (cantidadCuotas: number) =>
+    plazoVenta(cantidadCuotas).id_plazo_financiacion;
 
   // --------------------------------------------------------------------
   // PROYECTO — 10 filas, como las deja el ABM de Proyecto (T122):
@@ -464,34 +468,46 @@ async function main() {
     });
   }
 
-  /**
-   * Idempotente por FK_publicacion (una sola venta vigente por publicación
-   * en este seed). Si ya existe, no vuelve a tocar su PLANPAGO ni sus CUOTA —
-   * se crean solo la primera vez, con `crearVentaConPlanPago`.
-   */
-  async function upsertVenta(datos: {
-    FK_cliente: number;
-    FK_publicacion: number;
-    FK_plan_ejemplo: number;
-    fecha_venta: Date;
-    precio_congelado: number;
-    anticipo_congelado: number;
-    tipo_plan_congelado: ModalidadPago;
-    cantidad_cuotas_congelada: number;
-    periodicidad_congelada?: Periodicidad;
-    cuotas: CuotaSeed[];
-  }) {
-    const existente = await prisma.vENTA.findFirst({
-      where: { FK_publicacion: datos.FK_publicacion },
+  // Formas de pago que crea `seed.ts`. La transferencia exige número de
+  // referencia; el efectivo, no.
+  const { id_forma_pago: idEfectivo } = await prisma.fORMAPAGO.findFirstOrThrow(
+    { where: { nombre: 'Efectivo' }, select: { id_forma_pago: true } },
+  );
+  const { id_forma_pago: idTransferencia } =
+    await prisma.fORMAPAGO.findFirstOrThrow({
+      where: { nombre: 'Transferencia bancaria' },
+      select: { id_forma_pago: true },
     });
-    if (existente) return existente;
 
-    return crearVentaConPlanPago(
-      prisma,
-      datos,
-      responsableComercializacion.id_usuario,
+  /** Cobro presencial en efectivo; ver `PagoCuotaSeed` para los opcionales. */
+  const efectivo = (numero_cuota: number, importe?: number): PagoCuotaSeed => ({
+    numero_cuota,
+    importe,
+    origen: OrigenCobro.PRESENCIAL,
+    FK_forma_pago: idEfectivo,
+    numero_referencia: null,
+  });
+  /** Cobro presencial por transferencia, con su número de referencia. */
+  const transferencia = (
+    numero_cuota: number,
+    numero_referencia: string,
+    importe?: number,
+  ): PagoCuotaSeed => ({
+    numero_cuota,
+    importe,
+    origen: OrigenCobro.PRESENCIAL,
+    FK_forma_pago: idTransferencia,
+    numero_referencia,
+  });
+  /** Paga completas, por transferencia, las cuotas 0 (anticipo) a `ultima`. */
+  const pagosHasta = (ultima: number, referencia: string) =>
+    Array.from({ length: ultima + 1 }, (_, numero) =>
+      transferencia(numero, `${referencia}-${numero}`),
     );
-  }
+
+  /** Ver `sembrarVenta`: idempotente por publicación. */
+  const venderUnidad = (datos: VentaSeed) =>
+    sembrarVenta(prisma, datos, responsableComercializacion.id_usuario);
 
   // --------------------------------------------------------------------
   // CLIENTE — 6 filas (upsert real por `google_sub`, único en BD)
@@ -593,7 +609,7 @@ async function main() {
   await upsertPublicacion({
     FK_unidad_funcional: pbA.id_unidad_funcional,
     estado_comercial: EstadoComercial.EN_PREPARACION,
-    fecha_publicacion: new Date('2026-08-20'),
+    fecha_publicacion: diasDesdeHoy(-20),
   });
 
   // 1-A: DISPONIBLE, todavía no vendida. Sus planes de ejemplo cubren los
@@ -615,11 +631,11 @@ async function main() {
   const publicacion1A = await upsertPublicacion({
     FK_unidad_funcional: unidad1A.id_unidad_funcional,
     estado_comercial: EstadoComercial.DISPONIBLE,
-    fecha_publicacion: new Date('2026-06-01'),
+    fecha_publicacion: mesesDesdeHoy(-4),
     precio_lista: 19_000_000,
     porcentaje_ganancia: 26.67,
   });
-  await upsertPlan({
+  const plan1A = await upsertPlan({
     FK_publicacion: publicacion1A.id_publicacion,
     nombre: 'Anticipo 30 % + 12 cuotas',
     anticipo_porcentaje: 30,
@@ -644,9 +660,30 @@ async function main() {
     anticipo_porcentaje: 20,
     FK_plazo_financiacion: plazo(36),
   });
+  // Una venta cancelada antes de pagar el anticipo: sus cuotas quedan
+  // anuladas y la unidad vuelve a Disponible, como la deja la cancelación.
+  await venderUnidad({
+    FK_cliente: idEmiliano,
+    FK_publicacion: publicacion1A.id_publicacion,
+    FK_plan_ejemplo: plan1A.id_plan_ejemplo,
+    fecha_venta: mesesDesdeHoy(-3),
+    precio: 19_000_000,
+    modalidad: ModalidadPago.FINANCIADO,
+    anticipo_porcentaje: 30,
+    plazo: plazoVenta(12),
+    cancelacion: {
+      fecha: mesesDesdeHoy(-2),
+      motivo: 'El cliente desistió de la compra antes de pagar el anticipo',
+    },
+  });
 
-  // 2-B: EN_PLAN_DE_PAGO, vendida a Valentina Roldán (financiado, con cuotas
-  // vencidas — el caso borde principal de cuotas que pide T96).
+  // 2-B: EN_PLAN_DE_PAGO, vendida a Valentina Roldán. Es el caso de prueba
+  // del sistema francés (T132): precio 20.000.000, anticipo 50 %, 12 cuotas
+  // con TNA 24 % -> cuota 945.595,97, la última 945.595,92 e intereses por
+  // 1.347.151,59. Vendida hace 170 días, así que vencieron el anticipo y las
+  // cuotas 1 a 5; la 6 vence en unos días. Pagó el anticipo (en dos cobros),
+  // las cuotas 1 y 2, y parte de la 3: quedan 3 cuotas vencidas con saldo
+  // (3, 4 y 5), el caso borde principal de mora.
   const unidad2B = await upsertUnidad({
     FK_proyecto: idTorreNogal,
     identificador: '2-B',
@@ -654,7 +691,7 @@ async function main() {
     superficie_cubierta: 62.3,
     superficie_descubierta: 8.5,
     piso: '2',
-    costo: 20_000_000,
+    costo: 16_000_000,
   });
   await upsertImagen(
     unidad2B.id_unidad_funcional,
@@ -663,84 +700,78 @@ async function main() {
   const publicacion2B = await upsertPublicacion({
     FK_unidad_funcional: unidad2B.id_unidad_funcional,
     estado_comercial: EstadoComercial.EN_PLAN_DE_PAGO,
-    fecha_publicacion: new Date('2026-03-01'),
-    precio_lista: 27_000_000,
-    porcentaje_ganancia: 35,
+    fecha_publicacion: mesesDesdeHoy(-7),
+    precio_lista: 20_000_000,
+    porcentaje_ganancia: 25,
   });
-  // El plan de ejemplo que se mostraba al vender. La venta del Sprint 3 se
-  // registró sin interés (TNA 0 %); las ventas con sistema francés las siembra
-  // T156.
   const plan2B = await upsertPlan({
     FK_publicacion: publicacion2B.id_publicacion,
-    nombre: 'Anticipo 20 % + 6 cuotas',
-    anticipo_porcentaje: 20,
-    FK_plazo_financiacion: plazo(6),
+    nombre: 'Anticipo 50 % + 12 cuotas',
+    anticipo_porcentaje: 50,
+    FK_plazo_financiacion: plazo(12),
   });
-  // Anticipo: 27.000.000 * 20% = 5.400.000. Resto: 21.600.000 / 6 = 3.600.000
-  // por cuota. Hoy (a los fines de "vencida" en este seed) es 2026-09-14:
-  // las cuotas 3, 4 y 5 ya vencieron y siguen con saldo -> exactamente 3
-  // cuotas vencidas con saldo, el criterio explícito del "Listo cuando".
-  await upsertVenta({
+  await venderUnidad({
     FK_cliente: idValentina,
     FK_publicacion: publicacion2B.id_publicacion,
     FK_plan_ejemplo: plan2B.id_plan_ejemplo,
-    fecha_venta: new Date('2026-04-14'),
-    precio_congelado: 27_000_000,
-    anticipo_congelado: 5_400_000,
-    tipo_plan_congelado: ModalidadPago.FINANCIADO,
-    cantidad_cuotas_congelada: 6,
-    periodicidad_congelada: Periodicidad.MENSUAL,
-    cuotas: [
+    fecha_venta: diasDesdeHoy(-170),
+    precio: 20_000_000,
+    modalidad: ModalidadPago.FINANCIADO,
+    anticipo_porcentaje: 50,
+    plazo: plazoVenta(12),
+    pagos: [
+      // Anticipo de 10.000.000 en dos cobros: transferencia y el resto en efectivo.
+      transferencia(0, 'TRF-2B-0', 6_000_000),
+      efectivo(0),
+      // Una transferencia que el banco rechazó: el cobro quedó anulado.
       {
-        numero: 0,
-        importe: 5_400_000,
-        fecha_vencimiento: new Date('2026-04-14'),
-        saldo_pendiente: 0,
-        estado: EstadoCuota.PAGADA,
+        ...transferencia(1, 'TRF-2B-1-RECHAZADA'),
+        anulado: { motivo: 'El banco rechazó la transferencia' },
       },
-      {
-        numero: 1,
-        importe: 3_600_000,
-        fecha_vencimiento: new Date('2026-05-14'),
-        saldo_pendiente: 0,
-        estado: EstadoCuota.PAGADA,
-      },
-      {
-        numero: 2,
-        importe: 3_600_000,
-        fecha_vencimiento: new Date('2026-06-14'),
-        saldo_pendiente: 0,
-        estado: EstadoCuota.PAGADA,
-      },
-      {
-        numero: 3,
-        importe: 3_600_000,
-        fecha_vencimiento: new Date('2026-07-14'),
-        saldo_pendiente: 3_600_000,
-        estado: EstadoCuota.PENDIENTE,
-      }, // vencida (1)
-      {
-        numero: 4,
-        importe: 3_600_000,
-        fecha_vencimiento: new Date('2026-08-14'),
-        saldo_pendiente: 1_600_000,
-        estado: EstadoCuota.PARCIAL,
-      }, // vencida (2), pagó 2.000.000
-      {
-        numero: 5,
-        importe: 3_600_000,
-        fecha_vencimiento: new Date('2026-09-01'),
-        saldo_pendiente: 3_600_000,
-        estado: EstadoCuota.PENDIENTE,
-      }, // vencida (3)
-      {
-        numero: 6,
-        importe: 3_600_000,
-        fecha_vencimiento: new Date('2026-10-14'),
-        saldo_pendiente: 3_600_000,
-        estado: EstadoCuota.PENDIENTE,
-      }, // a futuro, contraste
+      transferencia(1, 'TRF-2B-1'),
+      transferencia(2, 'TRF-2B-2'),
+      efectivo(3, 500_000),
     ],
+  });
+
+  // 3-C: EN_PLAN_DE_PAGO y al día, vendida a Rodrigo Acosta con el plazo de
+  // 24 cuotas (TNA 36 %). Pagó todo lo que venció; la cuota 3 vence a futuro.
+  const unidad3C = await upsertUnidad({
+    FK_proyecto: idTorreNogal,
+    identificador: '3-C',
+    tipologia: TipologiaUnidad.TRES_DORMITORIOS,
+    superficie_cubierta: 84.5,
+    superficie_descubierta: 10,
+    piso: '3',
+    costo: 30_000_000,
+  });
+  await upsertImagen(
+    unidad3C.id_unidad_funcional,
+    'https://cdn.axontech.test/unidades/3-c.jpg',
+  );
+  const publicacion3C = await upsertPublicacion({
+    FK_unidad_funcional: unidad3C.id_unidad_funcional,
+    estado_comercial: EstadoComercial.EN_PLAN_DE_PAGO,
+    fecha_publicacion: mesesDesdeHoy(-4),
+    precio_lista: 40_000_000,
+    porcentaje_ganancia: 33.33,
+  });
+  const plan3C = await upsertPlan({
+    FK_publicacion: publicacion3C.id_publicacion,
+    nombre: 'Anticipo 30 % + 24 cuotas',
+    anticipo_porcentaje: 30,
+    FK_plazo_financiacion: plazo(24),
+  });
+  await venderUnidad({
+    FK_cliente: idRodrigo,
+    FK_publicacion: publicacion3C.id_publicacion,
+    FK_plan_ejemplo: plan3C.id_plan_ejemplo,
+    fecha_venta: diasDesdeHoy(-65),
+    precio: 40_000_000,
+    modalidad: ModalidadPago.FINANCIADO,
+    anticipo_porcentaje: 30,
+    plazo: plazoVenta(24),
+    pagos: pagosHasta(2, 'TRF-3C'),
   });
 
   // LOTE-08: VENDIDA, contado, vendida a Emiliano Duarte.
@@ -759,7 +790,7 @@ async function main() {
   const publicacionLoteOcho = await upsertPublicacion({
     FK_unidad_funcional: loteOcho.id_unidad_funcional,
     estado_comercial: EstadoComercial.VENDIDA,
-    fecha_publicacion: new Date('2026-06-01'),
+    fecha_publicacion: mesesDesdeHoy(-4),
     precio_lista: 52_000_000,
     porcentaje_ganancia: 23.81,
   });
@@ -772,27 +803,14 @@ async function main() {
     anticipo_porcentaje: 30,
     FK_plazo_financiacion: plazo(12),
   });
-  // Asunción documentada acá porque el service real todavía no existe: en
-  // CONTADO se genera igual una única cuota número 0, aunque
-  // PLANPAGO.cantidad_cuotas sea null para ese tipo.
-  await upsertVenta({
+  await venderUnidad({
     FK_cliente: idEmiliano,
     FK_publicacion: publicacionLoteOcho.id_publicacion,
     FK_plan_ejemplo: planLoteOcho.id_plan_ejemplo,
-    fecha_venta: new Date('2026-08-01'),
-    precio_congelado: 52_000_000,
-    anticipo_congelado: 52_000_000,
-    tipo_plan_congelado: ModalidadPago.CONTADO,
-    cantidad_cuotas_congelada: 1,
-    cuotas: [
-      {
-        numero: 0,
-        importe: 52_000_000,
-        fecha_vencimiento: new Date('2026-08-01'),
-        saldo_pendiente: 0,
-        estado: EstadoCuota.PAGADA,
-      },
-    ],
+    fecha_venta: diasDesdeHoy(-60),
+    precio: 52_000_000,
+    modalidad: ModalidadPago.CONTADO,
+    pagos: [transferencia(0, 'TRF-LOTE08')],
   });
 
   // LOCAL-03: caso borde pedido — publicación DISPONIBLE despublicada
@@ -812,11 +830,11 @@ async function main() {
   await upsertPublicacion({
     FK_unidad_funcional: localTres.id_unidad_funcional,
     estado_comercial: EstadoComercial.DISPONIBLE,
-    fecha_publicacion: new Date('2026-05-01'),
+    fecha_publicacion: mesesDesdeHoy(-5),
     precio_lista: 10_000_000,
     porcentaje_ganancia: 25,
     vigente: false,
-    fecha_despublicacion: new Date('2026-07-15'),
+    fecha_despublicacion: mesesDesdeHoy(-3),
     motivo_despublicacion:
       'Local retirado temporalmente del catálogo por refacción de la fachada',
   });
@@ -846,7 +864,7 @@ async function main() {
       const publicacion = await upsertPublicacion({
         FK_unidad_funcional: unidad.id_unidad_funcional,
         estado_comercial: EstadoComercial.DISPONIBLE,
-        fecha_publicacion: new Date('2026-06-01'),
+        fecha_publicacion: mesesDesdeHoy(-4),
         precio_lista: precio,
         porcentaje_ganancia: 35,
       });
@@ -859,16 +877,25 @@ async function main() {
     }
   }
 
+  /** Cómo se vendió cada unidad de un proyecto finalizado. */
+  interface VentaFinalizadaSeed {
+    FK_cliente: number;
+    fecha_venta: Date;
+    /** Sin financiación, es de contado. */
+    financiacion?: { anticipo_porcentaje: number; cantidad_cuotas: number };
+  }
+
   /**
-   * FINALIZADO: las 3 unidades publicadas VENDIDA (30% de margen), cada una
-   * con un plan de ejemplo y una VENTA de contado (cuota única PAGADA). Los
-   * clientes se asignan explícitamente para poder sembrar a propósito el
-   * caso de "cliente con 2+ unidades" (Valentina Roldán).
+   * FINALIZADO: las 3 unidades publicadas VENDIDA (30% de margen), con la
+   * venta totalmente pagada: cada cuota tiene su cobro, así los ingresos de
+   * esos meses aparecen en el tablero. Los clientes se asignan explícitamente
+   * para poder sembrar a propósito el caso de "cliente con 2+ unidades"
+   * (Valentina Roldán).
    */
   async function sembrarProyectoFinalizado(
     codigo: string,
-    fechaAdhesion: Date,
-    clientesPorUnidad: [number, number, number],
+    fechaPublicacion: Date,
+    ventas: [VentaFinalizadaSeed, VentaFinalizadaSeed, VentaFinalizadaSeed],
   ) {
     const idProyecto = idProyectoPorCodigo.get(codigo)!;
     for (const [indice, tipologia] of ROTACION_TIPOLOGIA.entries()) {
@@ -885,36 +912,44 @@ async function main() {
       const publicacion = await upsertPublicacion({
         FK_unidad_funcional: unidad.id_unidad_funcional,
         estado_comercial: EstadoComercial.VENDIDA,
-        fecha_publicacion: fechaAdhesion,
+        fecha_publicacion: fechaPublicacion,
         precio_lista: precio,
         porcentaje_ganancia: 30,
       });
-      // Ver LOTE-08: la venta de contado apunta al plan de ejemplo solo por
-      // la columna legado `VENTA.FK_plan_ejemplo`.
+
+      // El plan de ejemplo con el que se vendió. En contado, ver LOTE-08:
+      // solo lo pide la columna legado `VENTA.FK_plan_ejemplo`.
+      const venta = ventas[indice];
+      const { anticipo_porcentaje, cantidad_cuotas } = venta.financiacion ?? {
+        anticipo_porcentaje: 30,
+        cantidad_cuotas: 12,
+      };
+      const plazoPlan = plazoVenta(cantidad_cuotas);
       const plan = await upsertPlan({
         FK_publicacion: publicacion.id_publicacion,
-        nombre: 'Anticipo 30 % + 12 cuotas',
-        anticipo_porcentaje: 30,
-        FK_plazo_financiacion: plazo(12),
+        nombre: `Anticipo ${anticipo_porcentaje} % + ${cantidad_cuotas} cuotas${plazoPlan.tasa_nominal_anual === 0 ? ' sin interés' : ''}`,
+        anticipo_porcentaje,
+        FK_plazo_financiacion: plazoPlan.id_plazo_financiacion,
       });
-      await upsertVenta({
-        FK_cliente: clientesPorUnidad[indice],
+
+      const referencia = `TRF-${codigo.slice(5)}-${identificador}`;
+      await venderUnidad({
+        FK_cliente: venta.FK_cliente,
         FK_publicacion: publicacion.id_publicacion,
         FK_plan_ejemplo: plan.id_plan_ejemplo,
-        fecha_venta: fechaAdhesion,
-        precio_congelado: precio,
-        anticipo_congelado: precio,
-        tipo_plan_congelado: ModalidadPago.CONTADO,
-        cantidad_cuotas_congelada: 1,
-        cuotas: [
-          {
-            numero: 0,
-            importe: precio,
-            fecha_vencimiento: fechaAdhesion,
-            saldo_pendiente: 0,
-            estado: EstadoCuota.PAGADA,
-          },
-        ],
+        fecha_venta: venta.fecha_venta,
+        precio,
+        ...(venta.financiacion
+          ? {
+              modalidad: ModalidadPago.FINANCIADO,
+              anticipo_porcentaje,
+              plazo: plazoPlan,
+              pagos: pagosHasta(cantidad_cuotas, referencia),
+            }
+          : {
+              modalidad: ModalidadPago.CONTADO,
+              pagos: [transferencia(0, referencia)],
+            }),
       });
     }
   }
@@ -937,17 +972,28 @@ async function main() {
   await sembrarProyectoEnEjecucion('PROY-TDR');
   await sembrarProyectoEnEjecucion('PROY-ALM');
 
-  // Barrio La Merced: U1 -> Valentina (su 2da unidad, en otro proyecto:
-  // siembra a propósito el caso "cliente con 2+ unidades" de HU-28).
-  await sembrarProyectoFinalizado('PROY-BLM', new Date('2025-10-15'), [
-    idValentina,
-    idBraian,
-    idBraian,
+  // Barrio La Merced: todo de contado. U1 -> Valentina (su 2da unidad, en
+  // otro proyecto: siembra a propósito el caso "cliente con 2+ unidades" de
+  // HU-28).
+  await sembrarProyectoFinalizado('PROY-BLM', mesesDesdeHoy(-10), [
+    { FK_cliente: idValentina, fecha_venta: mesesDesdeHoy(-9) },
+    { FK_cliente: idBraian, fecha_venta: mesesDesdeHoy(-8) },
+    { FK_cliente: idBraian, fecha_venta: mesesDesdeHoy(-7) },
   ]);
-  await sembrarProyectoFinalizado('PROY-RCT', new Date('2026-01-10'), [
-    idMicaela,
-    idMicaela,
-    idRodrigo,
+  // Residencial Costanera: dos ventas financiadas ya canceladas (una sin
+  // interés y otra con el plazo de 6 cuotas) y una de contado.
+  await sembrarProyectoFinalizado('PROY-RCT', mesesDesdeHoy(-9), [
+    {
+      FK_cliente: idMicaela,
+      fecha_venta: mesesDesdeHoy(-5),
+      financiacion: { anticipo_porcentaje: 40, cantidad_cuotas: 3 },
+    },
+    { FK_cliente: idMicaela, fecha_venta: mesesDesdeHoy(-4) },
+    {
+      FK_cliente: idRodrigo,
+      fecha_venta: mesesDesdeHoy(-8),
+      financiacion: { anticipo_porcentaje: 30, cantidad_cuotas: 6 },
+    },
   ]);
 
   await sembrarProyectoSinPublicar('PROY-PSJ');
@@ -955,7 +1001,7 @@ async function main() {
   await sembrarProyectoSinPublicar('PROY-MRP');
 
   console.log(
-    'Seed comercialización - UNIDADFUNCIONAL/PUBLICACIONUNIDAD/PLANPAGO/VENTA/CUOTA: listo (5 hero + 24 extra unidades).',
+    'Seed comercialización - UNIDADFUNCIONAL/PUBLICACIONUNIDAD/VENTA/PLANPAGO/CUOTA/COBRO: listo (6 hero + 24 extra unidades).',
   );
 }
 
