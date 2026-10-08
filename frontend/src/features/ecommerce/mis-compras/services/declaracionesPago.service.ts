@@ -34,10 +34,34 @@ export async function listarFormasPagoAutogestion(
 /**
  * POST /cliente/declaraciones-pago (T116, HU-29): la declaración nace
  * PENDIENTE y no toca el saldo de la cuota — eso pasa recién si Tesorería la
- * valida.
+ * valida. Viaja como `multipart/form-data` porque lleva el comprobante (T147).
  */
 export async function declararPago(payload: DeclararPagoPayload): Promise<void> {
-  await httpClientCliente.post('/cliente/declaraciones-pago', payload)
+  const formData = new FormData()
+  formData.append('FK_cuota', String(payload.FK_cuota))
+  formData.append('FK_forma_pago', String(payload.FK_forma_pago))
+  formData.append('importe', String(payload.importe))
+  if (payload.numero_referencia) {
+    formData.append('numero_referencia', payload.numero_referencia)
+  }
+  formData.append('comprobante', payload.comprobante)
+
+  await httpClientCliente.post('/cliente/declaraciones-pago', formData, {
+    // Hace falta pisar el `application/json` por defecto de la instancia: con
+    // ese header axios convertiría el FormData a JSON y el archivo se
+    // perdería. El navegador lo reemplaza por el definitivo, con el boundary.
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+/**
+ * Ruta de `GET /cliente/declaraciones-pago/:id/comprobante` (T147): devuelve
+ * el archivo binario y exige el token del cliente, así que no sirve como
+ * `href` — se abre con `useAbrirArchivoProtegido`. 404 si la declaración no es
+ * propia o no tiene comprobante.
+ */
+export function rutaComprobanteDeclaracion(idDeclaracionPago: number): string {
+  return `/cliente/declaraciones-pago/${idDeclaracionPago}/comprobante`
 }
 
 /**

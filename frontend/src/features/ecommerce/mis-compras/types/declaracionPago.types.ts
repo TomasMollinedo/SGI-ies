@@ -21,12 +21,17 @@ export interface FormaPagoAutogestion {
   }
 }
 
-/** Body de `POST /cliente/declaraciones-pago`. */
+/**
+ * Campos de `POST /cliente/declaraciones-pago`. Viaja como
+ * `multipart/form-data` por el comprobante (T147): un único archivo PDF, JPG o
+ * PNG de hasta 5 MB.
+ */
 export interface DeclararPagoPayload {
   FK_cuota: number
   FK_forma_pago: number
   importe: number
   numero_referencia?: string
+  comprobante: File
 }
 
 /**
@@ -34,6 +39,10 @@ export interface DeclararPagoPayload {
  * una VALIDADA: es el cobro que generó, que ya figura en el historial de
  * pagos. Si ese cobro se anuló después, la declaración sigue VALIDADA y
  * `cobro.estado` es ANULADO.
+ *
+ * El archivo del comprobante no viaja acá: se pide aparte, por
+ * `id_declaracion_pago`. Las declaraciones anteriores a T147 no tienen
+ * comprobante (`tiene_comprobante` en `false` y los otros dos en `null`).
  */
 export interface DeclaracionPagoCliente {
   id_declaracion_pago: number
@@ -43,6 +52,9 @@ export interface DeclaracionPagoCliente {
   motivo_rechazo: string | null
   hora_creacion: string
   fecha_resolucion: string | null
+  comprobante_nombre_archivo: string | null
+  comprobante_tipo: string | null
+  tiene_comprobante: boolean
   cuota: {
     id_cuota: number
     numero: number

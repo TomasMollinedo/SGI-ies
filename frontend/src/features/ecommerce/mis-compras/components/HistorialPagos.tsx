@@ -3,9 +3,10 @@ import { Spinner } from '@/shared/components/ui/Spinner'
 import { formatearFecha } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
 import { cn } from '@/shared/utils/cn'
-import { HISTORIAL_PAGOS, ORIGEN_COBRO_LABEL } from '../config/misCompras.config'
+import { COMPROBANTE, HISTORIAL_PAGOS, ORIGEN_COBRO_LABEL } from '../config/misCompras.config'
 import { useHistorialPagos } from '../hooks/useHistorialPagos'
 import type { PagoHistorial } from '../types/miVenta.types'
+import { BotonVerComprobante } from './BotonVerComprobante'
 
 const LIMITE_PAGINA = 10
 
@@ -20,6 +21,10 @@ interface HistorialPagosProps {
  * paginado (T112, HU-28). Un cobro que imputó a cuotas de otra unidad del
  * mismo cliente aparece acá partido: `importe_imputado` es solo el subtotal
  * de esta venta, nunca el total del cobro completo.
+ *
+ * Un pago que vino del ecommerce deja ver el comprobante de la declaración
+ * que lo originó (T147), también si el cobro se anuló. Uno presencial no
+ * tiene declaración, así que no muestra nada.
  */
 export function HistorialPagos({ idVenta, page, onPageChange }: HistorialPagosProps) {
   const { data, isLoading, isFetching, isError } = useHistorialPagos(idVenta, page)
@@ -81,12 +86,21 @@ function FilaPago({ pago }: { pago: PagoHistorial }) {
         anulado && 'opacity-60'
       )}
     >
-      <div className="flex flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1">
         <span className="text-light text-sm">{formatearFecha(pago.fecha_cobro)}</span>
         <span className="text-light/60 font-mono text-xs tracking-widest uppercase">
           {ORIGEN_COBRO_LABEL[pago.origen]} · {pago.forma_pago.nombre}
           {pago.numero_referencia !== null && ` · ${pago.numero_referencia}`}
         </span>
+        {pago.origen === 'ECOMMERCE' &&
+          (pago.declaracion_pago?.tiene_comprobante ? (
+            <BotonVerComprobante
+              idDeclaracionPago={pago.declaracion_pago.id_declaracion_pago}
+              descripcion={`${HISTORIAL_PAGOS.pagoDel} ${formatearFecha(pago.fecha_cobro)}, ${formatearImporte(pago.importe_imputado)}`}
+            />
+          ) : (
+            <span className="text-light/60 text-xs">{COMPROBANTE.sinComprobante}</span>
+          ))}
       </div>
 
       <div className="flex items-center gap-3">

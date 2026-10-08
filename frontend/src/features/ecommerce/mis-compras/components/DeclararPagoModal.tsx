@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { useLocation, useNavigate } from 'react-router'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Check, Info, Receipt, X } from 'lucide-react'
@@ -12,7 +12,7 @@ import { Select } from '@/shared/components/ui/Select'
 import type { SelectOption } from '@/shared/components/ui/Select'
 import { useToast } from '@/shared/hooks/useToast'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
-import { formatearMensajeError } from '@/shared/utils/apiError'
+import { esArrayDeValidationIssues, formatearMensajeError } from '@/shared/utils/apiError'
 import { formatearImporte } from '@/shared/utils/importe'
 import { DECLARAR_PAGO } from '../config/misCompras.config'
 import { useDeclararPago } from '../hooks/useDeclaracionesPago'
@@ -26,11 +26,13 @@ import type { CuotaMiVenta } from '../types/miVenta.types'
 import { etiquetaCuota } from '../utils/cuotaDeclarable'
 import { tieneDatosIncompletos } from '../utils/datosCliente'
 import { interpretarImporteAr } from '../utils/importeTexto'
+import { CampoComprobante } from './CampoComprobante'
 
 const VALORES_INICIALES: DeclaracionPagoFormValues = {
   FK_forma_pago: '',
   importe: '',
   numero_referencia: '',
+  comprobante: null,
 }
 
 interface DeclararPagoModalProps {
@@ -44,12 +46,15 @@ interface DeclararPagoModalProps {
 /**
  * Formulario para declarar un pago sobre una cuota propia (T117, HU-29). La
  * declaración nace pendiente: el saldo de la cuota no cambia hasta que
- * Tesorería la valide contra el extracto bancario, así que no hay nada que
- * adjuntar — solo el número de referencia, y exacto.
+ * Tesorería la valide contra el extracto bancario y el comprobante, que es
+ * obligatorio (T147): un PDF, JPG o PNG de hasta 5 MB. El número de
+ * referencia tiene que ser exacto.
  *
- * Errores: el 400 por datos incompletos manda a completar DNI/CUIT y teléfono
- * (y vuelve acá después); el resto de los 400 y los 409 se muestran adentro
- * del modal. Ante un 409, `useDeclararPago` ya refresca el detalle.
+ * Errores: si el servidor rechaza el comprobante (400 o 413), el mensaje va
+ * debajo de ese campo. El 400 por datos incompletos manda a completar
+ * DNI/CUIT y teléfono (y vuelve acá después); el resto de los 400 y los 409
+ * se muestran adentro del modal. Ante un 409, `useDeclararPago` ya refresca
+ * el detalle.
  */
 export function DeclararPagoModal({ idVenta, cuota, formasPago, onClose }: DeclararPagoModalProps) {
   const toast = useToast()
@@ -67,10 +72,13 @@ export function DeclararPagoModal({ idVenta, cuota, formasPago, onClose }: Decla
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     watch,
     trigger,
+    setValue,
+    setError,
     formState: { errors, isSubmitted },
   } = useForm<DeclaracionPagoFormValues, unknown, DeclaracionPagoFormOutput>({
     resolver: zodResolver(schema),
@@ -114,7 +122,8 @@ export function DeclararPagoModal({ idVenta, cuota, formasPago, onClose }: Decla
   }
 
   function enviar(datos: DeclaracionPagoFormOutput) {
-    if (!cuota) return
+    // El schema ya garantizó el comprobante: el chequeo es para el tipo.
+    if (!cuota || !datos.comprobante) return
     setErrorEnvio(null)
     declararMutation.mutate(
       {
@@ -122,6 +131,7 @@ export function DeclararPagoModal({ idVenta, cuota, formasPago, onClose }: Decla
         FK_forma_pago: Number(datos.FK_forma_pago),
         importe: datos.importe,
         numero_referencia: datos.numero_referencia || undefined,
+        comprobante: datos.comprobante,
       },
       {
         onSuccess: () => {
@@ -129,6 +139,15 @@ export function DeclararPagoModal({ idVenta, cuota, formasPago, onClose }: Decla
           onClose()
         },
         onError: (error) => {
+          // Va antes que la redirección: un comprobante rechazado se corrige
+          // acá, aunque al cliente además le falten datos.
+          const errorComprobante = esArrayDeValidationIssues(error.message)
+            ? error.message.find((issue) => issue.campo === 'comprobante')
+            : undefined
+          if (errorComprobante) {
+            setError('comprobante', { type: 'server', message: errorComprobante.error })
+            return
+          }
           if (error.statusCode === 400 && tieneDatosIncompletos(cliente)) {
             toast.info(DECLARAR_PAGO.completarDatos)
             navigate(PATHS.ECOMMERCE.COMPLETAR_DATOS, { state: { from: location } })
@@ -222,23 +241,43 @@ export function DeclararPagoModal({ idVenta, cuota, formasPago, onClose }: Decla
             {...register('importe')}
           />
 
-          <div className="flex flex-col gap-2">
-            <Input
-              label={DECLARAR_PAGO.referencia}
-              required={requiereReferencia}
-              autoComplete="off"
-              maxLength={100}
-              placeholder={DECLARAR_PAGO.referenciaPlaceholder}
-              error={errors.numero_referencia?.message}
-              disabled={enviando}
-              className="w-full"
-              {...register('numero_referencia')}
-            />
-            <p className="text-content-muted flex gap-2 text-xs">
-              <Info size={14} aria-hidden="true" className="mt-0.5 shrink-0" />
-              {DECLARAR_PAGO.avisoValidacion}
-            </p>
-          </div>
+          <Input
+            label={DECLARAR_PAGO.referencia}
+            required={requiereReferencia}
+            autoComplete="off"
+            maxLength={100}
+            placeholder={DECLARAR_PAGO.referenciaPlaceholder}
+            error={errors.numero_referencia?.message}
+            disabled={enviando}
+            className="w-full"
+            {...register('numero_referencia')}
+          />
+
+          <Controller
+            name="comprobante"
+            control={control}
+            render={({ field, fieldState }) => (
+              <CampoComprobante
+                value={field.value}
+                // Un archivo elegido se valida al toque, sin esperar al envío.
+                // Al quitarlo, el "falta el comprobante" aparece recién si ya
+                // se intentó enviar, como en el resto de los campos.
+                onChange={(archivo) =>
+                  setValue('comprobante', archivo, {
+                    shouldDirty: true,
+                    shouldValidate: archivo !== null || isSubmitted,
+                  })
+                }
+                error={fieldState.error?.message}
+                disabled={enviando}
+              />
+            )}
+          />
+
+          <p className="text-content-muted flex gap-2 text-xs">
+            <Info size={14} aria-hidden="true" className="mt-0.5 shrink-0" />
+            {DECLARAR_PAGO.avisoValidacion}
+          </p>
 
           {errorEnvio && (
             <p

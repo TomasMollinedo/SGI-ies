@@ -36,6 +36,7 @@ export const HISTORIAL_PAGOS = {
   titulo: 'Historial de pagos',
   vacio: 'Todavía no registrás pagos sobre esta unidad.',
   error: 'No pudimos cargar el historial de pagos.',
+  pagoDel: 'pago del',
 } as const
 
 export const CRONOGRAMA = {
@@ -60,11 +61,31 @@ export const DECLARAR_PAGO = {
   referencia: 'Número de referencia',
   referenciaPlaceholder: 'Ej. número de operación o de transferencia',
   avisoValidacion:
-    'Tesorería valida tu pago contra el extracto bancario, por eso el número de referencia tiene que ser exacto. No hace falta adjuntar ningún comprobante.',
+    'Tesorería valida tu pago contra el extracto bancario y el comprobante que adjuntes, por eso el número de referencia tiene que ser exacto.',
   cancelar: 'Cancelar',
   confirmar: 'Declarar pago',
   exito: 'Registramos tu pago. Queda pendiente hasta que Tesorería lo valide.',
   completarDatos: 'Antes de declarar un pago necesitamos tu DNI/CUIT y tu teléfono.',
+} as const
+
+/**
+ * Comprobante de una declaración de pago (T147). Los tres primeros errores
+ * son los mismos textos que devuelve el backend para el campo `comprobante`.
+ */
+export const COMPROBANTE = {
+  label: 'Comprobante',
+  elegir: 'Elegir archivo',
+  cambiar: 'Cambiar archivo',
+  quitar: 'Quitar',
+  ayuda: 'PDF, JPG o PNG de hasta 5 MB.',
+  sinArchivo: 'Ningún archivo elegido',
+  errorFalta: 'Adjuntá el comprobante del pago',
+  errorTipo: 'El comprobante tiene que ser un PDF, JPG o PNG',
+  errorTamanio: 'El comprobante no puede superar los 5 MB',
+  errorVacio: 'El archivo está vacío. Elegí otro comprobante',
+  ver: 'Ver comprobante',
+  sinComprobante: 'Sin comprobante adjunto',
+  cargando: 'Cargando comprobante…',
 } as const
 
 export const DECLARACIONES_PAGO = {

@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { aCentavos, importeSupera } from '@/features/tesoreria/cobranzas/utils/importeCentavos'
 import { formatearImporte } from '@/shared/utils/importe'
+import { COMPROBANTE } from '../config/misCompras.config'
+import { validarComprobante } from '../utils/comprobante'
 import { interpretarImporteAr, tieneFormatoImporteAr } from '../utils/importeTexto'
 import type { FormaPagoAutogestion } from './declaracionPago.types'
 
@@ -9,7 +11,8 @@ import type { FormaPagoAutogestion } from './declaracionPago.types'
  * del importe es el saldo pendiente de esa cuota, y la referencia es
  * obligatoria o no según la forma de pago elegida. Límites calcados de
  * `createDeclaracionPagoSchema` (create-declaracion-pago.dto.ts); el backend
- * igual revalida todo.
+ * igual revalida todo. El comprobante es obligatorio (T147, ver
+ * `validarComprobante`).
  *
  * El importe se tipea como texto en formato es-AR — punto de miles opcional,
  * coma decimal (ver `interpretarImporteAr`) — y se convierte a número recién
@@ -57,6 +60,14 @@ export function crearDeclaracionPagoSchema(
         .string()
         .trim()
         .max(100, 'El número de referencia no puede superar los 100 caracteres'),
+      // Obligatorio. Arranca en `null` porque un input file no tiene un valor
+      // vacío propio.
+      comprobante: z
+        .custom<File | null>((valor) => valor === null || valor instanceof File)
+        .superRefine((archivo, ctx) => {
+          const error = archivo ? validarComprobante(archivo) : COMPROBANTE.errorFalta
+          if (error) ctx.addIssue({ code: 'custom', message: error })
+        }),
     })
     .superRefine((valores, ctx) => {
       const forma = formasPago.find((item) => item.id === valores.FK_forma_pago)
