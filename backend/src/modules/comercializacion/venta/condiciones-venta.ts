@@ -69,18 +69,3 @@ export function resolverCondicionesVenta(
     periodicidad_congelada: venta.periodicidad_congelada,
   };
 }
-
-/**
- * Los contratos del Sprint 3 exponen datos del plan de ejemplo con el que se
- * registró la venta (su id y su nombre) como no nulos, pero
- * `VENTA.FK_plan_ejemplo` es nullable en la base. Las ventas que crea
- * `VentaService.crear` siempre lo tienen; si falta, el error lo dice.
- */
-export function exigirDatoPlanEjemplo<T>(idVenta: number, dato: T | null): T {
-  if (dato === null) {
-    throw new InternalServerErrorException(
-      `La venta ${idVenta} no tiene plan de ejemplo asociado`,
-    );
-  }
-  return dato;
-}

@@ -33,7 +33,6 @@ import { CancelarVentaDto } from './dto/cancelar-venta.dto';
 import { QueryVentaDto } from './dto/query-venta.dto';
 import { QueryHistorialPagosClienteDto } from './dto/query-historial-pagos-cliente.dto';
 import { QueryDeclaracionesPagoClienteDto } from './dto/query-declaraciones-pago-cliente.dto';
-import { DECIMALES } from '../../../common/constantes/decimales';
 
 const CLIENTE_SELECT = {
   id_cliente: true,
@@ -345,26 +344,6 @@ export class VentaService {
     if (datos.dni_cuil !== undefined) or.push({ dni_cuil: datos.dni_cuil });
     if (datos.email !== undefined) or.push({ email: datos.email });
     return { OR: or };
-  }
-
-  /**
-   * `PLANEJEMPLO.anticipo_monto`/`anticipo_porcentaje` es uno u otro, nunca
-   * ambos (regla de service de T105, no expresable en el schema). El motor de
-   * cuotas solo acepta el monto ya resuelto. Lee columnas legado del plan de
-   * ejemplo: lo reemplaza T158.
-   */
-  private resolverAnticipoMonto(plan: {
-    precio: Prisma.Decimal;
-    anticipo_monto: Prisma.Decimal | null;
-    anticipo_porcentaje: Prisma.Decimal | null;
-  }): Prisma.Decimal {
-    if (plan.anticipo_monto !== null) {
-      return plan.anticipo_monto;
-    }
-    return plan.precio
-      .mul(plan.anticipo_porcentaje ?? new Prisma.Decimal(0))
-      .div(100)
-      .toDecimalPlaces(DECIMALES);
   }
 
   /**
