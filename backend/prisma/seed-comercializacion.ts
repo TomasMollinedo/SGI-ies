@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 import {
@@ -7,11 +8,13 @@ import {
   EstadoProyecto,
   ModalidadPago,
   Periodicidad,
+  TipoImagenProyecto,
   TipologiaUnidad,
 } from '../generated/prisma/enums';
 import { RolNombre } from '../src/common/enums/rol.enum';
 import { CuotaSeed, crearVentaConPlanPago } from './seed-venta-con-plan-pago';
 import { sembrarPlazos } from './seed-plazos';
+import { fechaArgentina } from './seed-fechas';
 
 /**
  * Seed de prueba para Comercialización/Ecommerce (Sprint 3, T96): siembra la
@@ -35,8 +38,8 @@ import { sembrarPlazos } from './seed-plazos';
  *
  * Casos borde que pide explícitamente T96 (ver plan `dejar-en-testing-la-
  * snazzy-prism.md`):
- * - Un proyecto sin `fecha_fin_estimada` y con la dirección todavía "A definir"
- *   (Barrio Los Álamos): `direccion` es obligatoria desde T121.
+ * - Un proyecto En ejecución sin `fecha_fin_estimada` (Barrio Los Álamos):
+ *   su condición de entrega es "A entregar, fecha a confirmar".
  * - Una publicación no vigente (LOCAL-03).
  * - Un cliente sin `dni_cuil` (Camila Ferreyra).
  * - Al menos una unidad en cada uno de los 4 `EstadoComercial`.
@@ -113,142 +116,266 @@ async function main() {
   };
 
   // --------------------------------------------------------------------
-  // PROYECTO — 10 filas (upsert real por `codigo`, único en BD)
+  // PROYECTO — 10 filas, como las deja el ABM de Proyecto (T122):
+  // - `codigo` lo genera el sistema como `PROY-` + el id (`PROY-0001`), así
+  //   que el seed los busca por nombre (único entre activos) para no
+  //   duplicarlos. `clave` es solo para referenciarlos dentro de este script.
+  // - Fechas ancladas a la medianoche de Argentina (`fechaArgentina`), igual
+  //   que `fechaIsoSchema`.
+  // - Cubre los tres estados de obra de HU-31 y uno Cancelado, que sigue en
+  //   el enum hasta que se responda OBS-22 (T159).
   // --------------------------------------------------------------------
-  const proyectosDatos = [
-    // Los 2 "hero": cargan los casos borde de PROYECTO pedidos por T96.
+  const proyectosDatos: {
+    clave: string;
+    nombre: string;
+    descripcion: string | null;
+    localidad: string;
+    direccion: string;
+    estado_obra: EstadoProyecto;
+    fecha_inicio: string | null;
+    fecha_fin_estimada: string | null;
+    cantidad_unidades_planificadas: number;
+    portada: string;
+    imagenes: { tipo: TipoImagenProyecto; archivo: string }[];
+  }[] = [
+    // Los 2 "hero": cargan los casos borde de PROYECTO.
     {
-      codigo: 'PROY-TN',
+      clave: 'PROY-TN',
       nombre: 'Torre Nogal',
+      descripcion:
+        'Torre de 12 pisos con departamentos de 1 y 2 dormitorios, cocheras y amenities.',
       localidad: 'Resistencia, Chaco',
       direccion: 'Av. 25 de Mayo 1200',
       estado_obra: EstadoProyecto.EN_EJECUCION,
-      fecha_fin_estimada: new Date('2027-12-01'),
+      fecha_inicio: '2025-03-01',
+      fecha_fin_estimada: '2027-12-01',
       cantidad_unidades_planificadas: 24,
-      imagen_portada_url: 'https://cdn.axontech.test/proyectos/torre-nogal.jpg',
+      portada: 'torre-nogal.jpg',
+      imagenes: [
+        { tipo: TipoImagenProyecto.RENDER, archivo: 'torre-nogal-fachada.jpg' },
+        { tipo: TipoImagenProyecto.RENDER, archivo: 'torre-nogal-hall.jpg' },
+        {
+          tipo: TipoImagenProyecto.PLANO,
+          archivo: 'torre-nogal-planta-tipo.png',
+        },
+      ],
     },
     {
-      codigo: 'PROY-BLA',
+      // Caso borde: En ejecución sin fecha de finalización estimada. Su
+      // condición de entrega es "A entregar, fecha a confirmar" (HU-20).
+      clave: 'PROY-BLA',
       nombre: 'Barrio Los Álamos',
+      descripcion: null,
       localidad: 'Corrientes, Corrientes',
-      direccion: 'A definir', // obligatoria desde HU-31; el proyecto en planificación todavía no tiene una definitiva
-      estado_obra: EstadoProyecto.EN_PLANIFICACION,
-      fecha_fin_estimada: null, // caso borde pedido explícitamente
+      direccion: 'Ruta Nacional 12 Km 1028',
+      estado_obra: EstadoProyecto.EN_EJECUCION,
+      fecha_inicio: '2025-08-01',
+      fecha_fin_estimada: null,
       cantidad_unidades_planificadas: 40,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/barrio-los-alamos.jpg',
+      portada: 'barrio-los-alamos.jpg',
+      imagenes: [
+        {
+          tipo: TipoImagenProyecto.PLANO,
+          archivo: 'barrio-los-alamos-loteo.png',
+        },
+      ],
     },
-    // 8 más, para dar volumen real y cubrir los 4 EstadoProyecto con varios
+    // 8 más, para dar volumen real y cubrir los estados de obra con varios
     // ejemplos cada uno.
     {
-      codigo: 'PROY-EBA',
+      clave: 'PROY-EBA',
       nombre: 'Edificio Belgrano Alto',
+      descripcion: 'Edificio de 9 pisos frente al Bv. Oroño.',
       localidad: 'Rosario, Santa Fe',
       direccion: 'Bv. Oroño 1450',
       estado_obra: EstadoProyecto.EN_EJECUCION,
-      fecha_fin_estimada: new Date('2027-03-01'),
+      fecha_inicio: '2025-01-15',
+      fecha_fin_estimada: '2027-03-01',
       cantidad_unidades_planificadas: 18,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/edificio-belgrano-alto.jpg',
+      portada: 'edificio-belgrano-alto.jpg',
+      imagenes: [
+        {
+          tipo: TipoImagenProyecto.RENDER,
+          archivo: 'belgrano-alto-fachada.jpg',
+        },
+        { tipo: TipoImagenProyecto.PLANO, archivo: 'belgrano-alto-planta.png' },
+      ],
     },
     {
-      codigo: 'PROY-TDR',
+      clave: 'PROY-TDR',
       nombre: 'Torres del Río',
+      descripcion: null,
       localidad: 'Santa Fe, Santa Fe',
       direccion: 'Av. Aristóbulo del Valle 3200',
       estado_obra: EstadoProyecto.EN_EJECUCION,
-      fecha_fin_estimada: new Date('2027-09-01'),
+      fecha_inicio: '2025-06-01',
+      fecha_fin_estimada: '2027-09-01',
       cantidad_unidades_planificadas: 24,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/torres-del-rio.jpg',
+      portada: 'torres-del-rio.jpg',
+      imagenes: [],
     },
     {
-      codigo: 'PROY-ALM',
+      clave: 'PROY-ALM',
       nombre: 'Altos del Molino',
+      descripcion: null,
       localidad: 'Reconquista, Santa Fe',
       direccion: 'Av. Alvear 850',
       estado_obra: EstadoProyecto.EN_EJECUCION,
-      fecha_fin_estimada: new Date('2027-07-01'),
+      fecha_inicio: '2025-05-01',
+      fecha_fin_estimada: '2027-07-01',
       cantidad_unidades_planificadas: 20,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/altos-del-molino.jpg',
+      portada: 'altos-del-molino.jpg',
+      imagenes: [],
     },
     {
-      codigo: 'PROY-BLM',
+      clave: 'PROY-BLM',
       nombre: 'Barrio La Merced',
+      descripcion: 'Barrio de casas de 1 a 3 dormitorios, ya entregado.',
       localidad: 'Formosa, Formosa',
       direccion: 'Barrio La Merced',
       estado_obra: EstadoProyecto.FINALIZADO,
-      fecha_fin_estimada: new Date('2025-11-01'),
+      fecha_inicio: '2023-09-01',
+      fecha_fin_estimada: '2025-11-01',
       cantidad_unidades_planificadas: 12,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/barrio-la-merced.jpg',
+      portada: 'barrio-la-merced.jpg',
+      imagenes: [
+        { tipo: TipoImagenProyecto.RENDER, archivo: 'la-merced-casas.jpg' },
+      ],
     },
     {
-      codigo: 'PROY-RCT',
+      clave: 'PROY-RCT',
       nombre: 'Residencial Costanera',
+      descripcion: null,
       localidad: 'Corrientes, Corrientes',
       direccion: 'Av. Costanera 500',
       estado_obra: EstadoProyecto.FINALIZADO,
-      fecha_fin_estimada: new Date('2026-02-01'),
+      fecha_inicio: '2024-02-01',
+      fecha_fin_estimada: '2026-02-01',
       cantidad_unidades_planificadas: 16,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/residencial-costanera.jpg',
+      portada: 'residencial-costanera.jpg',
+      imagenes: [],
     },
     {
-      codigo: 'PROY-PSJ',
+      clave: 'PROY-PSJ',
       nombre: 'Paseo San Jorge',
+      descripcion: 'Proyecto suspendido por falta de financiamiento.',
       localidad: 'Resistencia, Chaco',
       direccion: 'Av. Sarmiento 2100',
       estado_obra: EstadoProyecto.CANCELADO,
-      fecha_fin_estimada: new Date('2026-05-01'),
+      fecha_inicio: '2024-10-01',
+      fecha_fin_estimada: '2026-05-01',
       cantidad_unidades_planificadas: 20,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/paseo-san-jorge.jpg',
+      portada: 'paseo-san-jorge.jpg',
+      imagenes: [],
     },
     {
-      codigo: 'PROY-VNT',
+      clave: 'PROY-VNT',
       nombre: 'Vientos del Norte',
+      descripcion: null,
       localidad: 'Sáenz Peña, Chaco',
       direccion: 'Ruta 95 Km 3',
       estado_obra: EstadoProyecto.EN_PLANIFICACION,
-      fecha_fin_estimada: new Date('2028-01-01'),
+      fecha_inicio: null,
+      fecha_fin_estimada: '2028-01-01',
       cantidad_unidades_planificadas: 26,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/vientos-del-norte.jpg',
+      portada: 'vientos-del-norte.jpg',
+      imagenes: [],
     },
     {
-      codigo: 'PROY-MRP',
+      clave: 'PROY-MRP',
       nombre: 'Mirador del Paraná',
+      descripcion:
+        'Torre frente al río con departamentos de 2 y 3 dormitorios.',
       localidad: 'Corrientes, Corrientes',
       direccion: 'Av. Poincaré 1200',
       estado_obra: EstadoProyecto.EN_PLANIFICACION,
-      fecha_fin_estimada: new Date('2028-06-01'),
+      fecha_inicio: '2027-03-01',
+      fecha_fin_estimada: '2028-06-01',
       cantidad_unidades_planificadas: 14,
-      imagen_portada_url:
-        'https://cdn.axontech.test/proyectos/mirador-del-parana.jpg',
+      portada: 'mirador-del-parana.jpg',
+      imagenes: [
+        { tipo: TipoImagenProyecto.RENDER, archivo: 'mirador-vista-rio.jpg' },
+        { tipo: TipoImagenProyecto.PLANO, archivo: 'mirador-planta-tipo.png' },
+      ],
     },
   ];
 
-  for (const proyecto of proyectosDatos) {
-    await prisma.pROYECTO.upsert({
-      where: { codigo: proyecto.codigo },
-      update: proyecto,
-      create: { ...proyecto, ...auditoriaProyectos },
+  const URL_IMAGENES = 'https://cdn.axontech.test/proyectos';
+
+  /**
+   * Idempotente por nombre. La primera vez lo crea como lo hace
+   * `ProyectoService.create`: con un código provisorio y después
+   * `PROY-` + el id. Si ya existe, actualiza sus datos sin tocar el código.
+   */
+  async function upsertProyecto(datos: (typeof proyectosDatos)[number]) {
+    const campos = {
+      nombre: datos.nombre,
+      descripcion: datos.descripcion,
+      localidad: datos.localidad,
+      direccion: datos.direccion,
+      estado_obra: datos.estado_obra,
+      fecha_inicio:
+        datos.fecha_inicio === null ? null : fechaArgentina(datos.fecha_inicio),
+      fecha_fin_estimada:
+        datos.fecha_fin_estimada === null
+          ? null
+          : fechaArgentina(datos.fecha_fin_estimada),
+      cantidad_unidades_planificadas: datos.cantidad_unidades_planificadas,
+      imagen_portada_url: `${URL_IMAGENES}/${datos.portada}`,
+    };
+
+    const existente = await prisma.pROYECTO.findFirst({
+      where: { nombre: datos.nombre },
+    });
+    if (existente) {
+      return prisma.pROYECTO.update({
+        where: { id_proyecto: existente.id_proyecto },
+        data: campos,
+      });
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const { id_proyecto } = await tx.pROYECTO.create({
+        data: {
+          ...campos,
+          codigo: `TMP-${randomUUID()}`,
+          ...auditoriaProyectos,
+        },
+      });
+      return tx.pROYECTO.update({
+        where: { id_proyecto },
+        data: { codigo: `PROY-${String(id_proyecto).padStart(4, '0')}` },
+      });
     });
   }
+
+  const idProyectoPorCodigo = new Map<string, number>();
+  for (const datos of proyectosDatos) {
+    const proyecto = await upsertProyecto(datos);
+    idProyectoPorCodigo.set(datos.clave, proyecto.id_proyecto);
+
+    // Imágenes de diseño (renders y planos), idempotentes por orden: un solo
+    // orden para todo el proyecto, como `ProyectoService.agregarImagen`.
+    for (const [orden, imagen] of datos.imagenes.entries()) {
+      const existente = await prisma.iMAGENPROYECTO.findFirst({
+        where: { FK_proyecto: proyecto.id_proyecto, orden },
+      });
+      if (existente) continue;
+
+      await prisma.iMAGENPROYECTO.create({
+        data: {
+          FK_proyecto: proyecto.id_proyecto,
+          url: `${URL_IMAGENES}/${imagen.archivo}`,
+          tipo: imagen.tipo,
+          orden,
+        },
+      });
+    }
+  }
   console.log(
-    `Seed comercialización - PROYECTO: ${proyectosDatos.length} registros procesados.`,
+    `Seed comercialización - PROYECTO: ${proyectosDatos.length} registros procesados, con sus imágenes de diseño.`,
   );
 
-  const idProyectoPorCodigo = new Map(
-    (
-      await prisma.pROYECTO.findMany({
-        where: { codigo: { in: proyectosDatos.map((p) => p.codigo) } },
-        select: { id_proyecto: true, codigo: true },
-      })
-    ).map((p) => [p.codigo, p.id_proyecto]),
-  );
   const idTorreNogal = idProyectoPorCodigo.get('PROY-TN')!;
   const idBarrioLosAlamos = idProyectoPorCodigo.get('PROY-BLA')!;
 
