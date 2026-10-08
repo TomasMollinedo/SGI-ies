@@ -3,7 +3,6 @@ import { createZodDto } from 'nestjs-zod';
 import {
   EstadoCuota,
   EstadoVenta,
-  Periodicidad,
   ModalidadPago,
   TipologiaUnidad,
 } from '../../../../../generated/prisma/enums';
@@ -36,25 +35,49 @@ const proyectoResumenSchema = z.object({
 });
 
 /**
- * Ítem del listado (criterio "Listado interno con filtros y paginación"): la
- * cabecera de la venta, sin el detalle de cuotas — eso es solo del detalle.
+ * El plan de pago acordado en la venta (HU-27), leído de su PLANPAGO (ver
+ * `resolverPlanAcordado`): lo que quedó congelado al confirmarla. Cambiar
+ * después el precio de lista o la TNA del plazo no lo modifica.
+ *
+ * Saldo financiado, total de intereses y total a pagar no se guardan: se
+ * derivan del plan y de su cronograma. En CONTADO no hay plazo, cuotas, tasa
+ * ni valor de cuota (vienen en `null`), el anticipo es el precio completo y
+ * el saldo financiado es 0.
+ */
+const planVentaSchema = z.object({
+  modalidad: z.enum(ModalidadPago),
+  precio: z.number(),
+  anticipo: z.number(),
+  saldo_financiado: z.number(),
+  /** `null` en CONTADO y en las ventas del Sprint 3 (sin plazo, TNA 0 %). */
+  plazo: z
+    .object({ id_plazo_financiacion: z.number(), codigo: z.string() })
+    .nullable(),
+  cantidad_cuotas: z.number().nullable(),
+  /** TNA en porcentaje (24 = 24 %). */
+  tasa_nominal_anual: z.number().nullable(),
+  valor_cuota: z.number().nullable(),
+  total_intereses: z.number(),
+  total_a_pagar: z.number(),
+});
+
+/**
+ * Ítem del listado (HU-27): la venta, el cliente, la unidad, el plan acordado
+ * y el saldo pendiente. Sin el cronograma de cuotas: eso es del detalle.
  */
 export const ventaListItemSchema = z.object({
   id_venta: z.number(),
-  fecha_adhesion: z.iso.datetime(),
-  precio_congelado: z.number(),
-  anticipo_congelado: z.number(),
-  tipo_plan_congelado: z.enum(ModalidadPago),
-  cantidad_cuotas_congelada: z.number(),
-  periodicidad_congelada: z.enum(Periodicidad).nullable(),
+  fecha_venta: z.iso.datetime(),
   estado: z.enum(EstadoVenta),
   motivo_cancelacion: z.string().nullable(),
   fecha_cancelacion: z.iso.datetime().nullable(),
   cliente: clienteResumenSchema,
   FK_publicacion: z.number(),
-  FK_plan_pago: z.number(),
   unidad: unidadResumenSchema,
   proyecto: proyectoResumenSchema,
+  plan: planVentaSchema,
+  /** Suma del saldo pendiente de sus cuotas; 0 en una venta cancelada (sus cuotas quedan ANULADA). */
+  saldo_pendiente: z.number(),
 });
 
 export const ventaListResponseSchema = z.object({
@@ -70,17 +93,27 @@ export class VentaListResponseDto extends createZodDto(
   ventaListResponseSchema,
 ) {}
 
+/**
+ * Una cuota del cronograma, con el desglose del sistema francés:
+ * `importe` = `importe_capital` + `importe_interes`. `saldo_capital` es la
+ * deuda del plan después de esa cuota (fijo); `saldo_pendiente` es lo que
+ * falta pagar de esa cuota (lo modifican los cobros).
+ */
 const cuotaVentaSchema = z.object({
+  id_cuota: z.number(),
   numero: z.number(),
-  importe: z.number(),
   fecha_vencimiento: z.iso.datetime(),
+  importe_capital: z.number(),
+  importe_interes: z.number(),
+  importe: z.number(),
+  saldo_capital: z.number(),
   saldo_pendiente: z.number(),
   estado: z.enum(EstadoCuota),
 });
 
 /**
- * Detalle de una venta: la cabecera del listado más el cronograma completo
- * de cuotas generado por el motor de T105, y quién la registró.
+ * Detalle de una venta: lo mismo que el listado, más el cronograma completo
+ * de su plan de pago y quién la registró.
  */
 export const ventaDetalleResponseSchema = ventaListItemSchema.extend({
   usuarioCreador: usuarioResumenSchema,
