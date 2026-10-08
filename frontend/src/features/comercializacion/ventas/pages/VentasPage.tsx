@@ -14,7 +14,6 @@ import { formatearFecha } from '@/shared/utils/fecha'
 import { finDelDiaIso, inicioDelDiaIso } from '@/shared/utils/fechaIso'
 import { formatearImporte } from '@/shared/utils/importe'
 import { TIPO_PLAN_LABEL } from '@/features/comercializacion/planes-pago/config/planPago.config'
-import { CeldaUnidad } from '@/features/comercializacion/publicaciones/components/CeldaUnidad'
 import { FiltrosVentasBar } from '../components/FiltrosVentasBar'
 import { RegistrarVentaModal } from '../components/RegistrarVentaModal'
 import {
@@ -103,25 +102,18 @@ export function VentasPage() {
       key: 'cliente',
       label: 'Cliente',
       render: (venta) => (
-        <div className="min-w-0">
-          <p className="text-content font-medium wrap-anywhere">
-            {venta.cliente.nombre} {venta.cliente.apellido ?? ''} —{' '}
-            {venta.cliente.dni_cuil ?? 'Sin DNI'}
-          </p>
-          <p className="text-content-muted text-xs wrap-anywhere">{venta.cliente.email}</p>
-        </div>
+        <p className="text-content font-medium wrap-anywhere">
+          {venta.cliente.nombre} {venta.cliente.apellido ?? ''}
+        </p>
       ),
     },
     {
       key: 'unidad',
       label: 'Unidad',
-      render: (venta) => (
-        <CeldaUnidad
-          identificador={venta.unidad.identificador}
-          proyecto={venta.proyecto.nombre}
-          tipologia={venta.unidad.tipologia}
-        />
-      ),
+      // Con tantas columnas nuevas (precio, modalidad, cuotas, TNA, saldo),
+      // la tabla no entra con el proyecto y la tipología debajo del código
+      // (eso ya se ve al abrir el detalle): acá solo el código de la unidad.
+      render: (venta) => <p className="text-content font-medium">{venta.unidad.identificador}</p>,
     },
     {
       key: 'precio',
