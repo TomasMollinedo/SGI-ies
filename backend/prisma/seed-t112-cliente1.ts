@@ -60,7 +60,7 @@ import { ejecutarSeed } from './seed-ejecutar';
  *   con el subtotal de B-201 únicamente, nunca con el importe_total completo.
  */
 
-const EMAIL_CLIENTE_POR_DEFECTO = 'cliente.prueba@axontech.test';
+const EMAIL_CLIENTE_POR_DEFECTO = 'lucia.gomez@axontech.test';
 
 export async function sembrarClientePrueba(prisma: PrismaClient) {
   const email =
@@ -83,8 +83,8 @@ export async function sembrarClientePrueba(prisma: PrismaClient) {
     : await prisma.cLIENTE.create({
         data: {
           email,
-          nombre: 'Cliente',
-          apellido: 'de Prueba',
+          nombre: 'Lucía',
+          apellido: 'Gómez',
           dni_cuil: '20111222339',
           telefono: '3874001122',
         },
@@ -153,8 +153,9 @@ export async function sembrarClientePrueba(prisma: PrismaClient) {
   const proyecto = await sembrarProyecto(
     prisma,
     {
-      nombre: 'Residencial Prueba T112',
-      descripcion: null,
+      nombre: 'Residencial Los Ceibos',
+      descripcion:
+        'Edificio de 4 pisos con departamentos de 1 y 2 dormitorios, a pasos del centro.',
       localidad: 'Salta capital, Salta',
       direccion: 'Av. Belgrano 2400',
       estado_obra: EstadoProyecto.EN_EJECUCION,
@@ -405,7 +406,7 @@ export async function sembrarClientePrueba(prisma: PrismaClient) {
           FK_forma_pago: idTransferencia,
           numero_referencia: 'TR-MIXTO-001',
           observaciones:
-            'Transferencia única que Tesorería imputó a A-101 y B-201 (T112: caso de cobro partido entre unidades)',
+            'Transferencia única del cliente, imputada a la cuota 3 de A-101 y al anticipo de B-201',
         },
         idAdministrador,
       ),

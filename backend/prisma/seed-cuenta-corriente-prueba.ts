@@ -66,7 +66,7 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
       telefono: '3624-556677',
       correo: 'ventas@acerosnordeste.test',
       observaciones:
-        'Seed de prueba: queda DEUDOR, con historial rico para el extracto.',
+        'Proveedor de hierro y perfiles. Entregas en obra con 48 h de anticipación.',
     },
     {
       razon_social: 'Deposito Fiscal Chaqueno S.R.L.',
@@ -76,17 +76,17 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
       telefono: '3624-334455',
       correo: 'administracion@depositofiscal.test',
       observaciones:
-        'Seed de prueba: solo tiene una nota de credito, queda A_FAVOR.',
+        'Depósito de materiales importados. Bonifica por volumen de compra.',
     },
     {
-      razon_social: 'Maderera Baja de Prueba S.R.L.',
+      razon_social: 'Maderera del Chaco S.R.L.',
       cuit: '30655544332',
       condicion_iva: CondicionIVA.MONOTRIBUTISTA,
       domicilio: 'Ruta 16 Km 8, Chaco',
       telefono: '3624-667788',
-      correo: 'contacto@madererabaja.test',
+      correo: 'contacto@madereradelchaco.test',
       observaciones:
-        'Seed de prueba: dado de baja pero con saldo pendiente (queda inactivo).',
+        'Dado de baja: cerró la sucursal de Resistencia. Queda una factura pendiente.',
       estado: false,
     },
     {
@@ -97,7 +97,7 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
       telefono: '3624-889900',
       correo: 'ventas@insumosnorte.test',
       observaciones:
-        'Seed de prueba: 1 factura vencida + 1 no vencida (ambas DEUDOR), y un pago ANULADO que no debe afectar el saldo.',
+        'Tornillería, fijaciones y caños. Pago a 15 días de la factura.',
     },
     {
       razon_social: 'Corralón El Constructor S.A.',
@@ -107,7 +107,7 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
       telefono: '3624-441122',
       correo: 'cuentas@elconstructor.test',
       observaciones:
-        'Seed de prueba: proveedor de materiales de obra, una factura pagada por mes (egresos del tablero).',
+        'Corralón principal: materiales de obra para todos los proyectos, facturación mensual.',
     },
   ];
 
