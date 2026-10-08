@@ -13,15 +13,23 @@ import { formatearMensajeError } from '@/shared/utils/apiError'
 import { formatearFecha } from '@/shared/utils/fecha'
 import { finDelDiaIso, inicioDelDiaIso } from '@/shared/utils/fechaIso'
 import { formatearImporte } from '@/shared/utils/importe'
+import { TIPO_PLAN_LABEL } from '@/features/comercializacion/planes-pago/config/planPago.config'
 import { CeldaUnidad } from '@/features/comercializacion/publicaciones/components/CeldaUnidad'
 import { FiltrosVentasBar } from '../components/FiltrosVentasBar'
 import { RegistrarVentaModal } from '../components/RegistrarVentaModal'
-import { badgeEstadoVenta, ESTADO_VENTA_POR_DEFECTO, LIMITE_PAGINA } from '../config/venta.config'
+import {
+  badgeEstadoVenta,
+  ESTADO_VENTA_POR_DEFECTO,
+  LIMITE_PAGINA,
+  MODALIDAD_VENTA_POR_DEFECTO,
+  SIN_DATO,
+} from '../config/venta.config'
 import type { VentaListItem } from '../types/venta.types'
 import { useVentas } from '../hooks/useVentas'
 
 const FILTROS_VACIOS = {
   estado: ESTADO_VENTA_POR_DEFECTO,
+  modalidad: MODALIDAD_VENTA_POR_DEFECTO,
   proyecto: '',
   cliente: '',
   fechaDesde: '',
@@ -29,8 +37,8 @@ const FILTROS_VACIOS = {
 }
 
 /**
- * Listado interno de ventas (HU-27): filtrable por proyecto, cliente, estado
- * y período, con paginación. El detalle de cada fila muestra el cronograma
+ * Listado interno de ventas (HU-27): filtrable por proyecto, cliente, estado,
+ * modalidad y período, con paginación. El detalle de cada fila muestra el cronograma
  * completo de cuotas. Sin filtro de unidad: se sacó porque, con proyecto ya
  * acotando el listado, no aportaba lo suficiente.
  */
@@ -41,12 +49,14 @@ export function VentasPage() {
   const [page, setPage] = useState(1)
   const [registrarAbierto, setRegistrarAbierto] = useState(false)
 
-  const { estado, proyecto, cliente, fechaDesde, fechaHasta } = filtros
+  const { estado, modalidad, proyecto, cliente, fechaDesde, fechaHasta } = filtros
 
   // Las dos fechas son ISO `YYYY-MM-DD`, así que alcanza con compararlas como texto.
   const rangoInvalido = fechaDesde !== '' && fechaHasta !== '' && fechaDesde > fechaHasta
-  const hayFiltros = Object.values(filtros).some(
-    (valor) => valor !== ESTADO_VENTA_POR_DEFECTO && valor !== ''
+  // Cada filtro contra su propio valor vacío, en vez de una sola constante:
+  // con dos filtros en "todos" (estado y modalidad) no alcanza con comparar contra uno solo.
+  const hayFiltros = (Object.keys(FILTROS_VACIOS) as (keyof typeof FILTROS_VACIOS)[]).some(
+    (campo) => filtros[campo] !== FILTROS_VACIOS[campo]
   )
 
   function cambiarFiltro<K extends keyof typeof FILTROS_VACIOS>(
@@ -64,6 +74,7 @@ export function VentasPage() {
 
   const { data, isLoading, isFetching, error, refetch } = useVentas({
     estado: estado === 'todos' ? undefined : estado,
+    modalidad: modalidad === 'todos' ? undefined : modalidad,
     FK_proyecto: proyecto === '' ? undefined : Number(proyecto),
     FK_cliente: cliente === '' ? undefined : Number(cliente),
     // Un rango al revés no se manda: el listado sigue mostrando el resto de
@@ -82,14 +93,10 @@ export function VentasPage() {
 
   const columnas: DataTableColumn<VentaListItem>[] = [
     {
-      key: 'unidad',
-      label: 'Unidad',
+      key: 'fecha',
+      label: 'Fecha',
       render: (venta) => (
-        <CeldaUnidad
-          identificador={venta.unidad.identificador}
-          proyecto={venta.proyecto.nombre}
-          tipologia={venta.unidad.tipologia}
-        />
+        <p className="text-content-muted text-xs">{formatearFecha(venta.fecha_venta)}</p>
       ),
     },
     {
@@ -106,19 +113,47 @@ export function VentasPage() {
       ),
     },
     {
-      key: 'venta',
-      label: 'Venta',
+      key: 'unidad',
+      label: 'Unidad',
       render: (venta) => (
-        <p className="text-content text-xs font-medium">
-          {formatearImporte(venta.precio_congelado)}
-        </p>
+        <CeldaUnidad
+          identificador={venta.unidad.identificador}
+          proyecto={venta.proyecto.nombre}
+          tipologia={venta.unidad.tipologia}
+        />
       ),
     },
     {
-      key: 'fecha',
-      label: 'Fecha',
+      key: 'precio',
+      label: 'Precio',
       render: (venta) => (
-        <p className="text-content-muted text-xs">{formatearFecha(venta.fecha_adhesion)}</p>
+        <p className="text-content text-xs font-medium">{formatearImporte(venta.plan.precio)}</p>
+      ),
+    },
+    {
+      key: 'modalidad',
+      label: 'Modalidad',
+      render: (venta) => TIPO_PLAN_LABEL[venta.plan.modalidad],
+    },
+    {
+      key: 'cuotas',
+      label: 'Cuotas',
+      headerTooltip: 'Una venta al contado no tiene cuotas ni tasa',
+      render: (venta) => venta.plan.cantidad_cuotas ?? SIN_DATO,
+    },
+    {
+      key: 'tna',
+      label: 'TNA',
+      render: (venta) =>
+        venta.plan.tasa_nominal_anual === null ? SIN_DATO : `${venta.plan.tasa_nominal_anual} %`,
+    },
+    {
+      key: 'saldoPendiente',
+      label: 'Saldo pendiente',
+      render: (venta) => (
+        <p className="text-content text-xs font-medium">
+          {formatearImporte(venta.saldo_pendiente)}
+        </p>
       ),
     },
     {
@@ -163,6 +198,8 @@ export function VentasPage() {
       <FiltrosVentasBar
         estado={estado}
         onEstadoChange={(valor) => cambiarFiltro('estado', valor)}
+        modalidad={modalidad}
+        onModalidadChange={(valor) => cambiarFiltro('modalidad', valor)}
         proyecto={proyecto}
         onProyectoChange={(valor) => cambiarFiltro('proyecto', valor)}
         cliente={cliente}
