@@ -3,6 +3,8 @@ import type { PaginatedResponse } from '@/shared/types/api.types'
 import type {
   FiltrosCatalogo,
   ProyectosDestacadosResponse,
+  SimulacionCatalogo,
+  SimularPlanPayload,
   UnidadCatalogo,
   UnidadCatalogoDetalle,
 } from '../types/catalogoPublico.types'
@@ -57,8 +59,8 @@ export async function obtenerProyectosDestacados(
 }
 
 /**
- * GET /catalogo/:id (T107): el detalle público de una unidad, con su galería y
- * sus planes de pago activos.
+ * GET /catalogo/:id (T107): el detalle público de una unidad, con su galería,
+ * sus planes de ejemplo ya calculados y los plazos que ofrece el simulador.
  *
  * Responde 404 tanto si la unidad no existe como si existe pero no está
  * publicada o ya no está disponible: de cara al visitante es lo mismo, y el
@@ -71,6 +73,23 @@ export async function obtenerDetalleUnidad(
   const { data } = await httpClientCliente.get<UnidadCatalogoDetalle>(
     `/catalogo/${idUnidadFuncional}`,
     { signal }
+  )
+
+  return data
+}
+
+/**
+ * POST /catalogo/:id/simulacion (T140): simulación libre de un plan de pago.
+ * Es pública y de solo consulta —no guarda nada—, por eso es un POST que
+ * responde 200. El precio no viaja: lo toma el backend de la unidad.
+ */
+export async function simularPlan(
+  idUnidadFuncional: number,
+  payload: SimularPlanPayload
+): Promise<SimulacionCatalogo> {
+  const { data } = await httpClientCliente.post<SimulacionCatalogo>(
+    `/catalogo/${idUnidadFuncional}/simulacion`,
+    payload
   )
 
   return data

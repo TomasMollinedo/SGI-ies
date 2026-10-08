@@ -6,9 +6,10 @@ import { FichaUnidad } from '@/features/ecommerce/components/FichaUnidad'
 import { LinkButton } from '@/features/ecommerce/components/LinkButton'
 import { TIPOLOGIA_LABEL } from '@/shared/config/tipologiaUnidad.config'
 import { formatearImporte } from '@/shared/utils/importe'
+import { AvisoSinVentaOnline } from './components/AvisoSinVentaOnline'
 import { EnviarConsulta } from './components/EnviarConsulta'
+import { FinanciacionUnidad } from './components/FinanciacionUnidad'
 import { GaleriaUnidad } from './components/GaleriaUnidad'
-import { PlanesPagoUnidad } from './components/PlanesPagoUnidad'
 import { CATALOGO, DETALLE, TARJETA } from './config/catalogo.config'
 import { useDetalleUnidad } from './hooks/useDetalleUnidad'
 
@@ -81,20 +82,21 @@ export function DetalleUnidadPage() {
         </h1>
         <p className="text-secondary mt-4 text-2xl font-bold">
           <span className="text-light/60 font-mono text-xs tracking-widest uppercase">
-            {TARJETA.precioDesde}{' '}
+            {TARJETA.precioContado}{' '}
           </span>
           {formatearImporte(unidad.precio_desde)}
         </p>
       </header>
 
-      {/* Una columna en móvil: galería, datos, planes y consulta, en ese orden. */}
+      {/* Una columna en móvil: galería, datos, financiación, aviso y consulta, en ese orden. */}
       <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
         <GaleriaUnidad imagenes={unidad.imagenes} identificador={unidad.identificador} />
         <FichaUnidad unidad={unidad} condicionEntrega={unidad.condicion_entrega} />
       </div>
 
       <div className="mt-14 flex flex-col gap-14">
-        <PlanesPagoUnidad planes={unidad.planes} />
+        <FinanciacionUnidad unidad={unidad} />
+        <AvisoSinVentaOnline />
         <EnviarConsulta idUnidadFuncional={unidad.id_unidad_funcional} />
       </div>
     </Contenedor>

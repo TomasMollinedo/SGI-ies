@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { DECIMALES } from '../../common/constantes/decimales';
 import { calcularCondicionEntregaResponse } from '../comercializacion/common/condicion-entrega';
+import { montoAnticipoDesdePorcentaje } from '../comercializacion/common/anticipo';
 import { calcularPlanPago } from '../comercializacion/plan-pago/motor-cuotas';
 import {
   EstadoComercial,
@@ -160,7 +161,7 @@ export class CatalogoService {
           return [];
         }
 
-        const anticipoMonto = resolverAnticipoMonto(
+        const anticipoMonto = montoAnticipoDesdePorcentaje(
           precioLista,
           anticipo_porcentaje,
         );
@@ -224,7 +225,7 @@ export class CatalogoService {
     const anticipoMonto =
       dto.anticipo_monto !== undefined
         ? new Prisma.Decimal(dto.anticipo_monto)
-        : resolverAnticipoMonto(
+        : montoAnticipoDesdePorcentaje(
             precioLista,
             new Prisma.Decimal(dto.anticipo_porcentaje ?? 0),
           );
@@ -413,14 +414,6 @@ export class CatalogoService {
       })),
     };
   }
-}
-
-/** Anticipo en monto a partir de un porcentaje del precio, a 2 decimales. */
-function resolverAnticipoMonto(
-  precio: Prisma.Decimal,
-  porcentaje: Prisma.Decimal,
-): Prisma.Decimal {
-  return precio.mul(porcentaje).div(100).toDecimalPlaces(DECIMALES);
 }
 
 function mapearPlazo(plazo: {

@@ -11,8 +11,6 @@ import {
   EstadoDeclaracionPago,
   EstadoProyecto,
   EstadoVenta,
-  ModalidadPago,
-  Periodicidad,
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { validarTelefonoSoloNumeros } from '../../../common/validaciones/telefono-solo-numeros';
@@ -21,23 +19,20 @@ import { calcularDiasVencido } from '../../../common/validaciones/dias-vencido';
 import { calcularCondicionEntregaResponse } from '../common/condicion-entrega';
 import { PublicacionService } from '../publicacion/publicacion.service';
 import {
-  exigirPrecioPlanEjemplo,
-  exigirTipoPlanEjemplo,
-} from '../plan-pago/exigir-condiciones-plan-ejemplo';
-import { calcularPlanPago } from '../plan-pago/motor-cuotas';
+  SimulacionVenta,
+  VentaSimulacionService,
+} from './venta-simulacion.service';
 import {
-  CONDICIONES_VENTA_SELECT,
-  VentaConCondiciones,
-  exigirDatoPlanEjemplo,
-  resolverCondicionesVenta,
-} from './condiciones-venta';
-import { PLAN_ACORDADO_SELECT, resolverPlanAcordado } from './plan-acordado';
+  PLAN_ACORDADO_SELECT,
+  VentaConPlanAcordado,
+  mapearPlanAcordado,
+  resolverPlanAcordado,
+} from './plan-acordado';
 import { CreateVentaDto } from './dto/create-venta.dto';
 import { CancelarVentaDto } from './dto/cancelar-venta.dto';
 import { QueryVentaDto } from './dto/query-venta.dto';
 import { QueryHistorialPagosClienteDto } from './dto/query-historial-pagos-cliente.dto';
 import { QueryDeclaracionesPagoClienteDto } from './dto/query-declaraciones-pago-cliente.dto';
-import { DECIMALES } from '../../../common/constantes/decimales';
 
 const CLIENTE_SELECT = {
   id_cliente: true,
@@ -48,6 +43,24 @@ const CLIENTE_SELECT = {
   telefono: true,
 } as const;
 
+/** Lo que el listado necesita de cada cuota: intereses (para el plan) y saldo. */
+const CUOTA_RESUMEN_SELECT = {
+  importe_interes: true,
+  saldo_pendiente: true,
+  estado: true,
+} as const;
+
+/** Cada cuota del cronograma en el detalle, con su desglose completo. */
+const CUOTA_DETALLE_SELECT = {
+  ...CUOTA_RESUMEN_SELECT,
+  id_cuota: true,
+  numero: true,
+  fecha_vencimiento: true,
+  importe_capital: true,
+  importe: true,
+  saldo_capital: true,
+} as const;
+
 @Injectable()
 export class VentaService {
   constructor(
@@ -56,63 +69,63 @@ export class VentaService {
      * Solo por `transicionarEstadoComercial`: recibe el `tx` del llamador y
      * nunca abre transacción propia, así que el cambio de estado de la
      * publicación viaja dentro de la misma `$transaction` que la venta o la
-     * cancelación. Es también el mecanismo de bloqueo optimista contra una
-     * segunda venta simultánea sobre la misma publicación (ver `crear`).
+     * cancelación. En `crear` es la segunda barrera contra una venta doble:
+     * la primera es el bloqueo de la fila de la publicación.
      */
     private readonly publicaciones: PublicacionService,
+    /**
+     * La confirmación recalcula con el mismo cálculo de la simulación, dentro
+     * de su transacción, para comparar precio y TNA y guardar exactamente lo
+     * que se simuló.
+     */
+    private readonly simulaciones: VentaSimulacionService,
   ) {}
 
   /**
-   * Registra una venta presencial (HU-27). Orden de validación exacto,
-   * documentado también en el modelo VENTA del schema: cliente → publicación
-   * vigente → disponible → plan activo → el plan es de esta publicación → no
-   * hay otra venta vigente → crear venta → crear su plan de pago → generar
-   * cuotas → pasar la publicación a EN_PLAN_DE_PAGO. Todo en una sola
-   * transacción: si cualquier paso falla, no queda nada a medio crear (nunca
-   * una venta sin plan ni un cronograma parcial).
+   * Confirma una venta presencial (HU-27): crea la venta, su plan de pago y
+   * el cronograma de cuotas en una única transacción. Si cualquier paso
+   * falla no queda nada a medio crear (nunca una venta sin plan ni un
+   * cronograma parcial), tampoco el cliente si se daba de alta acá.
    *
-   * Doble escritura (T121): además de las columnas `*_congelado` de VENTA y
-   * de `CUOTA.FK_venta`, se crea el PLANPAGO de la venta y cada cuota lleva
-   * su `FK_plan_pago` y su desglose. El reparto en partes iguales del
-   * Sprint 3 equivale a un plan con TNA 0 %: toda la cuota es capital.
+   * Pasos, en orden:
+   * 1. Bloquea la fila de la publicación (`SELECT ... FOR UPDATE`): mientras
+   *    dura la confirmación nadie puede cambiar su precio de lista ni
+   *    venderla, así que el precio que se compara es el mismo que se guarda.
+   * 2. Busca o da de alta al cliente.
+   * 3. Recalcula el plan con `VentaSimulacionService.calcular`, el mismo
+   *    cálculo de la simulación (publicación Disponible, plazo activo,
+   *    anticipo válido), dentro de esta transacción.
+   * 4. Si el precio de lista o la TNA no son los que se le mostraron al
+   *    cliente, rechaza con 409 y devuelve la simulación recalculada en
+   *    `datos.simulacion`, para volver a acordarla.
+   * 5. Crea la venta, su PLANPAGO con las condiciones congeladas (modalidad,
+   *    precio, anticipo, plazo, cuotas, TNA y valor de cuota) y las cuotas
+   *    con su desglose. Cambios posteriores del precio de lista o de la TNA
+   *    del plazo no la afectan: el plan guarda su propia copia.
+   * 6. Pasa la publicación a EN_PLAN_DE_PAGO.
    *
-   * `dto.FK_plan_pago` es el id del plan de EJEMPLO elegido: el contrato HTTP
-   * conserva ese nombre, la columna es `VENTA.FK_plan_ejemplo`.
+   * No escribe las columnas legado de VENTA (`*_congelado`,
+   * `FK_plan_ejemplo`): nada las lee y se eliminan en T159. Las cuotas sí
+   * llevan las dos FK (`FK_venta` y `FK_plan_pago`) hasta T159.
+   *
+   * Límite conocido: el bloqueo es sobre la publicación, no sobre el plazo.
+   * Si alguien edita la TNA del plazo en el mismo instante en que se
+   * confirma, la venta puede guardarse con la tasa leída un momento antes.
+   * Se acepta a propósito: es una ventana mínima y bloquear también el plazo
+   * frenaría todas las ventas con ese plazo mientras dura cada confirmación.
    */
   async crear(dto: CreateVentaDto, usuarioId: number) {
     const idVenta = await this.prisma.$transaction(async (tx) => {
+      await this.bloquearPublicacion(tx, dto.FK_publicacion);
+
       const cliente = await this.buscarOCrearCliente(tx, dto.cliente);
 
-      const publicacion = await tx.pUBLICACIONUNIDAD.findUnique({
-        where: { id_publicacion: dto.FK_publicacion },
-      });
-      if (!publicacion || !publicacion.vigente) {
-        throw new ConflictException('La publicación no está vigente');
-      }
-      if (publicacion.estado_comercial !== EstadoComercial.DISPONIBLE) {
-        throw new ConflictException(
-          'La unidad no está disponible para la venta',
-        );
-      }
+      const simulacion = await this.simulaciones.calcular(dto, new Date(), tx);
+      this.validarSinCambiosDesdeLaSimulacion(dto.simulacion, simulacion);
 
-      const plan = await tx.pLANEJEMPLO.findUnique({
-        where: { id_plan_ejemplo: dto.FK_plan_pago },
-      });
-      if (!plan || !plan.estado) {
-        throw new ConflictException('El plan de pago está inactivado');
-      }
-      if (plan.FK_publicacion !== dto.FK_publicacion) {
-        throw new ConflictException(
-          'El plan de pago no pertenece a esta publicación',
-        );
-      }
-      const precio = exigirPrecioPlanEjemplo(plan.precio, ConflictException);
-      const tipo = exigirTipoPlanEjemplo(plan.tipo, ConflictException);
-
-      // Chequeo defensivo previo: por construcción, una publicación DISPONIBLE
-      // no debería tener una venta vigente — el `transicionarEstadoComercial`
-      // de más abajo es quien realmente lo garantiza contra condiciones de
-      // carrera (ver comentario del constructor).
+      // Chequeo defensivo: por construcción, una publicación DISPONIBLE no
+      // debería tener una venta vigente — el `transicionarEstadoComercial`
+      // de más abajo es quien realmente lo garantiza.
       const ventaVigente = await tx.vENTA.findFirst({
         where: {
           FK_publicacion: dto.FK_publicacion,
@@ -125,60 +138,33 @@ export class VentaService {
         );
       }
 
-      const anticipoCongelado = this.resolverAnticipoMonto({
-        precio,
-        anticipo_monto: plan.anticipo_monto,
-        anticipo_porcentaje: plan.anticipo_porcentaje,
-      });
-
       const venta = await tx.vENTA.create({
         data: {
           FK_cliente: cliente.id_cliente,
           FK_publicacion: dto.FK_publicacion,
-          FK_plan_ejemplo: dto.FK_plan_pago,
-          precio_congelado: precio,
-          anticipo_congelado: anticipoCongelado,
-          tipo_plan_congelado: tipo,
-          cantidad_cuotas_congelada: plan.cantidad_cuotas ?? 1,
-          // Columna legado (T159): las cuotas siempre son mensuales (HU-32),
-          // sin importar la periodicidad que tenga el plan de ejemplo.
-          periodicidad_congelada:
-            tipo === ModalidadPago.FINANCIADO ? Periodicidad.MENSUAL : null,
+          fecha_venta: simulacion.fecha_venta,
           FK_usuario_creador: usuarioId,
           FK_usuario_actualizador: usuarioId,
         },
       });
 
-      // Hasta T158 la venta se registra sin interés (TNA 0 %): el sistema
-      // francés con tasa 0 es el reparto en partes iguales del Sprint 3.
-      const { cuotas, valor_cuota } = calcularPlanPago({
-        precio,
-        tipo,
-        anticipo_monto: anticipoCongelado,
-        cantidad_cuotas: plan.cantidad_cuotas,
-        tasa_nominal_anual: new Prisma.Decimal(0),
-        fecha_venta: venta.fecha_venta,
-      });
-
-      // En CONTADO el anticipo es el precio completo y no hay plazo, cuotas,
-      // tasa ni valor de cuota. En FINANCIADO la tasa es 0.
-      const esFinanciado = tipo === ModalidadPago.FINANCIADO;
+      const { plazo } = simulacion;
       const planPago = await tx.pLANPAGO.create({
         data: {
           FK_venta: venta.id_venta,
-          FK_plazo_financiacion: null,
-          modalidad: tipo,
-          precio_venta: precio,
-          anticipo_monto: esFinanciado ? anticipoCongelado : precio,
-          cantidad_cuotas: esFinanciado ? plan.cantidad_cuotas : null,
-          tasa_nominal_anual: esFinanciado ? new Prisma.Decimal(0) : null,
-          valor_cuota,
+          FK_plazo_financiacion: plazo?.id_plazo_financiacion ?? null,
+          modalidad: simulacion.modalidad,
+          precio_venta: simulacion.precio_lista,
+          anticipo_monto: simulacion.anticipo_monto,
+          cantidad_cuotas: plazo?.cantidad_cuotas ?? null,
+          tasa_nominal_anual: plazo?.tasa_nominal_anual ?? null,
+          valor_cuota: simulacion.valor_cuota,
           FK_usuario_creador: usuarioId,
         },
       });
 
       await tx.cUOTA.createMany({
-        data: cuotas.map((cuota) => ({
+        data: simulacion.cuotas.map((cuota) => ({
           FK_venta: venta.id_venta,
           FK_plan_pago: planPago.id_plan_pago,
           numero: cuota.numero,
@@ -192,9 +178,8 @@ export class VentaService {
         })),
       });
 
-      // Última validación, y la única con garantía real contra condiciones de
-      // carrera: si otra venta ganó la publicación entre que la leímos arriba
-      // y este `updateMany`, acá tira ConflictException y revierte todo.
+      // Con la publicación bloqueada no debería fallar, pero sigue siendo la
+      // garantía de que se vende solo desde DISPONIBLE.
       await this.publicaciones.transicionarEstadoComercial(
         tx,
         dto.FK_publicacion,
@@ -207,6 +192,53 @@ export class VentaService {
     });
 
     return this.obtenerDetalle(idVenta);
+  }
+
+  /**
+   * Bloquea la fila de la publicación hasta el fin de la transacción, mismo
+   * patrón que `PublicacionService.publicar` con la unidad. Si no existe no
+   * hace nada: el 404 lo da después `VentaSimulacionService.calcular`.
+   */
+  private async bloquearPublicacion(
+    tx: Prisma.TransactionClient,
+    idPublicacion: number,
+  ) {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT "id_publicacion" FROM "PUBLICACIONUNIDAD" WHERE "id_publicacion" = ${idPublicacion} FOR UPDATE`,
+    );
+  }
+
+  /**
+   * El precio de lista y la TNA vigentes tienen que ser los que se le
+   * mostraron al cliente en la simulación. Si alguno cambió, la venta no se
+   * confirma: 409 con la simulación recalculada en `datos.simulacion`
+   * (`HttpExceptionFilter` propaga `datos` tal cual), para volver a
+   * acordarla con el cliente.
+   */
+  private validarSinCambiosDesdeLaSimulacion(
+    mostrada: CreateVentaDto['simulacion'],
+    vigente: SimulacionVenta,
+  ) {
+    const tasaVigente = vigente.plazo?.tasa_nominal_anual ?? null;
+    const cambioPrecio = !vigente.precio_lista.equals(mostrada.precio_lista);
+    const cambioTasa =
+      tasaVigente === null || mostrada.tasa_nominal_anual === null
+        ? tasaVigente !== mostrada.tasa_nominal_anual
+        : !tasaVigente.equals(mostrada.tasa_nominal_anual);
+
+    if (!cambioPrecio && !cambioTasa) {
+      return;
+    }
+
+    const cambios = [
+      ...(cambioPrecio ? ['el precio de lista'] : []),
+      ...(cambioTasa ? ['la TNA del plazo'] : []),
+    ].join(' y ');
+
+    throw new ConflictException({
+      message: `No se confirmó la venta: cambió ${cambios} desde la simulación. Revisá la simulación recalculada con el cliente antes de volver a confirmar.`,
+      datos: { simulacion: this.simulaciones.mapear(vigente) },
+    });
   }
 
   /**
@@ -321,26 +353,6 @@ export class VentaService {
   }
 
   /**
-   * `PLANEJEMPLO.anticipo_monto`/`anticipo_porcentaje` es uno u otro, nunca
-   * ambos (regla de service de T105, no expresable en el schema). El motor de
-   * cuotas solo acepta el monto ya resuelto. Lee columnas legado del plan de
-   * ejemplo: lo reemplaza T158.
-   */
-  private resolverAnticipoMonto(plan: {
-    precio: Prisma.Decimal;
-    anticipo_monto: Prisma.Decimal | null;
-    anticipo_porcentaje: Prisma.Decimal | null;
-  }): Prisma.Decimal {
-    if (plan.anticipo_monto !== null) {
-      return plan.anticipo_monto;
-    }
-    return plan.precio
-      .mul(plan.anticipo_porcentaje ?? new Prisma.Decimal(0))
-      .div(100)
-      .toDecimalPlaces(DECIMALES);
-  }
-
-  /**
    * Cancela una venta vigente: exige motivo, solo si no hay un cobro
    * CONFIRMADO ni una declaración de pago (HU-29) PENDIENTE de resolver
    * sobre alguna de sus cuotas. Las cuotas quedan ANULADA sin borrarse, y la
@@ -411,12 +423,19 @@ export class VentaService {
     return this.obtenerDetalle(idVenta);
   }
 
+  /**
+   * Listado interno de ventas (HU-27), con filtros combinables por cliente,
+   * publicación, unidad, proyecto, modalidad, estado y período (sobre
+   * `fecha_venta`, OBS-16). Cada venta trae su plan acordado y su saldo
+   * pendiente.
+   */
   async listar(query: QueryVentaDto) {
     const {
       FK_cliente,
       FK_publicacion,
       FK_unidad_funcional,
       FK_proyecto,
+      modalidad,
       estado,
       fechaDesde,
       fechaHasta,
@@ -428,6 +447,7 @@ export class VentaService {
       ...(FK_cliente !== undefined && { FK_cliente }),
       ...(FK_publicacion !== undefined && { FK_publicacion }),
       ...(estado !== undefined && { estado }),
+      ...(modalidad !== undefined && { planPago: { modalidad } }),
       ...((FK_unidad_funcional !== undefined || FK_proyecto !== undefined) && {
         publicacion: {
           ...(FK_unidad_funcional !== undefined && { FK_unidad_funcional }),
@@ -447,7 +467,7 @@ export class VentaService {
     const [data, total] = await Promise.all([
       this.prisma.vENTA.findMany({
         where,
-        select: this.ventaSelect(),
+        select: this.ventaSelect(CUOTA_RESUMEN_SELECT),
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { fecha_venta: 'desc' },
@@ -461,22 +481,17 @@ export class VentaService {
     };
   }
 
+  /**
+   * Detalle de una venta (HU-27): lo mismo que el listado, más el cronograma
+   * completo de su plan de pago con el desglose de cada cuota y quién la
+   * registró.
+   */
   async obtenerDetalle(idVenta: number) {
     const venta = await this.prisma.vENTA.findUnique({
       where: { id_venta: idVenta },
       select: {
-        ...this.ventaSelect(),
+        ...this.ventaSelect(CUOTA_DETALLE_SELECT),
         usuarioCreador: { select: { nombre: true, apellido: true } },
-        cuotas: {
-          select: {
-            numero: true,
-            importe: true,
-            fecha_vencimiento: true,
-            saldo_pendiente: true,
-            estado: true,
-          },
-          orderBy: { numero: 'asc' },
-        },
       },
     });
 
@@ -487,10 +502,14 @@ export class VentaService {
     return {
       ...this.mapearVenta(venta),
       usuarioCreador: venta.usuarioCreador,
-      cuotas: venta.cuotas.map((cuota) => ({
+      cuotas: (venta.planPago?.cuotas ?? []).map((cuota) => ({
+        id_cuota: cuota.id_cuota,
         numero: cuota.numero,
-        importe: cuota.importe.toNumber(),
         fecha_vencimiento: cuota.fecha_vencimiento.toISOString(),
+        importe_capital: cuota.importe_capital.toNumber(),
+        importe_interes: cuota.importe_interes.toNumber(),
+        importe: cuota.importe.toNumber(),
+        saldo_capital: cuota.saldo_capital.toNumber(),
         saldo_pendiente: cuota.saldo_pendiente.toNumber(),
         estado: cuota.estado,
       })),
@@ -498,21 +517,33 @@ export class VentaService {
   }
 
   /**
+   * Lo que se lee de una venta para el listado y el detalle: el plan acordado
+   * con las cuotas de su cronograma (el listado solo necesita lo que hace al
+   * saldo y a los intereses; el detalle, el desglose completo), el cliente y
+   * la unidad.
+   *
+   * Las cuotas se leen por el plan de pago (`CUOTA.FK_plan_pago`), no por la
+   * venta: `CUOTA.FK_venta` es columna legado y se elimina en T159.
+   *
    * `unidad`/`proyecto` viajan igual que en `PublicacionController.findAll`
    * (mismo `select` anidado sobre `publicacion.unidadFuncional`): sin esto,
    * el listado y el detalle de venta solo tenían `FK_publicacion`, un id sin
-   * significado para quien mira la pantalla — no había forma de saber qué
-   * unidad se vendió sin un pedido aparte por cada fila.
+   * significado para quien mira la pantalla.
    */
-  private ventaSelect() {
+  private ventaSelect<C extends typeof CUOTA_RESUMEN_SELECT>(cuotas: C) {
     return {
-      ...CONDICIONES_VENTA_SELECT,
+      ...PLAN_ACORDADO_SELECT,
+      planPago: {
+        select: {
+          ...PLAN_ACORDADO_SELECT.planPago.select,
+          cuotas: { select: cuotas, orderBy: { numero: 'asc' as const } },
+        },
+      },
       fecha_venta: true,
       estado: true,
       motivo_cancelacion: true,
       fecha_cancelacion: true,
       FK_publicacion: true,
-      FK_plan_ejemplo: true,
       cliente: { select: CLIENTE_SELECT },
       publicacion: {
         select: {
@@ -763,17 +794,7 @@ export class VentaService {
         localidad: proyecto.localidad,
       },
       condicion_entrega: calcularCondicionEntregaResponse(proyecto),
-      plan: {
-        modalidad: plan.modalidad,
-        precio: plan.precio.toNumber(),
-        anticipo: plan.anticipo.toNumber(),
-        saldo_financiado: plan.saldo_financiado.toNumber(),
-        cantidad_cuotas: plan.cantidad_cuotas,
-        tasa_nominal_anual: plan.tasa_nominal_anual?.toNumber() ?? null,
-        valor_cuota: plan.valor_cuota?.toNumber() ?? null,
-        total_intereses: plan.total_intereses.toNumber(),
-        total_a_pagar: plan.total_a_pagar.toNumber(),
-      },
+      plan: mapearPlanAcordado(plan),
       cuotas,
       saldo_total_pendiente: saldoTotalPendiente.toNumber(),
     };
@@ -949,59 +970,70 @@ export class VentaService {
   }
 
   /**
-   * Arma la respuesta de venta con los nombres del contrato del Sprint 3:
-   * `fecha_adhesion` sale de `fecha_venta`, `FK_plan_pago` de
-   * `FK_plan_ejemplo`, y las condiciones `*_congelado` del plan de pago.
+   * La venta con la forma del contrato (`ventaListItemSchema`): el plan
+   * acordado sale de su PLANPAGO (`resolverPlanAcordado`), nunca del plan de
+   * ejemplo ni de las columnas `*_congelado` de VENTA, que son legado.
+   *
+   * El saldo pendiente suma solo las cuotas no anuladas: una venta cancelada
+   * conserva su plan y sus cuotas (ANULADA), pero ya no debe nada.
    */
-  private mapearVenta(
-    venta: VentaConCondiciones & {
-      fecha_venta: Date;
-      estado: string;
-      motivo_cancelacion: string | null;
-      fecha_cancelacion: Date | null;
-      FK_publicacion: number;
-      FK_plan_ejemplo: number | null;
-      cliente: {
-        id_cliente: number;
-        nombre: string;
-        apellido: string | null;
-        dni_cuil: string | null;
-        email: string;
-        telefono: string | null;
+  private mapearVenta(venta: {
+    id_venta: number;
+    planPago:
+      | (NonNullable<VentaConPlanAcordado['planPago']> & {
+          cuotas: {
+            importe_interes: Prisma.Decimal;
+            saldo_pendiente: Prisma.Decimal;
+            estado: EstadoCuota;
+          }[];
+        })
+      | null;
+    fecha_venta: Date;
+    estado: string;
+    motivo_cancelacion: string | null;
+    fecha_cancelacion: Date | null;
+    FK_publicacion: number;
+    cliente: {
+      id_cliente: number;
+      nombre: string;
+      apellido: string | null;
+      dni_cuil: string | null;
+      email: string;
+      telefono: string | null;
+    };
+    publicacion: {
+      unidadFuncional: {
+        id_unidad_funcional: number;
+        identificador: string;
+        tipologia: string;
+        proyecto: { id_proyecto: number; codigo: string; nombre: string };
       };
-      publicacion: {
-        unidadFuncional: {
-          id_unidad_funcional: number;
-          identificador: string;
-          tipologia: string;
-          proyecto: { id_proyecto: number; codigo: string; nombre: string };
-        };
-      };
-    },
-  ) {
+    };
+  }) {
     const { unidadFuncional } = venta.publicacion;
     const { proyecto, ...unidad } = unidadFuncional;
-    const condiciones = resolverCondicionesVenta(venta);
+    const cuotas = venta.planPago?.cuotas ?? [];
+    const plan = resolverPlanAcordado(venta, cuotas);
+
+    const saldoPendiente = cuotas
+      .filter((cuota) => cuota.estado !== EstadoCuota.ANULADA)
+      .reduce(
+        (acumulado, cuota) => acumulado.add(cuota.saldo_pendiente),
+        new Prisma.Decimal(0),
+      );
 
     return {
       id_venta: venta.id_venta,
-      fecha_adhesion: venta.fecha_venta.toISOString(),
-      precio_congelado: condiciones.precio_congelado.toNumber(),
-      anticipo_congelado: condiciones.anticipo_congelado.toNumber(),
-      tipo_plan_congelado: condiciones.tipo_plan_congelado,
-      cantidad_cuotas_congelada: condiciones.cantidad_cuotas_congelada,
-      periodicidad_congelada: condiciones.periodicidad_congelada,
+      fecha_venta: venta.fecha_venta.toISOString(),
       estado: venta.estado,
       motivo_cancelacion: venta.motivo_cancelacion,
       fecha_cancelacion: venta.fecha_cancelacion?.toISOString() ?? null,
       cliente: venta.cliente,
       FK_publicacion: venta.FK_publicacion,
-      FK_plan_pago: exigirDatoPlanEjemplo(
-        venta.id_venta,
-        venta.FK_plan_ejemplo,
-      ),
       unidad,
       proyecto,
+      plan: mapearPlanAcordado(plan),
+      saldo_pendiente: saldoPendiente.toNumber(),
     };
   }
 }
