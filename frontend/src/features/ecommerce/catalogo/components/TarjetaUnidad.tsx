@@ -64,7 +64,7 @@ export function TarjetaUnidad({ unidad }: TarjetaUnidadProps) {
 
         <p className="text-secondary mt-auto pt-2 text-lg font-bold">
           <span className="text-light/60 font-mono text-xs tracking-widest uppercase">
-            {TARJETA.precioDesde}{' '}
+            {TARJETA.precioContado}{' '}
           </span>
           {formatearImporte(unidad.precio_desde)}
         </p>
