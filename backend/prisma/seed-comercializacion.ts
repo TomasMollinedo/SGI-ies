@@ -1,6 +1,7 @@
 import { PrismaClient } from '../generated/prisma/client';
 import {
   EstadoComercial,
+  EstadoConsulta,
   EstadoDeclaracionPago,
   EstadoProyecto,
   ModalidadPago,
@@ -449,7 +450,8 @@ export async function sembrarComercializacion(prisma: PrismaClient) {
       nombre: 'Braian',
       apellido: 'Sosa',
       dni_cuil: '23412345678',
-      telefono: '3624223344',
+      // Corregido por el administrador desde la ficha (ver auditoría abajo).
+      telefono: '3624223355',
     },
     {
       google_sub: '108234459812340005',
@@ -492,6 +494,28 @@ export async function sembrarComercializacion(prisma: PrismaClient) {
   const idBraian = idClientePorGoogleSub.get('108234459812340004')!;
   const idMicaela = idClientePorGoogleSub.get('108234459812340005')!;
   const idRodrigo = idClientePorGoogleSub.get('108234459812340006')!;
+  const idCamila = idClientePorGoogleSub.get('108234459812340003')!;
+
+  // Auditoría de la ficha del cliente (HU-33): los dos caminos de edición.
+  // Braian: el administrador le corrigió el teléfono (queda quién y cuándo,
+  // como `ClienteAdminService.actualizar`). Micaela: editó sus datos desde el
+  // portal (solo queda la fecha, sin usuario interno). El resto nunca se
+  // editó. Se reescribe en cada corrida para que la fecha siga siendo
+  // reciente.
+  await prisma.cLIENTE.update({
+    where: { id_cliente: idBraian },
+    data: {
+      FK_usuario_actualizador: idAdministrador,
+      hora_actualizacion: diasDesdeHoy(-5),
+    },
+  });
+  await prisma.cLIENTE.update({
+    where: { id_cliente: idMicaela },
+    data: {
+      FK_usuario_actualizador: null,
+      hora_actualizacion: diasDesdeHoy(-12),
+    },
+  });
 
   // --------------------------------------------------------------------
   // Proyectos "hero" — cargan los 4 EstadoComercial + la publicación no
@@ -728,7 +752,7 @@ export async function sembrarComercializacion(prisma: PrismaClient) {
     localTres.id_unidad_funcional,
     'https://cdn.axontech.test/unidades/local-03.jpg',
   );
-  await upsertPublicacion({
+  const publicacionLocalTres = await upsertPublicacion({
     FK_unidad_funcional: localTres.id_unidad_funcional,
     estado_comercial: EstadoComercial.DISPONIBLE,
     fecha_publicacion: mesesDesdeHoy(-5),
@@ -956,8 +980,111 @@ export async function sembrarComercializacion(prisma: PrismaClient) {
     fecha_declaracion: diasDesdeHoy(-1),
   });
 
+  // --------------------------------------------------------------------
+  // CONSULTAUNIDAD — preguntas de los clientes desde el catálogo (HU-26),
+  // pendientes y respondidas. Como `ConsultaService.crear`, cada una se hizo
+  // cuando la unidad estaba publicada y Disponible, aunque después se haya
+  // vendido o despublicado (las consultas no se borran nunca). Las responde
+  // el administrador, dueño de la bandeja de consultas.
+  // --------------------------------------------------------------------
+  /** Idempotente por (cliente, publicación, texto). */
+  async function upsertConsulta(datos: {
+    FK_cliente: number;
+    FK_publicacion: number;
+    texto: string;
+    fecha: Date;
+    respuesta?: { texto: string; fecha: Date };
+  }) {
+    const existente = await prisma.cONSULTAUNIDAD.findFirst({
+      where: {
+        FK_cliente: datos.FK_cliente,
+        FK_publicacion: datos.FK_publicacion,
+        texto: datos.texto,
+      },
+    });
+    if (existente) return existente;
+
+    return prisma.cONSULTAUNIDAD.create({
+      data: {
+        FK_cliente: datos.FK_cliente,
+        FK_publicacion: datos.FK_publicacion,
+        texto: datos.texto,
+        hora_creacion: datos.fecha,
+        ...(datos.respuesta && {
+          estado: EstadoConsulta.RESPONDIDA,
+          respuesta: datos.respuesta.texto,
+          fecha_respuesta: datos.respuesta.fecha,
+          FK_usuario_respuesta: idAdministrador,
+        }),
+      },
+    });
+  }
+
+  const publicacionBelgranoU1 = await prisma.pUBLICACIONUNIDAD.findFirstOrThrow(
+    {
+      where: {
+        unidadFuncional: {
+          FK_proyecto: idProyectoPorCodigo.get('PROY-EBA')!,
+          identificador: 'U1',
+        },
+      },
+    },
+  );
+
+  // Valentina preguntó por 2-B antes de comprarla.
+  await upsertConsulta({
+    FK_cliente: idValentina,
+    FK_publicacion: publicacion2B.id_publicacion,
+    texto:
+      '¿La unidad 2-B tiene balcón al frente? ¿Se puede financiar en 12 cuotas?',
+    fecha: diasDesdeHoy(-190),
+    respuesta: {
+      texto:
+        'Sí, el balcón da a la avenida. Tenemos un plan con 50 % de anticipo y 12 cuotas; te esperamos en la oficina para armarlo.',
+      fecha: diasDesdeHoy(-189),
+    },
+  });
+  // Camila (sin compras): una respondida sobre LOCAL-03, que después se
+  // despublicó, y una pendiente sobre 1-A.
+  await upsertConsulta({
+    FK_cliente: idCamila,
+    FK_publicacion: publicacionLocalTres.id_publicacion,
+    texto: '¿El local se puede usar para gastronomía? ¿Tiene salida de humos?',
+    fecha: mesesDesdeHoy(-4),
+    respuesta: {
+      texto:
+        'Está habilitado para comercio en general; la salida de humos se puede agregar, consultanos por el costo.',
+      fecha: diasDesdeHoy(-119),
+    },
+  });
+  await upsertConsulta({
+    FK_cliente: idCamila,
+    FK_publicacion: publicacion1A.id_publicacion,
+    texto: '¿Cuándo se entrega la unidad 1-A? ¿Incluye cochera?',
+    fecha: diasDesdeHoy(-3),
+  });
+  // Braian: respondida sobre 1-A.
+  await upsertConsulta({
+    FK_cliente: idBraian,
+    FK_publicacion: publicacion1A.id_publicacion,
+    texto: '¿Aceptan una unidad usada como parte de pago?',
+    fecha: diasDesdeHoy(-20),
+    respuesta: {
+      texto:
+        'Por ahora no tomamos unidades usadas; podés ver los planes con anticipo y cuotas en la ficha de la unidad.',
+      fecha: diasDesdeHoy(-19),
+    },
+  });
+  // Emiliano: pendiente sobre una unidad de Edificio Belgrano Alto.
+  await upsertConsulta({
+    FK_cliente: idEmiliano,
+    FK_publicacion: publicacionBelgranoU1.id_publicacion,
+    texto: '¿Qué orientación tiene la U1 y en qué piso está?',
+    fecha: diasDesdeHoy(-6),
+  });
+
   console.log(
-    'Seed comercialización - UNIDADFUNCIONAL/PUBLICACIONUNIDAD/VENTA/PLANPAGO/CUOTA/COBRO/DECLARACIONPAGO: listo (6 hero + 24 extra unidades).',
+    'Seed comercialización - UNIDADFUNCIONAL/PUBLICACIONUNIDAD/VENTA/PLANPAGO/CUOTA/COBRO/DECLARACIONPAGO/CONSULTAUNIDAD: listo (6 hero + 24 extra unidades).',
   );
 }
 

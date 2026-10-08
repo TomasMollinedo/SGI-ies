@@ -2,6 +2,7 @@ import { PrismaClient } from '../generated/prisma/client';
 import { CondicionIVA } from '../generated/prisma/enums';
 import { RolNombre } from '../src/common/enums/rol.enum';
 import { ejecutarSeed } from './seed-ejecutar';
+import { diasDesdeHoy, mesesDesdeHoy } from './seed-fechas';
 
 /**
  * Seed de prueba para poder probar a mano, contra datos reales:
@@ -14,11 +15,16 @@ import { ejecutarSeed } from './seed-ejecutar';
  * idempotente y mínimo (roles, usuarios, catálogos), sin datos transaccionales
  * de prueba mezclados. Este script no lo reemplaza ni lo modifica — asume que
  * ya corrió (necesita el usuario Administrador y el proveedor "Ferreteria
- * Industrial Rivadavia" que crea `seed.ts`) y agrega encima 4 proveedores +
+ * Industrial Rivadavia" que crea `seed.ts`) y agrega encima 5 proveedores +
  * sus comprobantes/pagos, pensados para cubrir en un solo lugar los casos de
  * borde de ambas HU: DEUDOR, A_FAVOR, SIN_SALDO, proveedor dado de baja con
  * saldo, comprobantes vencidos y no vencidos, un comprobante ANULADO y un pago
  * ANULADO (ambos deben quedar afuera del cálculo de saldo).
+ *
+ * Además, un quinto proveedor (Corralón El Constructor) con una factura
+ * pagada por mes: son los egresos del Tablero del Gerente (HU-34). Todas las
+ * fechas son relativas a hoy (`seed-fechas.ts`), para que lo vencido siga
+ * vencido y los egresos caigan en los últimos meses el día que se corra.
  *
  * No crea ninguna tabla ni lógica nueva: COMPROBANTEPROVEEDOR,
  * DETALLECOMPROBANTE, PAGO y DETALLEPAGO ya existen en el schema. Inserta
@@ -93,6 +99,16 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
       observaciones:
         'Seed de prueba: 1 factura vencida + 1 no vencida (ambas DEUDOR), y un pago ANULADO que no debe afectar el saldo.',
     },
+    {
+      razon_social: 'Corralón El Constructor S.A.',
+      cuit: '30711122233',
+      condicion_iva: CondicionIVA.RESPONSABLE_INSCRIPTO,
+      domicilio: 'Av. Alvear 3100, Resistencia, Chaco',
+      telefono: '3624-441122',
+      correo: 'cuentas@elconstructor.test',
+      observaciones:
+        'Seed de prueba: proveedor de materiales de obra, una factura pagada por mes (egresos del tablero).',
+    },
   ];
 
   for (const proveedor of proveedoresDePrueba) {
@@ -118,6 +134,7 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
   const idDepositoFiscal = idProveedorPorCuit.get('30798765432')!;
   const idMadereraBaja = idProveedorPorCuit.get('30655544332')!;
   const idInsumosNorte = idProveedorPorCuit.get('30734455661')!;
+  const idCorralon = idProveedorPorCuit.get('30711122233')!;
 
   const idTipoComprobantePorNombre = new Map(
     (
@@ -357,19 +374,20 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
   }
 
   // Aceros del Nordeste: 2 facturas + 1 nota de crédito + 1 pago parcial.
-  // Queda DEUDOR (saldo 160.000) con historial rico para probar el extracto:
-  // 01/06 factura 150.000 (debe) -> acum. 150.000
-  // 15/07 factura  80.000 (debe) -> acum. 230.000
-  // 20/07 NC       20.000 (haber)-> acum. 210.000
-  // 01/08 pago     50.000 (haber)-> acum. 160.000  (== saldo de findAll)
+  // Queda DEUDOR (saldo 160.000) con historial rico para probar el extracto
+  // (días respecto de hoy):
+  // -128 factura 150.000 (debe) -> acum. 150.000
+  //  -84 factura  80.000 (debe) -> acum. 230.000
+  //  -79 NC       20.000 (haber)-> acum. 210.000
+  //  -67 pago     50.000 (haber)-> acum. 160.000  (== saldo de findAll)
   const facturaAceros1 = await upsertComprobante({
     idProveedor: idAceros,
     tipoComprobante: 'Factura',
     letra: 'A',
     punto_de_venta: 1,
     numero: 101,
-    fecha_emision: new Date('2026-06-01'),
-    fecha_vencimiento: new Date('2026-07-01'),
+    fecha_emision: diasDesdeHoy(-128),
+    fecha_vencimiento: diasDesdeHoy(-98),
     importe_total: 150000,
     saldo_pendiente: 100000, // 150.000 - 50.000 imputados por el pago de abajo
     saldo_cancelado: false,
@@ -381,8 +399,8 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
     letra: 'A',
     punto_de_venta: 1,
     numero: 102,
-    fecha_emision: new Date('2026-07-15'),
-    fecha_vencimiento: new Date('2026-08-15'),
+    fecha_emision: diasDesdeHoy(-84),
+    fecha_vencimiento: diasDesdeHoy(-53),
     importe_total: 80000,
     saldo_pendiente: 80000,
     saldo_cancelado: false,
@@ -394,8 +412,8 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
     letra: 'A',
     punto_de_venta: 1,
     numero: 5,
-    fecha_emision: new Date('2026-07-20'),
-    fecha_vencimiento: new Date('2026-07-20'),
+    fecha_emision: diasDesdeHoy(-79),
+    fecha_vencimiento: diasDesdeHoy(-79),
     importe_total: 20000,
     saldo_pendiente: 20000,
     saldo_cancelado: false,
@@ -411,8 +429,8 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
     letra: 'A',
     punto_de_venta: 2,
     numero: 10,
-    fecha_emision: new Date('2026-07-10'),
-    fecha_vencimiento: new Date('2026-07-10'),
+    fecha_emision: diasDesdeHoy(-89),
+    fecha_vencimiento: diasDesdeHoy(-89),
     importe_total: 35000,
     saldo_pendiente: 35000,
     saldo_cancelado: false,
@@ -427,8 +445,8 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
     letra: 'A',
     punto_de_venta: 4,
     numero: 1,
-    fecha_emision: new Date('2026-06-15'),
-    fecha_vencimiento: new Date('2026-07-15'),
+    fecha_emision: diasDesdeHoy(-114),
+    fecha_vencimiento: diasDesdeHoy(-84),
     importe_total: 60000,
     saldo_pendiente: 60000,
     saldo_cancelado: false,
@@ -444,8 +462,8 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
     letra: 'A',
     punto_de_venta: 3,
     numero: 50,
-    fecha_emision: new Date('2026-05-01'),
-    fecha_vencimiento: new Date('2026-06-01'),
+    fecha_emision: diasDesdeHoy(-159),
+    fecha_vencimiento: diasDesdeHoy(-128),
     importe_total: 45000,
     saldo_pendiente: 0,
     saldo_cancelado: true,
@@ -461,8 +479,8 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
     letra: 'A',
     punto_de_venta: 3,
     numero: 51,
-    fecha_emision: new Date('2026-06-10'),
-    fecha_vencimiento: new Date('2026-07-10'),
+    fecha_emision: diasDesdeHoy(-119),
+    fecha_vencimiento: diasDesdeHoy(-89),
     importe_total: 18000,
     motivo_anulacion: 'Cargada por error: la mercadería no llegó a recibirse',
     descripcionDetalle: 'Bulonería varia',
@@ -477,8 +495,8 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
     letra: 'A',
     punto_de_venta: 1,
     numero: 20,
-    fecha_emision: new Date('2026-07-01'),
-    fecha_vencimiento: new Date('2026-07-15'), // vencida (hoy: 2026-09-10)
+    fecha_emision: diasDesdeHoy(-98),
+    fecha_vencimiento: diasDesdeHoy(-84), // vencida
     importe_total: 30000,
     saldo_pendiente: 30000,
     saldo_cancelado: false,
@@ -490,23 +508,19 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
     letra: 'A',
     punto_de_venta: 1,
     numero: 21,
-    fecha_emision: new Date('2026-09-01'),
-    fecha_vencimiento: new Date('2026-11-01'), // no vencida
+    fecha_emision: diasDesdeHoy(-36),
+    fecha_vencimiento: diasDesdeHoy(25), // no vencida
     importe_total: 18000,
     saldo_pendiente: 18000,
     saldo_cancelado: false,
     descripcionDetalle: 'Caños y accesorios de PVC',
   });
 
-  console.log(
-    'Seed de prueba - COMPROBANTEPROVEEDOR: 8 registros procesados (1 ANULADO).',
-  );
-
   await upsertPago({
     idProveedor: idAceros,
     formaPago: 'Transferencia bancaria',
     numero_referencia: 'SEED-PAGO-ACEROS-01',
-    fecha_pago: new Date('2026-08-01'),
+    fecha_pago: diasDesdeHoy(-67),
     importe_total: 50000,
     imputaciones: [
       {
@@ -521,7 +535,7 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
     idProveedor: ferreteria.id_proveedor,
     formaPago: 'Efectivo',
     numero_referencia: 'SEED-PAGO-FERRETERIA-01',
-    fecha_pago: new Date('2026-05-20'),
+    fecha_pago: diasDesdeHoy(-140),
     importe_total: 45000,
     imputaciones: [
       {
@@ -542,7 +556,7 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
     idProveedor: idInsumosNorte,
     formaPago: 'Efectivo',
     numero_referencia: 'SEED-PAGO-INSUMOSNORTE-01-ANULADO',
-    fecha_pago: new Date('2026-08-05'),
+    fecha_pago: diasDesdeHoy(-63),
     importe_total: 30000,
     motivo_anulacion: 'Se cargó el pago duplicado por error de tipeo',
     imputaciones: [
@@ -555,7 +569,64 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
     ],
   });
 
-  console.log('Seed de prueba - PAGO: 3 registros procesados (1 ANULADO).');
+  // Corralón El Constructor: los materiales de obra de cada mes, facturados
+  // y pagados por transferencia 10 días después (SIN_SALDO). Son los egresos
+  // del tablero (HU-34, T152): uno por mes en los últimos 11 meses, por
+  // montos del mismo orden que los cobros de las ventas, para que el
+  // resultado del período tenga meses positivos y negativos. Fechas
+  // relativas a hoy, como los cobros de `seed-comercializacion.ts`.
+  const MATERIALES_POR_MES = [
+    { importe: 8_400_000, detalle: 'Hormigón elaborado H-21' },
+    { importe: 6_200_000, detalle: 'Hierro aletado y mallas sima' },
+    { importe: 12_500_000, detalle: 'Ladrillos, cemento y cal' },
+    { importe: 9_800_000, detalle: 'Hormigón elaborado H-30' },
+    { importe: 15_300_000, detalle: 'Aberturas de aluminio' },
+    { importe: 7_100_000, detalle: 'Caños, cables y tableros eléctricos' },
+    { importe: 11_600_000, detalle: 'Cerámicos y porcellanatos' },
+    { importe: 13_900_000, detalle: 'Hierro aletado y perfiles' },
+    { importe: 6_800_000, detalle: 'Sanitarios y grifería' },
+    { importe: 10_400_000, detalle: 'Placas de yeso y perfilería' },
+    { importe: 9_200_000, detalle: 'Pinturas e impermeabilizantes' },
+  ];
+  for (const [indice, material] of MATERIALES_POR_MES.entries()) {
+    const fechaEmision = mesesDesdeHoy(indice - MATERIALES_POR_MES.length);
+    const fechaPago = new Date(fechaEmision.getTime() + 10 * 86_400_000);
+    const factura = await upsertComprobante({
+      idProveedor: idCorralon,
+      tipoComprobante: 'Factura',
+      letra: 'A',
+      punto_de_venta: 7,
+      numero: 1001 + indice,
+      fecha_emision: fechaEmision,
+      fecha_vencimiento: new Date(fechaEmision.getTime() + 30 * 86_400_000),
+      importe_total: material.importe,
+      saldo_pendiente: 0,
+      saldo_cancelado: true,
+      descripcionDetalle: material.detalle,
+    });
+    await upsertPago({
+      idProveedor: idCorralon,
+      formaPago: 'Transferencia bancaria',
+      numero_referencia: `SEED-PAGO-CORRALON-${String(indice + 1).padStart(2, '0')}`,
+      fecha_pago: fechaPago,
+      importe_total: material.importe,
+      imputaciones: [
+        {
+          idComprobante: factura.id_comprobante_proveedor,
+          importe_imputado: material.importe,
+          saldo_anterior: material.importe,
+          saldo_posterior: 0,
+        },
+      ],
+    });
+  }
+
+  console.log(
+    `Seed de prueba - COMPROBANTEPROVEEDOR: ${8 + MATERIALES_POR_MES.length} registros procesados (1 ANULADO).`,
+  );
+  console.log(
+    `Seed de prueba - PAGO: ${3 + MATERIALES_POR_MES.length} registros procesados (1 ANULADO).`,
+  );
 }
 
 // Corrido suelto (`npm run seed:...`); desde `seed-prueba.ts` solo se importa.
