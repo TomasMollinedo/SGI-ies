@@ -214,10 +214,9 @@ export async function sembrarDeclaracion(
         // de la validación.
         const { cobro } = await registrarCobro(
           tx,
-          cuota,
+          [{ cuota, importe: importe.toNumber() }],
           datos.FK_cliente,
           {
-            importe: importe.toNumber(),
             fecha: resolucion.fecha,
             origen: OrigenCobro.ECOMMERCE,
             FK_forma_pago: datos.FK_forma_pago,

@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 import {
@@ -14,8 +13,9 @@ import {
 import { RolNombre } from '../src/common/enums/rol.enum';
 import { PagoCuotaSeed, VentaSeed, sembrarVenta } from './seed-ventas';
 import { sembrarDeclaracion } from './seed-declaraciones';
+import { ProyectoSeed, sembrarProyecto } from './seed-proyectos';
 import { sembrarPlazos } from './seed-plazos';
-import { diasDesdeHoy, fechaArgentina, mesesDesdeHoy } from './seed-fechas';
+import { diasDesdeHoy, mesesDesdeHoy } from './seed-fechas';
 
 /**
  * Seed de prueba para Comercialización/Ecommerce (Sprint 3, T96): siembra la
@@ -127,28 +127,13 @@ async function main() {
     plazoVenta(cantidadCuotas).id_plazo_financiacion;
 
   // --------------------------------------------------------------------
-  // PROYECTO — 10 filas, como las deja el ABM de Proyecto (T122):
-  // - `codigo` lo genera el sistema como `PROY-` + el id (`PROY-0001`), así
-  //   que el seed los busca por nombre (único entre activos) para no
-  //   duplicarlos. `clave` es solo para referenciarlos dentro de este script.
-  // - Fechas ancladas a la medianoche de Argentina (`fechaArgentina`), igual
-  //   que `fechaIsoSchema`.
+  // PROYECTO — 10 filas, como las deja el ABM de Proyecto (T122), ver
+  // `sembrarProyecto`. `clave` es solo para referenciarlos dentro de este
+  // script: el código lo genera el sistema.
   // - Cubre los tres estados de obra de HU-31 y uno Cancelado, que sigue en
   //   el enum hasta que se responda OBS-22 (T159).
   // --------------------------------------------------------------------
-  const proyectosDatos: {
-    clave: string;
-    nombre: string;
-    descripcion: string | null;
-    localidad: string;
-    direccion: string;
-    estado_obra: EstadoProyecto;
-    fecha_inicio: string | null;
-    fecha_fin_estimada: string | null;
-    cantidad_unidades_planificadas: number;
-    portada: string;
-    imagenes: { tipo: TipoImagenProyecto; archivo: string }[];
-  }[] = [
+  const proyectosDatos: (ProyectoSeed & { clave: string })[] = [
     // Los 2 "hero": cargan los casos borde de PROYECTO.
     {
       clave: 'PROY-TN',
@@ -311,77 +296,14 @@ async function main() {
     },
   ];
 
-  const URL_IMAGENES = 'https://cdn.axontech.test/proyectos';
-
-  /**
-   * Idempotente por nombre. La primera vez lo crea como lo hace
-   * `ProyectoService.create`: con un código provisorio y después
-   * `PROY-` + el id. Si ya existe, actualiza sus datos sin tocar el código.
-   */
-  async function upsertProyecto(datos: (typeof proyectosDatos)[number]) {
-    const campos = {
-      nombre: datos.nombre,
-      descripcion: datos.descripcion,
-      localidad: datos.localidad,
-      direccion: datos.direccion,
-      estado_obra: datos.estado_obra,
-      fecha_inicio:
-        datos.fecha_inicio === null ? null : fechaArgentina(datos.fecha_inicio),
-      fecha_fin_estimada:
-        datos.fecha_fin_estimada === null
-          ? null
-          : fechaArgentina(datos.fecha_fin_estimada),
-      cantidad_unidades_planificadas: datos.cantidad_unidades_planificadas,
-      imagen_portada_url: `${URL_IMAGENES}/${datos.portada}`,
-    };
-
-    const existente = await prisma.pROYECTO.findFirst({
-      where: { nombre: datos.nombre },
-    });
-    if (existente) {
-      return prisma.pROYECTO.update({
-        where: { id_proyecto: existente.id_proyecto },
-        data: campos,
-      });
-    }
-
-    return prisma.$transaction(async (tx) => {
-      const { id_proyecto } = await tx.pROYECTO.create({
-        data: {
-          ...campos,
-          codigo: `TMP-${randomUUID()}`,
-          ...auditoriaProyectos,
-        },
-      });
-      return tx.pROYECTO.update({
-        where: { id_proyecto },
-        data: { codigo: `PROY-${String(id_proyecto).padStart(4, '0')}` },
-      });
-    });
-  }
-
   const idProyectoPorCodigo = new Map<string, number>();
   for (const datos of proyectosDatos) {
-    const proyecto = await upsertProyecto(datos);
+    const proyecto = await sembrarProyecto(
+      prisma,
+      datos,
+      responsableProyectos.id_usuario,
+    );
     idProyectoPorCodigo.set(datos.clave, proyecto.id_proyecto);
-
-    // Imágenes de diseño (renders y planos), idempotentes por orden: un solo
-    // orden para todo el proyecto, como `ProyectoService.agregarImagen`.
-    for (const [orden, imagen] of datos.imagenes.entries()) {
-      const existente = await prisma.iMAGENPROYECTO.findFirst({
-        where: { FK_proyecto: proyecto.id_proyecto, orden },
-      });
-      if (existente) continue;
-
-      await prisma.iMAGENPROYECTO.create({
-        data: {
-          FK_proyecto: proyecto.id_proyecto,
-          url: `${URL_IMAGENES}/${imagen.archivo}`,
-          tipo: imagen.tipo,
-          orden,
-        },
-      });
-    }
   }
   console.log(
     `Seed comercialización - PROYECTO: ${proyectosDatos.length} registros procesados, con sus imágenes de diseño.`,

@@ -198,11 +198,14 @@ export async function sembrarVenta(
         );
       }
 
-      const { cuota: actualizada } = await registrarCobro(
+      const { importe, ...resto } = pago;
+      const {
+        cuotas: [actualizada],
+      } = await registrarCobro(
         tx,
-        cuota,
+        [{ cuota, importe }],
         datos.FK_cliente,
-        pago,
+        resto,
         usuarioId,
       );
       cuotaPorNumero.set(cuota.numero, actualizada);
@@ -231,37 +234,53 @@ export async function sembrarVenta(
   });
 }
 
+/** Una línea de un cobro: la cuota y lo que se le imputa (sin importe, todo su saldo). */
+export interface LineaCobroSeed {
+  cuota: CUOTA;
+  importe?: number;
+}
+
 /**
- * Registra un cobro de una sola línea sobre `cuota` y le descuenta el saldo,
- * igual que `CobroService.crearInterno`. Un cobro anulado deja la foto del
- * saldo pero no lo descuenta (como después de `CobroService.anular`).
- * Devuelve el cobro y la cuota como quedó.
+ * Registra un cobro sobre una o más cuotas y les descuenta el saldo, igual
+ * que `CobroService.crearInterno`. Un cobro anulado deja la foto del saldo
+ * pero no lo descuenta (como después de `CobroService.anular`). Sin fecha,
+ * se cobra el día que vence la cuota de la primera línea. Devuelve el cobro
+ * y las cuotas como quedaron, en el orden de las líneas.
  *
- * También lo usa `seed-declaraciones.ts` para el cobro ECOMMERCE que nace al
- * validar una declaración.
+ * También lo usan `seed-declaraciones.ts` (el cobro ECOMMERCE que nace al
+ * validar una declaración) y `seed-t112-cliente1.ts` (un cobro imputado a
+ * cuotas de dos unidades).
  */
 export async function registrarCobro(
   tx: Prisma.TransactionClient,
-  cuota: CUOTA,
+  lineas: LineaCobroSeed[],
   FK_cliente: number,
-  pago: Omit<PagoCuotaSeed, 'numero_cuota'>,
+  pago: Omit<PagoCuotaSeed, 'numero_cuota' | 'importe'> & {
+    observaciones?: string;
+  },
   usuarioId: number,
 ) {
-  const saldoAnterior = cuota.saldo_pendiente;
-  const imputado =
-    pago.importe === undefined
-      ? saldoAnterior
-      : new Prisma.Decimal(pago.importe);
-  if (imputado.greaterThan(saldoAnterior) || !imputado.greaterThan(0)) {
-    throw new Error(
-      `El pago a la cuota ${cuota.id_cuota} supera su saldo o no es positivo`,
-    );
-  }
-  const saldoPosterior = saldoAnterior.sub(imputado);
-  const fechaCobro = pago.fecha ?? cuota.fecha_vencimiento;
+  const detalles = lineas.map(({ cuota, importe }) => {
+    const saldoAnterior = cuota.saldo_pendiente;
+    const imputado =
+      importe === undefined ? saldoAnterior : new Prisma.Decimal(importe);
+    if (imputado.greaterThan(saldoAnterior) || !imputado.greaterThan(0)) {
+      throw new Error(
+        `El pago a la cuota ${cuota.id_cuota} supera su saldo o no es positivo`,
+      );
+    }
+    return {
+      cuota,
+      imputado,
+      saldoAnterior,
+      saldoPosterior: saldoAnterior.sub(imputado),
+    };
+  });
+
+  const fechaCobro = pago.fecha ?? lineas[0].cuota.fecha_vencimiento;
   if (fechaCobro.getTime() > Date.now()) {
     throw new Error(
-      `El pago a la cuota ${cuota.id_cuota} quedaría con fecha futura`,
+      `El cobro a la cuota ${lineas[0].cuota.id_cuota} quedaría con fecha futura`,
     );
   }
 
@@ -271,32 +290,44 @@ export async function registrarCobro(
       FK_cliente,
       FK_forma_pago: pago.FK_forma_pago,
       numero_referencia: pago.numero_referencia,
-      importe_total: imputado,
+      importe_total: detalles.reduce(
+        (total, detalle) => total.add(detalle.imputado),
+        new Prisma.Decimal(0),
+      ),
+      observaciones: pago.observaciones ?? null,
       origen: pago.origen,
       estado: pago.anulado ? EstadoCobro.ANULADO : EstadoCobro.CONFIRMADO,
       motivo_anulacion: pago.anulado?.motivo ?? null,
       FK_usuario_creador: usuarioId,
       FK_usuario_actualizador: usuarioId,
       detalles: {
-        create: {
-          FK_cuota: cuota.id_cuota,
-          importe_imputado: imputado,
-          saldo_anterior: saldoAnterior,
-          saldo_posterior: saldoPosterior,
-        },
+        create: detalles.map((detalle) => ({
+          FK_cuota: detalle.cuota.id_cuota,
+          importe_imputado: detalle.imputado,
+          saldo_anterior: detalle.saldoAnterior,
+          saldo_posterior: detalle.saldoPosterior,
+        })),
       },
     },
   });
 
   // Anulado: la anulación ya restituyó lo que había descontado.
-  if (pago.anulado) return { cobro, cuota };
+  if (pago.anulado) return { cobro, cuotas: lineas.map((l) => l.cuota) };
 
-  const actualizada = await tx.cUOTA.update({
-    where: { id_cuota: cuota.id_cuota },
-    data: {
-      saldo_pendiente: saldoPosterior,
-      estado: estadoSegunSaldo(saldoPosterior, cuota.importe),
-    },
-  });
-  return { cobro, cuota: actualizada };
+  const cuotas: CUOTA[] = [];
+  for (const detalle of detalles) {
+    cuotas.push(
+      await tx.cUOTA.update({
+        where: { id_cuota: detalle.cuota.id_cuota },
+        data: {
+          saldo_pendiente: detalle.saldoPosterior,
+          estado: estadoSegunSaldo(
+            detalle.saldoPosterior,
+            detalle.cuota.importe,
+          ),
+        },
+      }),
+    );
+  }
+  return { cobro, cuotas };
 }
