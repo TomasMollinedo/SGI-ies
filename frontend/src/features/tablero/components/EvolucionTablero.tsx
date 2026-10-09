@@ -5,10 +5,16 @@ import { formatearEtiquetaPeriodo } from '../utils/formato'
 
 interface EvolucionTableroProps {
   periodos: PeriodoTablero[]
+  /** Con un proyecto elegido, los ingresos son de ese proyecto y los egresos siguen siendo de toda la empresa. */
+  tieneFiltroProyecto?: boolean
 }
 
-/** Evolución del rango: barras de ingresos y egresos de cada período. */
-export function EvolucionTablero({ periodos }: EvolucionTableroProps) {
+/**
+ * Evolución del rango: barras de ingresos y egresos de cada período. Al
+ * filtrar por proyecto el gráfico se queda, pero avisa que las dos series
+ * dejan de ser comparables: los egresos no se pueden atribuir a un proyecto.
+ */
+export function EvolucionTablero({ periodos, tieneFiltroProyecto = false }: EvolucionTableroProps) {
   const datos = periodos.map((periodo) => ({
     periodo: formatearEtiquetaPeriodo(periodo.etiqueta),
     ingresos: periodo.ingresos,
@@ -21,6 +27,11 @@ export function EvolucionTablero({ periodos }: EvolucionTableroProps) {
       className="bg-fondotabla border-subtle rounded-lg border p-4 shadow-md"
     >
       <h2 className="text-content mb-2 text-base font-semibold">Ingresos y egresos por período</h2>
+      {tieneFiltroProyecto && (
+        <p className="text-content-muted mb-2 text-xs">
+          Los ingresos son solo del proyecto seleccionado; los egresos son de toda la empresa.
+        </p>
+      )}
       <GraficoBarras
         data={datos}
         claveCategoria="periodo"

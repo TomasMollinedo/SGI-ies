@@ -4,8 +4,14 @@ import {
   TABLERO_QUERY_KEYS,
   obtenerIngresosEgresos,
   obtenerIngresosPorCliente,
+  obtenerMargenProyecto,
 } from '../services/tablero.service'
-import type { FiltrosTablero, IngresosEgresosResponse, Ranking } from '../types/tablero.types'
+import type {
+  FiltrosTablero,
+  IngresosEgresosResponse,
+  MargenProyectoResponse,
+  Ranking,
+} from '../types/tablero.types'
 import { rankingClientes } from '../utils/ranking'
 
 /**
@@ -42,5 +48,21 @@ export function useIngresosPorCliente(filtros: FiltrosTablero | null) {
     },
     enabled: filtros !== null,
     placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Margen comercial de cada proyecto activo y margen total realizado. En una
+ * consulta aparte, igual que el ranking de clientes: si falla, el resto del
+ * tablero sigue en pantalla.
+ *
+ * No recibe filtros a propósito. El margen es a la fecha, así que el rango no
+ * lo cambia; y el endpoint no acepta proyecto, así que ese filtro se aplica en
+ * el cliente sobre esta misma respuesta, sin volver a pedirla.
+ */
+export function useMargenProyecto() {
+  return useQuery<MargenProyectoResponse, ApiErrorResponse>({
+    queryKey: TABLERO_QUERY_KEYS.MARGEN_PROYECTO,
+    queryFn: ({ signal }) => obtenerMargenProyecto(signal),
   })
 }

@@ -5,6 +5,8 @@ export interface FiltrosTablero {
   /** ISO 8601 con offset; el backend exige `fechaDesde` y `fechaHasta` juntas. */
   fechaDesde: string
   fechaHasta: string
+  /** Acota los ingresos a un proyecto. Los egresos no se filtran y el resultado viaja en `null`. */
+  FK_proyecto?: number
 }
 
 export interface IngresoPorProyecto {
@@ -19,7 +21,7 @@ export interface PeriodoTablero {
   hasta: string
   ingresos: number
   egresos: number
-  /** Ingresos − egresos. `null` solo si se filtra por proyecto, filtro que esta pantalla no usa. */
+  /** Ingresos − egresos. `null` si se filtra por proyecto: los egresos no se pueden atribuir a uno. */
   resultado: number | null
   ingresosPorProyecto: IngresoPorProyecto[]
 }
@@ -55,6 +57,36 @@ export interface IngresosEgresosResponse {
     resultado: number | null
   }
   variacion: VariacionTablero
+}
+
+/** Un margen (realizado o proyectado): su importe y qué porcentaje representa sobre las ventas. */
+export interface MargenTablero {
+  importe: number
+  /** Margen ÷ suma de los precios de las unidades que entraron × 100. 0 si no entró ninguna. */
+  porcentaje: number
+}
+
+/** Fila de GET /tablero/margen-proyecto: un proyecto activo. */
+export interface MargenProyectoItem {
+  proyecto: { id_proyecto: number; codigo: string; nombre: string }
+  unidades_activas: number
+  /** Con venta vigente. */
+  unidades_vendidas: number
+  porcentaje_vendidas: number
+  /** Activas sin publicación vigente, o publicadas En preparación (sin precio de lista). */
+  unidades_fuera_de_calculo: number
+  /** Unidades con venta vigente: precio de venta − costo. */
+  margen_realizado: MargenTablero
+  /** Unidades Disponibles: precio de lista − costo. */
+  margen_proyectado: MargenTablero
+  /** Realizado + proyectado. */
+  margen_total_esperado: number
+}
+
+export interface MargenProyectoResponse {
+  proyectos: MargenProyectoItem[]
+  /** De todos los proyectos. Solo el importe: no lleva porcentaje. */
+  margen_total_realizado: number
 }
 
 /** Una fila de un ranking de ingresos: un proyecto o un cliente y lo que aportó. */

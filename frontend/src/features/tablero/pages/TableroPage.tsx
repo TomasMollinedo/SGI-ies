@@ -10,9 +10,10 @@ import { finDelDiaIso, inicioDelDiaIso } from '@/shared/utils/fechaIso'
 import { EvolucionTablero } from '../components/EvolucionTablero'
 import { FiltrosTableroBar } from '../components/FiltrosTableroBar'
 import { IndicadoresTablero } from '../components/IndicadoresTablero'
+import { MargenProyectoTablero } from '../components/MargenProyectoTablero'
 import { RankingTablero } from '../components/RankingTablero'
 import { AGRUPACION_INICIAL } from '../config/tablero.config'
-import { useIngresosEgresos, useIngresosPorCliente } from '../hooks/useTablero'
+import { useIngresosEgresos, useIngresosPorCliente, useMargenProyecto } from '../hooks/useTablero'
 import type { Agrupacion } from '../types/tablero.types'
 import { rankingProyectos } from '../utils/ranking'
 
@@ -25,9 +26,17 @@ function anioEnCurso(): { desde: string; hasta: string } {
 /**
  * Tablero del Gerente General: cómo viene la empresa. Indicadores del rango
  * (con su variación contra el rango anterior), evolución de ingresos y
- * egresos por período y reparto de los ingresos por proyecto. Por defecto, el
- * año en curso agrupado por mes. Es de solo lectura: todo se calcula en el
- * backend al consultar.
+ * egresos por período, reparto de los ingresos por proyecto y por cliente, y
+ * margen comercial de cada proyecto. Por defecto, el año en curso agrupado por
+ * mes y sin proyecto. Es de solo lectura: todo se calcula en el backend al
+ * consultar.
+ *
+ * El filtro por proyecto se aplica distinto a cada cosa. A los ingresos viaja
+ * al backend como `FK_proyecto`. Al margen se le aplica en el cliente (ver
+ * `MargenProyectoTablero`), porque ese endpoint no acepta parámetros. Y los
+ * dos rankings se ocultan: el de clientes sale de `GET /cobros`, que no filtra
+ * por proyecto, así que mostraría totales de toda la empresa al lado de
+ * ingresos de un solo proyecto; el de proyectos quedaría en una fila al 100 %.
  */
 export function TableroPage() {
   const navigate = useNavigate()
@@ -35,22 +44,28 @@ export function TableroPage() {
   const [agrupacion, setAgrupacion] = useState<Agrupacion>(AGRUPACION_INICIAL)
   const [fechaDesde, setFechaDesde] = useState(() => anioEnCurso().desde)
   const [fechaHasta, setFechaHasta] = useState(() => anioEnCurso().hasta)
+  const [proyecto, setProyecto] = useState('')
 
   const inicial = anioEnCurso()
   const hayCambios =
     agrupacion !== AGRUPACION_INICIAL ||
     fechaDesde !== inicial.desde ||
-    fechaHasta !== inicial.hasta
+    fechaHasta !== inicial.hasta ||
+    proyecto !== ''
 
   function restablecer() {
     const rango = anioEnCurso()
     setAgrupacion(AGRUPACION_INICIAL)
     setFechaDesde(rango.desde)
     setFechaHasta(rango.hasta)
+    setProyecto('')
   }
 
   const fechasCompletas = fechaDesde !== '' && fechaHasta !== ''
   const rangoInvalido = fechasCompletas && fechaDesde > fechaHasta
+
+  const idProyecto = proyecto === '' ? null : Number(proyecto)
+  const tieneFiltroProyecto = idProyecto !== null
 
   const filtros =
     fechasCompletas && !rangoInvalido
@@ -61,8 +76,12 @@ export function TableroPage() {
         }
       : null
 
-  const { data, isLoading, error, refetch } = useIngresosEgresos(filtros)
-  const clientes = useIngresosPorCliente(filtros)
+  const { data, isLoading, error, refetch } = useIngresosEgresos(
+    filtros && tieneFiltroProyecto ? { ...filtros, FK_proyecto: idProyecto } : filtros
+  )
+  // Con un proyecto elegido el ranking de clientes no se muestra: tampoco se pide.
+  const clientes = useIngresosPorCliente(tieneFiltroProyecto ? null : filtros)
+  const margen = useMargenProyecto()
 
   const statusCode = error?.statusCode
 
@@ -94,6 +113,8 @@ export function TableroPage() {
         errorRango={
           rangoInvalido ? 'La fecha desde no puede ser posterior a la fecha hasta' : undefined
         }
+        proyecto={proyecto}
+        onProyectoChange={setProyecto}
         onRestablecer={restablecer}
         hayCambios={hayCambios}
       />
@@ -111,24 +132,43 @@ export function TableroPage() {
 
       {data && !error && (
         <>
-          <IndicadoresTablero datos={data} />
+          <IndicadoresTablero
+            datos={data}
+            margenRealizado={{
+              importe: margen.data?.margen_total_realizado,
+              estaCargando: margen.isLoading,
+              tieneError: margen.isError,
+            }}
+          />
 
-          <EvolucionTablero periodos={data.periodos} />
+          <EvolucionTablero periodos={data.periodos} tieneFiltroProyecto={tieneFiltroProyecto} />
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <RankingTablero
-              titulo="Proyectos que más ingresaron"
-              ranking={{
-                items: rankingProyectos(data.totales.ingresosPorProyecto),
-                totalIngresos: data.totales.ingresos,
-              }}
-            />
+          {!tieneFiltroProyecto && (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <RankingTablero
+                titulo="Proyectos que más ingresaron"
+                ranking={{
+                  items: rankingProyectos(data.totales.ingresosPorProyecto),
+                  totalIngresos: data.totales.ingresos,
+                }}
+              />
 
-            <RankingTablero
-              titulo="Clientes que más aportaron"
-              ranking={clientes.data}
-              cargando={clientes.isLoading}
-              error={clientes.isError}
+              <RankingTablero
+                titulo="Clientes que más aportaron"
+                ranking={clientes.data}
+                cargando={clientes.isLoading}
+                error={clientes.isError}
+              />
+            </div>
+          )}
+
+          {/* Separado de lo de arriba, que responde al rango de fechas: el margen es a la fecha. */}
+          <div className="border-subtle border-t pt-4">
+            <MargenProyectoTablero
+              margen={margen.data}
+              cargando={margen.isLoading}
+              error={margen.error}
+              idProyecto={idProyecto}
             />
           </div>
 
@@ -147,6 +187,20 @@ export function TableroPage() {
                 ni los pagos anulados. Los rankings muestran los 5 que más aportaron.
               </li>
               <li>El resultado es ingresos menos egresos del rango elegido.</li>
+              <li>
+                Con un proyecto seleccionado no se muestran el resultado ni los rankings: los
+                egresos no pueden atribuirse a un proyecto, y lo cobrado por cliente no se puede
+                abrir por proyecto.
+              </li>
+              <li>
+                El margen es comercial: compara el precio de venta con el costo de cada unidad. No
+                incluye los intereses de financiación ni gastos que no estén cargados como costo de
+                la unidad.
+              </li>
+              <li>
+                El porcentaje del margen es sobre las ventas (margen ÷ precio). El margen es a la
+                fecha: no depende del rango de fechas elegido.
+              </li>
             </ul>
           </aside>
         </>
