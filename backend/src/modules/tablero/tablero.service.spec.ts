@@ -556,14 +556,46 @@ describe('TableroService', () => {
       expect(torreA.unidades_fuera_de_calculo).toBe(1); // 3 - 1 vendida - 1 disponible
       expect(torreA.margen_realizado).toEqual({
         importe: 5000,
-        porcentaje: 50,
+        porcentaje: 33.33,
       });
       expect(torreA.margen_proyectado).toEqual({
         importe: 3000,
-        porcentaje: 33.33,
+        porcentaje: 25,
       });
       expect(torreA.margen_total_esperado).toBe(8000);
       expect(resultado.margen_total_realizado).toBe(5000);
+    });
+
+    // Costo 8.000 y precio 10.000: sobre las ventas el margen es 20 %; sobre
+    // el costo sería 25 %. Los dos números son distintos a propósito, para que
+    // un cambio de denominador no pase silencioso.
+    it('el porcentaje del margen es sobre las ventas (margen ÷ precio), no sobre el costo', async () => {
+      proyectosActivosSeed = [
+        { id_proyecto: 1, codigo: 'P1', nombre: 'Torre A', unidadesActivas: 2 },
+      ];
+      ventasVigentesSeed = [
+        {
+          FK_proyecto: 1,
+          unidadActiva: true,
+          costo: 8000,
+          precioVenta: 10000,
+        },
+      ];
+      publicacionesDisponiblesSeed = [
+        { FK_proyecto: 1, unidadActiva: true, costo: 8000, precioLista: 10000 },
+      ];
+
+      const resultado = await service.obtenerMargenProyecto();
+
+      const [torreA] = resultado.proyectos;
+      expect(torreA.margen_realizado).toEqual({
+        importe: 2000,
+        porcentaje: 20,
+      });
+      expect(torreA.margen_proyectado).toEqual({
+        importe: 2000,
+        porcentaje: 20,
+      });
     });
 
     it('el porcentaje de unidades vendidas es sobre las activas del proyecto', async () => {

@@ -9,8 +9,11 @@ const proyectoResumenSchema = z.object({
 
 const margenSchema = z.object({
   importe: z.number(),
-  /** Sobre el costo de las unidades que entraron en este margen. 0 si no hay ninguna. */
-  porcentaje: z.number(),
+  porcentaje: z.number().meta({
+    description:
+      'Porcentaje del margen sobre las ventas: importe ÷ suma de los precios de las unidades que entraron en este margen (precio de venta en el realizado, precio de lista en el proyectado) × 100. No es sobre el costo. 0 si no entró ninguna unidad',
+    example: 33.33,
+  }),
 });
 
 const margenProyectoItemSchema = z.object({
