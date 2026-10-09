@@ -22,6 +22,7 @@
     "seed:cuenta-corriente-prueba": "tsx prisma/seed-cuenta-corriente-prueba.ts",
     "seed:comercializacion": "tsx prisma/seed-comercializacion.ts",
     "seed:t112-cliente1": "tsx prisma/seed-t112-cliente1.ts",
+    "seed:tablero": "tsx prisma/seed-tablero.ts",
     "seed:prueba": "tsx prisma/seed-prueba.ts"
   },
   "dependencies": {

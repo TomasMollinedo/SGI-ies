@@ -489,35 +489,105 @@ export async function sembrarCuentaCorrientePrueba(prisma: PrismaClient) {
     { neto: 10_400_000, detalle: 'Placas de yeso y perfilería' },
     { neto: 9_200_000, detalle: 'Pinturas e impermeabilizantes' },
   ];
-  for (const [indice, material] of MATERIALES_POR_MES.entries()) {
-    const numero = 1001 + indice;
-    const fechaEmision = mesesDesdeHoy(indice - MATERIALES_POR_MES.length);
-    const factura = await upsertComprobante({
-      idProveedor: idCorralon,
-      tipoComprobante: 'Factura',
-      letra: 'A',
-      punto_de_venta: 7,
-      numero,
-      fecha_emision: fechaEmision,
-      fecha_vencimiento: new Date(fechaEmision.getTime() + 30 * 86_400_000),
-      importe_neto: material.neto,
-      importePagado: totalesPorLetra('A', material.neto).importe_total,
-      descripcionDetalle: material.detalle,
-    });
-    await upsertPago({
-      idProveedor: idCorralon,
-      formaPago: 'Transferencia bancaria',
-      numero_referencia: numeroOperacion(`pago-corralon-${numero}`),
-      fecha_pago: new Date(fechaEmision.getTime() + 10 * 86_400_000),
-      comprobante: factura,
-    });
+  /**
+   * Una factura de Corralón por mes, pagada a los 10 días. `numeroInicial` y
+   * `mesInicial` (meses respecto de hoy) fijan de dónde parte cada tanda: no
+   * se tocan una vez sembradas, porque de ellos salen la clave que usa la
+   * idempotencia.
+   */
+  async function sembrarMaterialesCorralon(
+    materiales: { neto: number; detalle: string }[],
+    numeroInicial: number,
+    mesInicial: number,
+  ) {
+    for (const [indice, material] of materiales.entries()) {
+      const numero = numeroInicial + indice;
+      const fechaEmision = mesesDesdeHoy(mesInicial + indice);
+      const factura = await upsertComprobante({
+        idProveedor: idCorralon,
+        tipoComprobante: 'Factura',
+        letra: 'A',
+        punto_de_venta: 7,
+        numero,
+        fecha_emision: fechaEmision,
+        fecha_vencimiento: new Date(fechaEmision.getTime() + 30 * 86_400_000),
+        importe_neto: material.neto,
+        importePagado: totalesPorLetra('A', material.neto).importe_total,
+        descripcionDetalle: material.detalle,
+      });
+      await upsertPago({
+        idProveedor: idCorralon,
+        formaPago: 'Transferencia bancaria',
+        numero_referencia: numeroOperacion(`pago-corralon-${numero}`),
+        fecha_pago: new Date(fechaEmision.getTime() + 10 * 86_400_000),
+        comprobante: factura,
+      });
+    }
   }
 
+  await sembrarMaterialesCorralon(
+    MATERIALES_POR_MES,
+    1001,
+    -MATERIALES_POR_MES.length,
+  );
+
+  // Los 10 meses anteriores a esos 11 (de hace 21 a hace 12 meses): con el
+  // año en curso por defecto, el tablero compara contra el rango anterior de
+  // igual duración, y sin estos egresos todas las variaciones darían "sin
+  // datos del período anterior". Sus importes y los de `seed-tablero.ts` se
+  // calcularon juntos para que 2025 cierre con ganancia y algún mes en
+  // pérdida: si cambian, hay que volver a calcularlos.
+  const MATERIALES_ANIO_ANTERIOR = [
+    { neto: 6_800_000, detalle: 'Excavación y movimiento de suelos' },
+    { neto: 9_900_000, detalle: 'Hormigón elaborado H-17' },
+    { neto: 7_600_000, detalle: 'Hierro aletado y mallas sima' },
+    { neto: 11_600_000, detalle: 'Ladrillos huecos y cemento' },
+    { neto: 6_000_000, detalle: 'Arena, piedra y cal' },
+    { neto: 10_800_000, detalle: 'Hormigón elaborado H-21' },
+    { neto: 12_800_000, detalle: 'Aberturas y vidrios' },
+    { neto: 7_400_000, detalle: 'Caños y accesorios sanitarios' },
+    { neto: 9_100_000, detalle: 'Cables y tableros eléctricos' },
+    { neto: 8_200_000, detalle: 'Revoques y yeso' },
+  ];
+  await sembrarMaterialesCorralon(MATERIALES_ANIO_ANTERIOR, 1101, -21);
+
+  // Compras puntuales de obra del año en curso, fuera de la rutina mensual de
+  // arriba: son las que dejan en pérdida algunos meses de 2026 (enero, mayo,
+  // julio y, junto con la venta de agosto de `seed-comercializacion`,
+  // septiembre) y bajan el pico de agosto. Cada una es una factura de un mes
+  // puntual, de hace 9, 5, 3 y 2 meses; los números siguen a los de arriba.
+  await sembrarMaterialesCorralon(
+    [{ neto: 7_900_000, detalle: 'Estructura de hormigón armado, 2.º tramo' }],
+    1201,
+    -9,
+  );
+  await sembrarMaterialesCorralon(
+    [{ neto: 7_400_000, detalle: 'Mampostería y cerramientos de planta baja' }],
+    1202,
+    -5,
+  );
+  await sembrarMaterialesCorralon(
+    [{ neto: 7_400_000, detalle: 'Instalaciones sanitarias y de gas' }],
+    1203,
+    -3,
+  );
+  await sembrarMaterialesCorralon(
+    [
+      {
+        neto: 17_000_000,
+        detalle: 'Terminaciones: pisos, revestimientos y carpintería',
+      },
+    ],
+    1204,
+    -2,
+  );
+  const EGRESOS_PUNTUALES = 4;
+
   console.log(
-    `Seed de prueba - COMPROBANTEPROVEEDOR: ${8 + MATERIALES_POR_MES.length} registros procesados (1 ANULADO).`,
+    `Seed de prueba - COMPROBANTEPROVEEDOR: ${8 + MATERIALES_POR_MES.length + MATERIALES_ANIO_ANTERIOR.length + EGRESOS_PUNTUALES} registros procesados (1 ANULADO).`,
   );
   console.log(
-    `Seed de prueba - PAGO: ${4 + MATERIALES_POR_MES.length} registros procesados (1 ANULADO).`,
+    `Seed de prueba - PAGO: ${4 + MATERIALES_POR_MES.length + MATERIALES_ANIO_ANTERIOR.length + EGRESOS_PUNTUALES} registros procesados (1 ANULADO).`,
   );
 }
 

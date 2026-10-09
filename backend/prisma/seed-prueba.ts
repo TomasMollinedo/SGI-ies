@@ -2,6 +2,7 @@ import { ejecutarSeed } from './seed-ejecutar';
 import { sembrarCuentaCorrientePrueba } from './seed-cuenta-corriente-prueba';
 import { sembrarComercializacion } from './seed-comercializacion';
 import { sembrarClientePrueba } from './seed-t112-cliente1';
+import { sembrarTablero } from './seed-tablero';
 
 /**
  * Todos los datos de prueba en un solo comando:
@@ -14,8 +15,10 @@ import { sembrarClientePrueba } from './seed-t112-cliente1';
  * 2. Comercialización: proyectos, unidades, publicaciones, ventas, cobros y
  *    declaraciones de pago.
  * 3. Cliente de prueba para el portal (`SEED_CLIENTE_EMAIL`).
+ * 4. Tablero del Gerente: ventas del año anterior, para que los ingresos y
+ *    sus variaciones se vean completos.
  *
- * Los tres son idempotentes, así que este comando también lo es. Cada uno
+ * Los cuatro son idempotentes, así que este comando también lo es. Cada uno
  * se puede seguir corriendo suelto con su propio `npm run seed:...`.
  * `seed-muestra.ts` (Almacén) queda aparte a propósito: no es idempotente.
  */
@@ -23,4 +26,5 @@ ejecutarSeed(async (prisma) => {
   await sembrarCuentaCorrientePrueba(prisma);
   await sembrarComercializacion(prisma);
   await sembrarClientePrueba(prisma);
+  await sembrarTablero(prisma);
 });
