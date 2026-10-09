@@ -6,6 +6,7 @@ import { formatearFecha } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
 import { etiquetaNumeroCuota } from '@/features/tesoreria/cobranzas/config/cobro.config'
 import { badgeEstadoDeclaracion } from '@/features/tesoreria/declaraciones-pago/config/declaracionPago.config'
+import { useAbrirComprobanteDeclaracion } from '@/features/tesoreria/declaraciones-pago/hooks/useAbrirComprobanteDeclaracion'
 import { SIN_DATO } from '../config/cliente.config'
 import type { DeclaracionFicha } from '../types/cliente.types'
 import { SeccionFicha, SeccionVacia } from './SeccionFicha'
@@ -16,8 +17,8 @@ import { SeccionFicha, SeccionVacia } from './SeccionFicha'
  * sección anterior.
  *
  * Comercialización puede ver el comprobante además del cliente y de Tesorería
- * (propuesta del equipo para OBS-18). Hoy la ficha muestra solo sus
- * metadatos: la descarga del archivo es T146 (ver `AccionVerComprobante`).
+ * (propuesta del equipo para OBS-18): la ficha muestra sus metadatos y lo
+ * abre desde `AccionVerComprobante`.
  *
  * Desde acá no se valida ni se rechaza una declaración: eso vive en la
  * pantalla de Tesorería.
@@ -125,31 +126,29 @@ function DatosComprobante({ declaracion }: { declaracion: DeclaracionFicha }) {
 }
 
 /**
- * Único punto desde el que se abre el comprobante.
- *
- * Queda deshabilitado porque el endpoint que entrega el archivo todavía no
- * existe: la ruta vive en un repositorio privado y nunca viaja al frontend, así
- * que no hay `href` que armar hasta que haya endpoint.
+ * Único punto desde el que se abre el comprobante: en una pestaña nueva, con
+ * el visor del navegador. El archivo se pide con el token de la sesión —la
+ * ruta del repositorio privado nunca viaja al frontend—, así que no hay
+ * `href` que armar. Deshabilitado solo si la declaración no tiene adjunto.
  */
 function AccionVerComprobante({ declaracion }: { declaracion: DeclaracionFicha }) {
+  const { abrir, abriendo } = useAbrirComprobanteDeclaracion(declaracion.id_declaracion_pago)
   const tieneComprobante = declaracion.comprobante !== null
 
-  // TODO (T146): cuando mergee el endpoint interno de comprobantes, enchufar
-  // acá su service y sacar el `disabled` y el `title`.
   return (
     <IconButton
       icon={<FileText />}
-      ariaLabel={`Ver el comprobante de la declaración #${declaracion.id_declaracion_pago}`}
+      ariaLabel={`Ver el comprobante de la declaración del ${formatearFecha(declaracion.fecha)}, ${formatearImporte(declaracion.importe)}, cuota ${etiquetaNumeroCuota(declaracion.cuota.numero)}`}
       title={
-        tieneComprobante
-          ? 'Ver el comprobante: se habilita con T146'
-          : 'La declaración no tiene comprobante adjunto'
+        tieneComprobante ? 'Ver el comprobante' : 'La declaración no tiene comprobante adjunto'
       }
       variant="soft"
       size="sm"
       bgColor="fondo-ver"
       iconColor="info"
-      disabled
+      loading={abriendo}
+      disabled={!tieneComprobante}
+      onClick={() => void abrir()}
     />
   )
 }

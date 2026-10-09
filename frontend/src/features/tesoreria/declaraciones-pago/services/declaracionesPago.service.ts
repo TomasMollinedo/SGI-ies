@@ -61,6 +61,16 @@ export async function releerDeclaracionPago(
 }
 
 /**
+ * Ruta de `GET /declaraciones-pago/:id/comprobante` (T146): devuelve el
+ * archivo binario y exige el token del panel, así que no sirve como `href` —
+ * se abre con `useAbrirComprobanteDeclaracion`. 404 si la declaración no
+ * existe, no tiene comprobante o el archivo no está disponible.
+ */
+export function rutaComprobanteDeclaracion(idDeclaracionPago: number): string {
+  return `/declaraciones-pago/${idDeclaracionPago}/comprobante`
+}
+
+/**
  * PATCH /declaraciones-pago/:id/validar: genera un cobro de origen ECOMMERCE
  * (la respuesta trae su id en `FK_cobro`). 409 si la declaración ya no está
  * PENDIENTE, o si el saldo de la cuota ya no alcanza — en ese caso sigue

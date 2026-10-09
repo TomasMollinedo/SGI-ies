@@ -124,8 +124,8 @@ export interface CobroFicha {
 
 /**
  * Metadatos del comprobante adjunto a una declaración. La ruta del
- * repositorio privado no viaja al frontend a propósito: el endpoint que
- * entrega el archivo es T146.
+ * repositorio privado no viaja al frontend a propósito: el archivo se pide a
+ * `GET /declaraciones-pago/:id/comprobante` con el id de la declaración.
  */
 export interface ComprobanteDeclaracion {
   nombre_archivo: string | null

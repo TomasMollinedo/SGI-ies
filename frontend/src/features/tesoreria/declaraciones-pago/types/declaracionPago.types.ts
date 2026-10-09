@@ -24,6 +24,15 @@ export interface DeclaracionPagoBase {
   /** El cobro que generó al validarse. */
   FK_cobro: number | null
   hora_creacion: string
+  /**
+   * El comprobante adjunto (T146). El archivo se pide a
+   * `GET /declaraciones-pago/:id/comprobante`: no hay URL pública. Las
+   * declaraciones del Sprint 3 no tienen (`tiene_comprobante: false`).
+   */
+  comprobante_nombre_archivo: string | null
+  /** MIME: `application/pdf`, `image/jpeg` o `image/png`. */
+  comprobante_tipo: string | null
+  tiene_comprobante: boolean
 }
 
 /**
