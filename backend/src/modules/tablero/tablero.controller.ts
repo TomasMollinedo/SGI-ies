@@ -14,6 +14,7 @@ import { TableroService } from './tablero.service';
 import { QueryIngresosEgresosDto } from './dto/query-ingresos-egresos.dto';
 import { IngresosEgresosResponseDto } from './dto/ingresos-egresos-response.dto';
 import { MargenProyectoResponseDto } from './dto/margen-proyecto-response.dto';
+import { QueryMargenProyectoDto } from './dto/query-margen-proyecto.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolNombre } from '../../common/enums/rol.enum';
 
@@ -81,14 +82,39 @@ export class TableroController {
   @Get('margen-proyecto')
   @ApiOperation({
     summary:
-      'Margen comercial de cada proyecto activo: realizado (ventas vigentes) y proyectado (unidades Disponibles), sin intereses de financiación',
+      'Margen comercial de cada proyecto activo: realizado (ventas vigentes) y proyectado (unidades Disponibles), sin intereses de financiación. Paginado, del proyecto más reciente al más antiguo: por fecha de inicio o, si no la tiene cargada, por fecha de alta en el sistema',
+  })
+  @ApiQuery({
+    name: 'FK_proyecto',
+    required: false,
+    type: Number,
+    description:
+      'Limita la lista a un proyecto. Si no está entre los activos, la lista vuelve vacía. No cambia el margen total realizado',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página, empezando en 1 (default 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Cantidad de proyectos por página (default 10, máximo 100)',
+    example: 10,
   })
   @ApiOkResponse({
     description:
-      'Un ítem por proyecto activo, más el margen realizado total de todos los proyectos. Todo se calcula al consultar, sin almacenarse',
+      'Una página de proyectos activos, más el margen realizado total de todos los proyectos y el total de unidades fuera del cálculo de los proyectos que matchean el filtro. Todo se calcula al consultar, sin almacenarse',
     type: MargenProyectoResponseDto,
   })
-  obtenerMargenProyecto() {
-    return this.tableroService.obtenerMargenProyecto();
+  @ApiBadRequestResponse({
+    description: 'Parámetros inválidos: page, limit o FK_proyecto',
+  })
+  obtenerMargenProyecto(@Query() query: QueryMargenProyectoDto) {
+    return this.tableroService.obtenerMargenProyecto(query);
   }
 }

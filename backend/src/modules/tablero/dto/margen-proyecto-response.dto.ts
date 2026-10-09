@@ -32,9 +32,17 @@ const margenProyectoItemSchema = z.object({
 });
 
 export const margenProyectoResponseSchema = z.object({
-  proyectos: z.array(margenProyectoItemSchema),
-  /** De TODOS los proyectos (activos e inactivos): el margen ya realizado no deja de contar porque el proyecto se dé de baja después. */
+  /** La página pedida, del proyecto más reciente al más antiguo: por `fecha_inicio` o, si es `null`, por fecha de alta (a igual fecha, por nombre). */
+  data: z.array(margenProyectoItemSchema),
+  /** De TODOS los proyectos (activos e inactivos): el margen ya realizado no deja de contar porque el proyecto se dé de baja después. No lo afectan `FK_proyecto` ni la paginación. */
   margen_total_realizado: z.number(),
+  /** Suma de `unidades_fuera_de_calculo` de todas las filas que matchean `FK_proyecto`, no solo las de la página. */
+  total_unidades_fuera_de_calculo: z.number(),
+  meta: z.object({
+    total: z.number(),
+    page: z.number(),
+    limit: z.number(),
+  }),
 });
 
 export class MargenProyectoResponseDto extends createZodDto(

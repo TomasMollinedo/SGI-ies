@@ -1,3 +1,5 @@
+import type { PaginationMeta } from '@/shared/types/api.types'
+
 export type Agrupacion = 'MENSUAL' | 'TRIMESTRAL' | 'ANUAL'
 
 export interface FiltrosTablero {
@@ -83,10 +85,22 @@ export interface MargenProyectoItem {
   margen_total_esperado: number
 }
 
+/** Filtro y página de GET /tablero/margen-proyecto. */
+export interface ParamsMargenProyecto {
+  /** Limita la lista a un proyecto. No cambia el margen total realizado. */
+  FK_proyecto?: number
+  page: number
+  limit: number
+}
+
 export interface MargenProyectoResponse {
-  proyectos: MargenProyectoItem[]
-  /** De todos los proyectos. Solo el importe: no lleva porcentaje. */
+  /** La página pedida, ya ordenada del proyecto más reciente al más antiguo (fecha de inicio o, si falta, de alta). */
+  data: MargenProyectoItem[]
+  /** De todos los proyectos, sin importar el filtro ni la página. Solo el importe: no lleva porcentaje. */
   margen_total_realizado: number
+  /** De todos los proyectos que matchean el filtro, no solo los de la página. */
+  total_unidades_fuera_de_calculo: number
+  meta: PaginationMeta
 }
 
 /** Una fila de un ranking de ingresos: un proyecto o un cliente y lo que aportó. */

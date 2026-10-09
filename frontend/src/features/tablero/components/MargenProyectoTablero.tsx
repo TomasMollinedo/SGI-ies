@@ -1,5 +1,6 @@
 import { DataTable } from '@/shared/components/common/DataTable'
 import type { DataTableColumn } from '@/shared/components/common/DataTable'
+import { Pagination } from '@/shared/components/common/Pagination'
 import { Spinner } from '@/shared/components/ui/Spinner'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { formatearMensajeError } from '@/shared/utils/apiError'
@@ -20,8 +21,11 @@ interface MargenProyectoTableroProps {
   margen?: MargenProyectoResponse
   cargando: boolean
   error: ApiErrorResponse | null
-  /** `id_proyecto` del filtro de la pantalla, o `null` si no hay ninguno elegido. */
-  idProyecto: number | null
+  /** Hay un pedido en curso y lo que se ve es la página anterior: bloquea la paginación. */
+  actualizando: boolean
+  /** Si la pantalla tiene un proyecto elegido; solo cambia el mensaje de lista vacía. */
+  tieneFiltroProyecto: boolean
+  onPaginaChange: (pagina: number) => void
 }
 
 const TOOLTIP_PORCENTAJE = 'El porcentaje es sobre las ventas: margen ÷ precio'
@@ -93,9 +97,10 @@ const COLUMNAS: DataTableColumn<MargenProyectoItem>[] = [
  * vendido), proyectado (lo Disponible) y total esperado. Tiene su propia
  * consulta y sus propios estados: si falla, el resto del tablero sigue.
  *
- * El filtro por proyecto se aplica acá, sobre las filas que ya llegaron, y no
- * en el backend: `GET /tablero/margen-proyecto` no acepta parámetros. Con los
- * ingresos pasa lo contrario, porque ese endpoint sí filtra.
+ * El filtro por proyecto, el orden (del proyecto más reciente al más antiguo,
+ * por fecha de inicio o, si no la tiene, por fecha de alta) y la paginación los resuelve el backend: acá solo se muestra la página que
+ * llegó. El total de unidades fuera del cálculo también viene calculado, sobre
+ * todos los proyectos y no solo los de la página.
  *
  * Los proyectos sin nada publicado se listan igual, con sus ceros y su conteo
  * de unidades fuera del cálculo: es justo lo que el gerente tiene que notar.
@@ -104,14 +109,11 @@ export function MargenProyectoTablero({
   margen,
   cargando,
   error,
-  idProyecto,
+  actualizando,
+  tieneFiltroProyecto,
+  onPaginaChange,
 }: MargenProyectoTableroProps) {
-  const filas = margen ? filasVisibles(margen.proyectos, idProyecto) : []
-  // Cuenta de presentación: suma de lo que ya calculó el backend por fila.
-  const totalFueraDeCalculo = filas.reduce(
-    (total, fila) => total + fila.unidades_fuera_de_calculo,
-    0
-  )
+  const filas = margen?.data ?? []
 
   return (
     <section
@@ -119,9 +121,13 @@ export function MargenProyectoTablero({
       className="bg-fondotabla border-subtle rounded-lg border p-4 shadow-md"
     >
       <h2 className="text-content text-base font-semibold">Margen por proyecto, a la fecha</h2>
-      <p className="text-content-muted mt-1 mb-3 text-xs">
+      <p className="text-content-muted mt-1 text-xs">
         No depende del rango de fechas elegido: se calcula con las ventas vigentes y las unidades
         Disponibles de hoy.
+      </p>
+      <p className="text-content-muted mt-1 mb-3 text-xs">
+        Los proyectos se ordenan del más reciente al más antiguo, por fecha de inicio; los que no la
+        tienen cargada, por su fecha de alta en el sistema.
       </p>
 
       {cargando && (
@@ -138,13 +144,13 @@ export function MargenProyectoTablero({
 
       {!cargando && !error && margen && filas.length === 0 && (
         <p className="text-content-muted py-8 text-center text-sm">
-          {idProyecto === null
-            ? 'No hay proyectos activos.'
-            : 'El proyecto seleccionado no está entre los proyectos activos.'}
+          {tieneFiltroProyecto
+            ? 'El proyecto seleccionado no está entre los proyectos activos.'
+            : 'No hay proyectos activos.'}
         </p>
       )}
 
-      {!cargando && !error && filas.length > 0 && (
+      {!cargando && !error && margen && filas.length > 0 && (
         <>
           {/* El scroll horizontal, si hace falta en pantallas angostas, queda adentro de la sección. */}
           <div className="overflow-x-auto">
@@ -156,9 +162,19 @@ export function MargenProyectoTablero({
             />
           </div>
 
+          <Pagination
+            className="mt-3"
+            currentPage={margen.meta.page}
+            totalPages={Math.max(1, Math.ceil(margen.meta.total / margen.meta.limit))}
+            totalItems={margen.meta.total}
+            pageSize={margen.meta.limit}
+            onPageChange={onPaginaChange}
+            disabled={actualizando}
+          />
+
           <p className="text-content-muted mt-3 text-xs">
             <span className="text-content font-semibold">
-              Unidades fuera del cálculo: {totalFueraDeCalculo} en total.
+              Unidades fuera del cálculo: {margen.total_unidades_fuera_de_calculo} en total.
             </span>{' '}
             Son las unidades activas sin publicación vigente o con la publicación En preparación,
             que todavía no tienen precio de lista: el margen no las cubre.
@@ -181,26 +197,4 @@ function CeldaMargen({ margen }: { margen: MargenTablero }) {
       </p>
     </div>
   )
-}
-
-/**
- * Las filas a mostrar: la del proyecto filtrado, o todas, ordenadas por margen
- * total esperado de mayor a menor.
- *
- * Se copia antes de ordenar porque `sort` ordena en el lugar y el array es el
- * que React Query tiene en cache. No hay desempate explícito y no es
- * casualidad: el backend ya devuelve los proyectos por nombre y `sort` es
- * estable, así que dos proyectos con el mismo margen quedan en orden
- * alfabético.
- */
-function filasVisibles(
-  proyectos: MargenProyectoItem[],
-  idProyecto: number | null
-): MargenProyectoItem[] {
-  const filtrados =
-    idProyecto === null
-      ? proyectos
-      : proyectos.filter((item) => item.proyecto.id_proyecto === idProyecto)
-
-  return [...filtrados].sort((a, b) => b.margen_total_esperado - a.margen_total_esperado)
 }

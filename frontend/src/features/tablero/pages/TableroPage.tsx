@@ -12,7 +12,7 @@ import { FiltrosTableroBar } from '../components/FiltrosTableroBar'
 import { IndicadoresTablero } from '../components/IndicadoresTablero'
 import { MargenProyectoTablero } from '../components/MargenProyectoTablero'
 import { RankingTablero } from '../components/RankingTablero'
-import { AGRUPACION_INICIAL } from '../config/tablero.config'
+import { AGRUPACION_INICIAL, MARGEN_PROYECTOS_POR_PAGINA } from '../config/tablero.config'
 import { useIngresosEgresos, useIngresosPorCliente, useMargenProyecto } from '../hooks/useTablero'
 import type { Agrupacion } from '../types/tablero.types'
 import { rankingProyectos } from '../utils/ranking'
@@ -32,9 +32,8 @@ function anioEnCurso(): { desde: string; hasta: string } {
  * consultar.
  *
  * El filtro por proyecto se aplica distinto a cada cosa. A los ingresos viaja
- * al backend como `FK_proyecto`. Al margen se le aplica en el cliente (ver
- * `MargenProyectoTablero`), porque ese endpoint no acepta parámetros. Y los
- * dos rankings se ocultan: el de clientes sale de `GET /cobros`, que no filtra
+ * al backend como `FK_proyecto`, y al margen también (su tabla además viene
+ * paginada desde el backend). Los dos rankings, en cambio, se ocultan: el de clientes sale de `GET /cobros`, que no filtra
  * por proyecto, así que mostraría totales de toda la empresa al lado de
  * ingresos de un solo proyecto; el de proyectos quedaría en una fila al 100 %.
  */
@@ -45,6 +44,7 @@ export function TableroPage() {
   const [fechaDesde, setFechaDesde] = useState(() => anioEnCurso().desde)
   const [fechaHasta, setFechaHasta] = useState(() => anioEnCurso().hasta)
   const [proyecto, setProyecto] = useState('')
+  const [paginaMargen, setPaginaMargen] = useState(1)
 
   const inicial = anioEnCurso()
   const hayCambios =
@@ -58,7 +58,13 @@ export function TableroPage() {
     setAgrupacion(AGRUPACION_INICIAL)
     setFechaDesde(rango.desde)
     setFechaHasta(rango.hasta)
-    setProyecto('')
+    cambiarProyecto('')
+  }
+
+  // Otro proyecto es otra lista: la página en la que estaba ya no significa nada.
+  function cambiarProyecto(valor: string) {
+    setProyecto(valor)
+    setPaginaMargen(1)
   }
 
   const fechasCompletas = fechaDesde !== '' && fechaHasta !== ''
@@ -81,7 +87,11 @@ export function TableroPage() {
   )
   // Con un proyecto elegido el ranking de clientes no se muestra: tampoco se pide.
   const clientes = useIngresosPorCliente(tieneFiltroProyecto ? null : filtros)
-  const margen = useMargenProyecto()
+  const margen = useMargenProyecto({
+    FK_proyecto: idProyecto ?? undefined,
+    page: paginaMargen,
+    limit: MARGEN_PROYECTOS_POR_PAGINA,
+  })
 
   const statusCode = error?.statusCode
 
@@ -114,7 +124,7 @@ export function TableroPage() {
           rangoInvalido ? 'La fecha desde no puede ser posterior a la fecha hasta' : undefined
         }
         proyecto={proyecto}
-        onProyectoChange={setProyecto}
+        onProyectoChange={cambiarProyecto}
         onRestablecer={restablecer}
         hayCambios={hayCambios}
       />
@@ -168,7 +178,9 @@ export function TableroPage() {
               margen={margen.data}
               cargando={margen.isLoading}
               error={margen.error}
-              idProyecto={idProyecto}
+              actualizando={margen.isPlaceholderData}
+              tieneFiltroProyecto={tieneFiltroProyecto}
+              onPaginaChange={setPaginaMargen}
             />
           </div>
 

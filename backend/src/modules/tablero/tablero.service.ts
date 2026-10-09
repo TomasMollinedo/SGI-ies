@@ -11,6 +11,7 @@ import {
   Agrupacion,
   QueryIngresosEgresosDto,
 } from './dto/query-ingresos-egresos.dto';
+import { QueryMargenProyectoDto } from './dto/query-margen-proyecto.dto';
 
 /**
  * Tope de períodos por consulta. Los egresos de cada uno se piden por
@@ -222,8 +223,20 @@ export class TableroService {
    * - Quedan fuera del cálculo las unidades activas sin publicación vigente, o
    *   publicadas `EN_PREPARACION` (sin precio de lista todavía).
    * - Todo se calcula al consultar: nada de esto se guarda.
+   *
+   * Orden: del proyecto más reciente al más antiguo, por `fecha_inicio`; el
+   * que no la tiene cargada entra en el mismo orden con su fecha de alta en
+   * el sistema (`hora_creacion`), en vez de quedar relegado al final.
+   *
+   * El filtro por proyecto, el orden y la paginación se aplican en memoria:
+   * el orden cae a otra columna cuando falta la fecha de inicio, y eso no se
+   * puede expresar en un `orderBy` de Prisma — mismo recurso que la cuenta
+   * corriente de proveedores. El margen total realizado es siempre el de
+   * toda la empresa: ni el filtro ni la página lo cambian.
    */
-  async obtenerMargenProyecto() {
+  async obtenerMargenProyecto(query: QueryMargenProyectoDto) {
+    const { FK_proyecto, page, limit } = query;
+
     const [proyectosActivos, ventasVigentes, publicacionesDisponibles] =
       await Promise.all([
         this.prisma.pROYECTO.findMany({
@@ -232,6 +245,8 @@ export class TableroService {
             id_proyecto: true,
             codigo: true,
             nombre: true,
+            fecha_inicio: true,
+            hora_creacion: true,
             _count: {
               select: { unidadesFuncionales: { where: { estado: true } } },
             },
@@ -299,7 +314,15 @@ export class TableroService {
       );
     }
 
-    const proyectos = proyectosActivos.map((proyecto) => {
+    // `sort` es estable y los proyectos ya vienen por nombre: a igual fecha
+    // quedan en orden alfabético, así que las páginas no se pisan entre sí.
+    const fechaDeOrden = (proyecto: (typeof proyectosActivos)[number]) =>
+      (proyecto.fecha_inicio ?? proyecto.hora_creacion).getTime();
+    const proyectosOrdenados = [...proyectosActivos].sort(
+      (a, b) => fechaDeOrden(b) - fechaDeOrden(a),
+    );
+
+    const todasLasFilas = proyectosOrdenados.map((proyecto) => {
       const realizado = realizadoPorProyecto.get(proyecto.id_proyecto);
       const proyectado = proyectadoPorProyecto.get(proyecto.id_proyecto);
       const unidadesActivas = proyecto._count.unidadesFuncionales;
@@ -336,11 +359,27 @@ export class TableroService {
       };
     });
 
+    const filas =
+      FK_proyecto === undefined
+        ? todasLasFilas
+        : todasLasFilas.filter(
+            (fila) => fila.proyecto.id_proyecto === FK_proyecto,
+          );
+
+    const total = filas.length;
+    const data = filas.slice((page - 1) * limit, (page - 1) * limit + limit);
+
     return {
-      proyectos,
+      data,
       margen_total_realizado: margenTotalRealizado
         .toDecimalPlaces(2)
         .toNumber(),
+      // Sobre todas las filas del filtro, no solo las de la página.
+      total_unidades_fuera_de_calculo: filas.reduce(
+        (suma, fila) => suma + fila.unidades_fuera_de_calculo,
+        0,
+      ),
+      meta: { total, page, limit },
     };
   }
 
