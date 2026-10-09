@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { ArrowLeft, ShieldAlert, Undo2 } from 'lucide-react'
-import { PATHS } from '@/app/router/paths'
+import { ArrowLeft, HandCoins, ShieldAlert, Undo2 } from 'lucide-react'
+import { PATHS, rutaPlanesPagoPublicacion } from '@/app/router/paths'
 import { PrecioListaForm } from '@/features/comercializacion/planes-pago/components/PrecioListaForm'
 import { ESTADO_PROYECTO_LABEL } from '@/features/proyectos/config/proyecto.config'
 import { AuditInfo } from '@/shared/components/common/AuditInfo'
@@ -199,6 +199,22 @@ export function PublicacionDetallePage() {
 
       <SeccionPublicacion titulo="Precio de lista">
         <PrecioListaForm publicacion={publicacion} />
+      </SeccionPublicacion>
+
+      <SeccionPublicacion titulo="Planes de pago de ejemplo">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-content-muted text-xs">
+            Ejemplos de financiación que se calculan sobre el precio de lista y se muestran en el
+            catálogo. Se cargan con la publicación Disponible.
+          </p>
+          <Button
+            icon={<HandCoins />}
+            onClick={() => navigate(rutaPlanesPagoPublicacion(publicacion.id_publicacion))}
+            className="ml-auto"
+          >
+            Ver planes de pago
+          </Button>
+        </div>
       </SeccionPublicacion>
 
       <SeccionPublicacion titulo="Imágenes">
