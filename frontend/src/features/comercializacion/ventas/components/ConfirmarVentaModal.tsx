@@ -1,66 +1,88 @@
+import { useEffect, useState } from 'react'
 import { ArrowLeft, ShoppingCart } from 'lucide-react'
 import { Modal } from '@/shared/components/common/Modal'
 import { Button } from '@/shared/components/ui/Button'
-import { formatearImporte } from '@/shared/utils/importe'
-import {
-  PERIODICIDAD_LABEL,
-  TIPO_PLAN_LABEL,
-} from '@/features/comercializacion/planes-pago/config/planPago.config'
-import type { PlanPago } from '@/features/comercializacion/planes-pago/types/planPago.types'
-import { aNumeroOCero } from '@/features/comercializacion/planes-pago/utils/decimal'
+import { formatearMensajeError } from '@/shared/utils/apiError'
 import type { PublicacionListItem } from '@/features/comercializacion/publicaciones/types/publicacion.types'
 import { AlertaInline } from '@/features/comercializacion/publicaciones/components/AlertaInline'
-import { formatearMensajeError } from '@/shared/utils/apiError'
 import { useCrearVenta } from '../hooks/useVentas'
-import type { ClienteVenta, VentaDetalle } from '../types/venta.types'
+import type {
+  ClienteVenta,
+  CondicionesVenta,
+  CrearVentaPayload,
+  SimulacionVenta,
+  VentaDetalle,
+} from '../types/venta.types'
 import { clasificarRechazoVenta } from '../utils/clasificarRechazoVenta'
+import { simulacionDelError } from '../utils/simulacionDelError'
+import { ResultadoSimulacionVenta } from './ResultadoSimulacionVenta'
 
 interface ConfirmarVentaModalProps {
   open: boolean
   unidad: PublicacionListItem
-  plan: PlanPago
   cliente: ClienteVenta
+  /** Las condiciones y la última simulación válida del panel, al momento de abrir este modal. */
+  condiciones: CondicionesVenta
+  simulacion: SimulacionVenta
   onClose: () => void
   onVolverAUnidad: () => void
-  onVolverAPlan: () => void
   onVentaRegistrada: (venta: VentaDetalle) => void
 }
 
 /**
- * Paso final de la venta (HU-27): resume unidad, precio, plan, anticipo y
- * cuotas — criterio literal de la HU — antes de llamar `POST /ventas`.
+ * Paso final de la venta (HU-27): resume unidad, cliente y la simulación
+ * acordada, antes de llamar `POST /ventas`.
  *
- * Los 409 del backend son accionables: según `clasificarRechazoVenta`, se
- * ofrece volver a elegir unidad o plan en vez de un error genérico. Mismo
- * patrón que `PublicarUnidadModal` (selección → confirmación, con
- * `AlertaInline` persistente para el rechazo).
+ * Si el precio de lista o la TNA del plazo cambiaron desde que se simuló, el
+ * backend rechaza con 409 y la simulación recalculada (`datos.simulacion`):
+ * acá se reemplaza la que se venía mostrando por esa, para volver a
+ * acordarla con el cliente y confirmar de nuevo — sin salir de este modal.
+ * El resto de los rechazos (unidad ya no disponible, etc.) son los mismos de
+ * siempre: mensaje y, si aplica, volver a elegir unidad.
  */
 export function ConfirmarVentaModal({
   open,
   unidad,
-  plan,
   cliente,
+  condiciones,
+  simulacion: simulacionInicial,
   onClose,
   onVolverAUnidad,
-  onVolverAPlan,
   onVentaRegistrada,
 }: ConfirmarVentaModalProps) {
   const crear = useCrearVenta()
+  const [simulacion, setSimulacion] = useState(simulacionInicial)
+
+  // Cada apertura parte de la simulación vigente del panel, no de una vieja
+  // que haya quedado de un intento de confirmación anterior.
+  useEffect(() => {
+    if (open) setSimulacion(simulacionInicial)
+  }, [open, simulacionInicial])
 
   function confirmar() {
-    crear.mutate(
-      {
-        cliente,
-        FK_publicacion: unidad.id_publicacion,
-        FK_plan_pago: plan.id_plan_pago,
+    const payload: CrearVentaPayload = {
+      ...condiciones,
+      cliente,
+      simulacion: {
+        precio_lista: Number(simulacion.precio_lista),
+        tasa_nominal_anual: simulacion.plazo ? Number(simulacion.plazo.tasa_nominal_anual) : null,
       },
-      { onSuccess: onVentaRegistrada }
-    )
+    }
+
+    crear.mutate(payload, {
+      onSuccess: onVentaRegistrada,
+      onError: (error) => {
+        const recalculada = simulacionDelError(error.datos)
+        if (recalculada) setSimulacion(recalculada)
+      },
+    })
   }
 
   const rechazo = crear.isError ? crear.error : null
   const mensajeRechazo = rechazo ? formatearMensajeError(rechazo.message) : null
-  const accion = mensajeRechazo ? clasificarRechazoVenta(mensajeRechazo) : 'NINGUNA'
+  const huboRecalculo = rechazo ? simulacionDelError(rechazo.datos) !== null : false
+  const accion =
+    mensajeRechazo && !huboRecalculo ? clasificarRechazoVenta(mensajeRechazo) : 'NINGUNA'
 
   return (
     <Modal
@@ -68,7 +90,7 @@ export function ConfirmarVentaModal({
       onClose={onClose}
       title="Confirmar venta"
       icon={<ShoppingCart />}
-      size="sm"
+      size="xl"
       closeOnEscape={!crear.isPending}
       closeOnOverlayClick={!crear.isPending}
       footer={
@@ -89,42 +111,32 @@ export function ConfirmarVentaModal({
       }
     >
       <div className="flex flex-col gap-4">
-        <dl className="text-sm">
+        <dl className="grid grid-cols-2 gap-3 text-sm">
           <Fila etiqueta="Unidad" valor={unidad.unidad.identificador} />
           <Fila etiqueta="Proyecto" valor={unidad.proyecto.nombre} />
           <Fila
             etiqueta="Cliente"
             valor={`${cliente.nombre}${cliente.apellido ? ` ${cliente.apellido}` : ''}`}
           />
-          <Fila etiqueta="Plan" valor={`${plan.nombre} (${TIPO_PLAN_LABEL[plan.tipo]})`} />
-          <Fila etiqueta="Precio" valor={formatearImporte(aNumeroOCero(plan.precio))} />
-          <Fila etiqueta="Anticipo" valor={textoAnticipo(plan)} />
-          {plan.tipo === 'FINANCIADO' && (
-            <Fila
-              etiqueta="Cuotas"
-              valor={`${plan.cantidad_cuotas ?? '—'}${
-                plan.periodicidad ? ` · ${PERIODICIDAD_LABEL[plan.periodicidad]}` : ''
-              }`}
-            />
-          )}
         </dl>
 
         {mensajeRechazo && (
           <AlertaInline>
-            <p>{mensajeRechazo}</p>
+            <p>
+              {huboRecalculo
+                ? 'Cambió el precio o la tasa desde que se simuló: revisá los valores recalculados debajo con el cliente antes de confirmar de nuevo.'
+                : mensajeRechazo}
+            </p>
 
             {accion === 'ELEGIR_OTRA_UNIDAD' && (
               <Button size="sm" variant="error" icon={<ArrowLeft />} onClick={onVolverAUnidad}>
                 Volver a elegir unidad
               </Button>
             )}
-            {accion === 'ELEGIR_OTRO_PLAN' && (
-              <Button size="sm" variant="error" icon={<ArrowLeft />} onClick={onVolverAPlan}>
-                Volver a elegir plan
-              </Button>
-            )}
           </AlertaInline>
         )}
+
+        <ResultadoSimulacionVenta simulacion={simulacion} />
       </div>
     </Modal>
   )
@@ -132,16 +144,9 @@ export function ConfirmarVentaModal({
 
 function Fila({ etiqueta, valor }: { etiqueta: string; valor: string }) {
   return (
-    <div className="mb-2">
+    <div>
       <dt className="text-content-muted text-xs">{etiqueta}</dt>
-      <dd className="text-content font-medium break-words">{valor}</dd>
+      <dd className="text-content font-medium wrap-break-word">{valor}</dd>
     </div>
   )
-}
-
-function textoAnticipo(plan: PlanPago): string {
-  if (plan.anticipo_porcentaje !== null) {
-    return `${plan.anticipo_porcentaje}%`
-  }
-  return plan.anticipo_monto !== null ? formatearImporte(aNumeroOCero(plan.anticipo_monto)) : '—'
 }

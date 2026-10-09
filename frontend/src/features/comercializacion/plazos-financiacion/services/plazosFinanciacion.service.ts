@@ -5,6 +5,7 @@ import type {
   EditarPlazoFinanciacionPayload,
   PlazoFinanciacion,
   PlazoFinanciacionAuditado,
+  PlazoFinanciacionCatalogoItem,
   PlazoFinanciacionDetalle,
   PlazosFinanciacionQuery,
 } from '../types/plazoFinanciacion.types'
@@ -12,6 +13,7 @@ import type {
 export const PLAZOS_FINANCIACION_QUERY_KEYS = {
   LISTA: (filtros: PlazosFinanciacionQuery) => ['plazos-financiacion', 'lista', filtros] as const,
   DETALLE: (id: number | null) => ['plazos-financiacion', 'detalle', id] as const,
+  CATALOGO: ['plazos-financiacion', 'catalogo'] as const,
 }
 
 /**
@@ -81,6 +83,21 @@ export async function darDeBajaPlazoFinanciacion(id: number): Promise<PlazoFinan
 export async function reactivarPlazoFinanciacion(id: number): Promise<PlazoFinanciacionAuditado> {
   const { data } = await httpClient.patch<PlazoFinanciacionAuditado>(
     `/plazos-financiacion/${id}/alta`
+  )
+  return data
+}
+
+/**
+ * GET /plazos-financiacion/catalogo — los plazos activos, ordenados por
+ * cantidad de cuotas, para el simulador de la venta (HU-27) y de los planes
+ * de ejemplo (HU-22).
+ */
+export async function listarCatalogoPlazosFinanciacion(
+  signal?: AbortSignal
+): Promise<PlazoFinanciacionCatalogoItem[]> {
+  const { data } = await httpClient.get<PlazoFinanciacionCatalogoItem[]>(
+    '/plazos-financiacion/catalogo',
+    { signal }
   )
   return data
 }

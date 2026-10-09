@@ -5,6 +5,7 @@ import {
   crearPlazoFinanciacion,
   darDeBajaPlazoFinanciacion,
   editarPlazoFinanciacion,
+  listarCatalogoPlazosFinanciacion,
   listarPlazosFinanciacion,
   obtenerPlazoFinanciacion,
   reactivarPlazoFinanciacion,
@@ -14,6 +15,7 @@ import type {
   EditarPlazoFinanciacionPayload,
   PlazoFinanciacion,
   PlazoFinanciacionAuditado,
+  PlazoFinanciacionCatalogoItem,
   PlazoFinanciacionDetalle,
   PlazosFinanciacionQuery,
 } from '../types/plazoFinanciacion.types'
@@ -93,6 +95,14 @@ export function useDarDeBajaPlazoFinanciacion() {
       queryClient.invalidateQueries({ queryKey: LISTA_KEY })
       queryClient.invalidateQueries({ queryKey: PLAZOS_FINANCIACION_QUERY_KEYS.DETALLE(id) })
     },
+  })
+}
+
+/** Catálogo de plazos activos, para el `<select>` del simulador de la venta y de los planes de ejemplo. */
+export function usePlazosFinanciacionCatalogo() {
+  return useQuery<PlazoFinanciacionCatalogoItem[], ApiErrorResponse>({
+    queryKey: PLAZOS_FINANCIACION_QUERY_KEYS.CATALOGO,
+    queryFn: ({ signal }) => listarCatalogoPlazosFinanciacion(signal),
   })
 }
 

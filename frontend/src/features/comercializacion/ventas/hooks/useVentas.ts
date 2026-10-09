@@ -5,14 +5,19 @@ import {
   buscarClientes,
   cancelarVenta,
   crearVenta,
+  listarPlanesEjemploPublicacion,
   listarVentas,
   obtenerVenta,
+  simularVenta,
 } from '../services/ventas.service'
 import type {
   CancelarVentaPayload,
   ClienteResumen,
   CrearVentaPayload,
+  PlanEjemploResumen,
   QueryVenta,
+  SimularVentaPayload,
+  SimulacionVenta,
   VentaDetalle,
   VentaListItem,
 } from '../types/venta.types'
@@ -43,6 +48,26 @@ export function useVentaDetalle(id: number | null) {
     enabled: id !== null,
     staleTime: 0,
     refetchOnMount: 'always',
+  })
+}
+
+/**
+ * Simulación del plan de pago (HU-27): se llama en cada cambio válido del
+ * formulario (ver `SimulacionVentaPanel`), así que es `useMutation` y no
+ * `useQuery` — no tiene sentido cachear por combinación de condiciones.
+ */
+export function useSimularVenta() {
+  return useMutation<SimulacionVenta, ApiErrorResponse, SimularVentaPayload>({
+    mutationFn: simularVenta,
+  })
+}
+
+/** Planes de ejemplo activos de la publicación, solo para precargar el simulador. */
+export function usePlanesEjemploPublicacion(FK_publicacion: number | null) {
+  return useQuery<PlanEjemploResumen[], ApiErrorResponse>({
+    queryKey: VENTAS_QUERY_KEYS.PLANES_EJEMPLO(FK_publicacion ?? 0),
+    queryFn: ({ signal }) => listarPlanesEjemploPublicacion(FK_publicacion!, signal),
+    enabled: FK_publicacion !== null,
   })
 }
 
