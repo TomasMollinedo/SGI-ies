@@ -106,7 +106,7 @@ export const router = createBrowserRouter([
         children: [
           {
             index: true,
-            element: <Navigate to={PATHS.ALMACEN.CATALOGO.ARTICULOS} replace />,
+            element: <Navigate to={PATHS.TABLERO.ROOT} replace />,
           },
 
           {
