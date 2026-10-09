@@ -54,6 +54,12 @@ export function formatearVariacion(porcentaje: number): string {
   return porcentaje > 0 ? `+${absoluto} %` : `−${absoluto} %`
 }
 
+/** "33,3 %" o "−5,0 %". Sin "+" adelante: es una proporción, no una variación. */
+export function formatearPorcentaje(porcentaje: number): string {
+  const absoluto = FORMATO_PORCENTAJE.format(Math.abs(porcentaje))
+  return porcentaje < 0 ? `−${absoluto} %` : `${absoluto} %`
+}
+
 /** Color de un importe según su signo (el signo en el texto es lo que lo identifica; el color acompaña). */
 export function claseColorResultado(importe: number | null): string {
   if (importe === null || importe === 0) return 'text-content'

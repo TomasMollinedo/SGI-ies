@@ -1,13 +1,20 @@
 import { listarCobros } from '@/features/tesoreria/cobranzas/services/cobros.service'
 import type { ResumenPeriodoCobro } from '@/features/tesoreria/cobranzas/types/cobro.types'
 import { httpClient } from '@/shared/api/httpClient'
-import type { FiltrosTablero, IngresosEgresosResponse } from '../types/tablero.types'
+import type {
+  FiltrosTablero,
+  IngresosEgresosResponse,
+  MargenProyectoResponse,
+  ParamsMargenProyecto,
+} from '../types/tablero.types'
 
 export const TABLERO_QUERY_KEYS = {
   INGRESOS_EGRESOS: (filtros: FiltrosTablero | null) =>
     ['tablero', 'ingresos-egresos', filtros] as const,
   INGRESOS_POR_CLIENTE: (filtros: FiltrosTablero | null) =>
     ['tablero', 'ingresos-por-cliente', filtros] as const,
+  MARGEN_PROYECTO: (params: ParamsMargenProyecto) =>
+    ['tablero', 'margen-proyecto', params] as const,
 }
 
 /**
@@ -23,7 +30,27 @@ export async function obtenerIngresosEgresos(
       agrupacion: filtros.agrupacion,
       fechaDesde: filtros.fechaDesde,
       fechaHasta: filtros.fechaHasta,
+      // `undefined` no viaja: sin proyecto, el backend no filtra.
+      FK_proyecto: filtros.FK_proyecto,
     },
+    signal,
+  })
+
+  return data
+}
+
+/**
+ * GET /tablero/margen-proyecto. No lleva fechas: el margen es a la fecha (no
+ * depende del rango). El filtro por proyecto, el orden (del proyecto más
+ * reciente al más antiguo) y la paginación los resuelve el backend.
+ */
+export async function obtenerMargenProyecto(
+  params: ParamsMargenProyecto,
+  signal?: AbortSignal
+): Promise<MargenProyectoResponse> {
+  const { data } = await httpClient.get<MargenProyectoResponse>('/tablero/margen-proyecto', {
+    // `undefined` no viaja: sin proyecto, el backend no filtra.
+    params: { FK_proyecto: params.FK_proyecto, page: params.page, limit: params.limit },
     signal,
   })
 

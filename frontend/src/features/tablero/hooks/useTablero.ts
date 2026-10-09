@@ -4,8 +4,15 @@ import {
   TABLERO_QUERY_KEYS,
   obtenerIngresosEgresos,
   obtenerIngresosPorCliente,
+  obtenerMargenProyecto,
 } from '../services/tablero.service'
-import type { FiltrosTablero, IngresosEgresosResponse, Ranking } from '../types/tablero.types'
+import type {
+  FiltrosTablero,
+  IngresosEgresosResponse,
+  MargenProyectoResponse,
+  ParamsMargenProyecto,
+  Ranking,
+} from '../types/tablero.types'
 import { rankingClientes } from '../utils/ranking'
 
 /**
@@ -41,6 +48,24 @@ export function useIngresosPorCliente(filtros: FiltrosTablero | null) {
         : { items: [], totalIngresos: 0 }
     },
     enabled: filtros !== null,
+    placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Una página del margen comercial por proyecto activo, más el margen total
+ * realizado. En una consulta aparte, igual que el ranking de clientes: si
+ * falla, el resto del tablero sigue en pantalla.
+ *
+ * No recibe el rango de fechas a propósito: el margen es a la fecha. El
+ * proyecto y la página sí viajan, porque el backend filtra y pagina.
+ * `keepPreviousData` deja la página anterior en pantalla mientras llega la
+ * nueva, para que la tabla no salte al cambiar de página.
+ */
+export function useMargenProyecto(params: ParamsMargenProyecto) {
+  return useQuery<MargenProyectoResponse, ApiErrorResponse>({
+    queryKey: TABLERO_QUERY_KEYS.MARGEN_PROYECTO(params),
+    queryFn: ({ signal }) => obtenerMargenProyecto(params, signal),
     placeholderData: keepPreviousData,
   })
 }

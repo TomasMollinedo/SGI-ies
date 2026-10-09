@@ -1,3 +1,5 @@
+import type { PaginationMeta } from '@/shared/types/api.types'
+
 export type Agrupacion = 'MENSUAL' | 'TRIMESTRAL' | 'ANUAL'
 
 export interface FiltrosTablero {
@@ -5,6 +7,8 @@ export interface FiltrosTablero {
   /** ISO 8601 con offset; el backend exige `fechaDesde` y `fechaHasta` juntas. */
   fechaDesde: string
   fechaHasta: string
+  /** Acota los ingresos a un proyecto. Los egresos no se filtran y el resultado viaja en `null`. */
+  FK_proyecto?: number
 }
 
 export interface IngresoPorProyecto {
@@ -19,7 +23,7 @@ export interface PeriodoTablero {
   hasta: string
   ingresos: number
   egresos: number
-  /** Ingresos − egresos. `null` solo si se filtra por proyecto, filtro que esta pantalla no usa. */
+  /** Ingresos − egresos. `null` si se filtra por proyecto: los egresos no se pueden atribuir a uno. */
   resultado: number | null
   ingresosPorProyecto: IngresoPorProyecto[]
 }
@@ -55,6 +59,48 @@ export interface IngresosEgresosResponse {
     resultado: number | null
   }
   variacion: VariacionTablero
+}
+
+/** Un margen (realizado o proyectado): su importe y qué porcentaje representa sobre las ventas. */
+export interface MargenTablero {
+  importe: number
+  /** Margen ÷ suma de los precios de las unidades que entraron × 100. 0 si no entró ninguna. */
+  porcentaje: number
+}
+
+/** Fila de GET /tablero/margen-proyecto: un proyecto activo. */
+export interface MargenProyectoItem {
+  proyecto: { id_proyecto: number; codigo: string; nombre: string }
+  unidades_activas: number
+  /** Con venta vigente. */
+  unidades_vendidas: number
+  porcentaje_vendidas: number
+  /** Activas sin publicación vigente, o publicadas En preparación (sin precio de lista). */
+  unidades_fuera_de_calculo: number
+  /** Unidades con venta vigente: precio de venta − costo. */
+  margen_realizado: MargenTablero
+  /** Unidades Disponibles: precio de lista − costo. */
+  margen_proyectado: MargenTablero
+  /** Realizado + proyectado. */
+  margen_total_esperado: number
+}
+
+/** Filtro y página de GET /tablero/margen-proyecto. */
+export interface ParamsMargenProyecto {
+  /** Limita la lista a un proyecto. No cambia el margen total realizado. */
+  FK_proyecto?: number
+  page: number
+  limit: number
+}
+
+export interface MargenProyectoResponse {
+  /** La página pedida, ya ordenada del proyecto más reciente al más antiguo (fecha de inicio o, si falta, de alta). */
+  data: MargenProyectoItem[]
+  /** De todos los proyectos, sin importar el filtro ni la página. Solo el importe: no lleva porcentaje. */
+  margen_total_realizado: number
+  /** De todos los proyectos que matchean el filtro, no solo los de la página. */
+  total_unidades_fuera_de_calculo: number
+  meta: PaginationMeta
 }
 
 /** Una fila de un ranking de ingresos: un proyecto o un cliente y lo que aportó. */

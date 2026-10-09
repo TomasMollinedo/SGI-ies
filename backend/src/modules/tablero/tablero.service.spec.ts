@@ -7,6 +7,10 @@ import {
   QueryIngresosEgresosDto,
   queryIngresosEgresosSchema,
 } from './dto/query-ingresos-egresos.dto';
+import {
+  QueryMargenProyectoDto,
+  queryMargenProyectoSchema,
+} from './dto/query-margen-proyecto.dto';
 
 type Proyecto = { id_proyecto: number; nombre: string };
 
@@ -28,6 +32,9 @@ type ArgumentoFindMany = {
 const parsear = (entrada: object): QueryIngresosEgresosDto =>
   queryIngresosEgresosSchema.parse(entrada);
 
+const parsearMargen = (entrada: object = {}): QueryMargenProyectoDto =>
+  queryMargenProyectoSchema.parse(entrada);
+
 describe('TableroService', () => {
   let service: TableroService;
   let detalleCobroFindMany: jest.Mock;
@@ -44,6 +51,10 @@ describe('TableroService', () => {
     codigo: string;
     nombre: string;
     unidadesActivas: number;
+    /** Sin cargar: el proyecto no tiene fecha de inicio. */
+    fechaInicio?: string;
+    /** Por defecto, la misma para todos: el orden queda por nombre. */
+    horaCreacion?: string;
   }[];
   let ventasVigentesSeed: {
     FK_proyecto: number;
@@ -74,6 +85,8 @@ describe('TableroService', () => {
           id_proyecto: p.id_proyecto,
           codigo: p.codigo,
           nombre: p.nombre,
+          fecha_inicio: p.fechaInicio ? new Date(p.fechaInicio) : null,
+          hora_creacion: new Date(p.horaCreacion ?? '2026-01-01T12:00:00Z'),
           _count: { unidadesFuncionales: p.unidadesActivas },
         })),
       ),
@@ -547,23 +560,55 @@ describe('TableroService', () => {
         { FK_proyecto: 1, unidadActiva: true, costo: 9000, precioLista: 12000 },
       ];
 
-      const resultado = await service.obtenerMargenProyecto();
+      const resultado = await service.obtenerMargenProyecto(parsearMargen());
 
-      expect(resultado.proyectos).toHaveLength(1);
-      const [torreA] = resultado.proyectos;
+      expect(resultado.data).toHaveLength(1);
+      const [torreA] = resultado.data;
       expect(torreA.unidades_activas).toBe(3);
       expect(torreA.unidades_vendidas).toBe(1);
       expect(torreA.unidades_fuera_de_calculo).toBe(1); // 3 - 1 vendida - 1 disponible
       expect(torreA.margen_realizado).toEqual({
         importe: 5000,
-        porcentaje: 50,
+        porcentaje: 33.33,
       });
       expect(torreA.margen_proyectado).toEqual({
         importe: 3000,
-        porcentaje: 33.33,
+        porcentaje: 25,
       });
       expect(torreA.margen_total_esperado).toBe(8000);
       expect(resultado.margen_total_realizado).toBe(5000);
+    });
+
+    // Costo 8.000 y precio 10.000: sobre las ventas el margen es 20 %; sobre
+    // el costo sería 25 %. Los dos números son distintos a propósito, para que
+    // un cambio de denominador no pase silencioso.
+    it('el porcentaje del margen es sobre las ventas (margen ÷ precio), no sobre el costo', async () => {
+      proyectosActivosSeed = [
+        { id_proyecto: 1, codigo: 'P1', nombre: 'Torre A', unidadesActivas: 2 },
+      ];
+      ventasVigentesSeed = [
+        {
+          FK_proyecto: 1,
+          unidadActiva: true,
+          costo: 8000,
+          precioVenta: 10000,
+        },
+      ];
+      publicacionesDisponiblesSeed = [
+        { FK_proyecto: 1, unidadActiva: true, costo: 8000, precioLista: 10000 },
+      ];
+
+      const resultado = await service.obtenerMargenProyecto(parsearMargen());
+
+      const [torreA] = resultado.data;
+      expect(torreA.margen_realizado).toEqual({
+        importe: 2000,
+        porcentaje: 20,
+      });
+      expect(torreA.margen_proyectado).toEqual({
+        importe: 2000,
+        porcentaje: 20,
+      });
     });
 
     it('el porcentaje de unidades vendidas es sobre las activas del proyecto', async () => {
@@ -579,9 +624,9 @@ describe('TableroService', () => {
         },
       ];
 
-      const resultado = await service.obtenerMargenProyecto();
+      const resultado = await service.obtenerMargenProyecto(parsearMargen());
 
-      expect(resultado.proyectos[0].porcentaje_vendidas).toBe(25);
+      expect(resultado.data[0].porcentaje_vendidas).toBe(25);
     });
 
     it('sin unidades activas, los porcentajes dan 0 y no NaN ni Infinity', async () => {
@@ -589,9 +634,9 @@ describe('TableroService', () => {
         { id_proyecto: 1, codigo: 'P1', nombre: 'Vacío', unidadesActivas: 0 },
       ];
 
-      const resultado = await service.obtenerMargenProyecto();
+      const resultado = await service.obtenerMargenProyecto(parsearMargen());
 
-      expect(resultado.proyectos[0]).toMatchObject({
+      expect(resultado.data[0]).toMatchObject({
         unidades_activas: 0,
         porcentaje_vendidas: 0,
         margen_realizado: { importe: 0, porcentaje: 0 },
@@ -606,11 +651,11 @@ describe('TableroService', () => {
       ];
       // Ninguna venta ni publicación Disponible para este proyecto.
 
-      const resultado = await service.obtenerMargenProyecto();
+      const resultado = await service.obtenerMargenProyecto(parsearMargen());
 
-      expect(resultado.proyectos[0].unidades_fuera_de_calculo).toBe(2);
-      expect(resultado.proyectos[0].margen_realizado.importe).toBe(0);
-      expect(resultado.proyectos[0].margen_proyectado.importe).toBe(0);
+      expect(resultado.data[0].unidades_fuera_de_calculo).toBe(2);
+      expect(resultado.data[0].margen_realizado.importe).toBe(0);
+      expect(resultado.data[0].margen_proyectado.importe).toBe(0);
     });
 
     it('el margen realizado total incluye ventas de proyectos dados de baja; el listado por proyecto no', async () => {
@@ -628,10 +673,10 @@ describe('TableroService', () => {
         { FK_proyecto: 2, unidadActiva: true, costo: 5000, precioVenta: 7000 },
       ];
 
-      const resultado = await service.obtenerMargenProyecto();
+      const resultado = await service.obtenerMargenProyecto(parsearMargen());
 
-      expect(resultado.proyectos).toHaveLength(1);
-      expect(resultado.proyectos[0].margen_realizado.importe).toBe(3000);
+      expect(resultado.data).toHaveLength(1);
+      expect(resultado.data[0].margen_realizado.importe).toBe(3000);
       // 3000 (proyecto activo) + 2000 (proyecto de baja) = 5000.
       expect(resultado.margen_total_realizado).toBe(5000);
     });
@@ -657,11 +702,11 @@ describe('TableroService', () => {
         },
       ];
 
-      const resultado = await service.obtenerMargenProyecto();
+      const resultado = await service.obtenerMargenProyecto(parsearMargen());
 
-      expect(resultado.proyectos[0].unidades_vendidas).toBe(0);
-      expect(resultado.proyectos[0].margen_realizado.importe).toBe(0);
-      expect(resultado.proyectos[0].margen_proyectado.importe).toBe(0);
+      expect(resultado.data[0].unidades_vendidas).toBe(0);
+      expect(resultado.data[0].margen_realizado.importe).toBe(0);
+      expect(resultado.data[0].margen_proyectado.importe).toBe(0);
       expect(resultado.margen_total_realizado).toBe(0);
     });
 
@@ -674,9 +719,162 @@ describe('TableroService', () => {
         { FK_proyecto: 1, unidadActiva: true, costo: 8000, precioVenta: 10000 },
       ];
 
-      const resultado = await service.obtenerMargenProyecto();
+      const resultado = await service.obtenerMargenProyecto(parsearMargen());
 
-      expect(resultado.proyectos[0].margen_realizado.importe).toBe(2000);
+      expect(resultado.data[0].margen_realizado.importe).toBe(2000);
+    });
+
+    describe('filtro, orden y paginación', () => {
+      // Orden esperado, del más reciente al más antiguo: P3 (inicio 2026-06),
+      // P4 (sin inicio, alta 2026-03), P1 (inicio 2025-08), P2 (inicio 2024-02).
+      beforeEach(() => {
+        proyectosActivosSeed = [
+          {
+            id_proyecto: 1,
+            codigo: 'P1',
+            nombre: 'Alfa',
+            unidadesActivas: 2,
+            fechaInicio: '2025-08-01T03:00:00Z',
+          },
+          {
+            id_proyecto: 2,
+            codigo: 'P2',
+            nombre: 'Beta',
+            unidadesActivas: 1,
+            fechaInicio: '2024-02-01T03:00:00Z',
+            // Dado de alta último: con fecha de inicio, el alta no cuenta.
+            horaCreacion: '2026-09-01T12:00:00Z',
+          },
+          {
+            id_proyecto: 3,
+            codigo: 'P3',
+            nombre: 'Gama',
+            unidadesActivas: 4,
+            fechaInicio: '2026-06-01T03:00:00Z',
+          },
+          {
+            id_proyecto: 4,
+            codigo: 'P4',
+            nombre: 'Zeta',
+            unidadesActivas: 3,
+            horaCreacion: '2026-03-10T12:00:00Z',
+          },
+        ];
+        // Margen total esperado: P1 = 1000, P2 = 3000, P3 = 2000, P4 = 0.
+        ventasVigentesSeed = [
+          {
+            FK_proyecto: 1,
+            unidadActiva: true,
+            costo: 9000,
+            precioVenta: 10000,
+          },
+          {
+            FK_proyecto: 2,
+            unidadActiva: true,
+            costo: 7000,
+            precioVenta: 10000,
+          },
+          {
+            FK_proyecto: 3,
+            unidadActiva: true,
+            costo: 8000,
+            precioVenta: 10000,
+          },
+        ];
+      });
+
+      it('sin parámetros usa la página 1 de a 10 y ordena por fecha de inicio, del más reciente al más antiguo', async () => {
+        const resultado = await service.obtenerMargenProyecto(parsearMargen());
+
+        // El margen no interviene: P2 tiene el mayor y queda último.
+        expect(resultado.data.map((fila) => fila.proyecto.codigo)).toEqual([
+          'P3',
+          'P4',
+          'P1',
+          'P2',
+        ]);
+        expect(resultado.meta).toEqual({ total: 4, page: 1, limit: 10 });
+      });
+
+      it('un proyecto sin fecha de inicio se ordena por su fecha de alta, entre los demás', async () => {
+        proyectosActivosSeed[3].horaCreacion = '2023-01-01T12:00:00Z';
+
+        const resultado = await service.obtenerMargenProyecto(parsearMargen());
+
+        expect(resultado.data.map((fila) => fila.proyecto.codigo)).toEqual([
+          'P3',
+          'P1',
+          'P2',
+          'P4',
+        ]);
+      });
+
+      it('devuelve solo la página pedida; el total y los agregados son de todas las filas', async () => {
+        const resultado = await service.obtenerMargenProyecto(
+          parsearMargen({ page: '2', limit: '3' }),
+        );
+
+        expect(resultado.data.map((fila) => fila.proyecto.codigo)).toEqual([
+          'P2',
+        ]);
+        expect(resultado.meta).toEqual({ total: 4, page: 2, limit: 3 });
+        expect(resultado.margen_total_realizado).toBe(6000);
+        // 1 (P1) + 0 (P2) + 3 (P3) + 3 (P4), aunque la página solo trae P2.
+        expect(resultado.total_unidades_fuera_de_calculo).toBe(7);
+      });
+
+      it('a igual fecha, desempata por nombre', async () => {
+        proyectosActivosSeed = proyectosActivosSeed.map((proyecto) => ({
+          ...proyecto,
+          fechaInicio: '2026-01-01T03:00:00Z',
+        }));
+
+        const resultado = await service.obtenerMargenProyecto(parsearMargen());
+
+        expect(resultado.data.map((fila) => fila.proyecto.nombre)).toEqual([
+          'Alfa',
+          'Beta',
+          'Gama',
+          'Zeta',
+        ]);
+      });
+
+      it('una página más allá del final vuelve vacía, con el total real', async () => {
+        const resultado = await service.obtenerMargenProyecto(
+          parsearMargen({ page: '3', limit: '5' }),
+        );
+
+        expect(resultado.data).toEqual([]);
+        expect(resultado.meta).toEqual({ total: 4, page: 3, limit: 5 });
+      });
+
+      it('FK_proyecto limita las filas y sus unidades fuera del cálculo, no el margen total realizado', async () => {
+        const resultado = await service.obtenerMargenProyecto(
+          parsearMargen({ FK_proyecto: '3' }),
+        );
+
+        expect(resultado.data).toHaveLength(1);
+        expect(resultado.data[0].proyecto.codigo).toBe('P3');
+        expect(resultado.meta.total).toBe(1);
+        expect(resultado.total_unidades_fuera_de_calculo).toBe(3);
+        expect(resultado.margen_total_realizado).toBe(6000);
+      });
+
+      it('FK_proyecto de un proyecto que no está activo vuelve vacío, sin error', async () => {
+        const resultado = await service.obtenerMargenProyecto(
+          parsearMargen({ FK_proyecto: '99' }),
+        );
+
+        expect(resultado.data).toEqual([]);
+        expect(resultado.meta.total).toBe(0);
+        expect(resultado.total_unidades_fuera_de_calculo).toBe(0);
+      });
+
+      it('rechaza page y limit fuera de rango', () => {
+        expect(() => parsearMargen({ page: '0' })).toThrow();
+        expect(() => parsearMargen({ limit: '0' })).toThrow();
+        expect(() => parsearMargen({ limit: '101' })).toThrow();
+      });
     });
   });
 });

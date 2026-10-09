@@ -11,6 +11,7 @@ import {
   Agrupacion,
   QueryIngresosEgresosDto,
 } from './dto/query-ingresos-egresos.dto';
+import { QueryMargenProyectoDto } from './dto/query-margen-proyecto.dto';
 
 /**
  * Tope de períodos por consulta. Los egresos de cada uno se piden por
@@ -46,18 +47,23 @@ type SumaIngresos = {
   >;
 };
 
-/** Margen de un grupo de unidades (vendidas o Disponibles) de un proyecto: la suma de precio − costo, y el costo total como base del porcentaje. */
+/**
+ * Margen de un grupo de unidades (vendidas o Disponibles) de un proyecto: la
+ * suma de precio − costo, y la suma de los precios (las ventas) como base del
+ * porcentaje. Las ventas se acumulan aparte en vez de deducirlas como
+ * costo + margen: es el mismo número, pero a la vista.
+ */
 type AcumuladorMargen = {
   cantidad: number;
   margen: Prisma.Decimal;
-  costo: Prisma.Decimal;
+  ventas: Prisma.Decimal;
 };
 
 function acumuladorVacio(): AcumuladorMargen {
   return {
     cantidad: 0,
     margen: new Prisma.Decimal(0),
-    costo: new Prisma.Decimal(0),
+    ventas: new Prisma.Decimal(0),
   };
 }
 
@@ -70,20 +76,24 @@ function acumular(
   const actual = mapa.get(FK_proyecto) ?? acumuladorVacio();
   actual.cantidad += 1;
   actual.margen = actual.margen.plus(precio.minus(costo));
-  actual.costo = actual.costo.plus(costo);
+  actual.ventas = actual.ventas.plus(precio);
   mapa.set(FK_proyecto, actual);
 }
 
-/** Importe y, si hay costo de base, el porcentaje que representa sobre ese costo (0 si no hay). */
+/**
+ * Importe del margen y el porcentaje que representa SOBRE LAS VENTAS
+ * (margen ÷ suma de precios), que es la convención comercial: no sobre el
+ * costo. Sin ventas de base (ninguna unidad en el grupo) el porcentaje es 0.
+ */
 function margenDe(acumulador: AcumuladorMargen | undefined) {
   const margen = acumulador?.margen ?? new Prisma.Decimal(0);
-  const costo = acumulador?.costo ?? new Prisma.Decimal(0);
+  const ventas = acumulador?.ventas ?? new Prisma.Decimal(0);
 
   return {
     importe: margen.toDecimalPlaces(2).toNumber(),
-    porcentaje: costo.isZero()
+    porcentaje: ventas.isZero()
       ? 0
-      : margen.div(costo).times(100).toDecimalPlaces(2).toNumber(),
+      : margen.div(ventas).times(100).toDecimalPlaces(2).toNumber(),
   };
 }
 
@@ -213,8 +223,20 @@ export class TableroService {
    * - Quedan fuera del cálculo las unidades activas sin publicación vigente, o
    *   publicadas `EN_PREPARACION` (sin precio de lista todavía).
    * - Todo se calcula al consultar: nada de esto se guarda.
+   *
+   * Orden: del proyecto más reciente al más antiguo, por `fecha_inicio`; el
+   * que no la tiene cargada entra en el mismo orden con su fecha de alta en
+   * el sistema (`hora_creacion`), en vez de quedar relegado al final.
+   *
+   * El filtro por proyecto, el orden y la paginación se aplican en memoria:
+   * el orden cae a otra columna cuando falta la fecha de inicio, y eso no se
+   * puede expresar en un `orderBy` de Prisma — mismo recurso que la cuenta
+   * corriente de proveedores. El margen total realizado es siempre el de
+   * toda la empresa: ni el filtro ni la página lo cambian.
    */
-  async obtenerMargenProyecto() {
+  async obtenerMargenProyecto(query: QueryMargenProyectoDto) {
+    const { FK_proyecto, page, limit } = query;
+
     const [proyectosActivos, ventasVigentes, publicacionesDisponibles] =
       await Promise.all([
         this.prisma.pROYECTO.findMany({
@@ -223,6 +245,8 @@ export class TableroService {
             id_proyecto: true,
             codigo: true,
             nombre: true,
+            fecha_inicio: true,
+            hora_creacion: true,
             _count: {
               select: { unidadesFuncionales: { where: { estado: true } } },
             },
@@ -290,7 +314,15 @@ export class TableroService {
       );
     }
 
-    const proyectos = proyectosActivos.map((proyecto) => {
+    // `sort` es estable y los proyectos ya vienen por nombre: a igual fecha
+    // quedan en orden alfabético, así que las páginas no se pisan entre sí.
+    const fechaDeOrden = (proyecto: (typeof proyectosActivos)[number]) =>
+      (proyecto.fecha_inicio ?? proyecto.hora_creacion).getTime();
+    const proyectosOrdenados = [...proyectosActivos].sort(
+      (a, b) => fechaDeOrden(b) - fechaDeOrden(a),
+    );
+
+    const todasLasFilas = proyectosOrdenados.map((proyecto) => {
       const realizado = realizadoPorProyecto.get(proyecto.id_proyecto);
       const proyectado = proyectadoPorProyecto.get(proyecto.id_proyecto);
       const unidadesActivas = proyecto._count.unidadesFuncionales;
@@ -327,11 +359,27 @@ export class TableroService {
       };
     });
 
+    const filas =
+      FK_proyecto === undefined
+        ? todasLasFilas
+        : todasLasFilas.filter(
+            (fila) => fila.proyecto.id_proyecto === FK_proyecto,
+          );
+
+    const total = filas.length;
+    const data = filas.slice((page - 1) * limit, (page - 1) * limit + limit);
+
     return {
-      proyectos,
+      data,
       margen_total_realizado: margenTotalRealizado
         .toDecimalPlaces(2)
         .toNumber(),
+      // Sobre todas las filas del filtro, no solo las de la página.
+      total_unidades_fuera_de_calculo: filas.reduce(
+        (suma, fila) => suma + fila.unidades_fuera_de_calculo,
+        0,
+      ),
+      meta: { total, page, limit },
     };
   }
 
