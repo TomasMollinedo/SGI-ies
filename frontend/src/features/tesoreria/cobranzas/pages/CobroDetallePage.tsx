@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { ArrowLeft, Ban, Printer, ShieldAlert } from 'lucide-react'
 import { PATHS } from '@/app/router/paths'
+import { BotonVerComprobante } from '@/features/tesoreria/declaraciones-pago/components/BotonVerComprobante'
 import { AuditInfo } from '@/shared/components/common/AuditInfo'
 import { DataTable } from '@/shared/components/common/DataTable'
 import { DetailRow } from '@/shared/components/common/DetailRow'
@@ -12,7 +13,7 @@ import { Button } from '@/shared/components/ui/Button'
 import { useToast } from '@/shared/hooks/useToast'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
 import { formatearMensajeError } from '@/shared/utils/apiError'
-import { formatearFecha } from '@/shared/utils/fecha'
+import { formatearFecha, formatearFechaHora } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
 import { AnularCobroModal } from '../components/AnularCobroModal'
 import { ReciboCobroImpresion } from '../components/ReciboCobroImpresion'
@@ -31,7 +32,8 @@ import { formatearCodigoCobro } from '../utils/codigoCobro'
  * Detalle de un cobro (HU-30, T114): cabecera, imputaciones con el saldo
  * anterior y posterior de cada cuota (tal como los guardó el backend),
  * trazabilidad, y las acciones Imprimir (recibo, en cualquier estado) y
- * Anular (solo CONFIRMADO). Molde visual: `VentaDetallePage` + el contenido
+ * Anular (solo CONFIRMADO). Un cobro ECOMMERCE suma lo que declaró el
+ * cliente, con su comprobante (T148). Molde visual: `VentaDetallePage` + el contenido
  * de `PagoDetalleModal`.
  *
  * Un `:idCobro` que no es un entero positivo se trata como 404 sin pedirle
@@ -175,6 +177,44 @@ export function CobroDetallePage() {
           )}
         </div>
       </div>
+
+      {/* Solo en un cobro ECOMMERCE: uno PRESENCIAL no nació de una declaración. */}
+      {cobro.declaracion_pago !== null && (
+        <div className="border-subtle bg-fondotabla flex flex-col gap-2 rounded-lg border p-4">
+          <h3 className="text-content text-sm font-semibold">Declaración de pago</h3>
+          <div className="flex flex-col">
+            <DetailRow
+              label="Declarada el"
+              value={formatearFechaHora(cobro.declaracion_pago.hora_creacion)}
+            />
+            <DetailRow
+              label="Importe declarado"
+              value={formatearImporte(cobro.declaracion_pago.importe)}
+            />
+            <DetailRow
+              label="N.º de referencia declarado"
+              value={
+                <span className="break-all">
+                  {textoOSinDato(cobro.declaracion_pago.numero_referencia)}
+                </span>
+              }
+            />
+            <DetailRow
+              label="Comprobante"
+              value={
+                cobro.declaracion_pago.tiene_comprobante ? (
+                  <BotonVerComprobante
+                    idDeclaracionPago={cobro.declaracion_pago.id_declaracion_pago}
+                    descripcion={`la declaración de pago del cobro ${codigo}`}
+                  />
+                ) : (
+                  <span className="text-content-muted">Sin comprobante adjunto</span>
+                )
+              }
+            />
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <h3 className="text-content text-sm font-semibold">Cuotas imputadas</h3>

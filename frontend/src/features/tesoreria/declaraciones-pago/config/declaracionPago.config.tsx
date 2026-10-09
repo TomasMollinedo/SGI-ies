@@ -5,6 +5,7 @@ import { Badge } from '@/shared/components/ui/Badge'
 import type { SelectOption } from '@/shared/components/ui/Select'
 import { formatearFechaHora } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
+import { BotonVerComprobante } from '../components/BotonVerComprobante'
 import type { DeclaracionPago, EstadoDeclaracionPago } from '../types/declaracionPago.types'
 
 /** Resultados por página de la bandeja. Fijo, igual que en el resto de los listados. */
@@ -44,6 +45,15 @@ export function badgeEstadoDeclaracion(estado: EstadoDeclaracionPago) {
 /** "Torre Nogal · 2-B": proyecto y unidad, como se identifica una venta en Tesorería. */
 export function etiquetaUnidad(declaracion: DeclaracionPago): string {
   return `${declaracion.venta.proyecto.nombre} · ${declaracion.venta.unidad.identificador}`
+}
+
+/**
+ * De qué declaración se trata, para el `aria-label` del botón que abre su
+ * comprobante: "la declaración de Juan Pérez, $ 1.000,00, declarada el
+ * 05/10/2026 14:32".
+ */
+export function descripcionDeclaracion(declaracion: DeclaracionPago): string {
+  return `la declaración de ${nombreCliente(declaracion.cliente)}, ${formatearImporte(declaracion.importe)}, declarada el ${formatearFechaHora(declaracion.hora_creacion)}`
 }
 
 /**
@@ -106,7 +116,7 @@ export const COLUMNAS_DECLARACIONES: DataTableColumn<DeclaracionPago>[] = [
   {
     key: 'pago',
     label: 'Pago declarado',
-    headerTooltip: 'Importe; debajo, la forma de pago y el número de referencia',
+    headerTooltip: 'Importe; debajo, la forma de pago, el número de referencia y el comprobante',
     render: (item) => (
       <div className="flex flex-col">
         <span className="font-semibold whitespace-nowrap">{formatearImporte(item.importe)}</span>
@@ -115,6 +125,15 @@ export const COLUMNAS_DECLARACIONES: DataTableColumn<DeclaracionPago>[] = [
           {/* Una referencia larga sin espacios no tiene dónde cortar: se permite partirla. */}
           <span className="break-all">{item.numero_referencia ?? SIN_DATO}</span>
         </span>
+        {/* En cualquier estado: es solo lectura y sirve para revisar las ya resueltas. */}
+        {item.tiene_comprobante ? (
+          <BotonVerComprobante
+            idDeclaracionPago={item.id_declaracion_pago}
+            descripcion={descripcionDeclaracion(item)}
+          />
+        ) : (
+          <span className="text-content-muted text-xs">Sin comprobante</span>
+        )}
       </div>
     ),
   },

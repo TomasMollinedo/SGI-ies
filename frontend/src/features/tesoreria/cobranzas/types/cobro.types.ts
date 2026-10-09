@@ -1,3 +1,4 @@
+import type { EstadoDeclaracionPago } from '@/features/tesoreria/declaraciones-pago/types/declaracionPago.types'
 import type { PaginatedResponse } from '@/shared/types/api.types'
 
 /**
@@ -85,6 +86,22 @@ export interface LineaCobro {
   cuota: CuotaResumenCobro
 }
 
+/**
+ * La declaración de pago que originó un cobro ECOMMERCE (HU-29), con los
+ * datos tal como los declaró el cliente. El archivo del comprobante se pide a
+ * `GET /declaraciones-pago/:id/comprobante`.
+ */
+export interface DeclaracionPagoCobro {
+  id_declaracion_pago: number
+  estado: EstadoDeclaracionPago
+  importe: number
+  numero_referencia: string | null
+  hora_creacion: string
+  comprobante_nombre_archivo: string | null
+  comprobante_tipo: string | null
+  tiene_comprobante: boolean
+}
+
 /** Respuesta de POST /cobros, GET /cobros/:id y PATCH /cobros/:id/anular. */
 export interface CobroDetalle {
   id_cobro: number
@@ -103,6 +120,8 @@ export interface CobroDetalle {
   FK_usuario_actualizador: number
   cliente: ClienteResumenCobro
   formaPago: FormaPagoResumenCobro
+  /** `null` en un cobro PRESENCIAL: no nació de una declaración. */
+  declaracion_pago: DeclaracionPagoCobro | null
   detalle: LineaCobro[]
   usuarioCreador: UsuarioResumenCobro
   usuarioActualizador: UsuarioResumenCobro
