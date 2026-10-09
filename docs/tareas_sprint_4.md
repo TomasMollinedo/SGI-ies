@@ -5,7 +5,7 @@ Tareas técnicas del Sprint 4, tomadas del tablero de GitHub Projects [Proyecto 
 - **Cantidad de tareas:** 38 (33 del tablero y 5 nuevas; 2 del tablero se dan de baja)
 - **Estimación total:** 190 h (BD/Infra: 16 h, Frontend: 84 h, Backend: 90 h)
 - **Última sincronización con el tablero:** 2026-10-06
-- **Estado de este archivo:** sincronizado con los issues el 2026-10-06 (incluye los cierres de T121 y T157, y el alta de T160)
+- **Estado de este archivo:** sincronizado con los issues el 2026-10-06 (incluye los cierres de T121 y T157, y el alta de T160). Suma el cierre de T125 y el alta de T161 del 2026-10-07
 
 ## Cómo editar este archivo
 
@@ -18,7 +18,7 @@ Cada tarea es una sección `## T<número> — <título>` y corresponde a un issu
 
 ## Numeración
 
-El número T120 ya estaba usado por un issue del Sprint 3 ([#276](https://github.com/TomasMollinedo/SGI-ies/issues/276)), así que las tareas del Sprint 4 empiezan en T121: todas se corrieron un número respecto de como están cargadas hoy en el tablero (T120 pasó a T121, y así hasta T154, que pasó a T155). La columna "En el tablero" del resumen y de las bajas muestra el número anterior. Las tareas nuevas son T156 a T160. Los números de las tareas dadas de baja no se reutilizan.
+El número T120 ya estaba usado por un issue del Sprint 3 ([#276](https://github.com/TomasMollinedo/SGI-ies/issues/276)), así que las tareas del Sprint 4 empiezan en T121: todas se corrieron un número respecto de como están cargadas hoy en el tablero (T120 pasó a T121, y así hasta T154, que pasó a T155). La columna "En el tablero" del resumen y de las bajas muestra el número anterior. Las tareas nuevas son T156 a T161. Los números de las tareas dadas de baja no se reutilizan.
 
 ## Reglas comunes a todas las tareas
 
@@ -81,6 +81,7 @@ Archivos compartidos a coordinar: `venta.service.ts` (T158 y T144), el módulo d
 | [T155](#t155) | T154 | [#357](https://github.com/TomasMollinedo/SGI-ies/issues/357) | Front: Tabla de margen por proyecto y filtro por proyecto | HU-34 | Frontend | T153, T154 | 5 h |
 | [T159](#t159) | — | [#361](https://github.com/TomasMollinedo/SGI-ies/issues/361) | Infra: Limpieza del esquema: quitar lo que quedó obsoleto del Sprint 3 | Transversal | BD/Infra | T134, T140, T144, T158 | 3 h |
 | [T160](#t160) | — | [#364](https://github.com/TomasMollinedo/SGI-ies/issues/364) | Fix: Errores de tipos, lint y formato preexistentes en testing | Transversal | Backend | Ninguna | 2 h |
+| [T161](#t161) | — | [#393](https://github.com/TomasMollinedo/SGI-ies/issues/393) | Fix Back: La baja de una unidad toma el lock de la fila del proyecto | HU-20 | Backend | T122, T128 | 1 h |
 
 ## Tareas del tablero que se dan de baja
 
@@ -184,6 +185,24 @@ Contrato que deja el backend de la ficha del proyecto. Todo se calcula al consul
 | T124 | El estado comercial de cada unidad sale de su publicación vigente (`SIN_PUBLICAR` si no tiene), igual que el listado de unidades de T128; no se consulta la venta. `unidades_calculadas` cuenta solo las unidades con precio de lista: una En preparación tiene publicación vigente pero todavía no tiene precio, así que no suma ni cuenta. Sin unidades activas, el porcentaje es 0 y no figura como Todas las unidades vendidas. |
 | T125 | Consume este contrato: la columna de porcentaje vendido sale de `porcentaje_vendido` del listado, y el resumen comercial y la lista de unidades, de `GET /proyectos/:id/ficha`. El indicador Todas las unidades vendidas se muestra con `todas_vendidas`, no comparando el porcentaje con 100 (está redondeado a 2 decimales). `precio_lista` llega en null para una unidad sin publicar o En preparación. Cada unidad abre su detalle con `id_unidad_funcional`. |
 | T153 | La base del porcentaje vendido ya está implementada en `proyectos/situacion-comercial.ts` (`calcularSituacionComercial`): el margen por proyecto tiene que usar la misma, para que el tablero y la ficha muestren el mismo número (OBS-29). |
+
+## Cambios por el cierre de T125 (2026-10-07)
+
+Cómo quedó la ficha del proyecto en el frontend.
+
+| Tarea | Qué cambió y por qué |
+|---|---|
+| T125 | El resumen (presupuesto, unidades cargadas / planificadas, precio estimado y % vendido) y la situación comercial van arriba del formulario, no debajo como decía la tarea, para que se vean de un vistazo. La lista de unidades va debajo del formulario. La portada y las imágenes de diseño ya las mostraba el modo LECTURA de T123. La ficha y el listado de proyectos se piden siempre al entrar, sin caché, porque Publicaciones, Ventas y Cobranzas cambian el % vendido y no invalidan proyectos. Cada unidad abre su detalle, y ese Volver regresa a la ficha. Limitación conocida: si desde ahí se edita la unidad, el Volver ya no regresa a la ficha. El % se muestra con hasta 2 decimales (`50 %`); el de planes de pago muestra siempre 2 (`50,00 %`), y es a propósito. |
+
+## Cambios del 2026-10-07: lock del proyecto en unidades
+
+Al cerrar T125 se revisaron los issues contra este archivo. T122 tenía en su alcance dos ítems del ABM de Unidades que no implementó.
+
+| Tarea | Qué cambió y por qué |
+|---|---|
+| T122 | Se quitan del alcance el lock del proyecto en el alta, la baja y la reactivación de unidades, y el rechazo de altas y reactivaciones en un proyecto dado de baja: T122 no tocó el servicio de unidades. Vuelve a coincidir con su issue. |
+| T128 | Refleja lo que hizo: el rechazo de altas y reactivaciones en un proyecto dado de baja, y el lock del proyecto en el alta y la reactivación. |
+| T161 | Nueva. La baja de una unidad no toma el lock del proyecto: pasar el proyecto a En ejecución mientras se da de baja su última unidad activa puede dejarlo En ejecución sin unidades. |
 
 ## Cambios del 2026-10-06
 
@@ -370,8 +389,6 @@ Permitir registrar, modificar, listar y dar de baja proyectos con su estado de o
 - [ ] Portada e imágenes de diseño (render y plano) con tipo y orden de visualización
 - [ ] Baja lógica solo en proyectos En planificación sin unidades activas
 - [ ] Listado: solo activos por defecto, filtros por estado de obra y localidad, búsqueda por código o nombre y orden por nombre
-- [ ] El alta, la baja y la reactivación de unidades toman el lock de la fila del proyecto (`FOR UPDATE`, igual que `bloquearProyecto` de T122), para que las reglas de HU-31 que cuentan unidades activas no compitan con un cambio concurrente
-- [ ] No se dan de alta ni se reactivan unidades en un proyecto dado de baja (HU-20: el proyecto se elige entre los activos)
 
 ### Listo cuando
 
@@ -488,16 +505,16 @@ Mostrar de un vistazo la situación del proyecto.
 
 ### Alcance
 
-- [ ] Mostrar el estado de obra y la situación comercial por separado
-- [ ] Mostrar presupuesto, precio estimado y unidades cargadas respecto de las planificadas
-- [ ] Mostrar la portada y las imágenes de diseño
-- [ ] Listar las unidades con identificador, tipología, superficie, costo, precio de lista y estado comercial
-- [ ] Sumar al listado de proyectos la columna de porcentaje vendido
+- [x] Mostrar el estado de obra y la situación comercial por separado
+- [x] Mostrar presupuesto, precio estimado y unidades cargadas respecto de las planificadas
+- [x] Mostrar la portada y las imágenes de diseño
+- [x] Listar las unidades con identificador, tipología, superficie, costo, precio de lista y estado comercial
+- [x] Sumar al listado de proyectos la columna de porcentaje vendido
 
 ### Listo cuando
 
-- [ ] Cada unidad de la lista abre su detalle
-- [ ] El indicador Todas las unidades vendidas aparece solo cuando corresponde
+- [x] Cada unidad de la lista abre su detalle
+- [x] El indicador Todas las unidades vendidas aparece solo cuando corresponde
 
 > ⚠️ Se monta sobre el detalle que deja T123 (`ProyectoDetallePage`, con el formulario en modo LECTURA, la portada, las imágenes de diseño, el avance de estado y la baja): agrega sus secciones debajo, no lo reescribe.
 
@@ -600,7 +617,8 @@ Adaptar el ABM de Unidades Funcionales ya hecho a las reglas nuevas de HU-20.
 ### Alcance
 
 - [ ] No permitir dar de alta ni reactivar más unidades activas que las planificadas del proyecto
-- [ ] El proyecto de la unidad tiene que estar activo (baja lógica de HU-31)
+- [x] El proyecto de la unidad tiene que estar activo (baja lógica de HU-31): no se dan de alta ni se reactivan unidades en un proyecto dado de baja
+- [x] El alta y la reactivación toman el lock de la fila del proyecto (`FOR UPDATE`, el mismo que `bloquearProyecto` de T122), para que el límite de planificadas no compita con un cambio concurrente. La baja no lo toma: queda en T161
 - [ ] Devolver en el listado el estado comercial de cada unidad (sin publicar, en preparación, Disponible, En Plan de Pago o Vendida)
 - [ ] Filtro por estado comercial, combinable con los de tipología y superficie que ya existen
 
@@ -1715,3 +1733,43 @@ Dejar lint, tipos y formato en verde en backend y frontend, para que las tareas 
 > Detectado en T121: los errores ya estaban antes de la tarea. El formato del frontend se detectó en T122.
 
 > ⚠️ Reformatea muchos archivos del frontend: tiene que mergear rápido y avisar al equipo que actualice sus ramas.
+
+---
+
+<a id="t161"></a>
+<!-- issue: 393 -->
+## T161 — Fix Back: La baja de una unidad toma el lock de la fila del proyecto
+
+- **Issue:** [#393](https://github.com/TomasMollinedo/SGI-ies/issues/393)
+- **Estado:** To do
+- **Etiquetas:** Backend, Fix
+- **Perfil sugerido:** Backend
+- **Asignado a:** Sin asignar
+- **HU:** HU-20 · ABM de Unidades Funcionales
+- **Rama:** `fix/t161-baja-unidad-lock-proyecto`
+- **Depende de:** T122, T128
+- **Estimación:** 1 h
+- **Tipo de cambio:** Corrección
+
+### Objetivo
+
+Que la baja de una unidad funcional no compita con un cambio concurrente del proyecto, igual que ya pasa con el alta y la reactivación.
+
+### Punto de partida
+
+- `backend/src/modules/comercializacion/unidades-funcionales/unidad-funcional.service.ts`.
+- Ya está hecho y no se toca (T128): el alta y la reactivación toman el lock de la fila del proyecto (`SELECT ... FOR UPDATE` en `validarProyectoAdmiteAltas`), el mismo que toma `bloquearProyecto` de `ProyectoService` (T122).
+- `baja` hoy solo bloquea la fila de la unidad (`bloquearUnidad`): no toma el lock del proyecto.
+
+### Alcance
+
+- [ ] La baja de una unidad toma el lock de la fila del proyecto (`FOR UPDATE`) antes de validar y lo retiene hasta el final de la transacción
+- [ ] El estado de obra del proyecto se lee después de tomar el lock, no antes
+- [ ] Test del service: la baja toma el lock del proyecto, con el mismo criterio que el test del alta
+
+### Listo cuando
+
+- [ ] Pasar el proyecto a En ejecución mientras se da de baja su última unidad activa no deja un proyecto En ejecución sin unidades activas: una de las dos operaciones es rechazada
+- [ ] Los tests que ya existían de `unidad-funcional.service.spec.ts` siguen pasando
+
+> Detectado al cerrar T125: el ítem estaba en el alcance de T122 de `tareas_sprint_4.md`, pero T122 no tocó el servicio de unidades. T128 lo resolvió para el alta y la reactivación; la baja quedó sin el lock.

@@ -11,33 +11,32 @@ import { Select } from '@/shared/components/ui/Select'
 import { formatearMensajeError } from '@/shared/utils/apiError'
 import { CambiarEstadoPlanModal } from '../components/CambiarEstadoPlanModal'
 import { ContextoPublicacion } from '../components/ContextoPublicacion'
-import { PlanPagoCard } from '../components/PlanPagoCard'
-import { PlanPagoForm } from '../components/PlanPagoForm'
+import { PlanEjemploCard } from '../components/PlanEjemploCard'
+import { PlanEjemploForm } from '../components/PlanEjemploForm'
 import {
   ESTADO_PLAN_POR_DEFECTO,
   OPCIONES_ESTADO_PLAN,
   esFiltroEstadoPlan,
-  tieneVenta,
+  motivoPlanesBloqueados,
 } from '../config/planPago.config'
-import { usePlanesPago } from '../hooks/usePlanesPago'
-import type { PlanPago } from '../types/planPago.types'
+import { usePlanesEjemplo } from '../hooks/usePlanesEjemplo'
+import type { PlanEjemplo } from '../types/planEjemplo.types'
 import { aNumero } from '../utils/decimal'
 
 /** Qué formulario está abierto: un alta, la edición de un plan, o ninguno. */
-type FormularioAbierto = { tipo: 'alta' } | { tipo: 'edicion'; idPlan: number } | null
+type FormularioAbierto = { tipo: 'alta' } | { tipo: 'edicion'; plan: PlanEjemplo } | null
 
 /**
- * Planes de pago de una publicación (HU-22).
+ * Planes de pago de ejemplo de una publicación (HU-22).
  *
  * Se llega desde el detalle de la publicación (T104), que es de donde salen
- * los dos datos de contexto que se muestran arriba y de solo lectura: el costo
- * de la unidad —la referencia contra la que se cargan los precios— y el estado
- * comercial, que además define si las condiciones económicas se pueden editar.
+ * los datos de contexto que se muestran arriba y de solo lectura: el costo de
+ * la unidad, su precio de lista y el estado comercial.
  *
- * El estado comercial no se toca desde acá: lo mueve el backend solo, según
- * cuántos planes activos le queden a la publicación. Como el PATCH de un plan
- * devuelve el plan y no la publicación, ese dato se relee del detalle, que las
- * mutaciones invalidan (ver `usePlanesPago`).
+ * Los planes solo se cargan, editan e inactivan con la publicación Disponible
+ * (o sea, ya con precio de lista, que es lo que permite calcular importes): si
+ * no lo está, los botones quedan deshabilitados y un aviso explica por qué.
+ * Tener o no planes activos ya no mueve el estado comercial.
  */
 export function PlanesPagoPublicacionPage() {
   const navigate = useNavigate()
@@ -45,7 +44,7 @@ export function PlanesPagoPublicacionPage() {
 
   const [estado, setEstado] = useState<string>(ESTADO_PLAN_POR_DEFECTO)
   const [formulario, setFormulario] = useState<FormularioAbierto>(null)
-  const [planACambiarEstado, setPlanACambiarEstado] = useState<PlanPago | null>(null)
+  const [planACambiarEstado, setPlanACambiarEstado] = useState<PlanEjemplo | null>(null)
 
   // Un id que no sea un entero positivo no se le pide al backend: la URL la
   // puede editar cualquiera a mano.
@@ -64,7 +63,7 @@ export function PlanesPagoPublicacionPage() {
     isLoading: cargandoPlanes,
     error: errorPlanes,
     refetch: recargarPlanes,
-  } = usePlanesPago(
+  } = usePlanesEjemplo(
     idValido === null
       ? null
       : {
@@ -141,8 +140,7 @@ export function PlanesPagoPublicacionPage() {
     )
   }
 
-  const costo = aNumero(publicacion.unidad.costo)
-  const edicionBloqueada = tieneVenta(publicacion.estado_comercial)
+  const motivoBloqueo = motivoPlanesBloqueados(publicacion.estado_comercial, publicacion.vigente)
   const listaPlanes = planes ?? []
 
   return (
@@ -150,6 +148,16 @@ export function PlanesPagoPublicacionPage() {
       {volver}
 
       <ContextoPublicacion publicacion={publicacion} />
+
+      {motivoBloqueo && (
+        <div
+          role="status"
+          className="border-warning/30 bg-warning/10 text-warning rounded-md border px-4 py-3 text-xs"
+        >
+          {motivoBloqueo}. Los planes solo se pueden cargar, editar o inactivar con la publicación
+          Disponible.
+        </div>
+      )}
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <Select
@@ -161,7 +169,12 @@ export function PlanesPagoPublicacionPage() {
           className="w-auto min-w-40"
         />
 
-        <Button icon={<Plus />} onClick={() => setFormulario({ tipo: 'alta' })}>
+        <Button
+          icon={<Plus />}
+          onClick={() => setFormulario({ tipo: 'alta' })}
+          disabled={motivoBloqueo !== null}
+          title={motivoBloqueo ?? undefined}
+        >
           Nuevo plan
         </Button>
       </div>
@@ -184,18 +197,18 @@ export function PlanesPagoPublicacionPage() {
           }
           descripcion={
             estado === 'true'
-              ? 'Cargá el primero con «Nuevo plan». Hasta que no tenga uno activo, la unidad no se ve en el catálogo.'
+              ? 'Cargá el primero con «Nuevo plan». Los planes de ejemplo muestran a los clientes cómo se podría financiar la unidad.'
               : 'Probá cambiar el filtro de estado.'
           }
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {listaPlanes.map((plan) => (
-            <PlanPagoCard
-              key={plan.id_plan_pago}
+            <PlanEjemploCard
+              key={plan.id_plan_ejemplo}
               plan={plan}
-              edicionBloqueada={edicionBloqueada}
-              onEditar={() => setFormulario({ tipo: 'edicion', idPlan: plan.id_plan_pago })}
+              motivoBloqueo={motivoBloqueo}
+              onEditar={() => setFormulario({ tipo: 'edicion', plan })}
               onCambiarEstado={() => setPlanACambiarEstado(plan)}
             />
           ))}
@@ -203,11 +216,10 @@ export function PlanesPagoPublicacionPage() {
       )}
 
       {formulario && (
-        <PlanPagoForm
+        <PlanEjemploForm
           idPublicacion={idValido}
-          costo={costo}
-          estadoComercial={publicacion.estado_comercial}
-          idPlan={formulario.tipo === 'edicion' ? formulario.idPlan : null}
+          precioLista={aNumero(publicacion.precio_lista)}
+          plan={formulario.tipo === 'edicion' ? formulario.plan : null}
           onClose={() => setFormulario(null)}
           onGuardado={() => setFormulario(null)}
         />

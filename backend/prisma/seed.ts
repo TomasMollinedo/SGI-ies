@@ -14,41 +14,61 @@ const prisma = new PrismaClient({
 // NUNCA usar este valor en un ambiente real.
 const DEV_PASSWORD = 'Password123!';
 
-const usuariosDePrueba: { email: string; rol: RolNombre; dni: string }[] = [
+const usuariosDePrueba: {
+  email: string;
+  rol: RolNombre;
+  nombre: string;
+  apellido: string;
+  dni: string;
+}[] = [
   {
     email: 'almacen@axontech.test',
     rol: RolNombre.RESPONSABLE_ALMACEN,
-    dni: '10000001',
+    nombre: 'Martín',
+    apellido: 'Ojeda',
+    dni: '28456123',
   },
   {
     email: 'compras@axontech.test',
     rol: RolNombre.RESPONSABLE_COMPRAS,
-    dni: '10000002',
+    nombre: 'Gabriela',
+    apellido: 'Ríos',
+    dni: '30187456',
   },
   {
     email: 'proyectos@axontech.test',
     rol: RolNombre.RESPONSABLE_PROYECTOS,
-    dni: '10000003',
+    nombre: 'Diego',
+    apellido: 'Fernández',
+    dni: '27654398',
   },
   {
     email: 'tesoreria@axontech.test',
     rol: RolNombre.RESPONSABLE_TESORERIA,
-    dni: '10000004',
+    nombre: 'Laura',
+    apellido: 'Medina',
+    dni: '31298765',
   },
   {
     email: 'comercializacion@axontech.test',
     rol: RolNombre.RESPONSABLE_COMERCIALIZACION,
-    dni: '10000005',
+    nombre: 'Sofía',
+    apellido: 'Herrera',
+    dni: '33456781',
   },
   {
     email: 'gerente@axontech.test',
     rol: RolNombre.GERENTE_GENERAL,
-    dni: '10000006',
+    nombre: 'Ricardo',
+    apellido: 'Paz',
+    dni: '22345678',
   },
   {
     email: 'admin@axontech.test',
     rol: RolNombre.ADMINISTRADOR,
-    dni: '10000007',
+    nombre: 'Andrea',
+    apellido: 'Quiroga',
+    dni: '29876543',
   },
 ];
 
@@ -86,7 +106,7 @@ const unidadesMedida = [
 
 const depositos = [
   {
-    nombre: 'Deposito Central',
+    nombre: 'Depósito Central',
     es_obrador: false,
     ubicacion: 'Sede central',
     descripcion: null,
@@ -204,13 +224,13 @@ async function main() {
   const passwordHash = await bcrypt.hash(DEV_PASSWORD, 10);
 
   let idUsuarioAdmin: number | undefined;
-  for (const { email, rol, dni } of usuariosDePrueba) {
+  for (const { email, rol, nombre, apellido, dni } of usuariosDePrueba) {
     const usuario = await prisma.uSUARIO.upsert({
       where: { email },
       update: {},
       create: {
-        nombre: rol,
-        apellido: 'Prueba',
+        nombre,
+        apellido,
         email,
         password: passwordHash,
         dni,

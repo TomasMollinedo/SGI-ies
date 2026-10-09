@@ -7,6 +7,7 @@ import type {
   EstadoObraDestino,
   LocalidadCatalogoItem,
   ProyectoDetalle,
+  ProyectoFicha,
   ProyectoResumen,
   ProyectosQuery,
 } from '../types/proyecto.types'
@@ -14,6 +15,9 @@ import type {
 export const PROYECTOS_QUERY_KEYS = {
   LISTA: (filtros: ProyectosQuery) => ['proyectos', 'lista', filtros] as const,
   DETALLE: (id: number | null) => ['proyectos', 'detalle', id] as const,
+  // Anidada a propósito bajo DETALLE(id): todo lo que ya invalida el detalle
+  // (unidades, imágenes, mutaciones del proyecto) refresca también la ficha.
+  FICHA: (id: number | null) => ['proyectos', 'detalle', id, 'ficha'] as const,
   LOCALIDADES: ['proyectos', 'localidades'] as const,
 }
 
@@ -47,6 +51,18 @@ export async function listarProyectos(
  */
 export async function obtenerProyecto(id: number, signal?: AbortSignal): Promise<ProyectoDetalle> {
   const { data } = await httpClient.get<ProyectoDetalle>(`/proyectos/${id}`, { signal })
+  return data
+}
+
+/**
+ * GET /proyectos/:id/ficha — precio estimado de venta, situación comercial y
+ * lista de unidades activas, calculados por el backend (T124).
+ */
+export async function obtenerFichaProyecto(
+  id: number,
+  signal?: AbortSignal
+): Promise<ProyectoFicha> {
+  const { data } = await httpClient.get<ProyectoFicha>(`/proyectos/${id}/ficha`, { signal })
   return data
 }
 

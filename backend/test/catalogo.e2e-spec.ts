@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/prisma/prisma.service';
 
 interface CatalogoItem {
   id_unidad_funcional: number;
@@ -39,12 +40,16 @@ interface ProyectosDestacadosBody {
  *
  * Requiere la base de datos migrada y ambos seeds corridos: `seed.ts` y,
  * puntualmente, `seed-comercializacion.ts` (10 proyectos, unidades,
- * publicaciones y planes de pago — ver `npm run seed:comercializacion`). El id
- * 1 (`LOTE-08`, VENDIDA) es fijo de ese seed y se usa a propósito para probar
- * el caso "no está en el catálogo".
+ * publicaciones y planes de pago — ver `npm run seed:comercializacion`). Las
+ * unidades se buscan por identificador, no por id, porque el id depende de
+ * qué seeds corrieron antes: `1-A` (Disponible, con planes de ejemplo) y
+ * `LOTE-08` (Vendida, a propósito para probar el caso "no está en el
+ * catálogo").
  */
 describe('Catálogo público (e2e)', () => {
   let app: INestApplication;
+  let idUnidad1A: number;
+  let idLoteVendido: number;
 
   const get = (url: string) => request(app.getHttpServer()).get(url);
   const post = (url: string, body: object) =>
@@ -59,6 +64,20 @@ describe('Catálogo público (e2e)', () => {
     app.setGlobalPrefix('api');
     app.use(cookieParser());
     await app.init();
+
+    const prisma = app.get(PrismaService);
+    const idUnidad = async (identificador: string) =>
+      (
+        await prisma.uNIDADFUNCIONAL.findFirstOrThrow({
+          where: {
+            identificador,
+            proyecto: { nombre: { in: ['Torre Nogal', 'Barrio Los Álamos'] } },
+          },
+          select: { id_unidad_funcional: true },
+        })
+      ).id_unidad_funcional;
+    idUnidad1A = await idUnidad('1-A');
+    idLoteVendido = await idUnidad('LOTE-08');
   });
 
   afterAll(async () => {
@@ -112,26 +131,31 @@ describe('Catálogo público (e2e)', () => {
   });
 
   it('el detalle de una unidad vendida no existe para el catálogo público', async () => {
-    await get('/api/catalogo/1').expect(404);
+    await get(`/api/catalogo/${idLoteVendido}`).expect(404);
   });
 
   it('el detalle informa el precio de lista y solo ofrece el simulador si hay plazos activos', async () => {
-    const res = await get('/api/catalogo/2').expect(200);
+    const res = await get(`/api/catalogo/${idUnidad1A}`).expect(200);
     const body = res.body as CatalogoDetalleBody;
 
     expect(body.identificador).toBe('1-A');
     expect(body.precio_desde).toBe(19000000);
-    // Los planes de ejemplo se calculan con el plazo (T134): ninguno del seed
-    // del Sprint 3 lo tiene, así que no se devuelve ninguno.
-    expect(body.planes).toEqual([]);
-    expect(body).toHaveProperty('simulador');
+    // Del seed: 1-A tiene 4 planes de ejemplo, pero solo se publican los
+    // activos con plazo activo (T134/T140): el inactivo y el del plazo de 36
+    // cuotas (dado de baja) no salen.
+    expect(body.planes.map((plan) => plan.nombre).sort()).toEqual([
+      'Anticipo 30 % + 12 cuotas',
+      'Anticipo 50 % + 3 cuotas sin interés',
+    ]);
+    // Hay plazos activos sembrados, así que el simulador se ofrece.
+    expect(body.simulador).not.toBeNull();
   });
 
   it('la simulación libre responde sin token y rechaza un anticipo mal formado', async () => {
-    await post('/api/catalogo/2/simulacion', {
+    await post(`/api/catalogo/${idUnidad1A}/simulacion`, {
       FK_plazo_financiacion: 1,
     }).expect(400);
-    await post('/api/catalogo/2/simulacion', {
+    await post(`/api/catalogo/${idUnidad1A}/simulacion`, {
       FK_plazo_financiacion: 1,
       anticipo_porcentaje: 30,
       anticipo_monto: 1000,
@@ -139,7 +163,7 @@ describe('Catálogo público (e2e)', () => {
   });
 
   it('la simulación de una unidad que no está en el catálogo es 404', async () => {
-    await post('/api/catalogo/1/simulacion', {
+    await post(`/api/catalogo/${idLoteVendido}/simulacion`, {
       FK_plazo_financiacion: 1,
       anticipo_porcentaje: 30,
     }).expect(404);

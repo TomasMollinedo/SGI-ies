@@ -97,7 +97,7 @@ describe('UnidadFuncionalService', () => {
     fecha_fin_estimada: fechaFin,
   });
 
-  /** Lo que lee `validarProyectoAdmiteAltas` del proyecto ya lockeado. */
+  /** Lo que devuelve `bloquearProyecto`: el proyecto ya lockeado, como lo leen el alta y la baja. */
   const proyectoLockeado = (sobrescribe: Args = {}) => ({
     estado: true,
     estado_obra: EstadoProyecto.EN_PLANIFICACION,
@@ -728,8 +728,9 @@ describe('UnidadFuncionalService', () => {
     ])(
       'rechaza la baja con el proyecto %s, con su propio mensaje',
       async (estadoProyecto, etiqueta) => {
-        tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(
-          filaBloqueada({ proyecto: { estado_obra: estadoProyecto } }),
+        tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(filaBloqueada());
+        tx.pROYECTO.findUnique.mockResolvedValue(
+          proyectoLockeado({ estado_obra: estadoProyecto }),
         );
 
         const mensaje = await mensajeDeRechazo(
@@ -751,10 +752,9 @@ describe('UnidadFuncionalService', () => {
         service.baja(ID_UNIDAD, USUARIO_ID),
       );
 
-      tx.uNIDADFUNCIONAL.findUnique.mockResolvedValueOnce(
-        filaBloqueada({
-          proyecto: { estado_obra: EstadoProyecto.EN_EJECUCION },
-        }),
+      tx.uNIDADFUNCIONAL.findUnique.mockResolvedValueOnce(filaBloqueada());
+      tx.pROYECTO.findUnique.mockResolvedValueOnce(
+        proyectoLockeado({ estado_obra: EstadoProyecto.EN_EJECUCION }),
       );
       const porProyecto = await mensajeDeRechazo(
         service.baja(ID_UNIDAD, USUARIO_ID),
@@ -764,10 +764,9 @@ describe('UnidadFuncionalService', () => {
     });
 
     it('si se dan los dos motivos a la vez, el mensaje los informa juntos', async () => {
-      tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(
-        filaBloqueada({
-          proyecto: { estado_obra: EstadoProyecto.EN_EJECUCION },
-        }),
+      tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(filaBloqueada());
+      tx.pROYECTO.findUnique.mockResolvedValue(
+        proyectoLockeado({ estado_obra: EstadoProyecto.EN_EJECUCION }),
       );
       tx.pUBLICACIONUNIDAD.findFirst.mockResolvedValue({ id_publicacion: 5 });
 
@@ -792,8 +791,9 @@ describe('UnidadFuncionalService', () => {
     });
 
     it('rechaza dar de baja una unidad de un proyecto Cancelado', async () => {
-      tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(
-        filaBloqueada({ proyecto: { estado_obra: EstadoProyecto.CANCELADO } }),
+      tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(filaBloqueada());
+      tx.pROYECTO.findUnique.mockResolvedValue(
+        proyectoLockeado({ estado_obra: EstadoProyecto.CANCELADO }),
       );
 
       const mensaje = await mensajeDeRechazo(
@@ -809,6 +809,58 @@ describe('UnidadFuncionalService', () => {
       await expect(service.baja(99, USUARIO_ID)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('toma el lock del proyecto antes de leer su estado de obra, para que no se dé de baja la última unidad activa mientras el proyecto pasa a En ejecución', async () => {
+      tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(
+        filaBloqueada({ FK_proyecto: 4 }),
+      );
+
+      await service.baja(ID_UNIDAD, USUARIO_ID);
+
+      // La primera llamada es el lock de la unidad; la segunda, el del proyecto.
+      const [sql] = tx.$queryRaw.mock.calls[1] as [Prisma.Sql];
+      expect(sql.sql).toContain('FROM "PROYECTO"');
+      expect(sql.sql).toContain('FOR UPDATE');
+      expect(sql.values).toEqual([4]);
+      expect(tx.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
+        tx.pROYECTO.findUnique.mock.invocationCallOrder[0],
+      );
+    });
+
+    // Es lo que le pasa a la baja que pierde la carrera: cuando leyó la
+    // unidad el proyecto seguía En planificación, y al obtener el lock ya
+    // está En ejecución. Vale lo que se lee con el lock, no lo de la unidad.
+    it('decide con el estado de obra leído bajo el lock, no con el que vino con la unidad', async () => {
+      tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(
+        filaBloqueada({
+          proyecto: { estado_obra: EstadoProyecto.EN_PLANIFICACION },
+        }),
+      );
+      tx.pROYECTO.findUnique.mockResolvedValue(
+        proyectoLockeado({ estado_obra: EstadoProyecto.EN_EJECUCION }),
+      );
+
+      const mensaje = await mensajeDeRechazo(
+        service.baja(ID_UNIDAD, USUARIO_ID),
+      );
+
+      expect(mensaje).toContain('su proyecto está En ejecución');
+      expect(tx.uNIDADFUNCIONAL.update).not.toHaveBeenCalled();
+    });
+
+    // `activar` toma los locks en el orden inverso: si la baja pidiera el del
+    // proyecto antes de este chequeo, una baja y una reactivación simultáneas
+    // de la misma unidad podrían quedar esperándose una a la otra.
+    it('una unidad ya dada de baja se rechaza sin pedir el lock del proyecto', async () => {
+      tx.uNIDADFUNCIONAL.findUnique.mockResolvedValue(
+        filaBloqueada({ estado: false }),
+      );
+
+      await mensajeDeRechazo(service.baja(ID_UNIDAD, USUARIO_ID));
+
+      expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+      expect(tx.pROYECTO.findUnique).not.toHaveBeenCalled();
     });
   });
 

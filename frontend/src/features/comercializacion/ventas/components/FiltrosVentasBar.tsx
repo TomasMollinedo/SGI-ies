@@ -4,13 +4,20 @@ import { ProyectoCombobox } from '@/features/comercializacion/publicaciones/comp
 import { Button } from '@/shared/components/ui/Button'
 import { Input } from '@/shared/components/ui/Input'
 import { Select } from '@/shared/components/ui/Select'
-import { esFiltroEstadoVenta, OPCIONES_ESTADO_VENTA } from '../config/venta.config'
-import type { FiltroEstadoVenta } from '../config/venta.config'
+import {
+  esFiltroEstadoVenta,
+  esFiltroModalidadVenta,
+  OPCIONES_ESTADO_VENTA,
+  OPCIONES_MODALIDAD_VENTA,
+} from '../config/venta.config'
+import type { FiltroEstadoVenta, FiltroModalidadVenta } from '../config/venta.config'
 import { FiltroClienteVenta } from './FiltroClienteVenta'
 
 interface FiltrosVentasBarProps {
   estado: FiltroEstadoVenta
   onEstadoChange: (valor: FiltroEstadoVenta) => void
+  modalidad: FiltroModalidadVenta
+  onModalidadChange: (valor: FiltroModalidadVenta) => void
   proyecto: string
   onProyectoChange: (valor: string) => void
   cliente: string
@@ -28,14 +35,16 @@ interface FiltrosVentasBarProps {
 }
 
 /**
- * Barra de filtros del listado de ventas (HU-27): proyecto, cliente, estado y
- * período. Se sacó el filtro de unidad (cascadeado por proyecto): con
+ * Barra de filtros del listado de ventas (HU-27): proyecto, cliente, estado,
+ * modalidad y período. Se sacó el filtro de unidad (cascadeado por proyecto): con
  * proyecto ya acotando el listado, filtrar además por una unidad puntual no
  * aportaba lo suficiente para justificar un segundo combo dependiente.
  */
 export function FiltrosVentasBar({
   estado,
   onEstadoChange,
+  modalidad,
+  onModalidadChange,
   proyecto,
   onProyectoChange,
   cliente,
@@ -64,6 +73,18 @@ export function FiltrosVentasBar({
           onChange={(evento) => {
             const valor = evento.target.value
             if (esFiltroEstadoVenta(valor)) onEstadoChange(valor)
+          }}
+          className="w-full sm:w-40"
+        />
+
+        <Select
+          size="sm"
+          label="Modalidad"
+          options={OPCIONES_MODALIDAD_VENTA}
+          value={modalidad}
+          onChange={(evento) => {
+            const valor = evento.target.value
+            if (esFiltroModalidadVenta(valor)) onModalidadChange(valor)
           }}
           className="w-full sm:w-40"
         />

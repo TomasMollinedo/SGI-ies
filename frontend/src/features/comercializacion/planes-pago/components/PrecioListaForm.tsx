@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertTriangle, Save } from 'lucide-react'
+import { AlertTriangle, Save, Undo2 } from 'lucide-react'
 import { AlertaInline } from '@/features/comercializacion/publicaciones/components/AlertaInline'
 import { useDefinirPrecioLista } from '@/features/comercializacion/publicaciones/hooks/usePublicaciones'
 import type { PublicacionDetalle } from '@/features/comercializacion/publicaciones/types/publicacion.types'
@@ -78,7 +78,7 @@ export function PrecioListaForm({ publicacion }: PrecioListaFormProps) {
     watch,
     setValue,
     getValues,
-    formState: { errors, isValid },
+    formState: { errors, isValid, isDirty },
   } = useForm<PrecioListaFormValues, unknown, PrecioListaFormOutput>({
     resolver: zodResolver(precioListaFormSchema),
     defaultValues: VALORES_INICIALES_PRECIO_LISTA,
@@ -124,6 +124,12 @@ export function PrecioListaForm({ publicacion }: PrecioListaFormProps) {
       })
     }
     setValue('margen', '', { shouldValidate: true })
+  }
+
+  /** Vuelve el formulario a lo último que devolvió el backend, sin guardar nada. */
+  function descartarCambios() {
+    setErrorGeneral(null)
+    reset(valoresDesdePublicacion(precio_lista, porcentaje_ganancia, margenGuardado))
   }
 
   function limpiarPrecio() {
@@ -286,8 +292,13 @@ export function PrecioListaForm({ publicacion }: PrecioListaFormProps) {
         />
       </div>
 
-      {!bloqueado && (
-        <div className="flex justify-end">
+      {!bloqueado && (sinPrecioTodavia || isDirty) && (
+        <div className="flex justify-end gap-2">
+          {isDirty && (
+            <Button icon={<Undo2 />} onClick={descartarCambios} disabled={guardando}>
+              Descartar cambios
+            </Button>
+          )}
           <Button
             type="submit"
             variant="success"
