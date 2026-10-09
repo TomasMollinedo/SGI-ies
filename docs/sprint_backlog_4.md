@@ -167,10 +167,8 @@
 - Tesorería valida desde una bandeja de declaraciones pendientes, filtrable por cliente, forma de pago y período, donde abre el comprobante adjunto y lo contrasta con el número de referencia y el extracto bancario antes de aprobar o rechazar la declaración.
 - Una vez enviada la declaración, el comprobante no puede reemplazarse ni eliminarse; si la declaración es rechazada, el cliente puede volver a declarar adjuntando un comprobante nuevo.
 - El comprobante queda asociado a la declaración y se puede consultar también desde el detalle del cobro generado al validarla (HU-30) y desde la ficha del cliente (HU-33).
-- Los medios de pago ofrecidos al cliente son un subconjunto de las formas de pago activas del sistema (HU-15):Tesorería habilita desde esta historia cuáles se aceptan por autogestión, sin modificar el catálogo de formas de pago, que sigue administrándose en HU-15. Una forma de pago inactiva deja de ofrecerse aunque esté habilitada.
-- Si no hay ninguna forma de pago habilitada para autogestión, la declaración online no está disponible y el sistema lo informa, indicando que el pago debe realizarse de forma presencial (HU-30).
+- Los medios de pago ofrecidos al cliente son un subconjunto de las formas de pago activas del sistema (HU-15).
 - La declaración nace en Pendiente de validación y no impacta ningún saldo hasta ser resuelta.
-- El ABM de Formas de Pago (HU-15) incorpora el indicador "habilitada para autogestión"; no se crea una pantalla nueva. 
 - Al validar la declaración, el sistema genera un COBRO confirmado con origen ECOMMERCE, utilizando la misma entidad y reglas de imputación definidas para las cobranzas de HU-30. El cobro descuenta el saldo de la cuota correspondiente y no puede editarse una vez confirmado; únicamente puede anularse mediante el mecanismo de anulación definido en HU-30
 - Si posteriormente el cobro generado es anulado, la declaración conserva el estado Validada como registro histórico de la validación realizada y continúa vinculada al cobro anulado; la restitución del saldo se rige por HU-30
 - Al rechazar, Tesorería indica un motivo obligatorio; la declaración queda Rechazada con ese motivo, visible para el cliente, que puede volver a declarar.
