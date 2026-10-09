@@ -1,9 +1,9 @@
 import {
   Body,
+  BadRequestException,
   Controller,
   Get,
   Header,
-  HttpStatus,
   Param,
   ParseIntPipe,
   Post,
@@ -13,7 +13,6 @@ import {
   UseInterceptors,
   ParseFilePipeBuilder,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -31,10 +30,12 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import {
-  MAX_TAMANO_COMPROBANTE_BYTES,
+  errorDelComprobante,
+  MENSAJE_COMPROBANTE_TIPO_INVALIDO,
   REGEX_TIPOS_COMPROBANTE,
   TIPOS_COMPROBANTE_PERMITIDOS,
 } from '../../almacenamiento/comprobante.constants';
+import { ComprobanteInterceptor } from './comprobante.interceptor';
 import { contentDispositionInline } from './comprobante-archivo';
 import { DeclaracionPagoService } from './declaracion-pago.service';
 import { CreateDeclaracionPagoDto } from './dto/create-declaracion-pago.dto';
@@ -63,16 +64,7 @@ export class DeclaracionPagoController {
   @Post()
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(
-    FileInterceptor('comprobante', {
-      // Multer corta la subida apenas se pasa del límite, sin cargar el
-      // archivo entero en memoria (responde 413).
-      limits: { fileSize: MAX_TAMANO_COMPROBANTE_BYTES, files: 1 },
-      // Sin esto multer lee el nombre del archivo como latin1 y rompe las
-      // tildes y la ñ.
-      defParamCharset: 'utf8',
-    }),
-  )
+  @UseInterceptors(ComprobanteInterceptor)
   @ApiBody({
     schema: {
       type: 'object',
@@ -94,7 +86,7 @@ export class DeclaracionPagoController {
           type: 'string',
           format: 'binary',
           description:
-            'PDF, JPG o PNG de hasta 5 MB. Se valida por el contenido real del archivo, no por su extensión',
+            'Un único archivo PDF, JPG o PNG de hasta 5 MB. Se valida por el contenido real del archivo, no por su extensión',
         },
       },
     },
@@ -111,10 +103,11 @@ export class DeclaracionPagoController {
   })
   @ApiBadRequestResponse({
     description:
-      'Datos inválidos, falta el comprobante o no es un PDF/JPG/PNG (según su contenido real), faltan dni_cuil/teléfono del cliente, falta el número de referencia cuando la forma de pago lo requiere, o el importe supera el saldo pendiente de la cuota',
+      'Datos inválidos, faltan dni_cuil/teléfono del cliente, falta el número de referencia cuando la forma de pago lo requiere, o el importe supera el saldo pendiente de la cuota. Los errores del archivo llegan en `message` como `[{ campo: "comprobante", error }]`, igual que los de validación del body: "Adjuntá el comprobante del pago" (falta el archivo), "El comprobante tiene que ser un PDF, JPG o PNG" (según su contenido real) o "Adjuntá un único archivo en el campo comprobante" (más de un archivo, o el archivo en otro campo)',
   })
   @ApiPayloadTooLargeResponse({
-    description: 'El comprobante supera los 5 MB',
+    description:
+      'El comprobante supera los 5 MB. `message` es `[{ campo: "comprobante", error: "El comprobante no puede superar los 5 MB" }]`',
   })
   @ApiUnauthorizedResponse({ description: 'No autenticado' })
   @ApiNotFoundResponse({
@@ -135,11 +128,20 @@ export class DeclaracionPagoController {
         .addFileTypeValidator({
           fileType: REGEX_TIPOS_COMPROBANTE,
           overrideMimeType: true,
+          errorMessage: MENSAJE_COMPROBANTE_TIPO_INVALIDO,
         })
-        .addMaxSizeValidator({ maxSize: MAX_TAMANO_COMPROBANTE_BYTES })
-        .build({ errorHttpStatusCode: HttpStatus.BAD_REQUEST }),
+        // Sin validator de tamaño: el único control es el límite de multer
+        // (`ComprobanteInterceptor`), que corta antes de cargar el archivo en
+        // memoria. `MaxFileSizeValidator` además rechazaba uno de exactamente
+        // 5 MB, que la HU admite.
+        .build({
+          // Que falte el archivo lo valida el service, con su mensaje.
+          fileIsRequired: false,
+          exceptionFactory: (error) =>
+            new BadRequestException(errorDelComprobante(error)),
+        }),
     )
-    comprobante: Express.Multer.File,
+    comprobante: Express.Multer.File | undefined,
     @CurrentCliente() cliente: AuthenticatedCliente,
   ) {
     return this.declaracionPagoService.declarar(dto, cliente.id, comprobante);

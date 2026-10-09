@@ -150,6 +150,18 @@ const pagoHistorialClienteSchema = z.object({
   forma_pago: formaPagoClienteResumenSchema,
   numero_referencia: z.string().nullable(),
   importe_imputado: z.number(),
+  /**
+   * La declaración de pago que originó el cobro: solo en los de origen
+   * ECOMMERCE; `null` en los PRESENCIAL. Se conserva si el cobro se anuló.
+   * Con `tiene_comprobante: true`, el archivo se abre desde
+   * `GET /cliente/declaraciones-pago/:id/comprobante`.
+   */
+  declaracion_pago: z
+    .object({
+      id_declaracion_pago: z.number(),
+      tiene_comprobante: z.boolean(),
+    })
+    .nullable(),
 });
 
 export const historialPagosClienteResponseSchema = z.object({

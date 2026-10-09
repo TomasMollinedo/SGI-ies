@@ -4,10 +4,11 @@ import { Spinner } from '@/shared/components/ui/Spinner'
 import { formatearFecha } from '@/shared/utils/fecha'
 import { formatearImporte } from '@/shared/utils/importe'
 import { cn } from '@/shared/utils/cn'
-import { DECLARACIONES_PAGO, DECLARAR_PAGO } from '../config/misCompras.config'
+import { COMPROBANTE, DECLARACIONES_PAGO, DECLARAR_PAGO } from '../config/misCompras.config'
 import { LIMITE_PAGINA_DECLARACIONES, useDeclaracionesPago } from '../hooks/useDeclaracionesPago'
 import type { DeclaracionPagoCliente } from '../types/declaracionPago.types'
 import { etiquetaCuota } from '../utils/cuotaDeclarable'
+import { BotonVerComprobante } from './BotonVerComprobante'
 import { EstadoDeclaracionPill } from './EstadoDeclaracionPill'
 
 interface DeclaracionesPagoProps {
@@ -28,6 +29,10 @@ interface DeclaracionesPagoProps {
  * reciente a la más antigua, paginados. Una validada ya figura como pago en
  * `HistorialPagos`: acá solo se marca como validada, sin presentarla como un
  * segundo pago (importe atenuado, sin énfasis).
+ *
+ * Cada declaración deja ver su comprobante (T147), en cualquier estado. No
+ * hay forma de reemplazarlo ni de eliminarlo: una declaración enviada no se
+ * modifica.
  */
 export function DeclaracionesPago({
   idVenta,
@@ -157,6 +162,16 @@ function FilaDeclaracion({ declaracion, onVolverADeclarar }: FilaDeclaracionProp
           </span>
           <p className="text-light text-sm break-words">{declaracion.motivo_rechazo}</p>
         </div>
+      )}
+
+      {declaracion.tiene_comprobante ? (
+        <BotonVerComprobante
+          idDeclaracionPago={declaracion.id_declaracion_pago}
+          nombreArchivo={declaracion.comprobante_nombre_archivo}
+          descripcion={`${etiquetaCuota(declaracion.cuota.numero)}, ${formatearImporte(declaracion.importe)}, ${DECLARACIONES_PAGO.declaradoEl.toLowerCase()} ${formatearFecha(declaracion.hora_creacion)}`}
+        />
+      ) : (
+        <p className="text-light/60 text-xs">{COMPROBANTE.sinComprobante}</p>
       )}
 
       {onVolverADeclarar && (

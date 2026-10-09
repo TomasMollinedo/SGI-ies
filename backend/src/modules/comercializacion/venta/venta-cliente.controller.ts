@@ -100,7 +100,7 @@ export class VentaClienteController {
     summary:
       'Historial de pagos de una unidad del cliente autenticado, del más reciente al más antiguo (HU-28)',
     description:
-      'Un cobro que imputó a cuotas de dos unidades del mismo cliente aparece partido: acá solo con el subtotal imputado a ESTA unidad. Incluye cobros ANULADOS (con su estado, sin afectar el saldo).',
+      'Un cobro que imputó a cuotas de dos unidades del mismo cliente aparece partido: acá solo con el subtotal imputado a ESTA unidad. Incluye cobros ANULADOS (con su estado, sin afectar el saldo). Los cobros de origen ECOMMERCE traen en `declaracion_pago` la declaración que los originó (también si el cobro se anuló); en los PRESENCIAL es null. Si `tiene_comprobante` es true, el archivo se abre con GET /cliente/declaraciones-pago/{id_declaracion_pago}/comprobante.',
   })
   @ApiParam({ name: 'id', type: Number, description: 'id_venta' })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })

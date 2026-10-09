@@ -799,6 +799,21 @@ describe('DeclaracionPagoService', () => {
   });
 
   describe('comprobante adjunto (T146)', () => {
+    it('sin comprobante: 400 con el error en el campo comprobante, antes de consultar nada', async () => {
+      const error: unknown = await service
+        .declarar(dtoBase, CLIENTE_ID, undefined)
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toEqual({
+        message: [
+          { campo: 'comprobante', error: 'Adjuntá el comprobante del pago' },
+        ],
+      });
+      expect(prisma.cLIENTE.findUniqueOrThrow).not.toHaveBeenCalled();
+      expect(almacenamientoService.subirComprobante).not.toHaveBeenCalled();
+    });
+
     it('sube el comprobante y guarda ruta, nombre y tipo en la declaración', async () => {
       await service.declarar(dtoBase, CLIENTE_ID, comprobanteBase);
 

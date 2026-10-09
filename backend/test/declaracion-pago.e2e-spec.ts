@@ -28,7 +28,7 @@ interface ArchivoDePrueba {
 
 interface ApiErrorBody {
   statusCode: number;
-  message: string | string[];
+  message: string | string[] | { campo: string; error: string }[];
   error: string;
   timestamp: string;
   path: string;
@@ -97,9 +97,14 @@ describe('Declaración de pago (e2e)', () => {
 
   /**
    * POST multipart como lo manda el frontend. Sin `archivo`, la request va
-   * sin la parte `comprobante`.
+   * sin la parte `comprobante`. `campo` permite mandar el archivo en otro
+   * campo del form.
    */
-  const declarar = (importe: number, archivo?: ArchivoDePrueba) => {
+  const declarar = (
+    importe: number,
+    archivo?: ArchivoDePrueba,
+    campo = 'comprobante',
+  ) => {
     const peticion = request(app.getHttpServer())
       .post(ENDPOINT)
       .set('Authorization', `Bearer ${accessTokenCliente}`)
@@ -108,7 +113,7 @@ describe('Declaración de pago (e2e)', () => {
       .field('importe', String(importe));
 
     return archivo
-      ? peticion.attach('comprobante', archivo.contenido, {
+      ? peticion.attach(campo, archivo.contenido, {
           filename: archivo.filename,
           contentType: archivo.contentType,
         })
@@ -366,7 +371,22 @@ describe('Declaración de pago (e2e)', () => {
     it('sin archivo: 400', async () => {
       const response = await declarar(500).expect(400);
 
-      expect((response.body as ApiErrorBody).statusCode).toBe(400);
+      const body = response.body as ApiErrorBody;
+      expect(body.statusCode).toBe(400);
+      expect(body.message).toEqual([
+        { campo: 'comprobante', error: 'Adjuntá el comprobante del pago' },
+      ]);
+    });
+
+    it('el archivo en otro campo: 400', async () => {
+      const response = await declarar(500, PDF_VALIDO, 'archivo').expect(400);
+
+      expect((response.body as ApiErrorBody).message).toEqual([
+        {
+          campo: 'comprobante',
+          error: 'Adjuntá un único archivo en el campo comprobante',
+        },
+      ]);
     });
 
     it('un PDF renombrado como .png y declarado image/png se guarda como application/pdf: manda el contenido, no lo que dice el cliente', async () => {
@@ -393,11 +413,18 @@ describe('Declaración de pago (e2e)', () => {
         where: { FK_cliente: idCliente },
       });
 
-      await declarar(500, {
+      const response = await declarar(500, {
         contenido: CONTENIDO_TXT,
         filename: 'pago.pdf',
         contentType: 'application/pdf',
       }).expect(400);
+
+      expect((response.body as ApiErrorBody).message).toEqual([
+        {
+          campo: 'comprobante',
+          error: 'El comprobante tiene que ser un PDF, JPG o PNG',
+        },
+      ]);
 
       const despues = await prisma.dECLARACIONPAGO.count({
         where: { FK_cliente: idCliente },
@@ -411,7 +438,35 @@ describe('Declaración de pago (e2e)', () => {
         Buffer.alloc(5 * 1024 * 1024),
       ]);
 
-      await declarar(500, { ...PDF_VALIDO, contenido: grande }).expect(413);
+      const response = await declarar(500, {
+        ...PDF_VALIDO,
+        contenido: grande,
+      }).expect(413);
+
+      expect((response.body as ApiErrorBody).message).toEqual([
+        {
+          campo: 'comprobante',
+          error: 'El comprobante no puede superar los 5 MB',
+        },
+      ]);
+    });
+
+    it('un archivo de exactamente 5 MB: 201', async () => {
+      // El PDF mínimo, rellenado con ceros hasta los 5 MB justos: el tipo se
+      // detecta por la firma del principio, el relleno no lo cambia.
+      const justo = Buffer.concat(
+        [CONTENIDO_PDF, Buffer.alloc(5 * 1024 * 1024)],
+        5 * 1024 * 1024,
+      );
+
+      const response = await declarar(500, {
+        ...PDF_VALIDO,
+        contenido: justo,
+      }).expect(201);
+
+      declaracionesCreadas.push(
+        (response.body as DeclaracionPagoBody).id_declaracion_pago,
+      );
     });
 
     it('guarda el nombre con tildes y caracteres fuera de latin1 tal cual, y lo sirve con headers seguros', async () => {

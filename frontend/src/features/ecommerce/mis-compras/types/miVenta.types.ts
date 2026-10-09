@@ -109,6 +109,10 @@ export type EstadoCobro = 'CONFIRMADO' | 'ANULADO'
  * de lo que tocó a esta venta, nunca el total del cobro completo — un cobro
  * que imputó a cuotas de dos unidades del mismo cliente aparece partido, con
  * su propio subtotal en cada historial.
+ *
+ * `declaracion_pago` es la declaración del cliente que originó el cobro: viene
+ * en los ECOMMERCE (también si el cobro se anuló) y es `null` en los
+ * PRESENCIAL.
  */
 export interface PagoHistorial {
   id_cobro: number
@@ -118,6 +122,10 @@ export interface PagoHistorial {
   forma_pago: FormaPagoResumen
   numero_referencia: string | null
   importe_imputado: number
+  declaracion_pago: {
+    id_declaracion_pago: number
+    tiene_comprobante: boolean
+  } | null
 }
 
 /** `GET /cliente/ventas/:id/historial-pagos`: paginado, del más reciente al más antiguo. */

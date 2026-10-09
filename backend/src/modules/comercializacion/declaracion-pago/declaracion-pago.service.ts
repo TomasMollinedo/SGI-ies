@@ -15,7 +15,11 @@ import {
 } from '../../../../generated/prisma/enums';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AlmacenamientoService } from '../../almacenamiento/almacenamiento.service';
-import { esTipoComprobantePermitido } from '../../almacenamiento/comprobante.constants';
+import {
+  errorDelComprobante,
+  esTipoComprobantePermitido,
+  MENSAJE_COMPROBANTE_REQUERIDO,
+} from '../../almacenamiento/comprobante.constants';
 import { normalizarNombreComprobante } from './comprobante-archivo';
 import { validarNumeroReferencia } from '../../../common/validaciones/validar-numero-referencia';
 import { clienteTieneDatosCompletos } from '../cliente-auth/cliente-tiene-datos-completos';
@@ -127,7 +131,7 @@ export class DeclaracionPagoService {
 
   /**
    * Declara un pago sobre una cuota propia (HU-29). Valida en orden, de más
-   * barato a más caro: datos del cliente completos, que la cuota exista y
+   * barato a más caro: que venga el comprobante, datos del cliente completos, que la cuota exista y
    * sea de este cliente, que su venta no esté cancelada ni sea de contado
    * (una venta de contado se paga presencialmente), que la cuota admita
    * una nueva declaración, que la forma de pago siga habilitada para
@@ -141,8 +145,16 @@ export class DeclaracionPagoService {
   async declarar(
     dto: CreateDeclaracionPagoDto,
     clienteId: number,
-    comprobante: Express.Multer.File,
+    comprobante: Express.Multer.File | undefined,
   ) {
+    // Con la forma de un error de validación, para que el front lo muestre
+    // debajo del campo. El tipo y el tamaño ya los validó el controller.
+    if (!comprobante) {
+      throw new BadRequestException(
+        errorDelComprobante(MENSAJE_COMPROBANTE_REQUERIDO),
+      );
+    }
+
     const cliente = await this.buscarCliente(clienteId);
     this.validarDatosCompletos(cliente);
 
