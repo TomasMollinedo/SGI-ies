@@ -1,7 +1,12 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import type { ApiErrorResponse } from '@/shared/types/api.types'
-import { TABLERO_QUERY_KEYS, obtenerIngresosEgresos } from '../services/tablero.service'
-import type { FiltrosTablero, IngresosEgresosResponse } from '../types/tablero.types'
+import {
+  TABLERO_QUERY_KEYS,
+  obtenerIngresosEgresos,
+  obtenerIngresosPorCliente,
+} from '../services/tablero.service'
+import type { FiltrosTablero, IngresosEgresosResponse, Ranking } from '../types/tablero.types'
+import { rankingClientes } from '../utils/ranking'
 
 /**
  * Ingresos, egresos y resultado por período. `keepPreviousData` deja en
@@ -15,6 +20,26 @@ export function useIngresosEgresos(filtros: FiltrosTablero | null) {
   return useQuery<IngresosEgresosResponse, ApiErrorResponse>({
     queryKey: TABLERO_QUERY_KEYS.INGRESOS_EGRESOS(filtros),
     queryFn: ({ signal }) => obtenerIngresosEgresos(filtros as FiltrosTablero, signal),
+    enabled: filtros !== null,
+    placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Ranking de los clientes que más aportaron en el rango. Mismos filtros que
+ * `useIngresosEgresos`, pero en una consulta aparte: si falla, el resto del
+ * tablero sigue en pantalla.
+ */
+export function useIngresosPorCliente(filtros: FiltrosTablero | null) {
+  return useQuery<Ranking, ApiErrorResponse>({
+    queryKey: TABLERO_QUERY_KEYS.INGRESOS_POR_CLIENTE(filtros),
+    queryFn: async ({ signal }) => {
+      const resumen = await obtenerIngresosPorCliente(filtros as FiltrosTablero, signal)
+
+      return resumen
+        ? { items: rankingClientes(resumen), totalIngresos: resumen.totalIngresos }
+        : { items: [], totalIngresos: 0 }
+    },
     enabled: filtros !== null,
     placeholderData: keepPreviousData,
   })

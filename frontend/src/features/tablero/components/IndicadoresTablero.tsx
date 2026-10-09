@@ -77,8 +77,15 @@ interface NotaVariacionProps {
 
 function NotaVariacion({ porcentaje, favorable, rangoAnterior }: NotaVariacionProps) {
   // Rango anterior en cero y actual no: no hay contra qué comparar (OBS-28).
+  const comparado = <span className="mt-0.5 block">Comparado con: {rangoAnterior}</span>
+
   if (porcentaje === null) {
-    return <>Sin datos del período anterior ({rangoAnterior})</>
+    return (
+      <>
+        Sin datos del período anterior
+        {comparado}
+      </>
+    )
   }
 
   const Icono = porcentaje === 0 ? Minus : porcentaje > 0 ? TrendingUp : TrendingDown
@@ -94,7 +101,8 @@ function NotaVariacion({ porcentaje, favorable, rangoAnterior }: NotaVariacionPr
         <Icono aria-hidden="true" className="size-4" />
         {formatearVariacion(porcentaje)}
       </span>{' '}
-      vs. rango anterior ({rangoAnterior})
+      respecto del rango anterior
+      {comparado}
     </>
   )
 }

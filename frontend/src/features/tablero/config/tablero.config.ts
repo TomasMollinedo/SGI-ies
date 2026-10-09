@@ -9,7 +9,5 @@ export const OPCIONES_AGRUPACION: SelectOption[] = [
 
 export const AGRUPACION_INICIAL: Agrupacion = 'MENSUAL'
 
-/** Cantidad máxima de proyectos con porción propia en la torta; el resto se junta en "Otros". */
-export const MAX_PORCIONES_PROYECTOS = 6
-
-export const NOMBRE_OTROS_PROYECTOS = 'Otros proyectos'
+/** Cuántos proyectos y cuántos clientes muestran los rankings. */
+export const TOP_RANKING = 5

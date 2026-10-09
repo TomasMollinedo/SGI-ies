@@ -10,10 +10,11 @@ import { finDelDiaIso, inicioDelDiaIso } from '@/shared/utils/fechaIso'
 import { EvolucionTablero } from '../components/EvolucionTablero'
 import { FiltrosTableroBar } from '../components/FiltrosTableroBar'
 import { IndicadoresTablero } from '../components/IndicadoresTablero'
-import { IngresosPorProyectoTablero } from '../components/IngresosPorProyectoTablero'
+import { RankingTablero } from '../components/RankingTablero'
 import { AGRUPACION_INICIAL } from '../config/tablero.config'
-import { useIngresosEgresos } from '../hooks/useTablero'
+import { useIngresosEgresos, useIngresosPorCliente } from '../hooks/useTablero'
 import type { Agrupacion } from '../types/tablero.types'
+import { rankingProyectos } from '../utils/ranking'
 
 /** Primer y último día del año en curso, en formato `YYYY-MM-DD` (lo que usa un `<input type="date">`). */
 function anioEnCurso(): { desde: string; hasta: string } {
@@ -51,7 +52,7 @@ export function TableroPage() {
   const fechasCompletas = fechaDesde !== '' && fechaHasta !== ''
   const rangoInvalido = fechasCompletas && fechaDesde > fechaHasta
 
-  const { data, isLoading, error, refetch } = useIngresosEgresos(
+  const filtros =
     fechasCompletas && !rangoInvalido
       ? {
           agrupacion,
@@ -59,7 +60,9 @@ export function TableroPage() {
           fechaHasta: finDelDiaIso(fechaHasta),
         }
       : null
-  )
+
+  const { data, isLoading, error, refetch } = useIngresosEgresos(filtros)
+  const clientes = useIngresosPorCliente(filtros)
 
   const statusCode = error?.statusCode
 
@@ -112,10 +115,22 @@ export function TableroPage() {
 
           <EvolucionTablero periodos={data.periodos} />
 
-          <IngresosPorProyectoTablero
-            ingresosPorProyecto={data.totales.ingresosPorProyecto}
-            totalIngresos={data.totales.ingresos}
-          />
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <RankingTablero
+              titulo="Proyectos que más ingresaron"
+              ranking={{
+                items: rankingProyectos(data.totales.ingresosPorProyecto),
+                totalIngresos: data.totales.ingresos,
+              }}
+            />
+
+            <RankingTablero
+              titulo="Clientes que más aportaron"
+              ranking={clientes.data}
+              cargando={clientes.isLoading}
+              error={clientes.isError}
+            />
+          </div>
 
           <aside
             aria-label="Aclaraciones"
@@ -129,9 +144,9 @@ export function TableroPage() {
               </li>
               <li>
                 Los ingresos incluyen los intereses de financiación cobrados. No cuentan los cobros
-                ni los pagos anulados.
+                ni los pagos anulados. Los rankings muestran los 5 que más aportaron.
               </li>
-              <li>El resultado es ingresos menos egresos de cada período.</li>
+              <li>El resultado es ingresos menos egresos del rango elegido.</li>
             </ul>
           </aside>
         </>

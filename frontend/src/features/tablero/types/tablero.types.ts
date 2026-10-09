@@ -56,3 +56,16 @@ export interface IngresosEgresosResponse {
   }
   variacion: VariacionTablero
 }
+
+/** Una fila de un ranking de ingresos: un proyecto o un cliente y lo que aportó. */
+export interface ItemRanking {
+  id: number
+  nombre: string
+  total: number
+}
+
+/** Un ranking ya ordenado y recortado, con el total de ingresos del que se mide su peso. */
+export interface Ranking {
+  items: ItemRanking[]
+  totalIngresos: number
+}
